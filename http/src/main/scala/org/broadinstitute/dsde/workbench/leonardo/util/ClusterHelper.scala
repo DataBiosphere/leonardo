@@ -65,7 +65,7 @@ class ClusterHelper(
 
   def createCluster(
     cluster: Cluster
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateClusterResponse] = {
     val initBucketName = generateUniqueBucketName("leoinit-" + cluster.clusterName.value)
     val stagingBucketName = generateUniqueBucketName("leostaging-" + cluster.clusterName.value)
 
@@ -112,12 +112,16 @@ class ClusterHelper(
 
           // build cluster configuration
           machineConfig = cluster.machineConfig
-          initScriptResources = if (dataprocConfig.customDataprocImage.isEmpty)
-            List(clusterResourcesConfig.initVmScript, clusterResourcesConfig.initActionsScript)
-          else List(clusterResourcesConfig.initActionsScript)
+          initScriptResources = List(clusterResourcesConfig.initActionsScript)
           initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
           credentialsFileName = cluster.serviceAccountInfo.notebookServiceAccount
             .map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
+
+          // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
+          // we will use the new custom dataproc image
+          dataprocImage = if (cluster.clusterImages.exists(_.imageUrl == dataprocConfig.jupyterImage))
+            dataprocConfig.legacyCustomDataprocImage
+          else dataprocConfig.customDataprocImage
 
           // Create the cluster
           createClusterConfig = CreateClusterConfig(
@@ -129,7 +133,7 @@ class ClusterHelper(
             cluster.scopes,
             clusterVPCSettings,
             cluster.properties,
-            dataprocConfig.customDataprocImage
+            dataprocImage
           )
           retryResult <- IO.fromFuture(
             IO(
@@ -155,7 +159,7 @@ class ClusterHelper(
 
           finalCluster = Cluster.addDataprocFields(cluster, operation, stagingBucketName)
 
-        } yield (finalCluster, initBucketName, serviceAccountKeyOpt)
+        } yield CreateClusterResponse(finalCluster, initBucketName, serviceAccountKeyOpt, dataprocImage)
 
         ioResult.handleErrorWith { throwable =>
           cleanUpGoogleResourcesOnError(cluster.googleProject,
@@ -277,32 +281,30 @@ class ClusterHelper(
    * which allows the user's cluster to pull the image.
    */
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): IO[Unit] =
-    dataprocConfig.customDataprocImage
-      .flatMap(parseImageProject)
-      .traverse_ { imageProject =>
-        for {
-          count <- dbRef.inTransactionIO { _.clusterQuery.countActiveByProject(googleProject) }
-          // Note: Don't remove the account if there are existing active clusters in the same project,
-          // because it could potentially break other clusters. We only check this for the 'remove' case.
-          _ <- if (count > 0 && !createCluster) {
-            IO.unit
-          } else {
-            for {
-              projectNumberOptIO <- IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
-              projectNumber <- IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject)))
-              // Note that the Dataproc service account is used to retrieve the image, and not the user's
-              // pet service account. There is one Dataproc service account per Google project. For more details:
-              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-              dataprocServiceAccountEmail = WorkbenchEmail(
-                s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(googleGroupsConfig.dataprocImageProjectGroupEmail,
-                                         dataprocServiceAccountEmail,
-                                         createCluster)
-            } yield ()
-          }
-        } yield ()
-      }
+    parseImageProject(dataprocConfig.customDataprocImage).traverse_ { imageProject =>
+      for {
+        count <- dbRef.inTransactionIO { _.clusterQuery.countActiveByProject(googleProject) }
+        // Note: Don't remove the account if there are existing active clusters in the same project,
+        // because it could potentially break other clusters. We only check this for the 'remove' case.
+        _ <- if (count > 0 && !createCluster) {
+          IO.unit
+        } else {
+          for {
+            projectNumberOptIO <- IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
+            projectNumber <- IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject)))
+            // Note that the Dataproc service account is used to retrieve the image, and not the user's
+            // pet service account. There is one Dataproc service account per Google project. For more details:
+            // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+            dataprocServiceAccountEmail = WorkbenchEmail(
+              s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(googleGroupsConfig.dataprocImageProjectGroupEmail,
+                                       dataprocServiceAccountEmail,
+                                       createCluster)
+          } yield ()
+        }
+      } yield ()
+    }
 
   private def cleanUpGoogleResourcesOnError(googleProject: GoogleProject,
                                             clusterName: ClusterName,
@@ -413,8 +415,7 @@ class ClusterHelper(
           clusterResourcesConfig.rstudioDockerCompose,
           clusterResourcesConfig.proxyDockerCompose,
           clusterResourcesConfig.proxySiteConf,
-          clusterResourcesConfig.welderDockerCompose,
-          clusterResourcesConfig.initVmScript
+          clusterResourcesConfig.welderDockerCompose
         )
       )
       bytes <- Stream.eval(TemplateHelper.resourceStream(r, blocker).compile.to[Array])
@@ -530,32 +531,30 @@ class ClusterHelper(
           IO.raiseError(GoogleGroupCreationException(googleGroupsConfig.dataprocImageProjectGroupEmail, t.getMessage))
       }
 
-  private def addIamRoleToDataprocImageGroup(customDataprocImage: Option[String]): IO[Unit] = {
+  private def addIamRoleToDataprocImageGroup(customDataprocImage: CustomDataprocImage): IO[Unit] = {
     val computeImageUserRole = Set("roles/compute.imageUser")
-    dataprocConfig.customDataprocImage
-      .flatMap(parseImageProject)
-      .fold(
-        IO.raiseError[Unit](ImageProjectNotFoundException)
-      ) { imageProject =>
-        for {
-          _ <- log.debug(
-            s"Attempting to grant 'compute.imageUser' permissions to '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
+    parseImageProject(dataprocConfig.customDataprocImage).fold(
+      IO.raiseError[Unit](ImageProjectNotFoundException)
+    ) { imageProject =>
+      for {
+        _ <- log.debug(
+          s"Attempting to grant 'compute.imageUser' permissions to '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
+        )
+        _ <- IO.fromFuture[Boolean](
+          IO(
+            retryExponentially(
+              when409,
+              s"IAM policy change failed for '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on Google project '$imageProject'."
+            ) { () =>
+              googleIamDAO.addIamRoles(imageProject,
+                                       googleGroupsConfig.dataprocImageProjectGroupEmail,
+                                       MemberType.Group,
+                                       computeImageUserRole)
+            }
           )
-          _ <- IO.fromFuture[Boolean](
-            IO(
-              retryExponentially(
-                when409,
-                s"IAM policy change failed for '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on Google project '$imageProject'."
-              ) { () =>
-                googleIamDAO.addIamRoles(imageProject,
-                                         googleGroupsConfig.dataprocImageProjectGroupEmail,
-                                         MemberType.Group,
-                                         computeImageUserRole)
-              }
-            )
-          )
-        } yield ()
-      }
+        )
+      } yield ()
+    }
   }
 
   private def updateGroupMembership(groupEmail: WorkbenchEmail,
@@ -579,9 +578,9 @@ class ClusterHelper(
     }
 
   // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri
-  private def parseImageProject(customDataprocImage: String): Option[GoogleProject] = {
+  private def parseImageProject(customDataprocImage: CustomDataprocImage): Option[GoogleProject] = {
     val regex = ".*projects/(.*)/global/images/(.*)".r
-    customDataprocImage match {
+    customDataprocImage.asString match {
       case regex(project, _) => Some(GoogleProject(project))
       case _                 => None
     }
@@ -621,3 +620,8 @@ class ClusterHelper(
   }
 
 }
+
+final case class CreateClusterResponse(cluster: Cluster,
+                                       initBucket: GcsBucketName,
+                                       serviceAccountKey: Option[ServiceAccountKey],
+                                       customDataprocImage: CustomDataprocImage)

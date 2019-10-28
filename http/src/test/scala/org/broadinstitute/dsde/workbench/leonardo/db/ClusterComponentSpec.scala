@@ -146,8 +146,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     )
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
+      stripFieldsForListCluster(savedCluster1)
+    )
     dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(
       savedCluster1
     ).map(stripFieldsForListCluster)
@@ -306,7 +306,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue {
       _.clusterQuery.getActiveClusterByNameMinimal(savedCluster1.googleProject, savedCluster1.clusterName)
     } shouldEqual
-      Some(savedCluster1).map(stripFieldsForListCluster andThen (_.copy(labels = Map.empty)))
+      Some(stripFieldsForListCluster(savedCluster1).copy(labels = Map.empty))
   }
 
   it should "update master machine type" in isolatedDbTest {

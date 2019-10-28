@@ -50,11 +50,13 @@ trait TestComponent extends Matchers with ScalaFutures with LeoComponent with Gc
     dbFutureValue { _.clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt) }.get
 
   implicit class ClusterExtensions(cluster: Cluster) {
-    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)) =
+    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Cluster = {
       dbFutureValue {
-        _.clusterQuery.save(cluster,
-                            Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
-                            serviceAccountKeyId)
+        x =>
+          x.clusterQuery.save(cluster,
+            Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
+            serviceAccountKeyId)
       }
+    }
   }
 }

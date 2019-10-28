@@ -15,16 +15,13 @@ import com.typesafe.scalalogging.LazyLogging
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, stripFieldsForListCluster}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
-  NegativeIntegerArgumentInClusterRequestException,
-  OneWorkerSpecifiedInClusterRequestException
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -144,7 +141,6 @@ class LeonardoServiceSpec
     clusterResourcesConfig.proxyDockerCompose.value,
     clusterResourcesConfig.welderDockerCompose.value,
     clusterResourcesConfig.initActionsScript.value,
-    clusterResourcesConfig.initVmScript.value,
     clusterFilesConfig.jupyterServerCrt.getName,
     clusterFilesConfig.jupyterServerKey.getName,
     clusterFilesConfig.jupyterRootCaPem.getName,
@@ -180,7 +176,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.autopauseThreshold shouldBe testClusterRequest.autopauseThreshold.getOrElse(0)
     clusterCreateResponse.defaultClientId shouldBe testClusterRequest.defaultClientId
     clusterCreateResponse.stopAfterCreation shouldBe testClusterRequest.stopAfterCreation.getOrElse(false)
-    clusterCreateResponse.clusterImages.map(_.tool) shouldBe Set(Jupyter)
+    clusterCreateResponse.clusterImages.map(_.imageType) shouldBe Set(Jupyter)
     clusterCreateResponse.scopes shouldBe dataprocConfig.defaultScopes
     clusterCreateResponse.welderEnabled shouldBe false
 
@@ -204,7 +200,6 @@ class LeonardoServiceSpec
 
     // get the cluster detail
     val clusterGetResponse = leo.getActiveClusterDetails(userInfo, project, name1).unsafeToFuture.futureValue
-
     // check the create response and get response are the same
     clusterCreateResponse shouldEqual clusterGetResponse
   }
@@ -224,9 +219,9 @@ class LeonardoServiceSpec
     dbCluster shouldBe Some(clusterResponse)
 
     // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
-    clusterResponse.clusterImages.find(_.tool == RStudio) shouldBe None
-    clusterResponse.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe Some(
+    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(dataprocConfig.jupyterImage)
+    clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
+    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
       dataprocConfig.welderDockerImage
     )
   }
@@ -249,9 +244,9 @@ class LeonardoServiceSpec
     dbCluster shouldBe Some(clusterResponse)
 
     // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
-    clusterResponse.clusterImages.find(_.tool == RStudio) shouldBe None
-    clusterResponse.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe customWelderImage
+    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(dataprocConfig.jupyterImage)
+    clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
+    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe customWelderImage
   }
 
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
@@ -645,8 +640,8 @@ class LeonardoServiceSpec
           |
           |"${name1.value}"
           |"${project.value}"
-          |"${jupyterImage.dockerImage}"
-          |"${rstudioImage.dockerImage}"
+          |"${jupyterImage.imageUrl}"
+          |"${rstudioImage.imageUrl}"
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${testCluster.jupyterUserScriptUri.get.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"
@@ -705,9 +700,7 @@ class LeonardoServiceSpec
       .unsafeToFuture
       .futureValue
 
-    leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      stripFieldsForListCluster
-    )
+    leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(_.toListClusterResp)
   }
 
   it should "error when trying to delete a creating cluster" in isolatedDbTest {
@@ -736,13 +729,13 @@ class LeonardoServiceSpec
       cluster1,
       cluster2
     ).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
 
     val clusterName3 = ClusterName("test-cluster-3")
@@ -754,13 +747,13 @@ class LeonardoServiceSpec
     dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id, Instant.now) }
 
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("includeDeleted" -> "false")).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1,
       cluster2
     ).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("includeDeleted" -> "true")).unsafeToFuture.futureValue.toSet.size shouldBe 3
   }
@@ -778,12 +771,12 @@ class LeonardoServiceSpec
 
     leo.listClusters(userInfo, Map("foo" -> "bar")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2)
       .map(
-        stripFieldsForListCluster
+        _.toListClusterResp
       )
     leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1
     ).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo
       .listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no"))
@@ -791,16 +784,16 @@ class LeonardoServiceSpec
       .futureValue
       .toSet shouldBe Set(
       cluster1
-    ).map(stripFieldsForListCluster)
+    ).map(_.toListClusterResp)
     leo.listClusters(userInfo, Map("a" -> "b")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).unsafeToFuture.futureValue.toSet shouldBe Set.empty
     leo
       .listClusters(userInfo, Map("A" -> "B"))
       .unsafeToFuture
       .futureValue
-      .toSet shouldBe Set(cluster2).map(stripFieldsForListCluster) // labels are not case sensitive because MySQL
+      .toSet shouldBe Set(cluster2).map(_.toListClusterResp) // labels are not case sensitive because MySQL
     //Assert that extensions were added as labels as well
     leo
       .listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz"))
@@ -809,7 +802,7 @@ class LeonardoServiceSpec
       .toSet shouldBe Set(
       cluster1,
       cluster2
-    ).map(stripFieldsForListCluster)
+    ).map(_.toListClusterResp)
   }
 
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
@@ -834,26 +827,26 @@ class LeonardoServiceSpec
 
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1,
                                                                                                           cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1
     ).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo
       .listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
       .unsafeToFuture
       .futureValue
       .toSet shouldBe Set(cluster1).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("_labels" -> "a=b")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("_labels" -> "baz=biz")).unsafeToFuture.futureValue.toSet shouldBe Set.empty
     leo.listClusters(userInfo, Map("_labels" -> "A=B")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     ) // labels are not case sensitive because MySQL
     leo
       .listClusters(userInfo, Map("_labels" -> "foo%3Dbar"))
@@ -891,20 +884,20 @@ class LeonardoServiceSpec
       .futureValue
 
     leo.listClusters(userInfo, Map.empty, Some(project)).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map.empty, Some(project2)).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project)).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1
     ).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project2)).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster2
     ).map(
-      stripFieldsForListCluster
+      _.toListClusterResp
     )
     leo.listClusters(userInfo, Map("k" -> "v"), Some(project)).unsafeToFuture.futureValue.toSet shouldBe Set.empty
     leo.listClusters(userInfo, Map("k" -> "v"), Some(project2)).unsafeToFuture.futureValue.toSet shouldBe Set.empty

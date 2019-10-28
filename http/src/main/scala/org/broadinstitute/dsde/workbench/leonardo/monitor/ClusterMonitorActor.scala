@@ -10,7 +10,7 @@ import akka.actor.{Actor, Props}
 import akka.http.scaladsl.model.StatusCodes
 import akka.pattern.pipe
 import cats.data.OptionT
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
@@ -42,7 +42,7 @@ import scala.collection.immutable.Set
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-case class ProxyDAONotFound(clusterName: ClusterName, googleProject: GoogleProject, clusterTool: ClusterTool)
+case class ProxyDAONotFound(clusterName: ClusterName, googleProject: GoogleProject, clusterTool: ClusterImageType)
     extends LeoException(s"Cluster ${clusterName}/${googleProject} was initialized with invalid tool: ${clusterTool}",
                          StatusCodes.InternalServerError)
 
@@ -63,7 +63,9 @@ object ClusterMonitorActor {
     dbRef: DbReference,
     authProvider: LeoAuthProvider[IO],
     clusterHelper: ClusterHelper
-  )(implicit metrics: NewRelicMetrics[IO], clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool]): Props =
+  )(implicit metrics: NewRelicMetrics[IO],
+    clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+    cs: ContextShift[IO]): Props =
     Props(
       new ClusterMonitorActor(clusterId,
                               monitorConfig,
@@ -119,7 +121,9 @@ class ClusterMonitorActor(
   val authProvider: LeoAuthProvider[IO],
   val clusterHelper: ClusterHelper,
   val startTime: Long = System.currentTimeMillis()
-)(implicit metrics: NewRelicMetrics[IO], clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool])
+)(implicit metrics: NewRelicMetrics[IO],
+  clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+  cs: ContextShift[IO])
     extends Actor
     with LazyLogging
     with Retry {
@@ -142,7 +146,7 @@ class ClusterMonitorActor(
 
     case QueryForCluster =>
       implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-      checkCluster pipeTo self
+      checkCluster.unsafeToFuture() pipeTo self
 
     case NotReadyCluster(cluster, googleStatus, googleInstances, msg) =>
       handleNotReadyCluster(cluster, googleStatus, googleInstances, msg) pipeTo self
@@ -272,7 +276,7 @@ class ClusterMonitorActor(
           // create or update instances in the DB
           persistInstances(cluster, googleInstances),
           //save cluster error in the DB
-          persistClusterErrors(errorDetails, cluster)
+          persistClusterErrors(errorDetails, cluster).unsafeToFuture()
         )
       )
 
@@ -386,29 +390,34 @@ class ClusterMonitorActor(
 
   private def createClusterInGoogle(
     cluster: Cluster
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
-    val createClusterFuture = for {
-      _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")).unsafeToFuture()
-      clusterResult <- clusterHelper.createCluster(cluster).unsafeToFuture()
-      now <- IO(Instant.now).unsafeToFuture()
-      (cluster, initBucket, saKey) = clusterResult
-      _ <- dbRef.inTransaction {
-        _.clusterQuery.updateAsyncClusterCreationFields(Some(GcsPath(initBucket, GcsObjectName(""))),
-                                                        saKey,
-                                                        cluster,
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] = {
+    val createCluster = for {
+      _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google..."))
+      clusterResult <- clusterHelper.createCluster(cluster)
+      now <- IO(Instant.now)
+      _ <- dbRef.inTransactionIO {
+        _.clusterQuery.updateAsyncClusterCreationFields(Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
+                                                        clusterResult.serviceAccountKey,
+                                                        clusterResult.cluster,
                                                         now)
       }
+      clusterImage = ClusterImage(ClusterImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
+      // Save dataproc image in the database
+      _ <- dbRef
+        .inTransactionIO(
+          _.clusterImageQuery.save(cluster.id, clusterImage)
+        )
       _ <- IO(
         logger.info(
           s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process."
         )
-      ).unsafeToFuture()
+      )
     } yield NotReadyCluster(cluster, cluster.status, Set.empty)
 
-    createClusterFuture.recoverWith {
+    createCluster.handleErrorWith {
       case e =>
         for {
-          _ <- IO(logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e)).unsafeToFuture()
+          _ <- IO(logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e))
           errorMessage = e match {
             case leoEx: LeoException =>
               ErrorReport.loggableString(leoEx.toErrorReport)
@@ -419,21 +428,17 @@ class ClusterMonitorActor(
     }
   }
 
-  private def checkCluster(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] =
+  private def checkCluster(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] =
     for {
       dbCluster <- getDbCluster
-
       next <- dbCluster.status match {
         case status if status.isMonitored =>
           if (dbCluster.dataprocInfo.isDefined) {
-            checkClusterInGoogle(dbCluster)
-          } else {
-            createClusterInGoogle(dbCluster)
-          }
+            IO.fromFuture(IO(checkClusterInGoogle(dbCluster)))
+          } else createClusterInGoogle(dbCluster)
         case status =>
-          IO(logger.info(s"Stopping monitoring of cluster ${dbCluster.projectNameString} in status ${status}"))
-            .unsafeToFuture() >>
-            Future.successful(ShutdownActor(RemoveFromList(dbCluster)))
+          IO(logger.info(s"Stopping monitoring of cluster ${dbCluster.projectNameString} in status ${status}")) >>
+            IO.pure(ShutdownActor(RemoveFromList(dbCluster)))
       }
     } yield next
 
@@ -459,7 +464,7 @@ class ClusterMonitorActor(
         case Running
             if cluster.status != Deleting && cluster.status != Stopping && runningInstanceCount == googleInstances.size =>
           getMasterIp(cluster).flatMap {
-            case Some(ip) => checkClusterTools(cluster, ip, googleInstances)
+            case Some(ip) => checkClusterTools(cluster, ip, googleInstances).unsafeToFuture()
             case None =>
               Future.successful(
                 NotReadyCluster(cluster, ClusterStatus.Running, googleInstances, Some("Could not retrieve master IP"))
@@ -485,26 +490,30 @@ class ClusterMonitorActor(
       }
     } yield result
 
-  private def checkClusterTools(cluster: Cluster,
-                                ip: IP,
-                                googleInstances: Set[Instance]): Future[ClusterMonitorMessage] =
+  private def checkClusterTools(cluster: Cluster, ip: IP, googleInstances: Set[Instance]): IO[ClusterMonitorMessage] =
     // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
     // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
     // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
     for {
-      now <- IO(Instant.now).unsafeToFuture()
-      images <- dbRef.inTransaction { dataAccess =>
+      now <- IO(Instant.now)
+      images <- dbRef.inTransactionIO { dataAccess =>
         for {
           _ <- dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip), now)
           images <- dataAccess.clusterImageQuery.getAllForCluster(cluster.id)
-        } yield images
-
+        } yield images.toList
       }
-      availableTools <- images.toList.traverse { image =>
-        image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
+      availableTools <- images.traverseFilter { image =>
+        ClusterContainerServiceType.imageTypeToClusterContainerServiceType
+          .get(image.imageType)
+          .traverse(
+            x =>
+              IO.fromFuture(
+                IO(x.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.imageType, b)))
+              )
+          )
       }
     } yield availableTools match {
-      case a if a.forall(x => x._2 == true) =>
+      case a if a.forall(_._2) =>
         ReadyCluster(cluster, ip, googleInstances)
       case a =>
         NotReadyCluster(
@@ -522,9 +531,9 @@ class ClusterMonitorActor(
     }.void
   }
 
-  private def saveClusterError(cluster: Cluster, errorMessage: String, errorCode: Int): Future[Unit] =
+  private def saveClusterError(cluster: Cluster, errorMessage: String, errorCode: Int): IO[Unit] =
     dbRef
-      .inTransaction { dataAccess =>
+      .inTransactionIO { dataAccess =>
         val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
         clusterId flatMap {
           case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
@@ -542,7 +551,7 @@ class ClusterMonitorActor(
         case e => new Exception(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}", e)
       }
 
-  private def persistClusterErrors(errorDetails: ClusterErrorDetails, cluster: Cluster): Future[Unit] = {
+  private def persistClusterErrors(errorDetails: ClusterErrorDetails, cluster: Cluster): IO[Unit] = {
     val result = cluster.dataprocInfo.map(_.stagingBucket) match {
       case Some(stagingBucketName) => {
         for {
@@ -550,7 +559,6 @@ class ClusterMonitorActor(
             .getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None)
             .compile
             .last
-            .unsafeToFuture()
           userscriptFailed = metadata match {
             case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) => metadataMap.exists(_ == "passed" -> "false")
             case _                                                     => false
@@ -570,8 +578,9 @@ class ClusterMonitorActor(
         saveClusterError(cluster, errorDetails.message.getOrElse("Error not available"), errorDetails.code)
       }
     }
-    result.handleError { e =>
-      logger.error(s"Failed to persist cluster errors for cluster ${cluster}: ${e.getMessage}", e)
+    result.onError {
+      case e =>
+        IO(logger.error(s"Failed to persist cluster errors for cluster ${cluster}: ${e.getMessage}", e))
     }
   }
 
@@ -660,12 +669,12 @@ class ClusterMonitorActor(
         Future.successful(())
     }
 
-  private def getDbCluster: Future[Cluster] =
+  private def getDbCluster: IO[Cluster] =
     for {
-      clusterOpt <- dbRef.inTransaction { _.clusterQuery.getClusterById(clusterId) }
-      cluster <- clusterOpt.fold(
-        Future.failed[Cluster](new Exception(s"Cluster with id ${clusterId} not found in the database"))
-      )(Future.successful)
+      clusterOpt <- dbRef.inTransactionIO { _.clusterQuery.getClusterById(clusterId) }
+      cluster <- IO.fromEither(
+        clusterOpt.toRight(new Exception(s"Cluster with id ${clusterId} not found in the database"))
+      )
     } yield cluster
 
   private def recordMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] =

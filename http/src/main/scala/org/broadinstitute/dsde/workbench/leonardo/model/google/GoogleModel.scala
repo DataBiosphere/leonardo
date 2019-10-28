@@ -4,8 +4,8 @@ package model.google
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import enumeratum._
+import org.broadinstitute.dsde.workbench.leonardo.config.CustomDataprocImage
 import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
@@ -26,7 +26,7 @@ final case class CreateClusterConfig(
   clusterScopes: Set[String],
   clusterVPCSettings: Option[VPCConfig],
   properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
-  dataprocCustomImage: Option[String]
+  dataprocCustomImage: CustomDataprocImage
 )
 // Dataproc Operation
 case class OperationName(value: String) extends ValueObject
@@ -139,7 +139,7 @@ case class Instance(key: InstanceKey,
                     dataprocRole: Option[DataprocRole],
                     createdDate: Instant)
 
-object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+object GoogleJsonSupport extends DefaultJsonProtocol {
   implicit object UUIDFormat extends JsonFormat[UUID] {
     def write(obj: UUID) = JsString(obj.toString)
 

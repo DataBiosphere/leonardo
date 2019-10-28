@@ -5,7 +5,6 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
 import ca.mrvisser.sealerate
 import cats.Semigroup
@@ -13,15 +12,16 @@ import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model._
-import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
+import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _, _}
 import org.broadinstitute.dsde.workbench.model.google._
-import spray.json.{RootJsonFormat, RootJsonReader, _}
+import spray.json.{RootJsonReader, _}
 
 import scala.util.matching.Regex
 
@@ -106,19 +106,38 @@ case class AuditInfo(creator: WorkbenchEmail,
                      dateAccessed: Instant,
                      kernelFoundBusyDate: Option[Instant])
 
-sealed trait ClusterTool extends EnumEntry with Serializable with Product
-object ClusterTool extends Enum[ClusterTool] {
-  val values = findValues
-  case object Jupyter extends ClusterTool
-  case object RStudio extends ClusterTool
-  case object Welder extends ClusterTool
+sealed trait ClusterContainerServiceType extends EnumEntry with Serializable with Product {
+  def imageType: ClusterImageType
 }
-case class ClusterImage(tool: ClusterTool, dockerImage: String, timestamp: Instant)
+object ClusterContainerServiceType extends Enum[ClusterContainerServiceType] {
+  val values = findValues
+  val imageTypeToClusterContainerServiceType: Map[ClusterImageType, ClusterContainerServiceType] =
+    values.toList.map(v => v.imageType -> v).toMap
+  case object JupyterService extends ClusterContainerServiceType {
+    def imageType: ClusterImageType = Jupyter
+  }
+  case object RStudioService extends ClusterContainerServiceType {
+    def imageType: ClusterImageType = RStudio
+  }
+  case object WelderService extends ClusterContainerServiceType {
+    def imageType: ClusterImageType = Welder
+  }
+}
+
+sealed trait ClusterImageType extends EnumEntry with Serializable with Product
+object ClusterImageType extends Enum[ClusterImageType] {
+  val values = findValues
+
+  case object Jupyter extends ClusterImageType
+  case object RStudio extends ClusterImageType
+  case object Welder extends ClusterImageType
+  case object CustomDataProc extends ClusterImageType
+}
+case class ClusterImage(imageType: ClusterImageType, imageUrl: String, timestamp: Instant)
 
 case class ClusterInternalId(value: String) extends ValueObject
 
 // The cluster itself
-// Also the API response for "list clusters" and "get active cluster"
 final case class Cluster(id: Long = 0, // DB AutoInc
                          internalId: ClusterInternalId,
                          clusterName: ClusterName,
@@ -145,7 +164,29 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                          customClusterEnvironmentVariables: Map[String, String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
+  def toListClusterResp: ListClusterResponse =
+    ListClusterResponse(
+      id,
+      internalId,
+      clusterName,
+      googleProject,
+      serviceAccountInfo,
+      dataprocInfo,
+      auditInfo,
+      machineConfig,
+      clusterUrl,
+      status,
+      labels,
+      jupyterExtensionUri,
+      jupyterUserScriptUri,
+      instances,
+      autopauseThreshold,
+      defaultClientId,
+      stopAfterCreation,
+      welderEnabled
+    )
 }
+
 object Cluster {
   type LabelMap = Map[String, String]
 
@@ -318,10 +359,10 @@ object ClusterInitValues {
       cluster.googleProject.value,
       cluster.clusterName.value,
       stagingBucketName.value,
-      cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
-      cluster.clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
+      cluster.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
+      cluster.clusterImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
-      cluster.clusterImages.find(_.tool == Welder).map(_.dockerImage).getOrElse(""),
+      cluster.clusterImages.find(_.imageType == Welder).map(_.imageUrl).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
@@ -441,7 +482,7 @@ object WelderAction extends Enum[WelderAction] {
   case object DisableDelocalization extends WelderAction
 }
 
-object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+object LeonardoJsonSupport extends DefaultJsonProtocol {
   implicit object URLFormat extends JsonFormat[URL] {
     def write(obj: URL) = JsString(obj.toString)
 
@@ -451,8 +492,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  // Overrides the one from workbench-libs to serialize/deserialize as a URI
-  implicit object GcsPathFormat extends JsonFormat[GcsPath] {
+  // the one from workbench-libs is ignored from import cuz we need a different encoding/decoding
+  implicit val gcsPathFormat: JsonFormat[GcsPath] = new JsonFormat[GcsPath] {
     def write(obj: GcsPath) = JsString(obj.toUri)
 
     def read(json: JsValue): GcsPath = json match {
@@ -479,7 +520,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat: RootJsonReader[ClusterRequest] = (json: JsValue) => {
+  implicit val clusterRequestFormat: RootJsonReader[ClusterRequest] = (json: JsValue) => {
     val fields = json.asJsObject.fields
     val properties = for {
       props <- fields.get("properties").map(_.convertTo[Map[String, String]])
@@ -525,62 +566,13 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
-  implicit val ClusterToolFormat = EnumEntryFormat(ClusterTool.withName)
+  implicit val ClusterToolFormat = EnumEntryFormat(ClusterImageType.withName)
 
   implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
 
   implicit val ClusterInternalIdFormat = ValueObjectFormat(ClusterInternalId)
 
-  implicit object ClusterFormat extends RootJsonFormat[Cluster] {
-    override def read(json: JsValue): Cluster =
-      json match {
-        case JsObject(fields: Map[String, JsValue]) =>
-          Cluster(
-            fields.getOrElse("id", JsNull).convertTo[Long],
-            fields.getOrElse("internalId", JsNull).convertTo[ClusterInternalId],
-            fields.getOrElse("clusterName", JsNull).convertTo[ClusterName],
-            fields.getOrElse("googleProject", JsNull).convertTo[GoogleProject],
-            fields.getOrElse("serviceAccountInfo", JsNull).convertTo[ServiceAccountInfo],
-            (fields.get("googleId"), fields.get("operationName"), fields.get("stagingBucket")).mapN {
-              (googleId, operationName, stagingBucket) =>
-                DataprocInfo(
-                  googleId.convertTo[UUID],
-                  operationName.convertTo[OperationName],
-                  stagingBucket.convertTo[GcsBucketName],
-                  fields.getOrElse("hostIp", JsNull).convertTo[Option[IP]]
-                )
-            },
-            AuditInfo(
-              fields.getOrElse("creator", JsNull).convertTo[WorkbenchEmail],
-              fields.getOrElse("createdDate", JsNull).convertTo[Instant],
-              fields.getOrElse("destroyedDate", JsNull).convertTo[Option[Instant]],
-              fields.getOrElse("dateAccessed", JsNull).convertTo[Instant],
-              fields.getOrElse("kernelFoundBusyDate", JsNull).convertTo[Option[Instant]]
-            ),
-            fields.getOrElse("machineConfig", JsNull).convertTo[MachineConfig],
-            fields.getOrElse("properties", JsNull).convertTo[Option[Map[String, String]]].getOrElse(Map.empty),
-            fields.getOrElse("clusterUrl", JsNull).convertTo[URL],
-            fields.getOrElse("status", JsNull).convertTo[ClusterStatus],
-            fields.getOrElse("labels", JsNull).convertTo[LabelMap],
-            fields.getOrElse("jupyterExtensionUri", JsNull).convertTo[Option[GcsPath]],
-            fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[GcsPath]],
-            fields.getOrElse("errors", JsNull).convertTo[List[ClusterError]],
-            fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
-            fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
-            fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
-            fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
-            fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
-            fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],
-            fields.getOrElse("scopes", JsNull).convertTo[Set[String]],
-            fields.getOrElse("welderEnabled", JsNull).convertTo[Boolean],
-            fields
-              .getOrElse("customClusterEnvironmentVariables", JsNull)
-              .convertTo[Option[Map[String, String]]]
-              .getOrElse(Map.empty)
-          )
-        case _ => deserializationError("Cluster expected as a JsObject")
-      }
-
+  implicit object ClusterFormat extends RootJsonWriter[Cluster] {
     override def write(obj: Cluster): JsValue = {
       val allFields = List(
         "id" -> obj.id.toJson,

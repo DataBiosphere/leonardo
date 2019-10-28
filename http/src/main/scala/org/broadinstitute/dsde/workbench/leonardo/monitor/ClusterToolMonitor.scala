@@ -8,10 +8,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterTool}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterContainerServiceType, ClusterImageType}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Welder
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
 import ClusterToolMonitor._
 import cats.effect.IO
 
@@ -19,18 +19,20 @@ import scala.concurrent.Future
 
 object ClusterToolMonitor {
 
-  def props(config: ClusterToolConfig,
-            gdDAO: GoogleDataprocDAO,
-            googleProjectDAO: GoogleProjectDAO,
-            dbRef: DbReference,
-            newRelic: NewRelicMetrics[IO])(implicit clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool]): Props =
+  def props(
+    config: ClusterToolConfig,
+    gdDAO: GoogleDataprocDAO,
+    googleProjectDAO: GoogleProjectDAO,
+    dbRef: DbReference,
+    newRelic: NewRelicMetrics[IO]
+  )(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType]): Props =
     Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, newRelic))
 
   sealed trait ClusterToolMonitorMessage
   case object DetectClusterStatus extends ClusterToolMonitorMessage
   case object TimerKey extends ClusterToolMonitorMessage
 
-  case class ToolStatus(val isUp: Boolean, val tool: ClusterTool, val cluster: Cluster)
+  case class ToolStatus(val isUp: Boolean, val tool: ClusterImageType, val cluster: Cluster)
 }
 
 /**
@@ -42,7 +44,7 @@ class ClusterToolMonitor(
   googleProjectDAO: GoogleProjectDAO,
   dbRef: DbReference,
   newRelic: NewRelicMetrics[IO]
-)(implicit clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool])
+)(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType])
     extends Actor
     with Timers
     with LazyLogging {
@@ -80,11 +82,10 @@ class ClusterToolMonitor(
       _.clusterQuery.listRunningOnly
     }
 
-  def checkClusterStatus(cluster: Cluster): Future[Seq[ToolStatus]] =
-    ClusterTool.values.toList.traverse {
-      case tool =>
-        tool
-          .isProxyAvailable(cluster.googleProject, cluster.clusterName)
+  def checkClusterStatus(cluster: Cluster): Future[List[ToolStatus]] =
+    ClusterImageType.values.toList.traverseFilter { tool =>
+      ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(tool).traverse {
+        _.isProxyAvailable(cluster.googleProject, cluster.clusterName)
           .map(status => {
             //the if else is necessary because otherwise we will be reporting the metric 'welder down' on all clusters without welder, which is not the desired behavior
             //TODO: change to  `ToolStatus(status, tool, cluster)` when data syncing is fully rolled out
@@ -94,6 +95,7 @@ class ClusterToolMonitor(
               ToolStatus(status, tool, cluster)
             }
           })
+      }
     }
 
 }

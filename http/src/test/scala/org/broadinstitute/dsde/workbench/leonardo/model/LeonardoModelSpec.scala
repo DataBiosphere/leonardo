@@ -1,15 +1,16 @@
-package org.broadinstitute.dsde.workbench.leonardo.model
+package org.broadinstitute.dsde.workbench.leonardo
+package model
 
 import java.time.Instant
 import java.util.UUID._
 
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
+import RoutesTestJsonSupport._
 
 class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers with CommonTestData with ScalaFutures {
 
@@ -118,12 +119,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "defaultClientId": "defaultClientId",
         |  "stopAfterCreation": true,
         |  "clusterImages": [
-        |    { "tool": "Jupyter",
-        |      "dockerImage": "jupyter/jupyter-base:latest",
+        |    { "imageType": "Jupyter",
+        |      "imageUrl": "jupyter/jupyter-base:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
         |      },
-        |    { "tool": "Welder",
-        |      "dockerImage": "welder/welder:latest",
+        |    { "imageType": "Welder",
+        |      "imageUrl": "welder/welder:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
         |      }
         |    ],
@@ -204,10 +205,10 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
     clusterInitMap("googleProject") shouldBe project.value
     clusterInitMap("clusterName") shouldBe name1.value
-    clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
+    clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.imageUrl
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
     clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
-    clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
+    clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
     clusterInitMap("welderEnabled") shouldBe "true"
 
     clusterInitMap.size shouldBe 34

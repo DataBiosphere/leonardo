@@ -14,6 +14,7 @@ object Dependencies {
   val slickV = "3.2.3"
   val http4sVersion = "0.21.0-M5" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.0-jre"
+  val monocleV = "2.0.0"
 
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-6dc016b"
@@ -151,7 +152,9 @@ object Dependencies {
     sealerate,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
-    googleCloudNio
+    googleCloudNio,
+    "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
+    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV
   )
 
   val serviceTestV = "0.16-e6493d5"

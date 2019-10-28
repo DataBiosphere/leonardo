@@ -2,38 +2,53 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.sql.Timestamp
+import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterTool}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterImageType}
+import slick.lifted.ProvenShape
 
-case class ClusterImageRecord(clusterId: Long, tool: String, dockerImage: String, timestamp: Timestamp)
+case class ClusterImageRecord(clusterId: Long, imageType: ClusterImageType, imageUrl: String, timestamp: Instant)
 
 trait ClusterImageComponent extends LeoComponent {
   this: ClusterComponent =>
 
   import profile.api._
 
+  implicit def customImageTypeMapper = MappedColumnType.base[ClusterImageType, String](
+    _.toString,
+    s => ClusterImageType.withName(s)
+  )
+
+  implicit def timestampMapper = MappedColumnType.base[Instant, Timestamp](
+    i => Timestamp.from(i),
+    ts => ts.toInstant
+  )
+
   class ClusterImageTable(tag: Tag) extends Table[ClusterImageRecord](tag, "CLUSTER_IMAGE") {
     def clusterId = column[Long]("clusterId")
 
-    def tool = column[String]("tool", O.Length(254))
+    def imageType = column[ClusterImageType]("imageType", O.Length(254))
 
-    def dockerImage = column[String]("dockerImage", O.Length(1024))
+    def imageUrl = column[String]("imageUrl", O.Length(1024))
 
-    def timestamp = column[Timestamp]("timestamp", O.SqlType("TIMESTAMP(6)"))
+    def timestamp = column[Instant]("timestamp", O.SqlType("TIMESTAMP(6)"))
 
     def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
-    def uniqueKey = index("IDX_CLUSTER_IMAGE_UNIQUE", (clusterId, tool), unique = true)
+    def uniqueKey = index("IDX_CLUSTER_IMAGE_UNIQUE", (clusterId, imageType), unique = true)
 
-    def * = (clusterId, tool, dockerImage, timestamp) <> (ClusterImageRecord.tupled, ClusterImageRecord.unapply)
+    def * : ProvenShape[ClusterImageRecord] =
+      (clusterId, imageType, imageUrl, timestamp) <> (ClusterImageRecord.tupled, ClusterImageRecord.unapply)
 
-    def pk = primaryKey("cluster_image_pk", (clusterId, tool))
+    def pk = primaryKey("cluster_image_pk", (clusterId, imageType))
   }
 
   object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
 
-    def save(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] =
-      clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
+    def save(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] = for {
+      exists <- getRecord(clusterId, clusterImage.imageType)
+      res <- if(exists.headOption.isDefined) DBIO.successful(0) else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
+    } yield res
 
     def saveAllForCluster(clusterId: Long, clusterImages: Seq[ClusterImage]): DBIO[Option[Int]] =
       clusterImageQuery ++= clusterImages.map { c =>
@@ -43,13 +58,16 @@ trait ClusterImageComponent extends LeoComponent {
     def upsert(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] =
       clusterImageQuery.insertOrUpdate(marshallClusterImage(clusterId, clusterImage))
 
-    def get(clusterId: Long, tool: ClusterTool): DBIO[Option[ClusterImage]] =
-      clusterImageQuery
-        .filter { _.clusterId === clusterId }
-        .filter { _.tool === tool.toString }
-        .result
+    def get(clusterId: Long, imageType: ClusterImageType): DBIO[Option[ClusterImage]] =
+      getRecord(clusterId, imageType)
         .headOption
         .map(_.map(unmarshalClusterImage))
+
+    def getRecord(clusterId: Long, imageType: ClusterImageType) =
+      clusterImageQuery
+        .filter { _.clusterId === clusterId }
+        .filter { _.imageType === imageType }
+        .result
 
     def getAllForCluster(clusterId: Long): DBIO[Seq[ClusterImage]] =
       clusterImageQuery
@@ -60,18 +78,17 @@ trait ClusterImageComponent extends LeoComponent {
     def marshallClusterImage(clusterId: Long, clusterImage: ClusterImage): ClusterImageRecord =
       ClusterImageRecord(
         clusterId,
-        clusterImage.tool.toString,
-        clusterImage.dockerImage,
-        Timestamp.from(clusterImage.timestamp)
+        clusterImage.imageType,
+        clusterImage.imageUrl,
+        clusterImage.timestamp
       )
 
     def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): ClusterImage =
       ClusterImage(
-        ClusterTool.withName(clusterImageRecord.tool),
-        clusterImageRecord.dockerImage,
-        clusterImageRecord.timestamp.toInstant
+        clusterImageRecord.imageType,
+        clusterImageRecord.imageUrl,
+        clusterImageRecord.timestamp
       )
-
   }
 
 }

@@ -6,7 +6,7 @@ import java.util.UUID
 
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterTool, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterContainerServiceType, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
@@ -47,7 +47,9 @@ object ClusterMonitorSupervisor {
     rstudioProxyDAO: RStudioDAO,
     welderDAO: WelderDAO[IO],
     clusterHelper: ClusterHelper
-  )(implicit metrics: NewRelicMetrics[IO], clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool]): Props =
+  )(implicit metrics: NewRelicMetrics[IO],
+    clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+    cs: ContextShift[IO]): Props =
     Props(
       new ClusterMonitorSupervisor(monitorConfig,
                                    dataprocConfig,
@@ -106,7 +108,9 @@ class ClusterMonitorSupervisor(
   rstudioProxyDAO: RStudioDAO,
   welderProxyDAO: WelderDAO[IO],
   clusterHelper: ClusterHelper
-)(implicit metrics: NewRelicMetrics[IO], clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool])
+)(implicit metrics: NewRelicMetrics[IO],
+  clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+  cs: ContextShift[IO])
     extends Actor
     with Timers
     with LazyLogging {
@@ -155,7 +159,6 @@ class ClusterMonitorSupervisor(
                 dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating, now)
             }
         } yield ()
-
       } else {
         logger.warn(
           s"[$traceId] Received RecreateCluster message for cluster ${cluster.projectNameString} but cluster recreation is disabled."

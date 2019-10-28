@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package api
 
 import java.time.Instant
 
@@ -7,9 +8,8 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google._
@@ -19,6 +19,8 @@ import slick.dbio.DBIO
 import spray.json._
 
 import scala.concurrent.duration._
+import RoutesTestJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
 
 class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData with TestLeoRoutes with TestComponent {
   // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
@@ -27,7 +29,6 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   private val googleProject = GoogleProject("test-project")
   private val googleProject2 = GoogleProject("test-project2")
   private val clusterName = ClusterName("test-cluster")
-
   val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
   with MockUserInfoDirectives {
     override val userInfo: UserInfo =
@@ -170,7 +171,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
-      val responseClusters = responseAs[List[Cluster]]
+      val responseClusters = responseAs[List[ListClusterResponse]]
       responseClusters should have size 10
       responseClusters foreach { cluster =>
         cluster.googleProject shouldEqual googleProject
@@ -198,7 +199,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     Get("/api/clusters?label6=value6") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
-      val responseClusters = responseAs[List[Cluster]]
+      val responseClusters = responseAs[List[ListClusterResponse]]
       responseClusters should have size 1
 
       val cluster = responseClusters.head
@@ -217,7 +218,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     Get("/api/clusters?_labels=label4%3Dvalue4") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
-      val responseClusters = responseAs[List[Cluster]]
+      val responseClusters = responseAs[List[ListClusterResponse]]
       responseClusters should have size 1
 
       val cluster = responseClusters.head
@@ -244,8 +245,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     // listClusters should return no clusters initially
     Get(s"/api/clusters/${googleProject.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
-      val responseClusters = responseAs[List[Cluster]]
-      responseClusters shouldBe List.empty[Cluster]
+      val responseClusters = responseAs[List[ListClusterResponse]]
+      responseClusters shouldBe List.empty[ListClusterResponse]
     }
 
     for (i <- 1 to 10) {
@@ -257,7 +258,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     Get(s"/api/clusters/${googleProject.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
-      val responseClusters = responseAs[List[Cluster]]
+      val responseClusters = responseAs[List[ListClusterResponse]]
       responseClusters should have size 10
       responseClusters foreach { cluster =>
         cluster.googleProject shouldEqual googleProject

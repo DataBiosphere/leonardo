@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-case class DataprocConfig(
+final case class DataprocConfig(
   applicationName: String,
   dataprocDefaultRegion: String,
   dataprocZone: Option[String],
@@ -22,8 +22,11 @@ case class DataprocConfig(
   projectVPCSubnetLabel: Option[String],
   welderEnabledNotebooksDir: String,
   welderDisabledNotebooksDir: String, // TODO: remove once welder is rolled out to all clusters
-  customDataprocImage: Option[String],
+  legacyCustomDataprocImage: CustomDataprocImage,
+  customDataprocImage: CustomDataprocImage,
   deployWelderLabel: Option[String],
   updateWelderLabel: Option[String],
   deployWelderCutoffDate: Option[String]
 )
+
+final case class CustomDataprocImage(asString: String) extends AnyVal

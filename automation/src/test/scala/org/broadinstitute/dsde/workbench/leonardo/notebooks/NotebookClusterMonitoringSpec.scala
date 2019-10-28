@@ -161,7 +161,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           .futureValue
 
         val request = defaultClusterRequest.copy(
-          jupyterDockerImage = None,
+          jupyterDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl),
           machineConfig = Option(
             MachineConfig(
               // need at least 2 regular workers to enable preemptibles
@@ -174,9 +174,8 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         withNewCluster(billingProject, request = request) { cluster =>
           // Verify a Hail job uses preemptibles
           withWebDriver { implicit driver =>
-            withNewNotebook(cluster, PySpark3) { notebookPage =>
-              verifyHailImport(notebookPage, destPath, cluster)
-              notebookPage.saveAndCheckpoint()
+            withNewNotebook(cluster, Python3) { notebookPage =>
+              notebookPage.executeCell("""import mock""") shouldBe None
             }
 
             // Stop the cluster

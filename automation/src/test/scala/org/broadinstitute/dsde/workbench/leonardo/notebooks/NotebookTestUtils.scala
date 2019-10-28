@@ -107,7 +107,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       )
       val result: Future[T] = retryUntilSuccessOrTimeout(
         whenKernelNotReady,
-        failureLogMessage = s"Cannot make new notebook"
+        failureLogMessage = s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.string} for ${kernel}"
       )(30 seconds, 2 minutes) { () =>
         Future(
           notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
@@ -172,66 +172,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     // stop the server
     DummyClient.stopServer(bindingFuture)
     testResult.get
-  }
-
-  def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, cluster: Cluster): Unit = {
-    val hailTimeout = 10 minutes
-    val welcomeToHail =
-      """Welcome to
-        |     __  __     <>__
-        |    / /_/ /__  __/ /
-        |   / __  / _ `/ / /
-        |  /_/ /_/\_,_/_/_/""".stripMargin
-
-    val vcfDescription =
-      """Row fields:
-        |    'locus': locus<GRCh37>
-        |    'alleles': array<str>
-        |    'rsid': str
-        |    'qual': float64
-        |    'filters': set<str>
-        |    'info': struct {
-        |        LDAF: float64,
-        |        AVGPOST: float64,
-        |        RSQ: float64,
-        |        ERATE: float64,
-        |        THETA: float64,
-        |        CIEND: array<int32>,
-        |        CIPOS: array<int32>,
-        |        END: int32,
-        |        HOMLEN: array<int32>,
-        |        HOMSEQ: array<str>,
-        |        SVLEN: int32,
-        |        SVTYPE: str,
-        |        AC: array<int32>,
-        |        AN: int32,
-        |        AA: str,
-        |        AF: array<float64>,
-        |        AMR_AF: float64,
-        |        ASN_AF: float64,
-        |        AFR_AF: float64,
-        |        EUR_AF: float64,
-        |        VT: str,
-        |        SNPSOURCE: array<str>""".stripMargin
-
-    val elapsed = time {
-      notebookPage.executeCell("import hail as hl") shouldBe None
-      notebookPage.executeCell("hl.init(sc)").get should include(welcomeToHail)
-
-      notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
-      notebookPage.executeCell("imported = hl.import_vcf(chr20vcf)", hailTimeout) shouldBe None
-
-      //notebookPage.executeCell("imported.describe()", hailTimeout).get should include(vcfDescription)
-      notebookPage.executeCell("imported.describe()", hailTimeout).get should include("Row fields:")
-    }
-
-    logger.info(s"Hail import for cluster ${cluster.projectNameString}} took ${elapsed.duration.toSeconds} seconds")
-
-    // show that the Hail log contains jobs that were run on preemptible nodes
-    // TODO this check is not always reliable
-
-    //val preemptibleNodePrefix = cluster.clusterName.string + "-sw"
-    //notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
   }
 
   def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(

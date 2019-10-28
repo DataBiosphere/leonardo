@@ -12,7 +12,7 @@ import org.scalatest.DoNotDiscover
 class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
-  val expectedHailVersion = "devel-9d6bf0096349"
+  val expectedHailVersion = "0.2.27"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
   override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
 
@@ -45,12 +45,19 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
           val tutorialCellResult = notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).get
           tutorialCellResult.output.get.toInt shouldBe (943)
 
+          // Verify spark job is run in non local mode
+          val getSparkContext =
+            """
+              |hl.spark_context()""".stripMargin
+          val getSparkContextCellResult = notebookPage.executeCellWithCellOutput(getSparkContext, cellNumberOpt = Some(3)).get
+          getSparkContextCellResult.renderResult.contains("yarn") shouldBe true
+
           // Verify spark job works
           val sparkJobToSucceed =
             """import random
               |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
           val sparkJobToSucceedcellResult =
-            notebookPage.executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(3)).get
+            notebookPage.executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4)).get
           sparkJobToSucceedcellResult.output.get.toInt shouldBe (1000)
         }
       }

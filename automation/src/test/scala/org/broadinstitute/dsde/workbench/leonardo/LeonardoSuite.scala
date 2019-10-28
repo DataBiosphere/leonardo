@@ -91,7 +91,7 @@ final class LeonardoSuite
       new NotebookCustomizationSpec,
       new NotebookDataSyncingSpec,
       new NotebookGATKSpec,
-//      new NotebookHailSpec, TODO: revisit and enable this once hail image https://broadworkbench.atlassian.net/browse/IA-1237
+      new NotebookHailSpec,
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
       new RStudioSpec
