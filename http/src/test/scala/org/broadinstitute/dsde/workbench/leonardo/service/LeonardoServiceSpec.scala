@@ -13,8 +13,10 @@ import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType.User
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWelderDAO}
@@ -45,6 +47,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var computeDAO: MockGoogleComputeDAO = _
+  private var directoryDAO: MockGoogleDirectoryDAO = _
   private var iamDAO: MockGoogleIamDAO = _
   private var projectDAO: MockGoogleProjectDAO = _
   private var storageDAO: MockGoogleStorageDAO = _
@@ -64,6 +67,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   before {
     gdDAO = new MockGoogleDataprocDAO
     computeDAO = new MockGoogleComputeDAO
+    directoryDAO = new MockGoogleDirectoryDAO()
     iamDAO = new MockGoogleIamDAO
     projectDAO = new MockGoogleProjectDAO
     storageDAO = new MockGoogleStorageDAO
@@ -74,7 +78,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
     bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, iamDAO)
+    clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, directoryDAO, iamDAO)
 
     leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
   }
@@ -511,7 +515,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "delete a cluster that has status Error and does not have a google id" in isolatedDbTest {
     //we need to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO
-    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, iamDAO)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, directoryDAO, iamDAO)
     val failingLeo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
 
     // create the cluster
@@ -1076,7 +1080,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     //we meed to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO
-    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, iamDAO)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, directoryDAO, iamDAO)
     leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
 
     // create the cluster
@@ -1099,7 +1103,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     //we meed to use a special version of the MockGoogleIamDAO to simulate a conflict when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO(409)
-    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, iamDAO)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, directoryDAO, iamDAO)
     leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
 
     // create the cluster
@@ -1434,7 +1438,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
     var invocationCount = 0
-    override def addIamRolesForUser(iamProject: GoogleProject, email: WorkbenchEmail, rolesToAdd: Set[String]): Future[Boolean] = {
+    override def addIamRoles(iamProject: GoogleProject, email: WorkbenchEmail, memberType: MemberType = User, rolesToAdd: Set[String]): Future[Boolean] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, statusCode, "oh no i have failed")

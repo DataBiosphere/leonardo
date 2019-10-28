@@ -11,7 +11,8 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
@@ -116,7 +117,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, projectDAO: GoogleProjectDAO, storageDAO: GoogleStorageDAO, storage2DAO: GoogleStorageService[IO], authProvider: LeoAuthProvider[IO], jupyterDAO: JupyterDAO, rstudioDAO: RStudioDAO, welderDAO: WelderDAO[IO]): ActorRef = {
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, iamDAO)
+    val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
+    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, mockGoogleDirectoryDAO, iamDAO)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val leoService = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
     val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(
@@ -304,7 +306,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
           updatedCluster shouldBe Some(savedCreatingCluster.copy(instances = Set(masterInstance, workerInstance1, workerInstance2)))
         }
         verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-        verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+        verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
         verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       }
     }
@@ -351,7 +353,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         updatedCluster shouldBe Some(savedCreatingCluster.copy(instances = Set(masterInstance, workerInstance1, workerInstance2)))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -387,7 +389,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val iamDAO = mock[GoogleIamDAO]
     when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      iamDAO.removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
     } thenReturn Future.successful(true)
 
     when {
@@ -448,7 +450,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val iamDAO = mock[GoogleIamDAO]
     when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      iamDAO.removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
     } thenReturn Future.successful(true)
 
     when {
@@ -534,7 +536,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(storageDAO, times(1)).setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
       verify(authProvider).notifyClusterDeleted(mockitoEq(deletingCluster.internalId), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))(any[ApplicativeAsk[IO, TraceId]])
-      verify(iamDAO, times(1)).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      verify(iamDAO, times(1)).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -644,11 +646,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val iamDAO = mock[GoogleIamDAO]
     when {
-      iamDAO.addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      iamDAO.addIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
     } thenReturn Future.successful(true)
 
     when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      iamDAO.removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
     } thenReturn Future.successful(true)
 
     when {
@@ -697,11 +699,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       }
       // should only add/remove the dataproc.worker role 1 time
       val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
-      verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      verify(iamDAO, dpWorkerTimes).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+      verify(iamDAO, dpWorkerTimes).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/dataproc.worker")))
+      verify(iamDAO, dpWorkerTimes).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/dataproc.worker")))
       val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
-      verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
-      verify(iamDAO, imageUserTimes).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
+      verify(iamDAO, imageUserTimes).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/compute.imageUser")))
+      verify(iamDAO, imageUserTimes).addIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(mockitoEq(creatingCluster.internalId), mockitoEq(creatingCluster.auditInfo.creator), mockitoEq(creatingCluster.auditInfo.creator), mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))(any[ApplicativeAsk[IO, TraceId]])
     }
@@ -743,7 +745,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       }
 
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -879,7 +881,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped)))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -926,7 +928,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val iamDAO = mock[GoogleIamDAO]
     when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      iamDAO.removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
     } thenReturn Future.successful(true)
     val authProvider = mock[LeoAuthProvider[IO]]
 
@@ -955,7 +957,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
       // starting a cluster should not touch IAM roles
-      verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(jupyterDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])
       verify(rstudioDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])

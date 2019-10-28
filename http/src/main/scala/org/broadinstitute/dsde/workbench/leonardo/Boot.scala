@@ -80,7 +80,7 @@ object Boot extends IOApp with LazyLogging {
               appDependencies.metrics))
 
           // TODO Template and get the group and domain values from config
-          val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-10"
+          val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-11"
           val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
           val ch = appDependencies.clusterHelper
           ch.createDataprocImageUserGoogleGroupIfDoesntExist(appDependencies.googleDirectoryDAO, dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
@@ -129,7 +129,7 @@ object Boot extends IOApp with LazyLogging {
       googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
       googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName, pemWithServiceAccountUser, workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
+      clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleDirectoryDAO, googleIamDAO)
     } yield AppDependencies(storage, dbRef, clusterDnsCache, googleComputeDAO, gdDAO, googleDirectoryDAO, samDao, welderDao, clusterHelper, metrics)
   }
 
