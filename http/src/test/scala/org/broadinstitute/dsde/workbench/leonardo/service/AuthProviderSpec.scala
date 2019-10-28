@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
+import java.util.UUID
+
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -9,11 +11,7 @@ import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
-  clusterEq,
-  clusterSetEq,
-  stripFieldsForListCluster
-}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -22,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
@@ -154,6 +152,13 @@ class AuthProviderSpec
       proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).futureValue
 
       // change cluster status to Running so that it can be deleted
+      dbFutureValue {
+        _.clusterQuery.updateAsyncClusterCreationFields(
+          Some(GcsPath(initBucketPath, GcsObjectName(""))),
+          Some(serviceAccountKey),
+          cluster1.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+        )
+      }
       dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots")) }
 
       //delete
