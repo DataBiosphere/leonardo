@@ -9,13 +9,12 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
 import cats.Semigroup
 import cats.implicits._
-import com.typesafe.config.ConfigFactory
 import enumeratum.{Enum, EnumEntry}
-import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   ClusterDefaultsConfig,
   ClusterFilesConfig,
   ClusterResourcesConfig,
+  Config,
   DataprocConfig,
   ProxyConfig
 }
@@ -30,7 +29,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model._
 import spray.json.{RootJsonFormat, RootJsonReader, _}
 import ca.mrvisser.sealerate
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.dataprocConfigReader
+
 import scala.util.matching.Regex
 
 sealed trait ContainerRegistry extends Product with Serializable {
@@ -106,10 +105,10 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
 // A resource that is required by a cluster
 case class ClusterResource(value: String) extends ValueObject
 
-case class DataprocInfo(googleId: Option[UUID],
-                        operationName: Option[OperationName],
-                        stagingBucket: Option[GcsBucketName],
-                        hostIp: Option[IP])
+case class DataprocInfo(googleId: Option[UUID] = None,
+                        operationName: Option[OperationName] = None,
+                        stagingBucket: Option[GcsBucketName] = None,
+                        hostIp: Option[IP] = None)
 
 case class AuditInfo(creator: WorkbenchEmail,
                      createdDate: Instant,
@@ -169,19 +168,17 @@ object Cluster {
              clusterUrlBase: String,
              autopauseThreshold: Int,
              clusterScopes: Set[String],
-             operation: Option[Operation] = None,
-             stagingBucket: Option[GcsBucketName] = None,
              clusterImages: Set[ClusterImage] = Set.empty): Cluster =
     Cluster(
       internalId = internalId,
       clusterName = clusterName,
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = DataprocInfo(operation.map(_.uuid), operation.map(_.name), stagingBucket, None),
+      dataprocInfo = DataprocInfo(),
       auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
       machineConfig = machineConfig,
       properties = clusterRequest.properties,
-      clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
+      clusterUrl = getClusterUrl(googleProject, clusterName),
       status = ClusterStatus.Creating,
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
@@ -197,21 +194,13 @@ object Cluster {
       welderEnabled = clusterRequest.enableWelder.getOrElse(false)
     )
 
-  // TODO it's hacky to re-parse the Leo config in the model object.
-  // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
-  // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
-  // A possible future solution might be to separate Cluster into an internal representation (backed by the database)
-  // and an API-response representation (which may contain additional metadata/fields).
-  private lazy val cachedClusterUrlBase: String = {
-    val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
-    val dataprocConfig = config.as[DataprocConfig]("dataproc")
-    dataprocConfig.clusterUrlBase
-  }
+  def addDataprocFields(cluster: Cluster, operation: Operation, stagingBucket: GcsBucketName): Cluster =
+    cluster.copy(
+      dataprocInfo = DataprocInfo(Option(operation.uuid), Option(operation.name), Option(stagingBucket), None)
+    )
 
-  def getClusterUrl(googleProject: GoogleProject,
-                    clusterName: ClusterName,
-                    clusterUrlBase: String = cachedClusterUrlBase): URL =
-    new URL(clusterUrlBase + googleProject.value + "/" + clusterName.value)
+  def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL =
+    new URL(Config.dataprocConfig.clusterUrlBase + googleProject.value + "/" + clusterName.value)
 }
 
 // Default cluster labels
@@ -324,29 +313,22 @@ object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
   val customEnvVarFilename = "custom_env_vars.env"
 
-  def apply(googleProject: GoogleProject,
-            clusterName: ClusterName,
-            stagingBucketName: GcsBucketName,
+  def apply(cluster: Cluster,
             initBucketName: GcsBucketName,
-            clusterRequest: ClusterRequest,
+            serviceAccountKey: Option[ServiceAccountKey],
             dataprocConfig: DataprocConfig,
+            proxyConfig: ProxyConfig,
             clusterFilesConfig: ClusterFilesConfig,
             clusterResourcesConfig: ClusterResourcesConfig,
-            proxyConfig: ProxyConfig,
-            serviceAccountKey: Option[ServiceAccountKey],
-            userEmailLoginHint: WorkbenchEmail,
-            contentSecurityPolicy: String,
-            clusterImages: Set[ClusterImage],
-            stagingBucket: GcsBucketName,
-            welderEnabled: Boolean): ClusterInitValues =
+            contentSecurityPolicy: String): ClusterInitValues =
     ClusterInitValues(
-      googleProject.value,
-      clusterName.value,
-      stagingBucketName.value,
-      clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
-      clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
+      cluster.googleProject.value,
+      cluster.clusterName.value,
+      cluster.dataprocInfo.stagingBucket.map(_.value).getOrElse(""),
+      cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
+      cluster.clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
-      clusterImages.find(_.tool == Welder).map(_.dockerImage).getOrElse(""),
+      cluster.clusterImages.find(_.tool == Welder).map(_.dockerImage).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
@@ -359,22 +341,25 @@ object ClusterInitValues {
       dataprocConfig.rstudioServerName,
       dataprocConfig.welderServerName,
       proxyConfig.proxyServerName,
-      clusterRequest.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
-      GcsPath(stagingBucket, GcsObjectName("userscript_output.txt")).toUri,
+      cluster.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
+      cluster.dataprocInfo.stagingBucket
+        .map(x => GcsPath(x, GcsObjectName("userscript_output.txt")).toUri)
+        .getOrElse(""),
       serviceAccountKey
         .map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri)
         .getOrElse(""),
-      userEmailLoginHint.value,
+      cluster.auditInfo.creator.value,
       contentSecurityPolicy,
-      clusterRequest.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri,
-      clusterRequest.defaultClientId.getOrElse(""),
-      welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (welderEnabled) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir,
+      cluster.defaultClientId.getOrElse(""),
+      cluster.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
+      if (cluster.welderEnabled) dataprocConfig.welderEnabledNotebooksDir
+      else dataprocConfig.welderDisabledNotebooksDir,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri
     )
 }

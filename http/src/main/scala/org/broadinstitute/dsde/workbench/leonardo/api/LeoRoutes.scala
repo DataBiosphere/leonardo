@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{
   ErrorReport,
   TraceId,
+  WorkbenchEmail,
   WorkbenchException,
   WorkbenchExceptionWithErrorReport
 }
@@ -33,6 +34,10 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 
 import scala.concurrent.{ExecutionContext, Future}
+
+case class AuthenticationError(email: Option[WorkbenchEmail] = None)
+    extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
+                         StatusCodes.Unauthorized)
 
 abstract class LeoRoutes(
   val leonardoService: LeonardoService,
@@ -71,10 +76,11 @@ abstract class LeoRoutes(
                   entity(as[ClusterRequest]) { cluster =>
                     complete {
                       leonardoService
-                        .processClusterCreationRequest(userInfo, GoogleProject(googleProject), clusterName, cluster)
+                        .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
                         .map { cluster =>
                           StatusCodes.Accepted -> cluster
                         }
+                        .unsafeToFuture()
                     }
                   }
                 }
@@ -92,6 +98,7 @@ abstract class LeoRoutes(
                           .map { cluster =>
                             StatusCodes.Accepted -> cluster
                           }
+                          .unsafeToFuture()
                       }
                     }
                   } ~
@@ -103,6 +110,7 @@ abstract class LeoRoutes(
                             .map { cluster =>
                               StatusCodes.OK -> cluster
                             }
+                            .unsafeToFuture()
                         }
                       }
                     } ~
@@ -113,31 +121,41 @@ abstract class LeoRoutes(
                           .map { clusterDetails =>
                             StatusCodes.OK -> clusterDetails
                           }
+                          .unsafeToFuture()
                       }
                     } ~
                     delete {
                       complete {
-                        leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
-                          StatusCodes.Accepted
-                        }
+                        leonardoService
+                          .deleteCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .map { _ =>
+                            StatusCodes.Accepted
+                          }
+                          .unsafeToFuture()
                       }
                     }
                 } ~
                   path("stop") {
                     post {
                       complete {
-                        leonardoService.stopCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
-                          StatusCodes.Accepted
-                        }
+                        leonardoService
+                          .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .map { _ =>
+                            StatusCodes.Accepted
+                          }
+                          .unsafeToFuture()
                       }
                     }
                   } ~
                   path("start") {
                     post {
                       complete {
-                        leonardoService.startCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
-                          StatusCodes.Accepted
-                        }
+                        leonardoService
+                          .startCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .map { _ =>
+                            StatusCodes.Accepted
+                          }
+                          .unsafeToFuture()
                       }
                     }
                   }
@@ -149,18 +167,24 @@ abstract class LeoRoutes(
               path(Segment) { googleProject =>
                 get {
                   complete {
-                    leonardoService.listClusters(userInfo, params, Some(GoogleProject(googleProject))).map { clusters =>
-                      StatusCodes.OK -> clusters
-                    }
+                    leonardoService
+                      .listClusters(userInfo, params, Some(GoogleProject(googleProject)))
+                      .map { clusters =>
+                        StatusCodes.OK -> clusters
+                      }
+                      .unsafeToFuture()
                   }
                 }
               } ~
                 pathEndOrSingleSlash {
                   get {
                     complete {
-                      leonardoService.listClusters(userInfo, params).map { clusters =>
-                        StatusCodes.OK -> clusters
-                      }
+                      leonardoService
+                        .listClusters(userInfo, params)
+                        .map { clusters =>
+                          StatusCodes.OK -> clusters
+                        }
+                        .unsafeToFuture()
                     }
                   }
                 }

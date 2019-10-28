@@ -24,7 +24,7 @@ final case class CreateClusterConfig(
   credentialsFileName: Option[String],
   stagingBucket: GcsBucketName,
   clusterScopes: Set[String],
-  clusterVPCSettings: Option[Either[VPCNetworkName, VPCSubnetName]],
+  clusterVPCSettings: Option[VPCConfig],
   properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
   dataprocCustomImage: Option[String]
 )
@@ -99,13 +99,19 @@ case class NetworkTag(value: String) extends ValueObject
 case class FirewallRuleName(value: String) extends ValueObject
 case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleProtocol(value: String) extends ValueObject
-case class VPCNetworkName(value: String) extends ValueObject
-case class VPCSubnetName(value: String) extends ValueObject
 case class FirewallRule(name: FirewallRuleName,
                         protocol: FirewallRuleProtocol,
                         ports: List[FirewallRulePort],
-                        network: Option[VPCNetworkName],
+                        network: Option[VPCConfig],
                         targetTags: List[NetworkTag])
+
+sealed trait VPCConfig extends Product with Serializable {
+  def value: String
+}
+object VPCConfig {
+  final case class VPCNetwork(value: String) extends VPCConfig
+  final case class VPCSubnet(value: String) extends VPCConfig
+}
 
 // Instance status
 // See: https://cloud.google.com/compute/docs/instances/checking-instance-status
@@ -170,8 +176,6 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val FirewallRuleNameFormat = ValueObjectFormat(FirewallRuleName)
   implicit val FirewallRulePortFormat = ValueObjectFormat(FirewallRulePort)
   implicit val FirewallRuleProtocolFormat = ValueObjectFormat(FirewallRuleProtocol)
-  implicit val VPCNetworkNameFormat = ValueObjectFormat(VPCNetworkName)
-  implicit val FirewallRuleFormat = jsonFormat5(FirewallRule)
 
   implicit val InstanceNameFormat = ValueObjectFormat(InstanceName)
   implicit val DataprocRoleFormat = EnumEntryFormat(DataprocRole.withName)

@@ -13,7 +13,6 @@ import cats.data.OptionT
 import cats.effect.IO
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -32,8 +31,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
   RemoveFromList
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
-import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
+import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
@@ -137,6 +136,7 @@ class ClusterMonitorActor(
       scheduleNextMonitorPass
 
     case QueryForCluster =>
+      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
       checkCluster pipeTo self
 
     case NotReadyCluster(status, instances, msg) =>
@@ -220,16 +220,16 @@ class ClusterMonitorActor(
    */
   private def handleReadyCluster(publicIp: IP, instances: Set[Instance]): Future[ClusterMonitorMessage] =
     for {
-      clusterStatus <- getDbClusterStatus
+      cluster <- getDbCluster
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
-      _ <- if (clusterStatus == ClusterStatus.Creating) removeCredentialsFromMetadata else Future.unit
+      _ <- if (cluster.status == ClusterStatus.Creating) removeCredentialsFromMetadata else Future.unit
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp) }
       // Record metrics in NewRelic
-      _ <- recordMetrics(clusterStatus, ClusterStatus.Running).unsafeToFuture()
+      _ <- recordMetrics(cluster.status, ClusterStatus.Running).unsafeToFuture()
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -246,7 +246,7 @@ class ClusterMonitorActor(
   private def handleFailedCluster(errorDetails: ClusterErrorDetails,
                                   instances: Set[Instance]): Future[ClusterMonitorMessage] =
     for {
-      clusterStatus <- getDbClusterStatus
+      cluster <- getDbCluster
 
       _ <- Future.sequence(
         List(
@@ -258,12 +258,12 @@ class ClusterMonitorActor(
           // create or update instances in the DB
           persistInstances(instances),
           //save cluster error in the DB
-          persistClusterErrors(errorDetails)
+          persistClusterErrors(errorDetails, cluster)
         )
       )
 
       // Record metrics in NewRelic
-      _ <- recordMetrics(clusterStatus, ClusterStatus.Error).unsafeToFuture()
+      _ <- recordMetrics(cluster.status, ClusterStatus.Error).unsafeToFuture()
 
       // Decide if we should try recreating the cluster
       res <- if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
@@ -309,7 +309,7 @@ class ClusterMonitorActor(
     logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
 
     for {
-      clusterStatus <- getDbClusterStatus
+      cluster <- getDbCluster
 
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted
       _ <- deleteInitBucket
@@ -341,7 +341,7 @@ class ClusterMonitorActor(
         .unsafeToFuture()
 
       // Record metrics in NewRelic
-      _ <- recordMetrics(clusterStatus, ClusterStatus.Deleted).unsafeToFuture()
+      _ <- recordMetrics(cluster.status, ClusterStatus.Deleted).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
@@ -354,7 +354,7 @@ class ClusterMonitorActor(
     logger.info(s"Cluster ${cluster.projectNameString} has been stopped.")
 
     for {
-      clusterStatus <- getDbClusterStatus
+      cluster <- getDbCluster
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
@@ -362,24 +362,57 @@ class ClusterMonitorActor(
       // reset the time at which the kernel was last found to be busy
       _ <- dbRef.inTransaction { _.clusterQuery.clearKernelFoundBusyDate(cluster.id) }
       // Record metrics in NewRelic
-      _ <- recordMetrics(clusterStatus, ClusterStatus.Stopped).unsafeToFuture()
+      _ <- recordMetrics(cluster.status, ClusterStatus.Stopped).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
-  private def checkCluster: Future[ClusterMonitorMessage] =
-    getDbClusterStatus.flatMap {
-      case status if status.isMonitored =>
-        checkClusterInGoogle(status)
-      case status =>
-        logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}")
-        Future.successful(ShutdownActor(RemoveFromList(cluster)))
+  private def createClusterInGoogle(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
+    logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")
+    val future = for {
+      clusterResult <- clusterHelper.createCluster(cluster).unsafeToFuture()
+      (cluster, initBucket, saKey) = clusterResult
+      _ <- dbRef.inTransaction {
+        _.clusterQuery.updateAsyncClusterCreationFields(Some(GcsPath(initBucket, GcsObjectName(""))), saKey, cluster)
+      }
+      _ = logger.info(
+        s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process."
+      )
+    } yield NotReadyCluster(cluster.status, Set.empty)
+
+    future.recover {
+      case e =>
+        logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e)
+        val errorMessage = e match {
+          case leoEx: LeoException =>
+            ErrorReport.loggableString(leoEx.toErrorReport)
+          case _ =>
+            s"Failed to create cluster ${cluster.projectNameString} due to ${e.toString}"
+        }
+        FailedCluster(ClusterErrorDetails(-1, Some(errorMessage)), Set.empty)
     }
+  }
+
+  private def checkCluster(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] =
+    for {
+      cluster <- getDbCluster
+      next <- cluster.status match {
+        case status if status.isMonitored =>
+          if (cluster.dataprocInfo.googleId.isDefined) {
+            checkClusterInGoogle(cluster)
+          } else {
+            createClusterInGoogle
+          }
+        case status =>
+          logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}")
+          Future.successful(ShutdownActor(RemoveFromList(cluster)))
+      }
+    } yield next
 
   /**
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  private def checkClusterInGoogle(leoClusterStatus: ClusterStatus): Future[ClusterMonitorMessage] =
+  private def checkClusterInGoogle(cluster: Cluster): Future[ClusterMonitorMessage] =
     for {
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
 
@@ -395,56 +428,56 @@ class ClusterMonitorActor(
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
         case Running
-            if leoClusterStatus != Deleting && leoClusterStatus != Stopping && runningInstanceCount == googleInstances.size =>
+            if cluster.status != Deleting && cluster.status != Stopping && cluster.status != Starting && runningInstanceCount == googleInstances.size =>
+          getMasterIp.map {
+            case Some(ip) => ReadyCluster(ip, googleInstances)
+            case None     => NotReadyCluster(ClusterStatus.Running, googleInstances)
+          }
+        case Running if cluster.status == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
-            case Some(ip) => checkClusterTools(ip, googleInstances)
-            case None =>
-              Future.successful(
-                NotReadyCluster(ClusterStatus.Running, googleInstances, Some("Could not retrieve master IP"))
-              )
+            case Some(ip) =>
+              // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
+              // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
+              // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
+              dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
+                dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id) }.flatMap { images =>
+                  Future
+                    .traverse(images) { image =>
+                      image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
+                    }
+                    .map {
+                      case isAvailable =>
+                        if (isAvailable.forall(x => x._2 == true))
+                          ReadyCluster(ip, googleInstances)
+                        else
+                          NotReadyCluster(
+                            ClusterStatus.Running,
+                            googleInstances,
+                            Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1 }}")
+                          )
+                    }
+                }
+              }
+            case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Error if leoClusterStatus != Deleting && leoClusterStatus != Stopping =>
+        case Error if cluster.status != Deleting && cluster.status != Stopping =>
           gdDAO.getClusterErrorDetails(cluster.dataprocInfo.operationName).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None               => FailedCluster(ClusterErrorDetails(Code.INTERNAL.value, Some(internalError)), googleInstances)
           }
         // Take care we don't delete a Creating cluster if google hasn't updated their status yet
-        case Deleted if leoClusterStatus == Creating =>
+        case Deleted if cluster.status == Creating =>
           Future.successful(NotReadyCluster(ClusterStatus.Creating, googleInstances))
         case Deleted =>
           Future.successful(DeletedCluster)
         // if the cluster only contains stopped instances, it's a stopped cluster
         case _
-            if leoClusterStatus != Starting && leoClusterStatus != Deleting && stoppedInstanceCount == googleInstances.size =>
+            if cluster.status != Starting && cluster.status != Deleting && stoppedInstanceCount == googleInstances.size =>
           Future.successful(StoppedCluster(googleInstances))
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
     } yield result
-
-  private def checkClusterTools(ip: IP, googleInstances: Set[Instance]): Future[ClusterMonitorMessage] =
-    // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
-    // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
-    // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
-    dbRef.inTransaction { dataAccess =>
-      for {
-        _ <- dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip))
-        images <- dataAccess.clusterImageQuery.getAllForCluster(cluster.id)
-      } yield images
-    } flatMap { images =>
-      images.toList.traverse { image =>
-        image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
-      }
-    } map {
-      case isAvailable if isAvailable.forall(x => x._2 == true) =>
-        ReadyCluster(ip, googleInstances)
-      case isAvailable =>
-        NotReadyCluster(
-          ClusterStatus.Running,
-          googleInstances,
-          Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1 }}")
-        )
-    }
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {
     logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $instances")
@@ -472,7 +505,7 @@ class ClusterMonitorActor(
         case e => new Exception(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}", e)
       }
 
-  private def persistClusterErrors(errorDetails: ClusterErrorDetails): Future[Unit] = {
+  private def persistClusterErrors(errorDetails: ClusterErrorDetails, cluster: Cluster): Future[Unit] = {
     val result = cluster.dataprocInfo.stagingBucket match {
       case Some(stagingBucketName) => {
         for {
@@ -524,12 +557,6 @@ class ClusterMonitorActor(
 
     transformed.value
   }
-
-  private def whenGoogle409(throwable: Throwable): Boolean =
-    throwable match {
-      case t: GoogleJsonResponseException => t.getStatusCode == 409
-      case _                              => false
-    }
 
   private def removeServiceAccountKey: Future[Unit] =
     // Delete the notebook service account key in Google, if present
@@ -595,8 +622,13 @@ class ClusterMonitorActor(
         Future.successful(())
     }
 
-  private def getDbClusterStatus: Future[ClusterStatus] =
-    dbRef.inTransaction { _.clusterQuery.getClusterStatus(cluster.id) } map { _.getOrElse(ClusterStatus.Unknown) }
+  private def getDbCluster: Future[Cluster] =
+    for {
+      clusterOpt <- dbRef.inTransaction { _.clusterQuery.getMinimalClusterById(cluster.id) }
+      cluster <- clusterOpt.fold(
+        Future.failed[Cluster](new Exception(s"Cluster ${cluster.projectNameString} not found in the database"))
+      )(Future.successful)
+    } yield cluster
 
   private def recordMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] =
     for {

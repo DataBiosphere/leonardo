@@ -8,8 +8,8 @@ import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
-import com.typesafe.scalalogging.LazyLogging
 import cats.mtl.ApplicativeAsk
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{
@@ -21,17 +21,9 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  Cluster,
-  ClusterRequest,
-  ClusterTool,
-  ContainerImage,
-  LeoAuthProvider
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterTool, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -54,7 +46,6 @@ object ClusterMonitorSupervisor {
     jupyterProxyDAO: JupyterDAO,
     rstudioProxyDAO: RStudioDAO,
     welderDAO: WelderDAO[IO],
-    leonardoService: LeonardoService,
     clusterHelper: ClusterHelper
   )(implicit metrics: NewRelicMetrics[IO], clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool]): Props =
     Props(
@@ -71,7 +62,6 @@ object ClusterMonitorSupervisor {
                                    jupyterProxyDAO,
                                    rstudioProxyDAO,
                                    welderDAO,
-                                   leonardoService,
                                    clusterHelper)
     )
 
@@ -115,7 +105,6 @@ class ClusterMonitorSupervisor(
   jupyterProxyDAO: JupyterDAO,
   rstudioProxyDAO: RStudioDAO,
   welderProxyDAO: WelderDAO[IO],
-  leonardoService: LeonardoService,
   clusterHelper: ClusterHelper
 )(implicit metrics: NewRelicMetrics[IO], clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool])
     extends Actor
@@ -159,39 +148,8 @@ class ClusterMonitorSupervisor(
         logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
         dbRef
           .inTransaction { dataAccess =>
-            dataAccess.clusterQuery.getClusterById(cluster.id)
-          }
-          .flatMap {
-            case Some(cluster) =>
-              val clusterRequest = ClusterRequest(
-                cluster.labels,
-                cluster.jupyterExtensionUri,
-                cluster.jupyterUserScriptUri,
-                Some(cluster.machineConfig),
-                cluster.properties,
-                None,
-                cluster.userJupyterExtensionConfig,
-                if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
-                Some(cluster.autopauseThreshold),
-                cluster.defaultClientId,
-                cluster.clusterImages
-                  .find(_.tool == Jupyter)
-                  .map(_.dockerImage)
-                  .flatMap(s => ContainerImage.stringToJupyterDockerImage(s))
-              )
-              val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator,
-                                                                       cluster.serviceAccountInfo,
-                                                                       cluster.googleProject,
-                                                                       cluster.clusterName,
-                                                                       clusterRequest)
-              createFuture.failed.foreach { e =>
-                logger.error(s"[$traceId] Error occurred recreating cluster ${cluster.projectNameString}", e)
-              }
-              createFuture
-            case None =>
-              Future.failed(
-                new WorkbenchException(s"[$traceId] Cluster ${cluster.projectNameString} not found in the database")
-              )
+            dataAccess.clusterQuery.clearAsyncClusterCreationFields(cluster) >>
+              dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating)
           }
       } else {
         logger.warn(
@@ -207,7 +165,7 @@ class ClusterMonitorSupervisor(
         }
         .flatMap {
           case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
-            leonardoService.internalStopCluster(resolvedCluster)
+            stopCluster(resolvedCluster)
           case Some(resolvedCluster) =>
             logger.warn(
               s"Unable to stop cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after creation."
@@ -307,10 +265,27 @@ class ClusterMonitorSupervisor(
       _ <- metrics.gauge("autoPause/numOfCusters", pauseableClusters.length).unsafeToFuture()
       _ <- pauseableClusters.traverse { cl =>
         logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
-        leonardoService.internalStopCluster(cl).attempt.map { e =>
+        stopCluster(cl).attempt.map { e =>
           e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
         }
       }
+    } yield ()
+
+  private def stopCluster(cluster: Cluster): Future[Unit] =
+    for {
+      // Flush the welder cache to disk
+      _ <- if (cluster.welderEnabled) {
+        welderProxyDAO
+          .flushCache(cluster.googleProject, cluster.clusterName)
+          .handleError(e => logger.error(s"Failed to flush welder cache for ${cluster.projectNameString}", e))
+          .unsafeToFuture()
+      } else Future.unit
+
+      // Stop the cluster in Google
+      _ <- clusterHelper.stopCluster(cluster).unsafeToFuture()
+
+      // Update the cluster status to Stopping
+      _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
     } yield ()
 
   private def createClusterMonitors(): Unit = {
