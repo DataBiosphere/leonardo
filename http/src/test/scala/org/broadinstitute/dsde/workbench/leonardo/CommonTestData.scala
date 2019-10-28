@@ -9,6 +9,7 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{
@@ -127,6 +128,7 @@ trait CommonTestData { this: ScalaFutures =>
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val mockGoogleComputeDAO = new MockGoogleComputeDAO
+  val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
   val defaultUserInfo =
     UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
@@ -163,7 +165,7 @@ trait CommonTestData { this: ScalaFutures =>
       auditInfo = auditInfo,
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       properties = Map.empty,
-      clusterUrl = Cluster.getClusterUrl(project, clusterName, clusterUrlBase),
+      clusterUrl = Cluster.getClusterUrl(project, clusterName),
       status = ClusterStatus.Unknown,
       labels = Map(),
       jupyterExtensionUri = None,
@@ -192,7 +194,7 @@ trait CommonTestData { this: ScalaFutures =>
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     properties = Map.empty,
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    clusterUrl = Cluster.getClusterUrl(project, name1),
     status = ClusterStatus.Unknown,
     labels = Map(),
     jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),

@@ -333,7 +333,7 @@ class ClusterHelper(
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private def initializeBucketObjects(cluster: Cluster,
+  private[leonardo] def initializeBucketObjects(cluster: Cluster,
                                       initBucketName: GcsBucketName,
                                       serviceAccountKey: Option[ServiceAccountKey],
                                       customClusterEnvironmentVariables: Map[String, String]): Stream[IO, Unit] = {
