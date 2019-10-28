@@ -314,7 +314,7 @@ class AuthProviderSpec
       listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
     }
 
-  "should return clusters the user didn't create if the auth provider says yes" in isolatedDbTest {
+    "should return clusters the user didn't create if the auth provider says yes" in isolatedDbTest {
       val leo = leoWithAuthProvider(alwaysYesProvider)
 
       // create
@@ -326,29 +326,6 @@ class AuthProviderSpec
       // list
       val listResponse = leo.listClusters(newUserInfo, Map()).unsafeToFuture.futureValue
       listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
-    }
-
-    "should not call notifyClusterDeleted if cluster creation fails" in isolatedDbTest {
-      val spyProvider = spy(alwaysYesProvider)
-      val leo = leoWithAuthProvider(spyProvider)
-
-      // create
-      leo
-        .createCluster(userInfo, project, mockGoogleDataprocDAO.badClusterName, testClusterRequest)
-        .unsafeToFuture
-        .failed
-        .futureValue shouldBe a[Exception]
-
-      // creation should have been fired but not deletion
-      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId],
-                                               any[WorkbenchEmail],
-                                               any[GoogleProject],
-                                               any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
-      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId],
-                                                      any[WorkbenchEmail],
-                                                      any[WorkbenchEmail],
-                                                      any[GoogleProject],
-                                                      any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
     }
   }
 }
