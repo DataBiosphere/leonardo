@@ -1,15 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.time.Instant
 import java.sql.Timestamp
+import java.time.Instant
 import java.util.UUID
 
 import cats.data.Chain
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo._
-import io.circe.{Json, Printer}
 import io.circe.syntax._
+import io.circe.{Json, Printer}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -446,9 +445,9 @@ trait ClusterComponent extends LeoComponent {
         .update(
           initBucket.map(_.toUri),
           serviceAccountKey.map(_.id.value),
-          cluster.dataprocInfo.googleId,
-          cluster.dataprocInfo.operationName.map(_.value),
-          cluster.dataprocInfo.stagingBucket.map(_.value),
+          cluster.dataprocInfo.map(_.googleId),
+          cluster.dataprocInfo.map(_.operationName.value),
+          cluster.dataprocInfo.map(_.stagingBucket.value),
           Timestamp.from(Instant.now)
         )
 
@@ -570,11 +569,11 @@ trait ClusterComponent extends LeoComponent {
         id = 0, // DB AutoInc
         cluster.internalId.value,
         cluster.clusterName.value,
-        cluster.dataprocInfo.googleId,
+        cluster.dataprocInfo.map(_.googleId),
         cluster.googleProject.value,
-        cluster.dataprocInfo.operationName.map(_.value),
+        cluster.dataprocInfo.map(_.operationName.value),
         cluster.status.toString,
-        cluster.dataprocInfo.hostIp map (_.value),
+        cluster.dataprocInfo.flatMap(_.hostIp.map(_.value)),
         cluster.jupyterExtensionUri map (_.toUri),
         cluster.jupyterUserScriptUri map (_.toUri),
         initBucket,
@@ -600,7 +599,7 @@ trait ClusterComponent extends LeoComponent {
           cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
           serviceAccountKeyId.map(_.value)
         ),
-        cluster.dataprocInfo.stagingBucket.map(_.value),
+        cluster.dataprocInfo.map(_.stagingBucket.value),
         cluster.autopauseThreshold,
         cluster.defaultClientId,
         cluster.stopAfterCreation,
@@ -707,10 +706,13 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
         clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
       )
-      val dataprocInfo = DataprocInfo(clusterRecord.googleId,
-                                      clusterRecord.operationName.map(OperationName),
-                                      clusterRecord.stagingBucket map GcsBucketName,
-                                      clusterRecord.hostIp map IP)
+      val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
+        (googleId, operationName, stagingBucket) =>
+          DataprocInfo(googleId,
+                       OperationName(operationName),
+                       GcsBucketName(stagingBucket),
+                       clusterRecord.hostIp map IP)
+      }
       val auditInfo = AuditInfo(
         WorkbenchEmail(clusterRecord.auditInfo.creator),
         clusterRecord.auditInfo.createdDate.toInstant,

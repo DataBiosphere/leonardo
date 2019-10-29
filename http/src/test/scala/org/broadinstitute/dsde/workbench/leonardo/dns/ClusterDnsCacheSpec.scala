@@ -25,18 +25,20 @@ class ClusterDnsCacheSpec
     super.afterAll()
 
   val clusterBeingCreated: Cluster =
-    makeCluster(2).copy(status = ClusterStatus.Creating, dataprocInfo = makeDataprocInfo(2).copy(hostIp = None))
+    makeCluster(2).copy(status = ClusterStatus.Creating, dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)))
   val runningCluster: Cluster = makeCluster(1).copy(status = ClusterStatus.Running)
   val stoppedCluster: Cluster =
-    makeCluster(3).copy(status = ClusterStatus.Stopped, dataprocInfo = makeDataprocInfo(2).copy(hostIp = None))
+    makeCluster(3).copy(status = ClusterStatus.Stopped, dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)))
 
   val cacheKeyForClusterBeingCreated = DnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.clusterName)
   val cacheKeyForRunningCluster = DnsCacheKey(runningCluster.googleProject, runningCluster.clusterName)
   val cacheKeyForStoppedCluster = DnsCacheKey(stoppedCluster.googleProject, stoppedCluster.clusterName)
 
-  val runningClusterHost = Host(s"${runningCluster.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org")
-  val clusterBeingCreatedHost = Host(s"${clusterBeingCreated.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org")
-  val stoppedClusterHost = Host(s"${stoppedCluster.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org")
+  val runningClusterHost = Host(s"${runningCluster.dataprocInfo.map(_.googleId).get.toString}.jupyter.firecloud.org")
+  val clusterBeingCreatedHost = Host(
+    s"${clusterBeingCreated.dataprocInfo.map(_.googleId).get.toString}.jupyter.firecloud.org"
+  )
+  val stoppedClusterHost = Host(s"${stoppedCluster.dataprocInfo.map(_.googleId).get.toString}.jupyter.firecloud.org")
 
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
 
@@ -60,7 +62,7 @@ class ClusterDnsCacheSpec
     clusterDnsCache.stats.loadCount shouldBe 3
     clusterDnsCache.stats.evictionCount shouldBe 0
 
-    ClusterDnsCache.hostToIp.get(runningClusterHost) shouldBe runningCluster.dataprocInfo.hostIp
+    ClusterDnsCache.hostToIp.get(runningClusterHost) shouldBe runningCluster.dataprocInfo.flatMap(_.hostIp)
     ClusterDnsCache.hostToIp.get(clusterBeingCreatedHost) shouldBe None
     ClusterDnsCache.hostToIp.get(stoppedClusterHost) shouldBe None
 

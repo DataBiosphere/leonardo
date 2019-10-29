@@ -16,7 +16,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
   val cluster = makeCluster(1).copy(
-    dataprocInfo = makeDataprocInfo(1).copy(googleId = Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     stopAfterCreation = true,

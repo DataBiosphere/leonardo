@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
-import java.util.UUID
-
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -11,7 +9,11 @@ import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
+  clusterEq,
+  clusterSetEq,
+  stripFieldsForListCluster
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -156,7 +158,7 @@ class AuthProviderSpec
         _.clusterQuery.updateAsyncClusterCreationFields(
           Some(GcsPath(initBucketPath, GcsObjectName(""))),
           Some(serviceAccountKey),
-          cluster1.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+          cluster1.copy(dataprocInfo = Some(makeDataprocInfo(1)))
         )
       }
       dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots")) }

@@ -81,19 +81,19 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
   }
 
   private def host(c: Cluster): Host = {
-    val googleId = c.dataprocInfo.googleId
+    val googleId = c.dataprocInfo.map(_.googleId)
     val assumption = s"Google ID for Google project/cluster ${c.googleProject}/${c.clusterName} must not be undefined."
     assert(googleId.isDefined, assumption)
 
     Host(googleId.get.toString + proxyConfig.jupyterDomain)
   }
 
-  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.hostIp.get
+  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.flatMap(_.hostIp).get
 
   private def hostStatusByProjectAndCluster(c: Cluster): HostStatus =
     if (c.status.isStartable)
       HostPaused
-    else if (c.dataprocInfo.hostIp.isDefined)
+    else if (c.dataprocInfo.flatMap(_.hostIp).isDefined)
       HostReady(host(c))
     else
       HostNotReady

@@ -161,7 +161,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.googleProject shouldBe project
     clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(project)
     clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(project)
-    clusterCreateResponse.dataprocInfo shouldBe DataprocInfo()
+    clusterCreateResponse.dataprocInfo shouldBe None
     clusterCreateResponse.auditInfo.creator shouldBe userInfo.userEmail
     clusterCreateResponse.auditInfo.destroyedDate shouldBe None
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
@@ -496,7 +496,7 @@ class LeonardoServiceSpec
       _.clusterQuery.updateAsyncClusterCreationFields(
         Some(GcsPath(initBucketPath, GcsObjectName(""))),
         Some(serviceAccountKey),
-        cluster.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1)))
       )
     }
     dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
@@ -547,7 +547,7 @@ class LeonardoServiceSpec
       _.clusterQuery.updateAsyncClusterCreationFields(
         Some(GcsPath(initBucketPath, GcsObjectName(""))),
         Some(serviceAccountKey),
-        cluster.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1)))
       )
     }
     dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
@@ -586,7 +586,7 @@ class LeonardoServiceSpec
       _.clusterQuery.updateAsyncClusterCreationFields(
         Some(GcsPath(initBucketPath, GcsObjectName(""))),
         Some(serviceAccountKey),
-        cluster.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1)))
       )
     }
     dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
@@ -640,7 +640,7 @@ class LeonardoServiceSpec
           |""
           |""
           |""
-          |"${GcsPath(testCluster.dataprocInfo.stagingBucket.get, GcsObjectName("userscript_output.txt")).toUri}"
+          |"${GcsPath(testCluster.dataprocInfo.map(_.stagingBucket).get, GcsObjectName("userscript_output.txt")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"""".stripMargin

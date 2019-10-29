@@ -400,7 +400,7 @@ class ClusterMonitorActor(
       cluster <- getDbCluster
       next <- cluster.status match {
         case status if status.isMonitored =>
-          if (cluster.dataprocInfo.googleId.isDefined) {
+          if (cluster.dataprocInfo.isDefined) {
             checkClusterInGoogle(cluster)
           } else {
             createClusterInGoogle
@@ -466,7 +466,7 @@ class ClusterMonitorActor(
           }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
         case Error if cluster.status != Deleting && cluster.status != Stopping =>
-          gdDAO.getClusterErrorDetails(cluster.dataprocInfo.operationName).map {
+          gdDAO.getClusterErrorDetails(cluster.dataprocInfo.map(_.operationName)).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None               => FailedCluster(ClusterErrorDetails(Code.INTERNAL.value, Some(internalError)), googleInstances)
           }
@@ -498,7 +498,8 @@ class ClusterMonitorActor(
           case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
           case None => {
             logger.warn(
-              s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}."
+              s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo
+                .map(_.googleId)}."
             )
             DBIOAction.successful(0)
           }
@@ -510,7 +511,7 @@ class ClusterMonitorActor(
       }
 
   private def persistClusterErrors(errorDetails: ClusterErrorDetails, cluster: Cluster): Future[Unit] = {
-    val result = cluster.dataprocInfo.stagingBucket match {
+    val result = cluster.dataprocInfo.map(_.stagingBucket) match {
       case Some(stagingBucketName) => {
         for {
           metadata <- google2StorageDAO

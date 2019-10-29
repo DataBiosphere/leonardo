@@ -479,16 +479,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                 s"Error occurred removing service account key for ${cluster.googleProject} / ${cluster.clusterName}"
               )
           }
-        hasGoogleId = cluster.dataprocInfo.googleId.isDefined
+        hasDataprocInfo = cluster.dataprocInfo.isDefined
         // Delete the cluster in Google
-        _ <- if (hasGoogleId) clusterHelper.deleteCluster(cluster) else IO.unit
+        _ <- if (hasDataprocInfo) clusterHelper.deleteCluster(cluster) else IO.unit
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
         _ <- dbRef.inTransactionIO { dataAccess =>
-          if (hasGoogleId) dataAccess.clusterQuery.markPendingDeletion(cluster.id)
+          if (hasDataprocInfo) dataAccess.clusterQuery.markPendingDeletion(cluster.id)
           else dataAccess.clusterQuery.completeDeletion(cluster.id)
         }
-        _ <- if (hasGoogleId) IO.unit
+        _ <- if (hasDataprocInfo) IO.unit
         else
           authProvider
             .notifyClusterDeleted(cluster.internalId,

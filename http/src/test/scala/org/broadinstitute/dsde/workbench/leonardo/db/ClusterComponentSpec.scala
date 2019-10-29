@@ -7,7 +7,6 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSeqEq, clusterSetEq}
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -26,12 +25,12 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = UUID.randomUUID()
     val cluster1 = makeCluster(1).copy(
-      dataprocInfo = makeDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
+      dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
       instances = Set(masterInstance, workerInstance1, workerInstance2),
       stopAfterCreation = true
     )
 
-    val cluster1WithErr = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
+    val cluster1WithErr = makeCluster(1).copy(dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
                                               errors = List(err1),
                                               instances = Set(masterInstance, workerInstance1, workerInstance2))
 
@@ -108,7 +107,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val cluster1status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get
     cluster1status.status shouldEqual ClusterStatus.Deleting
     cluster1status.auditInfo.destroyedDate shouldBe None
-    cluster1status.dataprocInfo.hostIp shouldBe None
+    cluster1status.dataprocInfo.flatMap(_.hostIp) shouldBe None
     cluster1status.instances shouldBe cluster1.instances
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster2.id) } shouldEqual 1
@@ -116,14 +115,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val cluster2status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) }.get
     cluster2status.status shouldEqual ClusterStatus.Deleting
     cluster2status.auditInfo.destroyedDate shouldBe None
-    cluster2status.dataprocInfo.hostIp shouldBe None
+    cluster2status.dataprocInfo.flatMap(_.hostIp) shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster3.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActiveWithLabels() } shouldEqual Seq()
     val cluster3status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster3.id) }.get
     cluster3status.status shouldEqual ClusterStatus.Deleting
     cluster3status.auditInfo.destroyedDate shouldBe None
-    cluster3status.dataprocInfo.hostIp shouldBe None
+    cluster3status.dataprocInfo.flatMap(_.hostIp) shouldBe None
   }
 
   it should "get by labels" in isolatedDbTest {
@@ -184,14 +183,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.setToStopping(initialCluster.id) } shouldEqual 1
     val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
     val expectedStoppedCluster = initialCluster.copy(
-      dataprocInfo = initialCluster.dataprocInfo.copy(hostIp = None),
+      dataprocInfo = initialCluster.dataprocInfo.map(_.copy(hostIp = None)),
       auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed),
       status = ClusterStatus.Stopping
     )
     stoppedCluster.copy(auditInfo = stoppedCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedStoppedCluster
     stoppedCluster.auditInfo.dateAccessed should be > initialCluster.auditInfo.dateAccessed
 
-    dbFutureValue { _.clusterQuery.setToRunning(initialCluster.id, initialCluster.dataprocInfo.hostIp.get) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.setToRunning(initialCluster.id, initialCluster.dataprocInfo.flatMap(_.hostIp).get) } shouldEqual 1
     val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
     val expectedRunningCluster = initialCluster.copy(id = initialCluster.id,
                                                      auditInfo =
@@ -347,7 +346,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "list monitored clusters" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).save()
-    val savedCluster2 = makeCluster(2).copy(dataprocInfo = DataprocInfo(None, None, None, None)).save()
+    val savedCluster2 = makeCluster(2).copy(dataprocInfo = None).save()
 
     // listMonitored should only return clusters that have google info defined
     dbFutureValue { _.clusterQuery.listMonitoredClusterOnly() }.toSet shouldBe Set(savedCluster1, savedCluster2)

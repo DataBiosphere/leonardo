@@ -148,9 +148,9 @@ trait CommonTestData { this: ScalaFutures =>
 
   def makeDataprocInfo(index: Int): DataprocInfo =
     DataprocInfo(
-      Option(UUID.randomUUID()),
-      Option(OperationName("operationName" + index.toString)),
-      Option(GcsBucketName("stagingbucketname" + index.toString)),
+      UUID.randomUUID(),
+      OperationName("operationName" + index.toString),
+      GcsBucketName("stagingbucketname" + index.toString),
       Some(IP("numbers.and.dots"))
     )
 
@@ -161,7 +161,7 @@ trait CommonTestData { this: ScalaFutures =>
       internalId = internalId,
       googleProject = project,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = makeDataprocInfo(index),
+      dataprocInfo = Some(makeDataprocInfo(index)),
       auditInfo = auditInfo,
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       properties = Map.empty,
@@ -187,10 +187,7 @@ trait CommonTestData { this: ScalaFutures =>
     internalId = internalId,
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()),
-                                Option(OperationName("op")),
-                                Some(GcsBucketName("testStagingBucket1")),
-                                None),
+    dataprocInfo = Some(DataprocInfo(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     properties = Map.empty,

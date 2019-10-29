@@ -124,7 +124,8 @@ abstract class LeoRoutes(
                     delete {
                       complete {
                         leonardoService
-                          .deleteCluster(userInfo, GoogleProject(googleProject), clusterName).as(StatusCodes.Accepted)
+                          .deleteCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .as(StatusCodes.Accepted)
                       }
                     }
                 } ~
@@ -132,7 +133,8 @@ abstract class LeoRoutes(
                     post {
                       complete {
                         leonardoService
-                          .stopCluster(userInfo, GoogleProject(googleProject), clusterName).as(StatusCodes.Accepted)
+                          .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .as(StatusCodes.Accepted)
                       }
                     }
                   } ~
@@ -140,7 +142,8 @@ abstract class LeoRoutes(
                     post {
                       complete {
                         leonardoService
-                          .startCluster(userInfo, GoogleProject(googleProject), clusterName).as(StatusCodes.Accepted)
+                          .startCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .as(StatusCodes.Accepted)
                       }
                     }
                   }

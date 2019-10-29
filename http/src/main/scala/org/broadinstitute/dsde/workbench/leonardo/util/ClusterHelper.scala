@@ -192,8 +192,8 @@ class ClusterHelper(
       // Start each instance individually
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
         // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
-        IO.fromFuture(IO(instance.dataprocRole match {
-          case Some(Master) =>
+        IO.fromFuture(IO(instance.dataprocRole.traverse {
+          case Master =>
             googleComputeDAO.addInstanceMetadata(instance.key, metadata) >>
               googleComputeDAO.startInstance(instance.key)
           case _ =>
@@ -216,27 +216,23 @@ class ClusterHelper(
 
   def setMasterMachineType(cluster: Cluster, machineType: MachineType): IO[Unit] =
     cluster.instances.toList.traverse_ { instance =>
-      instance.dataprocRole match {
-        case Some(Master) =>
-          IO.fromFuture(IO(googleComputeDAO.setMachineType(instance.key, machineType)))
-        case _ =>
-          // Note: we don't support changing the machine type for worker instances. While this is possible
-          // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
-          // and rebuilding the cluster if new worker machine/disk sizes are needed.
-          IO.unit
+      // Note: we don't support changing the machine type for worker instances. While this is possible
+      // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
+      // and rebuilding the cluster if new worker machine/disk sizes are needed.
+      instance.dataprocRole.traverse_ {
+        case Master => IO.fromFuture(IO(googleComputeDAO.setMachineType(instance.key, machineType)))
+        case _      => IO.unit
       }
     }
 
   def updateMasterDiskSize(cluster: Cluster, diskSize: Int): IO[Unit] =
     cluster.instances.toList.traverse_ { instance =>
-      instance.dataprocRole match {
-        case Some(Master) =>
-          IO.fromFuture(IO(googleComputeDAO.resizeDisk(instance.key, diskSize)))
-        case _ =>
-          // Note: we don't support changing the machine type for worker instances. While this is possible
-          // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
-          // and rebuilding the cluster if new worker machine/disk sizes are needed.
-          IO.unit
+      // Note: we don't support changing the machine type for worker instances. While this is possible
+      // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
+      // and rebuilding the cluster if new worker machine/disk sizes are needed.
+      instance.dataprocRole.traverse_ {
+        case Master => IO.fromFuture(IO(googleComputeDAO.resizeDisk(instance.key, diskSize)))
+        case _      => IO.unit
       }
     }
 
@@ -266,44 +262,35 @@ class ClusterHelper(
                                             serviceAccountInfo: ServiceAccountInfo,
                                             serviceAccountKeyOpt: Option[ServiceAccountKey]): IO[Unit] = {
     // Clean up resources in Google
-    val deleteBucket = (for {
-      _ <- bucketHelper.deleteInitBucket(initBucketName)
-      _ <- log.info(
-        s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}"
-      )
-    } yield ()).recoverWith {
-      case e =>
+    val deleteBucket = bucketHelper.deleteInitBucket(initBucketName).attempt.flatMap {
+      case Left(e) =>
         log.error(e)(
           s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}"
+        )
+      case _ =>
+        log.info(
+          s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}"
         )
     }
 
     // Don't delete the staging bucket so the user can see error logs.
 
-    val deleteCluster = (for {
-      _ <- IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName)))
-      _ <- log.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
-    } yield ()).recoverWith {
-      case e =>
-        log.error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}")
+    val deleteCluster = IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName))).attempt.flatMap {
+      case Left(e) => log.error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}")
+      case _       => log.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
     }
 
-    val deleteServiceAccountKey = (for {
-      _ <- removeServiceAccountKey(googleProject,
-                                   serviceAccountInfo.notebookServiceAccount,
-                                   serviceAccountKeyOpt.map(_.id))
-      _ <- log.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
-    } yield ()).recoverWith {
-      case e =>
+    val deleteServiceAccountKey = removeServiceAccountKey(googleProject,
+                                                          serviceAccountInfo.notebookServiceAccount,
+                                                          serviceAccountKeyOpt.map(_.id)).attempt.flatMap {
+      case Left(e) =>
         log.error(e)(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}")
+      case _ => log.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
     }
 
-    val removeIamRoles = (for {
-      _ <- removeClusterIamRoles(googleProject, serviceAccountInfo)
-      _ <- log.info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.value}")
-    } yield ()).recoverWith {
-      case e =>
-        log.error(e)(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.value}")
+    val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).attempt.flatMap {
+      case Left(e) => log.error(e)(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.value}")
+      case _       => log.info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.value}")
     }
 
     List(deleteBucket, deleteCluster, deleteServiceAccountKey, removeIamRoles).parSequence_

@@ -7,28 +7,21 @@ import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
+import ca.mrvisser.sealerate
 import cats.Semigroup
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  ClusterDefaultsConfig,
-  ClusterFilesConfig,
-  ClusterResourcesConfig,
-  Config,
-  DataprocConfig,
-  ProxyConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
+import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model._
 import spray.json.{RootJsonFormat, RootJsonReader, _}
-import ca.mrvisser.sealerate
 
 import scala.util.matching.Regex
 
@@ -105,10 +98,7 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
 // A resource that is required by a cluster
 case class ClusterResource(value: String) extends ValueObject
 
-case class DataprocInfo(googleId: Option[UUID] = None,
-                        operationName: Option[OperationName] = None,
-                        stagingBucket: Option[GcsBucketName] = None,
-                        hostIp: Option[IP] = None)
+case class DataprocInfo(googleId: UUID, operationName: OperationName, stagingBucket: GcsBucketName, hostIp: Option[IP])
 
 case class AuditInfo(creator: WorkbenchEmail,
                      createdDate: Instant,
@@ -134,7 +124,7 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                          clusterName: ClusterName,
                          googleProject: GoogleProject,
                          serviceAccountInfo: ServiceAccountInfo,
-                         dataprocInfo: DataprocInfo,
+                         dataprocInfo: Option[DataprocInfo],
                          auditInfo: AuditInfo,
                          machineConfig: MachineConfig,
                          properties: Map[String, String],
@@ -174,7 +164,7 @@ object Cluster {
       clusterName = clusterName,
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = DataprocInfo(),
+      dataprocInfo = None,
       auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
       machineConfig = machineConfig,
       properties = clusterRequest.properties,
@@ -196,7 +186,7 @@ object Cluster {
 
   def addDataprocFields(cluster: Cluster, operation: Operation, stagingBucket: GcsBucketName): Cluster =
     cluster.copy(
-      dataprocInfo = DataprocInfo(Option(operation.uuid), Option(operation.name), Option(stagingBucket), None)
+      dataprocInfo = Some(DataprocInfo(operation.uuid, operation.name, stagingBucket, None))
     )
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL =
@@ -324,7 +314,7 @@ object ClusterInitValues {
     ClusterInitValues(
       cluster.googleProject.value,
       cluster.clusterName.value,
-      cluster.dataprocInfo.stagingBucket.map(_.value).getOrElse(""),
+      cluster.dataprocInfo.map(_.stagingBucket.value).getOrElse(""),
       cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
       cluster.clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
@@ -342,8 +332,8 @@ object ClusterInitValues {
       dataprocConfig.welderServerName,
       proxyConfig.proxyServerName,
       cluster.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
-      cluster.dataprocInfo.stagingBucket
-        .map(x => GcsPath(x, GcsObjectName("userscript_output.txt")).toUri)
+      cluster.dataprocInfo
+        .map(x => GcsPath(x.stagingBucket, GcsObjectName("userscript_output.txt")).toUri)
         .getOrElse(""),
       serviceAccountKey
         .map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri)
@@ -550,12 +540,15 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("clusterName", JsNull).convertTo[ClusterName],
             fields.getOrElse("googleProject", JsNull).convertTo[GoogleProject],
             fields.getOrElse("serviceAccountInfo", JsNull).convertTo[ServiceAccountInfo],
-            DataprocInfo(
-              fields.getOrElse("googleId", JsNull).convertTo[Option[UUID]],
-              fields.getOrElse("operationName", JsNull).convertTo[Option[OperationName]],
-              fields.getOrElse("stagingBucket", JsNull).convertTo[Option[GcsBucketName]],
-              fields.getOrElse("hostIp", JsNull).convertTo[Option[IP]]
-            ),
+            (fields.get("googleId"), fields.get("operationName"), fields.get("stagingBucket")).mapN {
+              (googleId, operationName, stagingBucket) =>
+                DataprocInfo(
+                  googleId.convertTo[UUID],
+                  operationName.convertTo[OperationName],
+                  stagingBucket.convertTo[GcsBucketName],
+                  fields.getOrElse("hostIp", JsNull).convertTo[Option[IP]]
+                )
+            },
             AuditInfo(
               fields.getOrElse("creator", JsNull).convertTo[WorkbenchEmail],
               fields.getOrElse("createdDate", JsNull).convertTo[Instant],
@@ -588,14 +581,14 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "id" -> obj.id.toJson,
         "internalId" -> obj.internalId.toJson,
         "clusterName" -> obj.clusterName.toJson,
-        "googleId" -> obj.dataprocInfo.googleId.toJson,
+        "googleId" -> obj.dataprocInfo.map(_.googleId).toJson,
         "googleProject" -> obj.googleProject.toJson,
         "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
         "machineConfig" -> obj.machineConfig.toJson,
         "clusterUrl" -> obj.clusterUrl.toJson,
-        "operationName" -> obj.dataprocInfo.operationName.toJson,
+        "operationName" -> obj.dataprocInfo.map(_.operationName).toJson,
         "status" -> obj.status.toJson,
-        "hostIp" -> obj.dataprocInfo.hostIp.toJson,
+        "hostIp" -> obj.dataprocInfo.map(_.hostIp).toJson,
         "creator" -> obj.auditInfo.creator.toJson,
         "createdDate" -> obj.auditInfo.createdDate.toJson,
         "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
@@ -603,7 +596,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "labels" -> obj.labels.toJson,
         "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
         "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-        "stagingBucket" -> obj.dataprocInfo.stagingBucket.toJson,
+        "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket).toJson,
         "errors" -> obj.errors.toJson,
         "instances" -> obj.instances.toJson,
         "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
