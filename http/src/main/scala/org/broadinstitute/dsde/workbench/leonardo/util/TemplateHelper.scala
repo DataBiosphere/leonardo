@@ -14,6 +14,7 @@ object TemplateHelper {
                                              blocker: Blocker): Stream[F, Byte] =
     fileStream(file, blocker)
       .through(text.utf8Decode)
+      .through(text.lines)
       .map(template(replacementMap))
       .through(text.utf8Encode)
 
@@ -22,6 +23,7 @@ object TemplateHelper {
                                                  blocker: Blocker): Stream[F, Byte] =
     resourceStream(clusterResource, blocker)
       .through(text.utf8Decode)
+      .through(text.lines)
       .map(template(replacementMap))
       .through(text.utf8Encode)
 
