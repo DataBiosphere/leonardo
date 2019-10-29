@@ -366,7 +366,7 @@ class ClusterMonitorActor(
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
-  private def createClusterInGoogle(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
+  private def createClusterInGoogle(cluster: Cluster)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
     val createClusterFuture = for {
       _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")).unsafeToFuture()
       clusterResult <- clusterHelper.createCluster(cluster).unsafeToFuture()
@@ -403,7 +403,7 @@ class ClusterMonitorActor(
           if (cluster.dataprocInfo.isDefined) {
             checkClusterInGoogle(cluster)
           } else {
-            createClusterInGoogle
+            createClusterInGoogle(cluster)
           }
         case status =>
           IO(logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}"))
