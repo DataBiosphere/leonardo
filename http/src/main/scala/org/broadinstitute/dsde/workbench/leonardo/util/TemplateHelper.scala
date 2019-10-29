@@ -16,6 +16,7 @@ object TemplateHelper {
       .through(text.utf8Decode)
       .through(text.lines)
       .map(template(replacementMap))
+      .intersperse("\n")
       .through(text.utf8Encode)
 
   def templateResource[F[_]: ContextShift: Sync](replacementMap: Map[String, String],
@@ -25,6 +26,7 @@ object TemplateHelper {
       .through(text.utf8Decode)
       .through(text.lines)
       .map(template(replacementMap))
+      .intersperse("\n")
       .through(text.utf8Encode)
 
   def fileStream[F[_]: ContextShift: Sync](file: File, blocker: Blocker): Stream[F, Byte] =
