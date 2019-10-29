@@ -152,7 +152,7 @@ pipeline {
 
         script {
           def temp = sh( 
-            script: "cat config/conf.json | jq -r '.image_data | .[] | select(.automated_flags.include_in_custom_dataproc == true) | .name'",
+            script: "cat config/conf.json | jq -r '.image_data | .[] | select(.automated_flags.include_in_custom_dataproc == true) | select(.automated_flags.build == true) | .name'",
             returnStdout: true
           ).trim().split("\n")
 
