@@ -4,8 +4,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoC
 import org.scalatest.DoNotDiscover
 
 /**
-  * This spec verifies expected functionality of the Terra GATK+Samtools image.
-  */
+ * This spec verifies expected functionality of the Terra GATK+Samtools image.
+ */
 @DoNotDiscover
 class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
 

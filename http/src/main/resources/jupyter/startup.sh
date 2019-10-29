@@ -60,6 +60,10 @@ docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_
 
 # Start welder, if enabled
 if [ "$WELDER_ENABLED" == "true" ] ; then
+    # fix for https://broadworkbench.atlassian.net/browse/IA-1453
+    # TODO: remove this when we stop supporting the legacy docker image
+    docker exec -u root jupyter-server sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' /etc/jupyter/scripts/kernel/kernel_bootstrap.sh
+
     echo "Starting Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-    docker exec -d $WELDER_SERVER_NAME /opt/docker/bin/entrypoint.sh
+    docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
 fi

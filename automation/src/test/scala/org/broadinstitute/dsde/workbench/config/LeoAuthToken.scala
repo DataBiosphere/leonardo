@@ -52,4 +52,3 @@ case object LeoAuthToken extends AuthToken {
       .build()
   }
 }
-

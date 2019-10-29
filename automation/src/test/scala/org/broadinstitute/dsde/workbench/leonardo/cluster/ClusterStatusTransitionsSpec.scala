@@ -6,11 +6,11 @@ import org.broadinstitute.dsde.workbench.service.RestException
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
-  * This spec is for validating how Leonardo/Google handles cluster status transitions.
-  *
-  * Note these tests can take a long time so we don't test all edge cases, but these cases
-  * should exercise the most commonly used paths through the system.
-  */
+ * This spec is for validating how Leonardo/Google handles cluster status transitions.
+ *
+ * Note these tests can take a long time so we don't test all edge cases, but these cases
+ * should exercise the most commonly used paths through the system.
+ */
 @DoNotDiscover
 class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
 
@@ -55,7 +55,10 @@ class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       Leonardo.cluster.get(billingProject, clusterName).status shouldBe ClusterStatus.Deleting
 
       // Can't recreate while cluster is deleting
-      val caught3 = the[RestException] thrownBy createNewCluster(billingProject, clusterName, clusterRequest, monitor = false)
+      val caught3 = the[RestException] thrownBy createNewCluster(billingProject,
+                                                                 clusterName,
+                                                                 clusterRequest,
+                                                                 monitor = false)
       caught3.message should include(""""statusCode":409""")
 
       // Wait for the cluster to be deleted
@@ -75,11 +78,15 @@ class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
         cluster.status shouldBe ClusterStatus.Error
 
         // can't stop an Error'd cluster
-        val caught = the[RestException] thrownBy stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+        val caught = the[RestException] thrownBy stopCluster(cluster.googleProject,
+                                                             cluster.clusterName,
+                                                             monitor = false)
         caught.message should include(""""statusCode":409""")
 
         // can't recreate an Error'd cluster
-        val caught2 = the[RestException] thrownBy createNewCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+        val caught2 = the[RestException] thrownBy createNewCluster(cluster.googleProject,
+                                                                   cluster.clusterName,
+                                                                   monitor = false)
         caught2.message should include(""""statusCode":409""")
 
         // can delete an Error'd cluster

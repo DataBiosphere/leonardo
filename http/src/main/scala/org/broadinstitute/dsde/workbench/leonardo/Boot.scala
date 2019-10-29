@@ -14,7 +14,13 @@ import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
-import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleStorageDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO,
+  HttpGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
@@ -25,7 +31,12 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, ZombieClusterMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  ClusterDateAccessedActor,
+  ClusterMonitorSupervisor,
+  ClusterToolMonitor,
+  ZombieClusterMonitor
+}
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -83,7 +94,7 @@ object Boot extends IOApp with LazyLogging {
           val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-11"
           val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
           val ch = appDependencies.clusterHelper
-          ch.createDataprocImageUserGoogleGroupIfDoesntExist(appDependencies.googleDirectoryDAO, dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
+          ch.createDataprocImageUserGoogleGroupIfItDoesntExist(appDependencies.googleDirectoryDAO, dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
             .flatMap { _ =>
               ch.addDataprocImageUserIamRole(ch.googleIamDAO, dataprocConfig.customDataprocImage, dpImageUserGoogleGroupEmail)
             }
@@ -120,7 +131,9 @@ object Boot extends IOApp with LazyLogging {
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 
       samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config)
-      dbRef <- Resource.make(ConcurrentEffect[F].delay(DbReference.init(liquibaseConfig)))(db => ConcurrentEffect[F].delay(db.database.close))
+      dbRef <- Resource.make(ConcurrentEffect[F].delay(DbReference.init(liquibaseConfig)))(
+        db => ConcurrentEffect[F].delay(db.database.close)
+      )
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
 
@@ -137,11 +150,10 @@ object Boot extends IOApp with LazyLogging {
     val akkaSSLConfig = AkkaSSLConfig()
     val config = akkaSSLConfig.config
     val logger = new AkkaLoggerFactory(actorSystem)
-    new ConfigSSLContextBuilder(
-      logger,
-      config,
-      akkaSSLConfig.buildKeyManagerFactory(config),
-      akkaSSLConfig.buildTrustManagerFactory(config)).build()
+    new ConfigSSLContextBuilder(logger,
+                                config,
+                                akkaSSLConfig.buildKeyManagerFactory(config),
+                                akkaSSLConfig.buildTrustManagerFactory(config)).build()
   }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)

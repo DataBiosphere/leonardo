@@ -29,11 +29,11 @@ trait StatusRoutes {
         }
       }
     } ~
-    pathPrefix("version") {
-      pathEndOrSingleSlash {
-        get {
-          complete((StatusCodes.OK, BuildTimeVersion.versionJson))
+      pathPrefix("version") {
+        pathEndOrSingleSlash {
+          get {
+            complete((StatusCodes.OK, BuildTimeVersion.versionJson))
+          }
         }
       }
-    }
 }

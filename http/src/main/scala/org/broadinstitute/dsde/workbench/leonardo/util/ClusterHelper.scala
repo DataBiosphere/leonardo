@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, IamPermission, ServiceAccountKey, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -73,7 +73,7 @@ class ClusterHelper(dbRef: DbReference,
     // This is needed in order to use a custom dataproc VM image.
     // If a custom image is not being used, this is not necessary.
     val computeImageUserIO = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
-      case None => IO.unit
+      case None                                                => IO.unit
       case Some(imageProject) if imageProject == googleProject => IO.unit
       case Some(imageProject) =>
         IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
@@ -84,7 +84,9 @@ class ClusterHelper(dbRef: DbReference,
             IO.unit
           } else {
             for {
-              projectNumber <- IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))).flatMap(_.fold(IO.raiseError[Long](ClusterIamSetupException(imageProject)))(IO.pure))
+              projectNumber <- IO
+                .fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
+                .flatMap(_.fold(IO.raiseError[Long](ClusterIamSetupException(imageProject)))(IO.pure))
               roles = Set("roles/compute.imageUser")
 
               // The Dataproc SA is used to retrieve the image. However projects created prior to 2016
@@ -134,36 +136,39 @@ class ClusterHelper(dbRef: DbReference,
 
   private def when400(throwable: Throwable): Boolean = throwable match {
     case t: HttpResponseException => t.getStatusCode == 400
-    case _ => false
+    case _                        => false
   }
 
-  def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
+  def generateServiceAccountKey(googleProject: GoogleProject,
+                                serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] =
     // TODO: implement google2 version of GoogleIamDAO
     serviceAccountEmailOpt.traverse { email =>
       IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, email)))
     }
-  }
 
-  def removeServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail], serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): IO[Unit] = {
+  def removeServiceAccountKey(googleProject: GoogleProject,
+                              serviceAccountEmailOpt: Option[WorkbenchEmail],
+                              serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): IO[Unit] =
     // TODO: implement google2 version of GoogleIamDAO
-    (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN { case (email, keyId) =>
-      IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
+    (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN {
+      case (email, keyId) =>
+        IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
     } getOrElse IO.unit
-  }
 
-  def createDataprocImageUserGoogleGroupIfDoesntExist(googleDirectoryDAO: GoogleDirectoryDAO,
-                                                      dpImageUserGoogleGroupName: String,
-                                                      dpImageUserGoogleGroupEmail: WorkbenchEmail) = {
+  def createDataprocImageUserGoogleGroupIfItDoesntExist(googleDirectoryDAO: GoogleDirectoryDAO,
+                                                        dpImageUserGoogleGroupName: String,
+                                                        dpImageUserGoogleGroupEmail: WorkbenchEmail): Future[Unit] = {
     logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
     googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
       case None =>
         logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
         googleDirectoryDAO
           .createGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
-          .recover {
+          .recoverWith {
             // In case group creation is attempted concurrently by multiple Leo instances
             case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue => Future.unit
-            case _ => Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
+            case _ =>
+              Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
           }
       case Some(group) =>
         logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
@@ -210,7 +215,7 @@ class ClusterHelper(dbRef: DbReference,
     val regex = ".*projects/(.*)/global/images/(.*)".r
     customDataprocImage match {
       case regex(project, _) => Some(GoogleProject(project))
-      case _ => None
+      case _                 => None
     }
   }
 

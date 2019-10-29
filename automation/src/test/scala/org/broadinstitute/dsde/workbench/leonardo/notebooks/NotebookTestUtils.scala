@@ -30,7 +30,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
     case _: KernelNotReadyException => true
-    case _ => false
+    case _                          => false
   }
 
   def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
@@ -46,11 +46,15 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
     // verify Spark
     notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some(
+      "true"
+    )
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some(
+      "/etc/service-account-credentials.json"
+    )
     val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
     nbEmail shouldBe 'defined
-    nbEmail.get should include (expectedEmail.value)
+    nbEmail.get should include(expectedEmail.value)
   }
 
   // TODO: is there a way to check the cluster credentials on the metadata server?
@@ -72,32 +76,42 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 //    notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.json.keyfile'))") shouldBe Some("None")
   }
 
-  def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
+                                                                                   token: AuthToken): T = {
     val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
     testCode(notebooksListPage.open)
   }
 
-
-  def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
+                                                                                        token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.upload(file)
       testCode(notebooksListPage)
     }
-  }
 
-  def withNotebookUpload[T](cluster: Cluster, file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNotebookUpload[T](cluster: Cluster, file: File, timeout: FiniteDuration = 2.minutes)(
+    testCode: NotebookPage => T
+  )(implicit webDriver: WebDriver, token: AuthToken): T =
     withFileUpload(cluster, file) { notebooksListPage =>
-      logger.info(s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
+      logger.info(
+        s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+      )
       notebooksListPage.withOpenNotebook(file, timeout) { notebookPage =>
         testCode(notebookPage)
       }
     }
-  }
 
-  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(
+    testCode: NotebookPage => T
+  )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
-      logger.info(s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
-      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) { () =>
+      logger.info(
+        s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+      )
+      val result: Future[T] = retryUntilSuccessOrTimeout(
+        whenKernelNotReady,
+        failureLogMessage = s"Cannot make new notebook"
+      )(30 seconds, 2 minutes) { () =>
         Future(
           notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
             testCode(notebookPage)
@@ -106,18 +120,52 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       }
       Await.result(result, 10 minutes)
     }
-  }
 
-  def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  // Creates a notebook with the directory structure:
+  //   ~jupyter-user/notebooks/Untitled Folder/Untitled Folder/Untitled.ipynb
+  // This roughly simulates an real-life directory structure like:
+  //   ~jupyter-user/notebooks/Workspace Name/edit/notebook.ipynb
+  // Ideally we would name the directories similarly but the Jupyter UI doesn't make that easy.
+  def withNewNotebookInSubfolder[T](
+    cluster: Cluster,
+    kernel: NotebookKernel = Python3,
+    timeout: FiniteDuration = 2.minutes
+  )(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
-      logger.info(s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
+      notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+        notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+          logger.info(
+            s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+          )
+          val result: Future[T] =
+            retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
+                                                                                                            2 minutes) {
+              () =>
+                Future(
+                  notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+                    testCode(notebookPage)
+                  }
+                )
+            }
+          Await.result(result, 10 minutes)
+        }
+      }
+    }
+
+  def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(
+    testCode: NotebookPage => T
+  )(implicit webDriver: WebDriver, token: AuthToken): T =
+    withNotebooksListPage(cluster) { notebooksListPage =>
+      logger.info(
+        s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+      )
       notebooksListPage.withOpenNotebook(notebookPath, timeout) { notebookPage =>
         testCode(notebookPage)
       }
     }
-  }
 
-  def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver,
+                                                                               token: AuthToken): T = {
     // start a server to load the dummy client page
     val bindingFuture = DummyClient.startServer
     val testResult = Try {
@@ -129,23 +177,34 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testResult.get
   }
 
-
-  def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String,
-                                     fileToDelocalize: String, fileToDelocalizeContents: String,
-                                     dataFileName: String, dataFileContents: String)(testCode: (Map[String, String], GcsBucketName, NotebookPage) => T)
-                                    (implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withLocalizeDelocalizeFiles[T](cluster: Cluster,
+                                     fileToLocalize: String,
+                                     fileToLocalizeContents: String,
+                                     fileToDelocalize: String,
+                                     fileToDelocalizeContents: String,
+                                     dataFileName: String,
+                                     dataFileContents: String)(
+    testCode: (Map[String, String], GcsBucketName, NotebookPage) => T
+  )(implicit webDriver: WebDriver, token: AuthToken): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     withNewGoogleBucket(cluster.googleProject) { bucketName =>
       // give the user's pet owner access to the bucket
       val petServiceAccount = Sam.user.petServiceAccountEmail(cluster.googleProject.value)
-      googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Owner).futureValue
+      googleStorageDAO
+        .setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Owner)
+        .futureValue
 
       // create a bucket object to localize
       val bucketObjectToLocalize = GcsObjectName(fileToLocalize)
       withNewBucketObject(bucketName, bucketObjectToLocalize, fileToLocalizeContents, "text/plain") { objectName =>
         // give the user's pet read access to the object
-        googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Reader).futureValue
+        googleStorageDAO
+          .setObjectAccessControl(bucketName,
+                                  objectName,
+                                  EmailGcsEntity(GcsEntityTypes.User, petServiceAccount),
+                                  GcsRoles.Reader)
+          .futureValue
 
         // create a notebook file to delocalize
         withNewNotebook(cluster) { notebookPage =>
@@ -154,7 +213,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           val localizeRequest = Map(
             fileToLocalize -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
             GcsPath(bucketName, GcsObjectName(fileToDelocalize)).toUri -> fileToDelocalize,
-            dataFileName -> s"data:text/plain;base64,${Base64.getEncoder.encodeToString(dataFileContents.getBytes(StandardCharsets.UTF_8))}"
+            dataFileName -> s"data:text/plain;base64,${Base64.getEncoder
+              .encodeToString(dataFileContents.getBytes(StandardCharsets.UTF_8))}"
           )
 
           val testResult = Try(testCode(localizeRequest, bucketName, notebookPage))
@@ -162,9 +222,13 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           // Verify and save the localization.log file to test output to aid in debugging
           Try(verifyAndSaveLocalizationLog(cluster)) match {
             case Success(downloadFile) =>
-              logger.info(s"Saved localization log for cluster ${cluster.projectNameString} to ${downloadFile.getAbsolutePath}")
+              logger.info(
+                s"Saved localization log for cluster ${cluster.projectNameString} to ${downloadFile.getAbsolutePath}"
+              )
             case Failure(e) =>
-              logger.warn(s"Could not obtain localization log files for cluster ${cluster.projectNameString}: ${e.getMessage}")
+              logger.warn(
+                s"Could not obtain localization log files for cluster ${cluster.projectNameString}: ${e.getMessage}"
+              )
           }
 
           //TODO:: the code below messes up the test somehow, figure out why that happens and fix.
@@ -180,31 +244,40 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def verifyLocalizeDelocalize(cluster: Cluster, localizedFileName: String, localizedFileContents: String,
-                               delocalizedBucketPath: GcsPath, delocalizedBucketContents: String,
-                               dataFileName: String, dataFileContents: String)(implicit token: AuthToken): Unit = {
+  def verifyLocalizeDelocalize(cluster: Cluster,
+                               localizedFileName: String,
+                               localizedFileContents: String,
+                               delocalizedBucketPath: GcsPath,
+                               delocalizedBucketContents: String,
+                               dataFileName: String,
+                               dataFileContents: String)(implicit token: AuthToken): Unit = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // the localized file should exist on the notebook VM
-    val item = Notebook.getContentItem(cluster.googleProject, cluster.clusterName, localizedFileName, includeContent = true)
+    val item =
+      Notebook.getContentItem(cluster.googleProject, cluster.clusterName, localizedFileName, includeContent = true)
     item.content shouldBe Some(localizedFileContents)
 
     // the delocalized file should exist in the Google bucket
-    val bucketData = googleStorageDAO.getObject(delocalizedBucketPath.bucketName, delocalizedBucketPath.objectName).futureValue
+    val bucketData =
+      googleStorageDAO.getObject(delocalizedBucketPath.bucketName, delocalizedBucketPath.objectName).futureValue
     bucketData.map(_.toString) shouldBe Some(delocalizedBucketContents)
 
     // the data file should exist on the notebook VM
-    val dataItem = Notebook.getContentItem(cluster.googleProject, cluster.clusterName, dataFileName, includeContent = true)
+    val dataItem =
+      Notebook.getContentItem(cluster.googleProject, cluster.clusterName, dataFileName, includeContent = true)
     dataItem.content shouldBe Some(dataFileContents)
   }
 
   def verifyAndSaveLocalizationLog(cluster: Cluster)(implicit token: AuthToken): File = {
     // check localization.log for existence
-    val localizationLog = Notebook.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
+    val localizationLog =
+      Notebook.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
     localizationLog.content shouldBe defined
 
     // Save localization.log to test output to aid in debugging
-    val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-localization.log")
+    val downloadFile =
+      new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-localization.log")
     val fos = new FileOutputStream(downloadFile)
     fos.write(localizationLog.content.get.getBytes)
     fos.close()
@@ -272,7 +345,9 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     //notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
   }
 
-  def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
+  def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(
+    assertion: (File, File) => Any
+  )(implicit webDriver: WebDriver, token: AuthToken): Any = {
     cluster.status shouldBe ClusterStatus.Running
     uploadFile.exists() shouldBe true
 
@@ -288,19 +363,18 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     downloadFile.deleteOnExit()
   }
 
-
   def pipInstall(notebookPage: NotebookPage, kernel: NotebookKernel, packageName: String): Unit = {
     val pip = kernel match {
       case Python2 | PySpark2 => "pip2"
       case Python3 | PySpark3 => "pip3"
-      case _ => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
+      case _                  => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
     }
 
     val installOutput = notebookPage.executeCell(s"!$pip install $packageName")
     installOutput shouldBe 'defined
-    installOutput.get should include (s"Collecting $packageName")
-    installOutput.get should include ("Installing collected packages:")
-    installOutput.get should include ("Successfully installed")
+    installOutput.get should include(s"Collecting $packageName")
+    installOutput.get should include("Installing collected packages:")
+    installOutput.get should include("Successfully installed")
     installOutput.get should not include ("Exception:")
   }
 
@@ -313,12 +387,14 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     kernel match {
       case Python2 => helloOutput shouldBe Some("Hello, TensorFlow!")
       case Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
-      case other => fail(s"Unexpected kernel: $other")
+      case other   => fail(s"Unexpected kernel: $other")
     }
   }
 
   //initializes storageLinks/ and localizes the file to the passed gcsPath
-  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(
+    testCode: File => T
+  )(implicit token: AuthToken): T = {
     Welder.postStorageLink(cluster, gcsPath)
     Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
 
@@ -329,68 +405,71 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testCode(localFile)
   }
 
-  def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
-    google2StorageResource.use {
-      google2StorageDAO =>
-        for {
-          metadata <- google2StorageDAO.getObjectMetadata(workspaceBucketName, notebookName, None).compile.last
-          lockExpiresAt = metadata match {
-            case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lockExpiresAt") => Some(metadataMap("lockExpiresAt"))
+  def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] =
+    google2StorageResource.use { google2StorageDAO =>
+      for {
+        metadata <- google2StorageDAO.getObjectMetadata(workspaceBucketName, notebookName, None).compile.last
+        lockExpiresAt = metadata match {
+          case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lockExpiresAt") =>
+            Some(metadataMap("lockExpiresAt"))
+          case _ => None
+        }
+        currentlyLocked = lockExpiresAt match {
+          case Some(instantStr) => Instant.ofEpochMilli(instantStr.toLong).compareTo(Instant.now()) == 1
+          case None             => false
+        }
+        lastLockedBy = if (currentlyLocked) {
+          metadata match {
+            case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lastLockedBy") =>
+              Some(metadataMap("lastLockedBy"))
             case _ => None
           }
-          currentlyLocked = lockExpiresAt match {
-            case Some(instantStr) => Instant.ofEpochMilli(instantStr.toLong).compareTo(Instant.now()) == 1
-            case None => false
-          }
-          lastLockedBy = if (currentlyLocked) {
-            metadata match {
-              case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lastLockedBy") => Some(metadataMap("lastLockedBy"))
-              case _ => None
-            }
-          } else None
-        } yield lastLockedBy
+        } else None
+      } yield lastLockedBy
     }
-  }
 
-  def getObjectAsString(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
-    google2StorageResource.use {
-      google2StorageDAO =>
-        google2StorageDAO.unsafeGetBlobBody(workspaceBucketName, notebookName, None)
+  def getObjectAsString(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] =
+    google2StorageResource.use { google2StorageDAO =>
+      google2StorageDAO.unsafeGetBlobBody(workspaceBucketName, notebookName, None)
     }
-  }
 
-  def getObjectSize(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Int] = {
-    google2StorageResource.use {
-      google2StorageDAO =>
-        google2StorageDAO.getBlobBody(workspaceBucketName, notebookName).compile.toList.map(_.size)
+  def getObjectSize(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Int] =
+    google2StorageResource.use { google2StorageDAO =>
+      google2StorageDAO.getBlobBody(workspaceBucketName, notebookName).compile.toList.map(_.size)
     }
-  }
 
-  def deleteObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[RemoveObjectResult] = {
-    google2StorageResource.use {
-      google2StorageDAO =>
-        google2StorageDAO.removeObject(workspaceBucketName, notebookName).compile.lastOrError
+  def deleteObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[RemoveObjectResult] =
+    google2StorageResource.use { google2StorageDAO =>
+      google2StorageDAO.removeObject(workspaceBucketName, notebookName).compile.lastOrError
     }
-  }
 
-  def setObjectMetadata(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName, metadata: Map[String,String]): IO[Unit] = {
+  def setObjectMetadata(workspaceBucketName: GcsBucketName,
+                        notebookName: GcsBlobName,
+                        metadata: Map[String, String]): IO[Unit] =
     //lockExpiresAt, lastLockedBy
-    google2StorageResource.use {
-      google2StorageDAO =>
-        google2StorageDAO.setObjectMetadata(workspaceBucketName, notebookName, metadata, None).compile.drain
+    google2StorageResource.use { google2StorageDAO =>
+      google2StorageDAO.setObjectMetadata(workspaceBucketName, notebookName, metadata, None).compile.drain
     }
-  }
 
-  def setObjectContents(googleProject: GoogleProject, workspaceBucketName: GcsBucketName, notebookName: GcsBlobName, contents: String)(implicit token: AuthToken): IO[Unit] = {
+  def setObjectContents(googleProject: GoogleProject,
+                        workspaceBucketName: GcsBucketName,
+                        notebookName: GcsBlobName,
+                        contents: String)(implicit token: AuthToken): IO[Unit] = {
     val petServiceAccount = Sam.user.petServiceAccountEmail(googleProject.value)
     val userID = Identity.serviceAccount(petServiceAccount.value)
 
-    google2StorageResource.use {
-      google2StorageDAO =>
-        for {
-          _ <- google2StorageDAO.createBlob(workspaceBucketName, notebookName, contents.toCharArray.map(_.toByte)).compile.drain
-          _ <- google2StorageDAO.setIamPolicy(workspaceBucketName, Map(ObjectAdmin.asInstanceOf[StorageRole] -> NonEmptyList[Identity](userID, List()))).compile.drain
-        } yield ()
+    google2StorageResource.use { google2StorageDAO =>
+      for {
+        _ <- google2StorageDAO
+          .createBlob(workspaceBucketName, notebookName, contents.toCharArray.map(_.toByte))
+          .compile
+          .drain
+        _ <- google2StorageDAO
+          .setIamPolicy(workspaceBucketName,
+                        Map(ObjectAdmin.asInstanceOf[StorageRole] -> NonEmptyList[Identity](userID, List())))
+          .compile
+          .drain
+      } yield ()
     }
   }
 

@@ -8,8 +8,8 @@ import org.scalatest.DoNotDiscover
 import scala.concurrent.duration.DurationLong
 
 /**
-  * This spec verifies notebook functionality specifically around the Python 3 kernel.
-  */
+ * This spec verifies notebook functionality specifically around the Python 3 kernel.
+ */
 @DoNotDiscover
 class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
@@ -28,7 +28,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
               |bx.bitset.sys.copyright""".stripMargin
 
           notebookPage.executeCell("1+1") shouldBe Some("2")
-          notebookPage.executeCell(getPythonVersion) shouldBe Some("3.7.4")
+          notebookPage.executeCell(getPythonVersion).get should include("3.7")
           notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
         }
       }
@@ -39,7 +39,9 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             // install a package that is not installed by default
-            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should include (if (kernel == Python2) "ImportError" else "ModuleNotFoundError")
+            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should include(
+              if (kernel == Python2) "ImportError" else "ModuleNotFoundError"
+            )
             pipInstall(notebookPage, kernel, "fuzzywuzzy")
             notebookPage.saveAndCheckpoint()
 
@@ -75,16 +77,19 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       val headers = Notebook.getApiHeaders(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe 'defined
-      contentSecurityHeader.get.value should include ("https://bvdp-saturn-prod.appspot.com")
+      contentSecurityHeader.get.value should include("https://bvdp-saturn-prod.appspot.com")
     }
 
     "should allow BigQuerying via the command line" in { clusterFixture =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
       val ownerToken = hermioneAuthToken
-      Orchestration.billing.addGoogleRoleToBillingProjectUser(clusterFixture.cluster.googleProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
+      Orchestration.billing.addGoogleRoleToBillingProjectUser(clusterFixture.cluster.googleProject.value,
+                                                              ronEmail,
+                                                              "bigquery.jobUser")(ownerToken)
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          val query = """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+          val query =
+            """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
           val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
           val result = notebookPage.executeCell(query, timeout = 5.minutes).get
@@ -115,7 +120,9 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
           notebookPage.executeCell(bigQuery) shouldBe None
-          notebookPage.executeCell("print(results)").get should include("google.cloud.bigquery.table.RowIterator object")
+          notebookPage.executeCell("print(results)").get should include(
+            "google.cloud.bigquery.table.RowIterator object"
+          )
         }
       }
     }
@@ -123,16 +130,17 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "should update dateAccessed if the notebook is open" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          val firstApiCall = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+          val firstApiCall =
+            Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
           //Sleeping for 90s to simulate idle notebook
           logger.info("Sleeping for 90s to simulate idle notebook")
           Thread.sleep(90000)
-          val secondApiCall = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+          val secondApiCall =
+            Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
           firstApiCall.dateAccessed should be < secondApiCall.dateAccessed
         }
       }
     }
-
 
     Seq(Python3).foreach { kernel =>
       s"should preinstall google cloud subpackages for ${kernel.string}" in { clusterFixture =>
@@ -140,9 +148,15 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             //all other packages cannot be tested for their versions in this manner
             //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-            notebookPage.executeCell("import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.9.0")
-            notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some("1.7.0")
-            notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some("1.13.0")
+            notebookPage.executeCell(
+              "import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)"
+            ) shouldBe Some("1.9.0")
+            notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some(
+              "1.7.0"
+            )
+            notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some(
+              "1.13.0"
+            )
           }
         }
       }
@@ -163,13 +177,18 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     Seq(Python3).foreach { kernel =>
       s"should have the workspace-related environment variables set in ${kernel.toString} kernel" in { clusterFixture =>
         withWebDriver { implicit driver =>
-          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.cluster.googleProject.value
-            notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.cluster.googleProject.value
-            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "notebooks"
-            notebookPage.executeCell("! echo $OWNER_EMAIL").get shouldBe ronEmail
+          withNewNotebookInSubfolder(clusterFixture.cluster, Python3) { notebookPage =>
+            notebookPage.executeCell("import os")
+            notebookPage
+              .executeCell("os.getenv('GOOGLE_PROJECT')")
+              .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            notebookPage
+              .executeCell("os.getenv('WORKSPACE_NAMESPACE')")
+              .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
+            notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
             // workspace bucket is not wired up in tests
-            notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
+            notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
           }
         }
       }
@@ -179,8 +198,8 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "should be able to install python libraries with C bindings" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
-          notebookPage.executeCell("! pip install Cython").get should include ("Successfully installed Cython")
-          notebookPage.executeCell("! pip install POT").get should include ("Successfully installed POT")
+          notebookPage.executeCell("! pip install Cython").get should include("Successfully installed Cython")
+          notebookPage.executeCell("! pip install POT").get should include("Successfully installed POT")
         }
       }
     }

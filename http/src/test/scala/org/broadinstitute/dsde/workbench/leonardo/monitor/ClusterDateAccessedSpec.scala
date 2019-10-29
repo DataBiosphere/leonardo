@@ -12,9 +12,13 @@ import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
-
-class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
-  FlatSpecLike with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
+class ClusterDateAccessedSpec
+    extends TestKit(ActorSystem("leonardotest"))
+    with FlatSpecLike
+    with BeforeAndAfterAll
+    with TestComponent
+    with CommonTestData
+    with GcsPathUtils { testKit =>
 
   val testCluster1 = makeCluster(1)
 

@@ -19,8 +19,8 @@ case class Cluster(clusterName: ClusterName,
                    status: ClusterStatus,
                    creator: WorkbenchEmail,
                    labels: LabelMap,
-                   stagingBucket:Option[GcsBucketName],
-                   errors:List[ClusterError],
+                   stagingBucket: Option[GcsBucketName],
+                   errors: List[ClusterError],
                    dateAccessed: Instant,
                    stopAfterCreation: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
@@ -40,7 +40,8 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           rstudioDockerImage: Option[String] = None,
                           welderDockerImage: Option[String] = None,
                           scopes: Set[String] = Set.empty,
-                          enableWelder: Option[Boolean] = None)
+                          enableWelder: Option[Boolean] = None,
+                          customClusterEnvironmentVariables: Map[String, String] = Map.empty)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
@@ -57,10 +58,18 @@ case class DefaultLabels(clusterName: ClusterName,
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
-    val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext) } getOrElse Map.empty
-    val userScr: Map[String, String] = notebookUserScript map {userScr => Map("notebookUserScript" -> userScr) }  getOrElse Map.empty
-    val clusterSa: Map[String, String] = clusterServiceAccount map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
-    val notebookSa: Map[String, String] = notebookServiceAccount map { sa => Map("notebookServiceAccount" -> sa.value) } getOrElse Map.empty
+    val ext: Map[String, String] = notebookExtension map { ext =>
+      Map("notebookExtension" -> ext)
+    } getOrElse Map.empty
+    val userScr: Map[String, String] = notebookUserScript map { userScr =>
+      Map("notebookUserScript" -> userScr)
+    } getOrElse Map.empty
+    val clusterSa: Map[String, String] = clusterServiceAccount map { sa =>
+      Map("clusterServiceAccount" -> sa.value)
+    } getOrElse Map.empty
+    val notebookSa: Map[String, String] = notebookServiceAccount map { sa =>
+      Map("notebookServiceAccount" -> sa.value)
+    } getOrElse Map.empty
 
     Map(
       "clusterName" -> clusterName.string,
@@ -90,7 +99,8 @@ object ClusterStatus extends Enumeration {
 
   def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
 
-  def withNameIgnoreCase(str: String): ClusterStatus = {
-    values.find(_.toString.equalsIgnoreCase(str)).getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
-  }
+  def withNameIgnoreCase(str: String): ClusterStatus =
+    values
+      .find(_.toString.equalsIgnoreCase(str))
+      .getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
 }

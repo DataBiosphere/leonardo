@@ -10,16 +10,15 @@ import scala.concurrent.Future
 import scala.util.Random
 
 /**
-  * Created by rtitle on 2/16/18.
-  */
+ * Created by rtitle on 2/16/18.
+ */
 class MockGoogleComputeDAO extends GoogleComputeDAO {
   val instances: mutable.Map[InstanceKey, Instance] = new TrieMap()
   val firewallRules: mutable.Map[GoogleProject, FirewallRule] = new TrieMap()
   val instanceMetadata: mutable.Map[InstanceKey, Map[String, String]] = new TrieMap()
 
-  override def getInstance(instanceKey: InstanceKey): Future[Option[Instance]] = {
+  override def getInstance(instanceKey: InstanceKey): Future[Option[Instance]] =
     Future.successful(instances.get(instanceKey))
-  }
 
   override def stopInstance(instanceKey: InstanceKey): Future[Unit] = {
     instances.get(instanceKey).foreach { instance =>
@@ -49,20 +48,17 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
     Future.successful(())
   }
 
-  override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
+  override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] =
     Future.successful(Some(WorkbenchEmail("compute-engine@example.com")))
-  }
 
   override def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
     val rng = new Random
     Future.successful(Some(rng.nextLong()))
   }
 
-  override def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit] = {
+  override def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit] =
     Future.successful(())
-  }
 
-  def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit] = {
+  def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit] =
     Future.successful(())
-  }
 }

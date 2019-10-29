@@ -7,15 +7,15 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 
 /**
-  * Created by rtitle on 10/16/17.
-  */
+ * Created by rtitle on 10/16/17.
+ */
 trait StandardUserInfoDirectives extends UserInfoDirectives {
-  override def requireUserInfo: Directive1[UserInfo] = {
+  override def requireUserInfo: Directive1[UserInfo] =
     (headerValueByName("OIDC_access_token") &
-     headerValueByName("OIDC_CLAIM_user_id") &
-     headerValueByName("OIDC_CLAIM_expires_in") &
-     headerValueByName("OIDC_CLAIM_email")).tmap { case (token, userId, expiresIn, email) =>
-      UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchEmail(email), expiresIn.toLong)
+      headerValueByName("OIDC_CLAIM_user_id") &
+      headerValueByName("OIDC_CLAIM_expires_in") &
+      headerValueByName("OIDC_CLAIM_email")).tmap {
+      case (token, userId, expiresIn, email) =>
+        UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchEmail(email), expiresIn.toLong)
     }
-  }
 }

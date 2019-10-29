@@ -7,8 +7,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 /**
-  * Created by rtitle on 2/13/18.
-  */
+ * Created by rtitle on 2/13/18.
+ */
 case class InstanceRecord(id: Long,
                           clusterId: Long,
                           googleProject: String,
@@ -26,34 +26,33 @@ trait InstanceComponent extends LeoComponent {
   import profile.api._
 
   class InstanceTable(tag: Tag) extends Table[InstanceRecord](tag, "INSTANCE") {
-    def id =            column[Long]              ("id",            O.PrimaryKey, O.AutoInc)
-    def clusterId =     column[Long]              ("clusterId")
-    def googleProject = column[String]            ("googleProject", O.Length(254))
-    def zone =          column[String]            ("zone",          O.Length(254))
-    def name =          column[String]            ("name",          O.Length(254))
-    def googleId =      column[BigDecimal]        ("googleId")
-    def status =        column[String]            ("status",        O.Length(254))
-    def ip =            column[Option[String]]    ("ip",            O.Length(254))
-    def dataprocRole =  column[Option[String]]    ("dataprocRole",  O.Length(254))
-    def createdDate =   column[Timestamp]         ("createdDate",   O.SqlType("TIMESTAMP(6)"))
+    def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+    def clusterId = column[Long]("clusterId")
+    def googleProject = column[String]("googleProject", O.Length(254))
+    def zone = column[String]("zone", O.Length(254))
+    def name = column[String]("name", O.Length(254))
+    def googleId = column[BigDecimal]("googleId")
+    def status = column[String]("status", O.Length(254))
+    def ip = column[Option[String]]("ip", O.Length(254))
+    def dataprocRole = column[Option[String]]("dataprocRole", O.Length(254))
+    def createdDate = column[Timestamp]("createdDate", O.SqlType("TIMESTAMP(6)"))
 
     def uniqueKey = index("IDX_INSTANCE_UNIQUE", (clusterId, googleProject, zone, name), unique = true)
     def cluster = foreignKey("FK_INSTANCE_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
-    def * = (id, clusterId, googleProject, zone, name, googleId, status, ip, dataprocRole, createdDate) <> (InstanceRecord.tupled, InstanceRecord.unapply)
+    def * =
+      (id, clusterId, googleProject, zone, name, googleId, status, ip, dataprocRole, createdDate) <> (InstanceRecord.tupled, InstanceRecord.unapply)
   }
 
   object instanceQuery extends TableQuery(new InstanceTable(_)) {
 
-    def save(clusterId: Long, instance: Instance): DBIO[Int] = {
+    def save(clusterId: Long, instance: Instance): DBIO[Int] =
       instanceQuery += marshalInstance(clusterId, instance)
-    }
 
-    def saveAllForCluster(clusterId: Long, instances: Seq[Instance]) = {
+    def saveAllForCluster(clusterId: Long, instances: Seq[Instance]) =
       instanceQuery ++= instances map { marshalInstance(clusterId, _) }
-    }
 
-    def mergeForCluster(clusterId: Long, instances: Seq[Instance]): DBIO[Int] = {
+    def mergeForCluster(clusterId: Long, instances: Seq[Instance]): DBIO[Int] =
       for {
         // upsert all incoming instances passed to this method
         upserted <- upsertAllForCluster(clusterId, instances)
@@ -67,49 +66,42 @@ trait InstanceComponent extends LeoComponent {
         deleted <- deleteAllForCluster(clusterId, instancesToDelete)
 
       } yield upserted + deleted
-    }
 
-    def upsert(clusterId: Long, instance: Instance): DBIO[Int] = {
+    def upsert(clusterId: Long, instance: Instance): DBIO[Int] =
       instanceQuery.insertOrUpdate(marshalInstance(clusterId, instance))
-    }
 
-    def delete(instance: Instance): DBIO[Int] = {
+    def delete(instance: Instance): DBIO[Int] =
       instanceByKeyQuery(instance.key).delete
-    }
 
-    def upsertAllForCluster(clusterId: Long, instances: Seq[Instance]): DBIO[Int] = {
+    def upsertAllForCluster(clusterId: Long, instances: Seq[Instance]): DBIO[Int] =
       DBIO.fold(instances map { upsert(clusterId, _) }, 0)(_ + _)
-    }
 
-    def deleteAllForCluster(clusterId: Long, instances: Seq[Instance]): DBIO[Int] = {
+    def deleteAllForCluster(clusterId: Long, instances: Seq[Instance]): DBIO[Int] =
       DBIO.fold(instances map { delete }, 0)(_ + _)
-    }
 
-    def getAllForCluster(clusterId: Long): DBIO[Seq[Instance]] = {
-      instanceQuery.filter { _.clusterId === clusterId}.result map { recs =>
+    def getAllForCluster(clusterId: Long): DBIO[Seq[Instance]] =
+      instanceQuery.filter { _.clusterId === clusterId }.result map { recs =>
         recs.map(unmarshalInstance)
       }
-    }
 
-    def instanceByKeyQuery(instanceKey: InstanceKey) = {
-      instanceQuery.filter { _.googleProject === instanceKey.project.value }
+    def instanceByKeyQuery(instanceKey: InstanceKey) =
+      instanceQuery
+        .filter { _.googleProject === instanceKey.project.value }
         .filter { _.zone === instanceKey.zone.value }
         .filter { _.name === instanceKey.name.value }
-    }
 
-    def getInstanceByKey(instanceKey: InstanceKey): DBIO[Option[Instance]] = {
+    def getInstanceByKey(instanceKey: InstanceKey): DBIO[Option[Instance]] =
       instanceByKeyQuery(instanceKey).result.map { _.headOption.map(unmarshalInstance) }
-    }
 
-    def updateStatusAndIpForCluster(clusterId: Long, newStatus: InstanceStatus, newIp: Option[IP]) = {
-      instanceQuery.filter { _.clusterId === clusterId }
+    def updateStatusAndIpForCluster(clusterId: Long, newStatus: InstanceStatus, newIp: Option[IP]) =
+      instanceQuery
+        .filter { _.clusterId === clusterId }
         .map(inst => (inst.status, inst.ip))
         .update(newStatus.entryName, newIp.map(_.value))
-    }
 
-    private def marshalInstance(clusterId: Long, instance: Instance): InstanceRecord = {
+    private def marshalInstance(clusterId: Long, instance: Instance): InstanceRecord =
       InstanceRecord(
-        id = 0,    // DB AutoInc
+        id = 0, // DB AutoInc
         clusterId,
         googleProject = instance.key.project.value,
         zone = instance.key.zone.value,
@@ -120,9 +112,8 @@ trait InstanceComponent extends LeoComponent {
         dataprocRole = instance.dataprocRole.map(_.entryName),
         createdDate = Timestamp.from(instance.createdDate)
       )
-    }
 
-    private[db] def unmarshalInstance(record: InstanceRecord): Instance = {
+    private[db] def unmarshalInstance(record: InstanceRecord): Instance =
       Instance(
         InstanceKey(
           GoogleProject(record.googleProject),
@@ -135,7 +126,6 @@ trait InstanceComponent extends LeoComponent {
         record.dataprocRole.map(DataprocRole.withName),
         record.createdDate.toInstant
       )
-    }
   }
 
 }

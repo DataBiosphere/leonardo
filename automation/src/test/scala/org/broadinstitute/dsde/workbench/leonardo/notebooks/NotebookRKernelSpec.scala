@@ -7,8 +7,8 @@ import org.scalatest.DoNotDiscover
 import scala.concurrent.duration._
 
 /**
-  * This spec verifies notebook functionality specifically around the R kernel.
-  */
+ * This spec verifies notebook functionality specifically around the R kernel.
+ */
 @DoNotDiscover
 class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
@@ -16,7 +16,6 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     // See https://github.com/DataBiosphere/leonardo/issues/398
     "should use UTF-8 encoding" in { clusterFixture =>
-
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           // Check the locale is set to en_US.UTF-8
@@ -26,9 +25,8 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
           notebookPage.executeCell("""install.packages("skimr")""")
           notebookPage.executeCell("library(skimr)")
 
-          val output = notebookPage.executeCell(
-            """data(iris)
-              |skim(iris)""".stripMargin)
+          val output = notebookPage.executeCell("""data(iris)
+                                                  |skim(iris)""".stripMargin)
 
           output shouldBe 'defined
           output.get should not include ("<U+")
@@ -102,11 +100,11 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
           val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include ("Downloading GitHub repo mlr-org/mlr@master")
+          installOutput.get should include("Downloading GitHub repo mlr-org/mlr@master")
           installOutput.get should not include ("Installation failed")
 
           // Make sure it was installed correctly; if not, this will return an error
-          notebookPage.executeCell("library(mlr)").get should include ("Loading required package: ParamHelpers")
+          notebookPage.executeCell("library(mlr)").get should include("Loading required package: ParamHelpers")
           notebookPage.executeCell(""""mlr" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
@@ -136,9 +134,9 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include ("RcppArmadillo")
-          installOutput.get should include ("Installing package into")
-          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include("RcppArmadillo")
+          installOutput.get should include("Installing package into")
+          installOutput.get should include("/home/jupyter-user/.rpackages")
           installOutput.get should not include ("cannot find -lgfortran")
         }
       }
@@ -146,10 +144,15 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     s"should have the workspace-related environment variables set" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'notebooks'"
+        withNewNotebookInSubfolder(clusterFixture.cluster, RKernel) { notebookPage =>
+          notebookPage
+            .executeCell("Sys.getenv('GOOGLE_PROJECT')")
+            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+          notebookPage
+            .executeCell("Sys.getenv('WORKSPACE_NAMESPACE')")
+            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
+          notebookPage.executeCell("Sys.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
         }
@@ -158,4 +161,3 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
   }
 
 }
-

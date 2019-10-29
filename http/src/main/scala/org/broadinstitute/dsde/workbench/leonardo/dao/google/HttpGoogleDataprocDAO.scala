@@ -13,7 +13,13 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.dataproc.Dataproc
-import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, Operation => DataprocOperation, ClusterStatus => _, _}
+import com.google.api.services.dataproc.model.{
+  Cluster => DataprocCluster,
+  ClusterConfig => DataprocClusterConfig,
+  Operation => DataprocOperation,
+  ClusterStatus => _,
+  _
+}
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
@@ -30,28 +36,32 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class HttpGoogleDataprocDAO(appName: String,
-                            googleCredentialMode: GoogleCredentialMode,
-                            override val workbenchMetricBaseName: String,
-                            networkTag: NetworkTag,
-                            defaultRegion: String,
-                            zoneOpt: Option[String])
-                           (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
-  extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
+class HttpGoogleDataprocDAO(
+  appName: String,
+  googleCredentialMode: GoogleCredentialMode,
+  override val workbenchMetricBaseName: String,
+  networkTag: NetworkTag,
+  defaultRegion: String,
+  zoneOpt: Option[String]
+)(implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
+    extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName)
+    with GoogleDataprocDAO {
 
-  override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Dataproc
+  implicit override val service: GoogleInstrumentedService = GoogleInstrumentedService.Dataproc
 
   override val scopes: Seq[String] = Seq(ComputeScopes.CLOUD_PLATFORM)
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, googleCredential)
-      .setApplicationName(appName).build()
+      .setApplicationName(appName)
+      .build()
   }
 
   // TODO move out of this DAO
   private lazy val oauth2 =
     new Oauth2.Builder(httpTransport, jsonFactory, null)
-      .setApplicationName(appName).build()
+      .setApplicationName(appName)
+      .build()
 
   override def createCluster(googleProject: GoogleProject,
                              clusterName: ClusterName,
@@ -62,26 +72,31 @@ class HttpGoogleDataprocDAO(appName: String,
 
     val request = dataproc.projects().regions().clusters().create(googleProject.value, defaultRegion, cluster)
 
-    retryWithRecover(retryPredicates:_*) { () =>
+    retryWithRecover(retryPredicates: _*) { () =>
       executeGoogleRequest(request)
     } {
-      case e: GoogleJsonResponseException if e.getStatusCode == 403 &&
-        (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") => throw DataprocDisabledException(e.getMessage)
+      case e: GoogleJsonResponseException
+          if e.getStatusCode == 403 &&
+            (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") =>
+        throw DataprocDisabledException(e.getMessage)
     }.map { op =>
-      Operation(OperationName(op.getName), getOperationUUID(op))
-    }.handleGoogleException(googleProject, Some(clusterName.value))
+        Operation(OperationName(op.getName), getOperationUUID(op))
+      }
+      .handleGoogleException(googleProject, Some(clusterName.value))
 
   }
 
   override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
     val request = dataproc.projects().regions().clusters().delete(googleProject.value, defaultRegion, clusterName.value)
-    retryWithRecover(retryPredicates:_*) { () =>
+    retryWithRecover(retryPredicates: _*) { () =>
       executeGoogleRequest(request)
       ()
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => ()
-      case e: GoogleJsonResponseException if e.getStatusCode == StatusCodes.BadRequest.intValue &&
-        e.getDetails.getMessage.contains("pending delete") => ()
+      case e: GoogleJsonResponseException
+          if e.getStatusCode == StatusCodes.BadRequest.intValue &&
+            e.getDetails.getMessage.contains("pending delete") =>
+        ()
     }.handleGoogleException(googleProject, clusterName)
   }
 
@@ -89,7 +104,8 @@ class HttpGoogleDataprocDAO(appName: String,
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       status <- OptionT.pure[Future](
-        Try(ClusterStatus.withNameInsensitive(cluster.getStatus.getState)).toOption.getOrElse(ClusterStatus.Unknown))
+        Try(ClusterStatus.withNameInsensitive(cluster.getStatus.getState)).toOption.getOrElse(ClusterStatus.Unknown)
+      )
     } yield status
 
     transformed.value.map(_.getOrElse(ClusterStatus.Deleted)).handleGoogleException(googleProject, clusterName)
@@ -99,7 +115,7 @@ class HttpGoogleDataprocDAO(appName: String,
     val request = dataproc.projects().regions().clusters().list(googleProject.value, defaultRegion)
     // Use OptionT to handle nulls in the Google response
     val transformed = for {
-      result <- OptionT.liftF(retry(retryPredicates:_*)(() => executeGoogleRequest(request)))
+      result <- OptionT.liftF(retry(retryPredicates: _*)(() => executeGoogleRequest(request)))
       googleClusters <- OptionT.fromOption[Future](Option(result.getClusters))
     } yield {
       googleClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid))
@@ -107,7 +123,8 @@ class HttpGoogleDataprocDAO(appName: String,
     transformed.value.map(_.getOrElse(List.empty)).handleGoogleException(googleProject)
   }
 
-  override def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]] = {
+  override def getClusterMasterInstance(googleProject: GoogleProject,
+                                        clusterName: ClusterName): Future[Option[InstanceKey]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       masterInstanceName <- OptionT.fromOption[Future] { getMasterInstanceName(cluster) }
@@ -117,7 +134,8 @@ class HttpGoogleDataprocDAO(appName: String,
     transformed.value.handleGoogleException(googleProject, clusterName)
   }
 
-  override def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]] = {
+  override def getClusterInstances(googleProject: GoogleProject,
+                                   clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       instanceNames <- OptionT.fromOption[Future] { getAllInstanceNames(cluster) }
@@ -129,7 +147,8 @@ class HttpGoogleDataprocDAO(appName: String,
     transformed.value.map(_.getOrElse(Map.empty)).handleGoogleException(googleProject, clusterName)
   }
 
-  override def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]] = {
+  override def getClusterStagingBucket(googleProject: GoogleProject,
+                                       clusterName: ClusterName): Future[Option[GcsBucketName]] = {
     // If an expression might be null, need to use `OptionT.fromOption(Option(expr))`.
     // `OptionT.pure(expr)` throws a NPE!
     val transformed = for {
@@ -152,28 +171,37 @@ class HttpGoogleDataprocDAO(appName: String,
     errorOpt.value.handleGoogleException(GoogleProject(""), operationName.map(_.value))
   }
 
-  override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit] = {
+  override def resizeCluster(googleProject: GoogleProject,
+                             clusterName: ClusterName,
+                             numWorkers: Option[Int] = None,
+                             numPreemptibles: Option[Int] = None): Future[Unit] = {
     val workerMask = "config.worker_config.num_instances"
     val preemptibleMask = "config.secondary_worker_config.num_instances"
 
     val updateAndMask = (numWorkers, numPreemptibles) match {
       case (Some(nw), Some(np)) =>
         val mask = List(Some(workerMask), Some(preemptibleMask)).flatten.mkString(",")
-        val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
-          .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw))
-          .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np)))
+        val update = new DataprocCluster().setConfig(
+          new DataprocClusterConfig()
+            .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw))
+            .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np))
+        )
         Some((update, mask))
 
       case (Some(nw), None) =>
         val mask = workerMask
-        val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
-          .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw)))
+        val update = new DataprocCluster().setConfig(
+          new DataprocClusterConfig()
+            .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw))
+        )
         Some((update, mask))
 
       case (None, Some(np)) =>
         val mask = preemptibleMask
-        val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
-          .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np)))
+        val update = new DataprocCluster().setConfig(
+          new DataprocClusterConfig()
+            .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np))
+        )
         Some((update, mask))
 
       case (None, None) =>
@@ -182,25 +210,34 @@ class HttpGoogleDataprocDAO(appName: String,
 
     updateAndMask match {
       case Some((update, mask)) =>
-        val request = dataproc.projects().regions().clusters().patch(googleProject.value, defaultRegion, clusterName.value, update).setUpdateMask(mask)
-        retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void
+        val request = dataproc
+          .projects()
+          .regions()
+          .clusters()
+          .patch(googleProject.value, defaultRegion, clusterName.value, update)
+          .setUpdateMask(mask)
+        retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void
       case None => Future.successful(())
     }
   }
 
   override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).map { tokenInfo =>
-      (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId(tokenInfo.getUserId), WorkbenchEmail(tokenInfo.getEmail), tokenInfo.getExpiresIn.toInt), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
+    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).map { tokenInfo =>
+      (UserInfo(OAuth2BearerToken(accessToken),
+                WorkbenchUserId(tokenInfo.getUserId),
+                WorkbenchEmail(tokenInfo.getEmail),
+                tokenInfo.getExpiresIn.toInt),
+       Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
     } recover {
-        case e: GoogleJsonResponseException =>
-          val msg = s"Call to Google OAuth API failed. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
-          logger.error(msg, e)
-          throw new WorkbenchException(msg, e)
-        // Google throws IllegalArgumentException when passed an invalid token. Handle this case and rethrow a 401.
-        case _: IllegalArgumentException =>
-          throw AuthenticationError()
-      }
+      case e: GoogleJsonResponseException =>
+        val msg = s"Call to Google OAuth API failed. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
+        logger.error(msg, e)
+        throw new WorkbenchException(msg, e)
+      // Google throws IllegalArgumentException when passed an invalid token. Handle this case and rethrow a 401.
+      case _: IllegalArgumentException =>
+        throw AuthenticationError()
+    }
   }
 
   private def getClusterConfig(config: CreateClusterConfig): DataprocClusterConfig = {
@@ -224,7 +261,9 @@ class HttpGoogleDataprocDAO(appName: String,
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.
     config.clusterServiceAccount.foreach { serviceAccountEmail =>
-      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes(config.clusterScopes.toList.asJava)
+      gceClusterConfig
+        .setServiceAccount(serviceAccountEmail.value)
+        .setServiceAccountScopes(config.clusterScopes.toList.asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
@@ -267,8 +306,7 @@ class HttpGoogleDataprocDAO(appName: String,
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (createClusterConfig.machineConfig.numberOfWorkers.get == 0) {
       new DataprocClusterConfig().setSoftwareConfig(swConfig)
-    }
-    else // Standard, multi node cluster
+    } else // Standard, multi node cluster
       getMultiNodeClusterConfig(createClusterConfig).setSoftwareConfig(swConfig)
   }
 
@@ -291,14 +329,12 @@ class HttpGoogleDataprocDAO(appName: String,
     val dataprocProps: Map[String, String] = if (createClusterConfig.machineConfig.numberOfWorkers.get == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
-    }
-    else
+    } else
       Map.empty
 
     val yarnProps = Map(
       // Helps with debugging
       "yarn:yarn.log-aggregation-enable" -> "true",
-
       // Dataproc 1.1 sets this too high (5586m) which limits the number of Spark jobs that can be run at one time.
       // This has been reduced drastically in Dataproc 1.2. See:
       // https://stackoverflow.com/questions/41185599/spark-default-settings-on-dataproc-especially-spark-yarn-am-memory
@@ -306,7 +342,8 @@ class HttpGoogleDataprocDAO(appName: String,
       "spark:spark.yarn.am.memory" -> "640m"
     )
 
-    val swConfig = new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps ++ createClusterConfig.properties).asJava)
+    val swConfig = new SoftwareConfig()
+      .setProperties((authProps ++ dataprocProps ++ yarnProps ++ createClusterConfig.properties).asJava)
 
     if (createClusterConfig.dataprocCustomImage.isEmpty) {
       swConfig.setImageVersion("1.2-deb9")
@@ -317,7 +354,8 @@ class HttpGoogleDataprocDAO(appName: String,
 
   private def getMultiNodeClusterConfig(createClusterConfig: CreateClusterConfig): DataprocClusterConfig = {
     // Set the configs of the non-preemptible, primary worker nodes
-    val clusterConfigWithWorkerConfigs = new DataprocClusterConfig().setWorkerConfig(getPrimaryWorkerConfig(createClusterConfig))
+    val clusterConfigWithWorkerConfigs =
+      new DataprocClusterConfig().setWorkerConfig(getPrimaryWorkerConfig(createClusterConfig))
 
     // If the number of preemptible workers is greater than 0, set a secondary worker config
     if (createClusterConfig.machineConfig.numberOfPreemptibleWorkers.get > 0) {
@@ -355,11 +393,11 @@ class HttpGoogleDataprocDAO(appName: String,
   }
 
   /**
-    * Gets a dataproc Cluster from the API.
-    */
+   * Gets a dataproc Cluster from the API.
+   */
   private def getCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[DataprocCluster]] = {
     val request = dataproc.projects().regions().clusters().get(googleProject.value, defaultRegion, clusterName.value)
-    retryWithRecover(retryPredicates:_*) { () =>
+    retryWithRecover(retryPredicates: _*) { () =>
       Option(executeGoogleRequest(request))
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
@@ -367,39 +405,36 @@ class HttpGoogleDataprocDAO(appName: String,
   }
 
   /**
-    * Gets an Operation from the API.
-    */
+   * Gets an Operation from the API.
+   */
   private def getOperation(operationName: OperationName): Future[Option[DataprocOperation]] = {
     val request = dataproc.projects().regions().operations().get(operationName.value)
-    retryWithRecover(retryPredicates:_*) { () =>
+    retryWithRecover(retryPredicates: _*) { () =>
       Option(executeGoogleRequest(request))
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
     }
   }
 
-  private def getOperationUUID(dop: DataprocOperation): UUID = {
+  private def getOperationUUID(dop: DataprocOperation): UUID =
     UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
-  }
 
   /**
-    * Gets the master instance name from a dataproc cluster, with error handling.
-    * @param cluster the Google dataproc cluster
-    * @return error or master instance name
-    */
-  private def getMasterInstanceName(cluster: DataprocCluster): Option[InstanceName] = {
+   * Gets the master instance name from a dataproc cluster, with error handling.
+   * @param cluster the Google dataproc cluster
+   * @return error or master instance name
+   */
+  private def getMasterInstanceName(cluster: DataprocCluster): Option[InstanceName] =
     for {
       config <- Option(cluster.getConfig)
       masterConfig <- Option(config.getMasterConfig)
       instanceNames <- Option(masterConfig.getInstanceNames)
       masterInstance <- instanceNames.asScala.headOption
     } yield InstanceName(masterInstance)
-  }
 
   private def getAllInstanceNames(cluster: DataprocCluster): Option[Map[DataprocRole, Set[InstanceName]]] = {
-    def getFromGroup(key: DataprocRole)(group: InstanceGroupConfig): Option[Map[DataprocRole, Set[InstanceName]]] = {
+    def getFromGroup(key: DataprocRole)(group: InstanceGroupConfig): Option[Map[DataprocRole, Set[InstanceName]]] =
       Option(group.getInstanceNames).map(_.asScala.toSet.map(InstanceName)).map(ins => Map(key -> ins))
-    }
 
     Option(cluster.getConfig).flatMap { config =>
       val masters = Option(config.getMasterConfig).flatMap(getFromGroup(Master))
@@ -411,17 +446,16 @@ class HttpGoogleDataprocDAO(appName: String,
   }
 
   /**
-    * Gets the zone (not to be confused with region) of a dataproc cluster, with error handling.
-    * @param cluster the Google dataproc cluster
-    * @return error or the master instance zone
-    */
+   * Gets the zone (not to be confused with region) of a dataproc cluster, with error handling.
+   * @param cluster the Google dataproc cluster
+   * @return error or the master instance zone
+   */
   private def getZone(cluster: DataprocCluster): Option[ZoneUri] = {
-    def parseZone(zoneUri: String): ZoneUri = {
+    def parseZone(zoneUri: String): ZoneUri =
       zoneUri.lastIndexOf('/') match {
         case -1 => ZoneUri(zoneUri)
-        case n => ZoneUri(zoneUri.substring(n + 1))
+        case n  => ZoneUri(zoneUri.substring(n + 1))
       }
-    }
 
     for {
       config <- Option(cluster.getConfig)
@@ -431,26 +465,25 @@ class HttpGoogleDataprocDAO(appName: String,
   }
 
   //Note that this conversion will shave off anything smaller than a second in magnitude
-  private def finiteDurationToGoogleDuration(duration: FiniteDuration): String = {
+  private def finiteDurationToGoogleDuration(duration: FiniteDuration): String =
     s"${duration.toSeconds}s"
-  }
 
-  private implicit class GoogleExceptionSupport[A](future: Future[A]) {
-    def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] = {
+  implicit private class GoogleExceptionSupport[A](future: Future[A]) {
+    def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] =
       future.recover {
         case e: GoogleJsonResponseException =>
-          val msg = s"Call to Google API failed for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
+          val msg =
+            s"Call to Google API failed for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
           logger.error(msg, e)
           throw new WorkbenchException(msg, e)
         case e: IllegalArgumentException =>
-          val msg = s"Illegal argument passed to Google request for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Message: ${e.getMessage}"
+          val msg =
+            s"Illegal argument passed to Google request for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Message: ${e.getMessage}"
           logger.error(msg, e)
           throw new WorkbenchException(msg, e)
       }
-    }
 
-    def handleGoogleException(project: GoogleProject, clusterName: ClusterName): Future[A] = {
+    def handleGoogleException(project: GoogleProject, clusterName: ClusterName): Future[A] =
       handleGoogleException(project, Some(clusterName.value))
-    }
   }
 }

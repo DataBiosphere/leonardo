@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 /**
-  * A simple container to hold a value and make it safer to access and update it
-  * Copied from https://github.com/broadinstitute/dig-loam-stream/blob/master/src/main/scala/loamstream/util/ValueBox.scala
-  */
+ * A simple container to hold a value and make it safer to access and update it
+ * Copied from https://github.com/broadinstitute/dig-loam-stream/blob/master/src/main/scala/loamstream/util/ValueBox.scala
+ */
 final class ValueBox[A](init: A) {
 
   @volatile private[this] var _value: A = init
@@ -36,9 +36,9 @@ final class ValueBox[A](init: A) {
   }
 
   /**
-    * Changes the value by applying a function to it.  The new value is returned, along with a flag indicating if
-    * this box's value changed as a result of applying f.
-    */
+   * Changes the value by applying a function to it.  The new value is returned, along with a flag indicating if
+   * this box's value changed as a result of applying f.
+   */
   def mutateAndGet(f: A => A): (A, Boolean) = lock.synchronized {
     val oldValue = value
 
@@ -73,7 +73,7 @@ final class ValueBox[A](init: A) {
 
   override def equals(other: Any): Boolean = other match {
     case that: ValueBox[A] => this.value == that.value
-    case _ => false
+    case _                 => false
   }
 }
 

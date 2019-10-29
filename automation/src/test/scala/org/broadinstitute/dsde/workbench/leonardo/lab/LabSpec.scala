@@ -5,8 +5,8 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
 /**
-  * This spec verifies JupyterLab functionality.
-  */
+ * This spec verifies JupyterLab functionality.
+ */
 @DoNotDiscover
 class LabSpec extends ClusterFixtureSpec with LabTestUtils {
 

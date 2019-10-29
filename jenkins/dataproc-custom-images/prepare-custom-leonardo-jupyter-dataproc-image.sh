@@ -27,7 +27,7 @@ terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1"
 
 #leonardo_jupyter will be discontinued soon
 leonardo_jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da"
-welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:latest"
+welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:6a783a5"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 
 # this array determines which of the above images are baked into the custom image
@@ -159,8 +159,8 @@ else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
 fi
 
-# Install Python 3.7
-export PYTHON_VERSION="3.7.4"
+# Install Python 3.6.8
+export PYTHON_VERSION="3.6.8"
 python_source_archive_name="Python-${PYTHON_VERSION:?}.tar.xz"
 python_source_archive_download_url="https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/${python_source_archive_name:?}"
 python_target_archive_name="python.tar.xz"

@@ -17,8 +17,13 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Try
 
-class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
-  FlatSpecLike with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
+class ZombieClusterMonitorSpec
+    extends TestKit(ActorSystem("leonardotest"))
+    with FlatSpecLike
+    with BeforeAndAfterAll
+    with TestComponent
+    with CommonTestData
+    with GcsPathUtils { testKit =>
 
   val testCluster1 = makeCluster(1).copy(status = ClusterStatus.Running)
   val testCluster2 = makeCluster(2).copy(status = ClusterStatus.Running)
@@ -55,7 +60,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
           c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
           c.errors.head.errorCode shouldBe -1
-          c.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+          c.errors.head.errorMessage should include("An underlying resource was removed in Google")
         }
       }
     }
@@ -87,7 +92,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
           c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
           c.errors.head.errorCode shouldBe -1
-          c.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+          c.errors.head.errorMessage should include("An underlying resource was removed in Google")
         }
       }
     }
@@ -105,7 +110,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
     // stub GoogleDataprocDAO to flag cluster2 as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
         Future.successful {
           if (clusterName == savedTestCluster2.clusterName) {
             ClusterStatus.Deleted
@@ -113,7 +118,6 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
             ClusterStatus.Running
           }
         }
-      }
     }
 
     // c2 should be flagged as a zombie but not c1
@@ -126,7 +130,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c2.auditInfo.destroyedDate shouldBe 'defined
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
-        c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+        c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
 
         c1.status shouldBe ClusterStatus.Running
         c1.errors shouldBe 'empty
@@ -147,9 +151,8 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
         Future.successful(ClusterStatus.Deleted)
-      }
     }
 
     val shouldHangAfter: Span = zombieClusterConfig.creationHangTolerance.plus(zombieClusterConfig.zombieCheckPeriod)
@@ -163,13 +166,13 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c1.auditInfo.destroyedDate shouldBe 'defined
         c1.errors.size shouldBe 1
         c1.errors.head.errorCode shouldBe -1
-        c1.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+        c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
 
         c2.status shouldBe ClusterStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
-        c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+        c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
   }
@@ -184,19 +187,18 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
         Future.successful(ClusterStatus.Deleted)
-      }
     }
 
     // the Running cluster should be a zombie but the Creating one shouldn't
     withZombieActor(gdDAO = gdDAO) { _ =>
-        Thread.sleep(shouldNotHangBefore.toSeconds)
+      Thread.sleep(shouldNotHangBefore.toSeconds)
 
-        val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
-        c1.status shouldBe ClusterStatus.Creating
-        c1.errors.size shouldBe 0
-      }
+      val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+      c1.status shouldBe ClusterStatus.Creating
+      c1.errors.size shouldBe 0
+    }
   }
 
   it should "not zombify upon errors from Google" in isolatedDbTest {
@@ -219,16 +221,15 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
     // stub GoogleProjectDAO to return an error for the bad project
     val googleProjectDAO = new MockGoogleProjectDAO {
-      override def isProjectActive(projectName: String): Future[Boolean] = {
+      override def isProjectActive(projectName: String): Future[Boolean] =
         if (projectName == clusterBadProject.googleProject.value) {
           Future.failed(new Exception)
         } else Future.successful(true)
-      }
     }
 
     // stub GoogleDataprocDAO to return an error for the bad cluster
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
         if (googleProject == clusterBadProject.googleProject && clusterName == clusterBadProject.clusterName) {
           Future.successful(ClusterStatus.Running)
         } else if (googleProject == badCluster.googleProject && clusterName == badCluster.clusterName) {
@@ -236,7 +237,6 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         } else {
           Future.successful(ClusterStatus.Deleted)
         }
-      }
     }
 
     // only the "good" cluster should be zombified
@@ -256,14 +256,17 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c3.auditInfo.destroyedDate shouldBe 'defined
         c3.errors.size shouldBe 1
         c3.errors.head.errorCode shouldBe -1
-        c3.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+        c3.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
   }
 
-  private def withZombieActor[T](gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO)
-                             (testCode: ActorRef => T): T = {
-    val actor = system.actorOf(ZombieClusterMonitor.props(zombieClusterConfig, gdDAO, googleProjectDAO, DbSingleton.ref))
+  private def withZombieActor[T](
+    gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
+    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
+  )(testCode: ActorRef => T): T = {
+    val actor =
+      system.actorOf(ZombieClusterMonitor.props(zombieClusterConfig, gdDAO, googleProjectDAO, DbSingleton.ref))
     val testResult = Try(testCode(actor))
     // shut down the actor and wait for it to terminate
     testKit watch actor

@@ -7,8 +7,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.Future
 
 /**
-  * Created by rtitle on 2/13/18.
-  */
+ * Created by rtitle on 2/13/18.
+ */
 trait GoogleComputeDAO {
 
   def getInstance(instanceKey: InstanceKey): Future[Option[Instance]]
