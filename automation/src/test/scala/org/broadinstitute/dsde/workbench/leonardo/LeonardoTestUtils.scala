@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserA
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -545,26 +545,34 @@ trait LeonardoTestUtils
     }
   }
 
-  def saveDataprocLogFiles(cluster: Cluster): IO[Unit] = {
+  def saveDataprocLogFiles(cluster: Cluster): IO[Unit] =
     google2StorageResource.use { storage =>
-      cluster.stagingBucket.traverse { stagingBucketName =>
-        val downloadLogs = for {
-          blob <- storage.listBlobsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo", true)
-            .filter(b => b.getName.endsWith("dataproc-initialization-script-0_output") || b.getName.endsWith("dataproc-startup-script_output"))
-          blobName = blob.getName
-          shortName = new File(blobName).getName
-          path = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-${shortName}.log").toPath
-          _ <- storage.downloadObject(blob.getBlobId, path)
-        } yield shortName
+      cluster.stagingBucket
+        .traverse { stagingBucketName =>
+          val downloadLogs = for {
+            blob <- storage
+              .listBlobsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo", true)
+              .filter(
+                b =>
+                  b.getName.endsWith("dataproc-initialization-script-0_output") || b.getName
+                    .endsWith("dataproc-startup-script_output")
+              )
+            blobName = blob.getName
+            shortName = new File(blobName).getName
+            path = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-${shortName}.log").toPath
+            _ <- storage.downloadObject(blob.getBlobId, path)
+          } yield shortName
 
-        downloadLogs.compile.toList
-      }.flatMap {
-        case None => IO(logger.error(s"Cluster ${cluster.projectNameString} does not have a staging bucket"))
-        case Some(logs) if logs.isEmpty => IO(logger.warn(s"Unable to find logs for cluster ${cluster.projectNameString}"))
-        case Some(logs) => IO(logger.info(s"Downloaded logs for cluster ${cluster.projectNameString}: ${logs.mkString(",")}"))
-      }
+          downloadLogs.compile.toList
+        }
+        .flatMap {
+          case None => IO(logger.error(s"Cluster ${cluster.projectNameString} does not have a staging bucket"))
+          case Some(logs) if logs.isEmpty =>
+            IO(logger.warn(s"Unable to find logs for cluster ${cluster.projectNameString}"))
+          case Some(logs) =>
+            IO(logger.info(s"Downloaded logs for cluster ${cluster.projectNameString}: ${logs.mkString(",")}"))
+        }
     }
-  }
 
   def time[R](block: => R): TimeResult[R] = {
     val t0 = System.nanoTime()
