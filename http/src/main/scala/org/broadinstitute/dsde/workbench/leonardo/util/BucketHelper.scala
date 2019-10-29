@@ -29,7 +29,7 @@ class BucketHelper(
     extends LazyLogging
     with Retry {
 
-  val leoEntity = userIdentity(Config.serviceAccountProviderConfig.leoServiceAccount)
+  val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccount)
 
   /**
    * Creates the dataproc init bucket and sets the necessary ACLs.
@@ -72,7 +72,7 @@ class BucketHelper(
         serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userIdentity))
       )
       providerGroups <- Stream.eval(
-        serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(userIdentity))
+        serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupIdentity))
       )
 
       readerAcl = NonEmptyList
@@ -103,12 +103,13 @@ class BucketHelper(
 
     // List(cluster or default SA, notebook SA) if they exist
     val identities = clusterOrComputeDefault.value.map { clusterOrDefaultSAOpt =>
-      List(clusterOrDefaultSAOpt, serviceAccountInfo.notebookServiceAccount).flatten.map(userIdentity)
+      List(clusterOrDefaultSAOpt, serviceAccountInfo.notebookServiceAccount).flatten.map(serviceAccountIdentity)
     }
 
     Stream.eval(identities)
   }
 
+  private def serviceAccountIdentity(email: WorkbenchEmail) = Identity.serviceAccount(email.value)
   private def userIdentity(email: WorkbenchEmail) = Identity.user(email.value)
   private def groupIdentity(email: WorkbenchEmail) = Identity.group(email.value)
 }
