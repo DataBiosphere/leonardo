@@ -88,7 +88,7 @@ def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, Str
 
 def String getChangeDescription(LinkedHashMap<String,String> versionMap) {
   def title = "[jenkins-generated-pr] Automated custom image hash update"
-  def body = "$title"
+  def body = "$title\n These are the images that are baked into this custom image:\n"
   def version = ""
   println("version map in getChangeDescription: " + versionMap.toString())
   for (String image in versionMap.keySet()) {
@@ -151,13 +151,19 @@ pipeline {
         git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
 
         script {
-          def temp = readFile("jenkins/imageDirs.txt").trim().split("\n")
+          def temp = sh( 
+            script: "cat config/conf.json | jq -r '.image_data | .[] | select(.automated_flags.include_in_custom_dataproc == true) | .name'",
+            returnStdout: true
+          ).trim().split("\n")
+
           images = new ArrayList<String>(Arrays.asList(temp))
 
           //non terra-docker images
           images.add('leonardo-jupyter')
           images.add('welder-server')
           images.add('openidc-proxy')
+
+          println("Images to include in custom image found in image scan: $images")
         }
       }
     }
