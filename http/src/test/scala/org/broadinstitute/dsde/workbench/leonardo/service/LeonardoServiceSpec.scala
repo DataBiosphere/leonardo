@@ -89,6 +89,8 @@ class LeonardoServiceSpec
       (jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes()))
     )
 
+    Await.result(directoryDAO.createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(directoryDAO.lockedDownGroupSettings)), Duration.Inf)
+
     samDao = serviceAccountProvider.samDao
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 

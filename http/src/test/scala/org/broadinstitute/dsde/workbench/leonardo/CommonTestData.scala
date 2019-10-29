@@ -74,7 +74,9 @@ trait CommonTestData { this: ScalaFutures =>
     "https://www.googleapis.com/auth/source.read_only"
   )
 
-  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
+  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
+  val dataprocImageProjectGroupName = config.getString("google.groups.dataprocImageProjectGroupName")
+  val dataprocImageProjectGroupEmail = WorkbenchEmail(config.getString("google.groups.dataprocImageProjectGroupEmail"))
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
   val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val dataprocConfig = config.as[DataprocConfig]("dataproc")

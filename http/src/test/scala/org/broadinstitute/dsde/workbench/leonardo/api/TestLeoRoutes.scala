@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import java.io.ByteArrayInputStream
 
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
+import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.scalatest.Matchers
 
+import scala.concurrent.Await
 import scala.concurrent.duration._
 
 /**
@@ -32,6 +33,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
+  Await.result(mockGoogleDirectoryDAO.createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(mockGoogleDirectoryDAO.lockedDownGroupSettings)), Duration.Inf)
+
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
