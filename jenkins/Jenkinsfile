@@ -129,6 +129,8 @@ pipeline {
     string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
           description: "The bucket where the image will be stored")
     string(name: "terra_jupyter_base", defaultValue: "0.0.1")
+    string(name: "spark_version", defaultValue: "0.0.1",
+              description: "Is not currently baked into the image, but is here for future functionality")
     string(name: "terra_jupyter_hail", defaultValue: "0.0.1",
           description: "Is not currently baked into the image, but is here for future functionality")
     string(name: "terra_jupyter_r", defaultValue: "0.0.3")
