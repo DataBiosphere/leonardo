@@ -651,7 +651,7 @@ class ClusterMonitorSpec
     val projectDAO = mock[GoogleProjectDAO]
     val iamDAO = mock[GoogleIamDAO]
     when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      iamDAO.removeIamRoles(any[GoogleProject], any[WorkbenchEmail], any[MemberType], any[Set[String]])
     } thenReturn Future.successful(true)
 
     val storageDAO = mock[GoogleStorageDAO]
@@ -698,7 +698,7 @@ class ClusterMonitorSpec
       verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(storageDAO, times(1)).setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
       verify(authProvider).notifyClusterDeleted(mockitoEq(deletingCluster.internalId), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))(any[ApplicativeAsk[IO, TraceId]])
-      verify(iamDAO, times(1)).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
+      verify(iamDAO, times(1)).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], any[MemberType], any[Set[String]])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
