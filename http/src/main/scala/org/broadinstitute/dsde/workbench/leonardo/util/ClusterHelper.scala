@@ -97,11 +97,6 @@ class ClusterHelper(dbRef: DbReference,
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
 
-  private def when400(throwable: Throwable): Boolean = throwable match {
-    case t: HttpResponseException => t.getStatusCode == 400
-    case _                        => false
-  }
-
   def generateServiceAccountKey(googleProject: GoogleProject,
                                 serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] =
     // TODO: implement google2 version of GoogleIamDAO
