@@ -305,6 +305,7 @@ object ClusterInitValues {
 
   def apply(cluster: Cluster,
             initBucketName: GcsBucketName,
+            stagingBucketName: GcsBucketName,
             serviceAccountKey: Option[ServiceAccountKey],
             dataprocConfig: DataprocConfig,
             proxyConfig: ProxyConfig,
@@ -314,7 +315,7 @@ object ClusterInitValues {
     ClusterInitValues(
       cluster.googleProject.value,
       cluster.clusterName.value,
-      cluster.dataprocInfo.map(_.stagingBucket.value).getOrElse(""),
+      stagingBucketName.value,
       cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
       cluster.clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,

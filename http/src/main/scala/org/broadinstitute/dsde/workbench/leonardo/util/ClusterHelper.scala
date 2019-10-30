@@ -89,8 +89,6 @@ class ClusterHelper(
             .createInitBucket(cluster.googleProject, initBucketName, cluster.serviceAccountInfo)
             .compile
             .drain
-          // TODO: need to persist custom env variables
-          _ <- initializeBucketObjects(cluster, initBucketName, serviceAccountKeyOpt, Map.empty).compile.drain
 
           // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
           _ <- bucketHelper
@@ -100,6 +98,8 @@ class ClusterHelper(
                                  cluster.serviceAccountInfo)
             .compile
             .drain
+
+          _ <- initializeBucketObjects(cluster, initBucketName, stagingBucketName, serviceAccountKeyOpt, Map.empty).compile.drain
 
           // build cluster configuration
           machineConfig = cluster.machineConfig
@@ -323,12 +323,14 @@ class ClusterHelper(
   private[leonardo] def initializeBucketObjects(
     cluster: Cluster,
     initBucketName: GcsBucketName,
+    stagingBucketName: GcsBucketName,
     serviceAccountKey: Option[ServiceAccountKey],
     customClusterEnvironmentVariables: Map[String, String]
   ): Stream[IO, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = ClusterInitValues(cluster,
                                          initBucketName,
+                                         stagingBucketName,
                                          serviceAccountKey,
                                          dataprocConfig,
                                          proxyConfig,

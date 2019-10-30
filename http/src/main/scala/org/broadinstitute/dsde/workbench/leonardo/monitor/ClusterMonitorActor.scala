@@ -399,7 +399,11 @@ class ClusterMonitorActor(
 
   private def checkCluster(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] =
     for {
-      cluster <- getDbCluster
+      // TODO: clean this up. also probably need to persist custom env variables.
+      dbCluster <- getDbCluster
+      clusterImages <- getDbClusterImages(cluster)
+      cluster = dbCluster.copy(clusterImages = clusterImages.toSet)
+
       next <- cluster.status match {
         case status if status.isMonitored =>
           if (cluster.dataprocInfo.isDefined) {
@@ -636,6 +640,9 @@ class ClusterMonitorActor(
         Future.failed[Cluster](new Exception(s"Cluster ${cluster.projectNameString} not found in the database"))
       )(Future.successful)
     } yield cluster
+
+  private def getDbClusterImages(cluster: Cluster): Future[Seq[ClusterImage]] =
+    dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id) }
 
   private def recordMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] =
     for {
