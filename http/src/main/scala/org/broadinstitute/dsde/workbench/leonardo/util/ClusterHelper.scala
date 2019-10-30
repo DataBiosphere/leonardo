@@ -503,6 +503,7 @@ class ClusterHelper(
     val clusterInit = ClusterInitValues(
       cluster,
       dummyInitBucket,
+      cluster.dataprocInfo.get.stagingBucket,
       None,
       dataprocConfig,
       proxyConfig,
