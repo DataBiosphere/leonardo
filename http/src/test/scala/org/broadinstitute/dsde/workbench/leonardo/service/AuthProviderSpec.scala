@@ -8,8 +8,17 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
+  clusterEq,
+  clusterSetEq,
+  stripFieldsForListCluster
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -68,13 +77,27 @@ class AuthProviderSpec
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
-  val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleStorageDAO, serviceAccountProvider)
-  val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleDirectoryDAO, mockGoogleIamDAO)
-  val clusterDnsCache =  new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
-  
+  val bucketHelper = new BucketHelper(dataprocConfig,
+                                      mockGoogleDataprocDAO,
+                                      mockGoogleComputeDAO,
+                                      mockGoogleStorageDAO,
+                                      serviceAccountProvider)
+  val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                        dataprocConfig,
+                                        mockGoogleDataprocDAO,
+                                        mockGoogleComputeDAO,
+                                        mockGoogleDirectoryDAO,
+                                        mockGoogleIamDAO)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
+
   override def beforeAll(): Unit = {
     super.beforeAll()
-    Await.result(mockGoogleDirectoryDAO.createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(mockGoogleDirectoryDAO.lockedDownGroupSettings)), Duration.Inf)
+    Await.result(
+      mockGoogleDirectoryDAO.createGroup(dataprocImageProjectGroupName,
+                                         dataprocImageProjectGroupEmail,
+                                         Option(mockGoogleDirectoryDAO.lockedDownGroupSettings)),
+      Duration.Inf
+    )
     startProxyServer()
   }
 
