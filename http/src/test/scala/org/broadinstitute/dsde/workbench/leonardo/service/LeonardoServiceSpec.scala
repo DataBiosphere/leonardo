@@ -609,6 +609,7 @@ class LeonardoServiceSpec
     val clusterInit = ClusterInitValues(
       testCluster,
       initBucketPath,
+      stagingBucketName,
       Some(serviceAccountKey),
       dataprocConfig,
       proxyConfig,
