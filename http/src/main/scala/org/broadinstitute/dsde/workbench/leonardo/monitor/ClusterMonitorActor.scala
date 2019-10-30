@@ -366,7 +366,9 @@ class ClusterMonitorActor(
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
-  private def createClusterInGoogle(cluster: Cluster)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
+  private def createClusterInGoogle(
+    cluster: Cluster
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
     val createClusterFuture = for {
       _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")).unsafeToFuture()
       clusterResult <- clusterHelper.createCluster(cluster).unsafeToFuture()

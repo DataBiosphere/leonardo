@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.{Blocker, IO}
@@ -23,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito._
