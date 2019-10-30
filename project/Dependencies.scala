@@ -8,6 +8,7 @@ object Dependencies {
   val jacksonV      = "2.9.9"
   val jacksonDatabindV = "2.9.9.2"  // jackson-databind has a security patch on the 2.9.9 branch
   val googleV       = "1.23.0"
+  val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.0"
   val scalaTestV    = "3.0.8"
   val slickV        = "3.2.3"
@@ -183,7 +184,7 @@ object Dependencies {
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
-    "com.google.api-client" % "google-api-client"   % "1.23.0" excludeAll (
+    "com.google.api-client" % "google-api-client"   % automationGoogleV excludeAll (
       excludeGuavaJdk5,
       excludeApacheHttpClient,
       excludeGoogleJsr305,
