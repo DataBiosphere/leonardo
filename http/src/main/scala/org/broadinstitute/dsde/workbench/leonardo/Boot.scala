@@ -72,50 +72,121 @@ object Boot extends IOApp with LazyLogging {
       appDependencies =>
         implicit val metrics = appDependencies.metrics
         val serviceAccountProvider = new PetClusterServiceAccountProvider[IO](appDependencies.samDAO)
-        val authProvider: LeoAuthProvider[IO] = new SamAuthProvider(appDependencies.samDAO, samAuthConfig, serviceAccountProvider)
-        val bucketHelper = new BucketHelper(dataprocConfig, appDependencies.googleDataprocDAO, appDependencies.googleComputeDAO, googleStorageDAO, serviceAccountProvider)
-        val leonardoService = new LeonardoService(dataprocConfig, appDependencies.welderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, appDependencies.googleDataprocDAO, appDependencies.googleComputeDAO, googleProjectDAO, googleStorageDAO, petGoogleStorageDAO, appDependencies.dbReference, authProvider, serviceAccountProvider, bucketHelper, appDependencies.clusterHelper, contentSecurityPolicy)
+        val authProvider: LeoAuthProvider[IO] =
+          new SamAuthProvider(appDependencies.samDAO, samAuthConfig, serviceAccountProvider)
+        val bucketHelper = new BucketHelper(dataprocConfig,
+                                            appDependencies.googleDataprocDAO,
+                                            appDependencies.googleComputeDAO,
+                                            googleStorageDAO,
+                                            serviceAccountProvider)
+        val leonardoService = new LeonardoService(dataprocConfig,
+                                                  appDependencies.welderDAO,
+                                                  clusterFilesConfig,
+                                                  clusterResourcesConfig,
+                                                  clusterDefaultsConfig,
+                                                  proxyConfig,
+                                                  swaggerConfig,
+                                                  autoFreezeConfig,
+                                                  appDependencies.googleDataprocDAO,
+                                                  appDependencies.googleComputeDAO,
+                                                  googleProjectDAO,
+                                                  googleStorageDAO,
+                                                  petGoogleStorageDAO,
+                                                  appDependencies.dbReference,
+                                                  authProvider,
+                                                  serviceAccountProvider,
+                                                  bucketHelper,
+                                                  appDependencies.clusterHelper,
+                                                  contentSecurityPolicy)
 
         if (leoExecutionModeConfig.backLeo) {
           val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
           val rstudioDAO = new HttpRStudioDAO(appDependencies.clusterDnsCache)
-          implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, appDependencies.welderDAO, rstudioDAO)
-          system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, appDependencies.googleDataprocDAO, appDependencies.googleComputeDAO, googleStorageDAO, appDependencies.google2StorageDao, appDependencies.dbReference, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, appDependencies.welderDAO, leonardoService, appDependencies.clusterHelper))
-          system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, appDependencies.googleDataprocDAO, googleProjectDAO, appDependencies.dbReference))
+          implicit def clusterToolToToolDao =
+            ToolDAO.clusterToolToToolDao(jupyterDAO, appDependencies.welderDAO, rstudioDAO)
           system.actorOf(
-            ClusterToolMonitor.props(
-              clusterToolMonitorConfig,
+            ClusterMonitorSupervisor.props(
+              monitorConfig,
+              dataprocConfig,
+              clusterBucketConfig,
               appDependencies.googleDataprocDAO,
-              googleProjectDAO,
+              appDependencies.googleComputeDAO,
+              googleStorageDAO,
+              appDependencies.google2StorageDao,
               appDependencies.dbReference,
-              appDependencies.metrics))
+              authProvider,
+              autoFreezeConfig,
+              jupyterDAO,
+              rstudioDAO,
+              appDependencies.welderDAO,
+              leonardoService,
+              appDependencies.clusterHelper
+            )
+          )
+          system.actorOf(
+            ZombieClusterMonitor.props(zombieClusterMonitorConfig,
+                                       appDependencies.googleDataprocDAO,
+                                       googleProjectDAO,
+                                       appDependencies.dbReference)
+          )
+          system.actorOf(
+            ClusterToolMonitor.props(clusterToolMonitorConfig,
+                                     appDependencies.googleDataprocDAO,
+                                     googleProjectDAO,
+                                     appDependencies.dbReference,
+                                     appDependencies.metrics)
+          )
 
           // TODO Template and get the group and domain values from config
           val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-11"
           val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
           val ch = appDependencies.clusterHelper
-          ch.createDataprocImageUserGoogleGroupIfItDoesntExist(appDependencies.googleDirectoryDAO, dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
+          ch.createDataprocImageUserGoogleGroupIfItDoesntExist(appDependencies.googleDirectoryDAO,
+                                                               dpImageUserGoogleGroupName,
+                                                               dpImageUserGoogleGroupEmail)
             .flatMap { _ =>
-              ch.addDataprocImageUserIamRole(ch.googleIamDAO, dataprocConfig.customDataprocImage, dpImageUserGoogleGroupEmail)
+              ch.addDataprocImageUserIamRole(ch.googleIamDAO,
+                                             dataprocConfig.customDataprocImage,
+                                             dpImageUserGoogleGroupEmail)
             }
         }
 
-        val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
-        val proxyService = new ProxyService(proxyConfig, appDependencies.googleDataprocDAO, appDependencies.dbReference, appDependencies.clusterDnsCache, authProvider, clusterDateAccessedActor)
-        val statusService = new StatusService(appDependencies.googleDataprocDAO, appDependencies.samDAO, appDependencies.dbReference, dataprocConfig)
-        val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
+        val clusterDateAccessedActor =
+          system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
+        val proxyService = new ProxyService(proxyConfig,
+                                            appDependencies.googleDataprocDAO,
+                                            appDependencies.dbReference,
+                                            appDependencies.clusterDnsCache,
+                                            authProvider,
+                                            clusterDateAccessedActor)
+        val statusService = new StatusService(appDependencies.googleDataprocDAO,
+                                              appDependencies.samDAO,
+                                              appDependencies.dbReference,
+                                              dataprocConfig)
+        val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
+        with StandardUserInfoDirectives
 
-        IO.fromFuture(IO(Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-          .recover {
-            case t: Throwable =>
-              logger.error("FATAL - failure starting http server", t)
-              throw t
-          }.void)) >> IO.never
+        IO.fromFuture(
+          IO(
+            Http()
+              .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+              .recover {
+                case t: Throwable =>
+                  logger.error("FATAL - failure starting http server", t)
+                  throw t
+              }
+              .void
+          )
+        ) >> IO.never
     }
   }
 
-  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String, pem: Pem, pemWithServiceAccountUser: Pem, workbenchMetricsBaseName: String)
-                                                                             (implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
+  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](
+    pathToCredentialJson: String,
+    pem: Pem,
+    pemWithServiceAccountUser: Pem,
+    workbenchMetricsBaseName: String
+  )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
     implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
 
     for {
@@ -138,12 +209,33 @@ object Boot extends IOApp with LazyLogging {
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
 
       // TODO: applicationName doesn't seem specific to DataprocConfig. Move it out?
-      gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName, NetworkTag(dataprocConfig.networkTag), dataprocConfig.dataprocDefaultRegion, dataprocConfig.dataprocZone)
+      gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName,
+                                        pem,
+                                        workbenchMetricsBaseName,
+                                        NetworkTag(dataprocConfig.networkTag),
+                                        dataprocConfig.dataprocDefaultRegion,
+                                        dataprocConfig.dataprocZone)
       googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName, pemWithServiceAccountUser, workbenchMetricsBaseName)
+      googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName,
+                                                      pemWithServiceAccountUser,
+                                                      workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleDirectoryDAO, googleIamDAO)
-    } yield AppDependencies(storage, dbRef, clusterDnsCache, googleComputeDAO, gdDAO, googleDirectoryDAO, samDao, welderDao, clusterHelper, metrics)
+      clusterHelper = new ClusterHelper(dbRef,
+                                        dataprocConfig,
+                                        gdDAO,
+                                        googleComputeDAO,
+                                        googleDirectoryDAO,
+                                        googleIamDAO)
+    } yield AppDependencies(storage,
+                            dbRef,
+                            clusterDnsCache,
+                            googleComputeDAO,
+                            gdDAO,
+                            googleDirectoryDAO,
+                            samDao,
+                            welderDao,
+                            clusterHelper,
+                            metrics)
   }
 
   private def getSSLContext(implicit actorSystem: ActorSystem) = {
@@ -171,7 +263,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        metrics: NewRelicMetrics[F])
 
 final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail)
-  extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
+    extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
 
 final case class ImageProjectNotFoundException()
-  extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
+    extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
