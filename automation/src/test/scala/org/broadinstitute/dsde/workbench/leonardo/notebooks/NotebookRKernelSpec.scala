@@ -22,7 +22,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
           notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
 
           // Make sure unicode characters display correctly
-          notebookPage.executeCell("""install.packages("skimr")""")
+          notebookPage.executeCell("""install.packages("skimr")""", timeout = 5.minutes)
           notebookPage.executeCell("library(skimr)")
 
           val output = notebookPage.executeCell("""data(iris)
