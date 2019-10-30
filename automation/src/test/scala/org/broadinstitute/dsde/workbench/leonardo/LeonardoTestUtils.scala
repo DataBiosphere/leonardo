@@ -1,11 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
+import java.io.{ByteArrayInputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import akka.actor.ActorSystem
-import cats.data.OptionT
 import cats.effect.{Blocker, IO}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -30,7 +29,6 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{Matchers, Suite}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Success, Try}
 
@@ -66,9 +64,9 @@ trait LeonardoTestUtils
   lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
   lazy val ronEmail = ronCreds.email
 
-  val clusterPatience = PatienceConfig(timeout = scaled(Span(10, Minutes)), interval = scaled(Span(20, Seconds)))
+  val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val clusterStopAfterCreatePatience =
-    PatienceConfig(timeout = scaled(Span(20, Minutes)), interval = scaled(Span(20, Seconds)))
+    PatienceConfig(timeout = scaled(Span(30, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
@@ -251,21 +249,7 @@ trait LeonardoTestUtils
       }
     }
     // Save the cluster init log file whether or not the cluster created successfully
-    saveDataprocLogFiles(creatingCluster).recover {
-      case e =>
-        logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.projectNameString}", e)
-        throw e
-    }.futureValue match {
-      case Some((initLog, startupLog)) =>
-        logger.info(
-          s"Saved Dataproc init log file for cluster ${creatingCluster.projectNameString} to ${initLog.getAbsolutePath}"
-        )
-        logger.info(
-          s"Saved Dataproc startup log file for cluster ${creatingCluster.projectNameString} to ${startupLog.getAbsolutePath}"
-        )
-      case None =>
-        logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.projectNameString}")
-    }
+    saveDataprocLogFiles(creatingCluster).unsafeRunSync()
 
     // If the cluster is running, grab the jupyter.log and welder.log files for debugging.
     runningOrErroredCluster.foreach { cluster =>
@@ -561,37 +545,30 @@ trait LeonardoTestUtils
     }
   }
 
-  def saveDataprocLogFiles(cluster: Cluster): Future[Option[(File, File)]] = {
-    def downloadLogFile(contentStream: ByteArrayOutputStream, fileName: String): File = {
-      // .log suffix is needed so it shows up as a Jenkins build artifact
-      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-$fileName.log")
-      val fos = new FileOutputStream(downloadFile)
-      fos.write(contentStream.toByteArray)
-      fos.close()
-      downloadFile
+  def saveDataprocLogFiles(cluster: Cluster): IO[Unit] =
+    google2StorageResource.use { storage =>
+      cluster.stagingBucket
+        .traverse { stagingBucketName =>
+          val downloadLogs = for {
+            blob <- storage
+              .listBlobsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo", true)
+              .filter(_.getName.endsWith("output"))
+            blobName = blob.getName
+            shortName = new File(blobName).getName
+            path = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-${shortName}.log").toPath
+            _ <- storage.downloadObject(blob.getBlobId, path)
+          } yield shortName
+
+          downloadLogs.compile.toList
+        }
+        .flatMap {
+          case None => IO(logger.error(s"Cluster ${cluster.projectNameString} does not have a staging bucket"))
+          case Some(logs) if logs.isEmpty =>
+            IO(logger.warn(s"Unable to find output logs for cluster ${cluster.projectNameString}"))
+          case Some(logs) =>
+            IO(logger.info(s"Downloaded output logs for cluster ${cluster.projectNameString}: ${logs.mkString(",")}"))
+        }
     }
-
-    val transformed = for {
-      stagingBucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
-      stagingBucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](
-        googleStorageDAO.listObjectsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo")
-      )
-      initLogFile <- OptionT.fromOption[Future](
-        stagingBucketObjects.find(_.value.endsWith("dataproc-initialization-script-0_output"))
-      )
-      initContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, initLogFile))
-      initDownloadFile <- OptionT.pure[Future](downloadLogFile(initContent, new File(initLogFile.value).getName))
-      startupLogFile <- OptionT.fromOption[Future](
-        stagingBucketObjects.find(_.value.endsWith("dataproc-startup-script_output"))
-      )
-      startupContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, startupLogFile))
-      startupDownloadFile <- OptionT.pure[Future](
-        downloadLogFile(startupContent, new File(startupLogFile.value).getName)
-      )
-    } yield (initDownloadFile, startupDownloadFile)
-
-    transformed.value
-  }
 
   def time[R](block: => R): TimeResult[R] = {
     val t0 = System.nanoTime()

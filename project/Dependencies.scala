@@ -8,6 +8,7 @@ object Dependencies {
   val jacksonV      = "2.9.9"
   val jacksonDatabindV = "2.9.9.2"  // jackson-databind has a security patch on the 2.9.9 branch
   val googleV       = "1.23.0"
+  val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.0"
   val scalaTestV    = "3.0.8"
   val slickV        = "3.2.3"
@@ -16,7 +17,7 @@ object Dependencies {
   val workbenchUtilV    = "0.5-4c7acd5"
   val workbenchModelV   = "0.13-6dc016b"
   val workbenchGoogleV  = "0.21-58c913d"
-  val workbenchGoogle2V = "0.6-8bae8e8"
+  val workbenchGoogle2V = "0.6-f846fad"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchNewRelicV = "0.3-8bae8e8"
 
@@ -67,7 +68,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev91-$googleV" excludeAll(excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
-  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.24.0" excludeAll(excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
+  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.24.1" excludeAll(excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
   val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1" excludeAll(excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleSourceRepositories: ModuleID = "com.google.apis" % "google-api-services-sourcerepo" % s"v1-rev21-$googleV" excludeAll(excludeGuavaJDK5)
 
@@ -183,7 +184,7 @@ object Dependencies {
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
-    "com.google.api-client" % "google-api-client"   % "1.23.0" excludeAll (
+    "com.google.api-client" % "google-api-client"   % automationGoogleV excludeAll (
       excludeGuavaJdk5,
       excludeApacheHttpClient,
       excludeGoogleJsr305,

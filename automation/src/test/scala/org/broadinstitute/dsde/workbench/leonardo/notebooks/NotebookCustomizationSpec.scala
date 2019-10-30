@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
