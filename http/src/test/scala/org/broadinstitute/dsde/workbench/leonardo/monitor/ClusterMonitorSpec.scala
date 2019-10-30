@@ -13,7 +13,7 @@ import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
@@ -27,13 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GcsEntity,
-  GcsObjectName,
-  GoogleProject,
-  ServiceAccountKeyId
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
@@ -42,7 +36,7 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.util.{Random, Try}
 
@@ -144,6 +138,7 @@ class ClusterMonitorSpec
 
   def createClusterSupervisor(gdDAO: GoogleDataprocDAO,
                               computeDAO: GoogleComputeDAO,
+                              directoryDAO: GoogleDirectoryDAO,
                               iamDAO: GoogleIamDAO,
                               projectDAO: GoogleProjectDAO,
                               storageDAO: GoogleStorageDAO,
@@ -153,8 +148,7 @@ class ClusterMonitorSpec
                               rstudioDAO: RStudioDAO,
                               welderDAO: WelderDAO[IO]): ActorRef = {
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
-    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, mockGoogleDirectoryDAO, iamDAO)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, directoryDAO, iamDAO)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val leoService = new LeonardoService(dataprocConfig,
                                          MockWelderDAO,
@@ -209,9 +203,13 @@ class ClusterMonitorSpec
                                jupyterDAO: JupyterDAO = MockJupyterDAO,
                                rstudioDAO: RStudioDAO = MockRStudioDAO,
                                welderDAO: WelderDAO[IO] = MockWelderDAO,
-                               runningChild: Boolean = true)(testCode: ActorRef => T): T = {
+                               runningChild: Boolean = true,
+                               directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO())(testCode: ActorRef => T): T = {
+    // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
+    Await.result(directoryDAO.createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(directoryDAO.lockedDownGroupSettings)), Duration.Inf)
     val supervisor = createClusterSupervisor(gdDAO,
                                              computeDAO,
+                                             directoryDAO,
                                              iamDAO,
                                              projectDAO,
                                              storageDAO,
@@ -423,7 +421,7 @@ class ClusterMonitorSpec
           )
         }
         verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-        verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
+        verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], any[MemberType], any[Set[String]])
         verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       }
     }
@@ -812,11 +810,11 @@ class ClusterMonitorSpec
 
     val iamDAO = mock[GoogleIamDAO]
     when {
-      iamDAO.addIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
+      iamDAO.addIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.ServiceAccount), any[Set[String]])
     } thenReturn Future.successful(true)
 
     when {
-      iamDAO.removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), any[Set[String]])
+      iamDAO.removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.ServiceAccount), any[Set[String]])
     } thenReturn Future.successful(true)
 
     when {
@@ -880,11 +878,11 @@ class ClusterMonitorSpec
       }
       // should only add/remove the dataproc.worker role 1 time
       val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
-      verify(iamDAO, dpWorkerTimes).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/dataproc.worker")))
-      verify(iamDAO, dpWorkerTimes).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/dataproc.worker")))
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
-      verify(iamDAO, imageUserTimes).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/compute.imageUser")))
-      verify(iamDAO, imageUserTimes).addIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/compute.imageUser")))
+      verify(iamDAO, dpWorkerTimes).addIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.ServiceAccount), mockitoEq(Set("roles/dataproc.worker")))
+      verify(iamDAO, dpWorkerTimes).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.ServiceAccount), mockitoEq(Set("roles/dataproc.worker")))
+      // no longer adding/removing compute.imageUser role
+      verify(iamDAO, never()).addIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/dataproc.worker")))
+      verify(iamDAO, never()).removeIamRoles(any[GoogleProject], any[WorkbenchEmail], mockitoEq(MemberType.User), mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(mockitoEq(creatingCluster.internalId), mockitoEq(creatingCluster.auditInfo.creator), mockitoEq(creatingCluster.auditInfo.creator), mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))(any[ApplicativeAsk[IO, TraceId]])
     }

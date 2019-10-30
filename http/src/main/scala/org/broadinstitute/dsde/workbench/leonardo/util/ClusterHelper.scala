@@ -66,48 +66,12 @@ class ClusterHelper(dbRef: DbReference,
       }
     } getOrElse IO.unit
 
-    // TODO: replace this logic with a group based approach so we don't have to manipulate IAM directly in the image project.
-    // See https://broadworkbench.atlassian.net/browse/IA-1364
-    //
-    // Add the Compute Image User role in the image project to the Google API service account.
-    // This is needed in order to use a custom dataproc VM image.
-    // If a custom image is not being used, this is not necessary.
-    val computeImageUserIO = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
-      case None                                                => IO.unit
-      case Some(imageProject) if imageProject == googleProject => IO.unit
-      case Some(imageProject) =>
-        IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
-          // Note: don't remove the role if there are existing active clusters in the same project,
-          // because it could potentially break other clusters. We only check this for the 'remove' case,
-          // it's ok to re-add the roles.
-          if (count > 0 && createCluster == false) {
-            IO.unit
-          } else {
-            for {
-              projectNumber <- IO
-                .fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
-                .flatMap(_.fold(IO.raiseError[Long](ClusterIamSetupException(imageProject)))(IO.pure))
-              roles = Set("roles/compute.imageUser")
-
-              // The Dataproc SA is used to retrieve the image. However projects created prior to 2016
-              // don't have a Dataproc SA so they fall back to the API service account. This is documented here:
-              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-              dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
-              apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
-              _ <- retryIam(imageProject, dataprocSA, roles).recoverWith {
-                case e if when400(e) => retryIam(imageProject, apiSA, roles)
-              }
-            } yield ()
-          }
-        }
-    }
-
     // TODO Template and get the group and domain values from config
     val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-11"
     val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
 
     // Add the user's service account to the Google group that has compute.imageUser role on the custom Dataproc image project.
-    val computeImageUserIO2 = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
+    val computeImageUserIO = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
       case None => IO.unit
       case Some(imageProject) =>
         IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
@@ -117,7 +81,6 @@ class ClusterHelper(dbRef: DbReference,
             IO.unit
           } else {
               val projectNumberOptIO = IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
-              logger.info(s"projectNumberOptIO is $projectNumberOptIO")
               val clusterIamSetupExceptionIO = IO.raiseError[Long](ClusterIamSetupException(imageProject))
               for {
                 projectNumber <- projectNumberOptIO.flatMap(_.fold(clusterIamSetupExceptionIO)(IO.pure))
@@ -131,7 +94,7 @@ class ClusterHelper(dbRef: DbReference,
         }
     }
 
-    List(dataprocWorkerIO, computeImageUserIO, computeImageUserIO2).parSequence_
+    List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
 
   private def when400(throwable: Throwable): Boolean = throwable match {
