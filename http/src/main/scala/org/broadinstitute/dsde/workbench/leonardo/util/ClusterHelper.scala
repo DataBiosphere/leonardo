@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.effect._
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO}
