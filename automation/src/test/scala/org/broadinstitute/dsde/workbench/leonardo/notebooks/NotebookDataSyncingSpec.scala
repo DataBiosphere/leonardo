@@ -5,7 +5,6 @@ import java.math.BigInteger
 import java.security.MessageDigest
 import java.time.Instant
 
-import akka.http.scaladsl.model.HttpResponse
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._

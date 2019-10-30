@@ -552,11 +552,7 @@ trait LeonardoTestUtils
           val downloadLogs = for {
             blob <- storage
               .listBlobsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo", true)
-              .filter(
-                b =>
-                  b.getName.endsWith("dataproc-initialization-script-0_output") || b.getName
-                    .endsWith("dataproc-startup-script_output")
-              )
+              .filter(_.getName.endsWith("output"))
             blobName = blob.getName
             shortName = new File(blobName).getName
             path = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-${shortName}.log").toPath
@@ -568,9 +564,9 @@ trait LeonardoTestUtils
         .flatMap {
           case None => IO(logger.error(s"Cluster ${cluster.projectNameString} does not have a staging bucket"))
           case Some(logs) if logs.isEmpty =>
-            IO(logger.warn(s"Unable to find logs for cluster ${cluster.projectNameString}"))
+            IO(logger.warn(s"Unable to find output logs for cluster ${cluster.projectNameString}"))
           case Some(logs) =>
-            IO(logger.info(s"Downloaded logs for cluster ${cluster.projectNameString}: ${logs.mkString(",")}"))
+            IO(logger.info(s"Downloaded output logs for cluster ${cluster.projectNameString}: ${logs.mkString(",")}"))
         }
     }
 
