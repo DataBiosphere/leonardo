@@ -192,6 +192,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     val clusterInit = ClusterInitValues(
       cluster,
       initBucketPath,
+      stagingBucketName,
       Some(serviceAccountKey),
       dataprocConfig,
       proxyConfig,

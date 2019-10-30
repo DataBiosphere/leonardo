@@ -498,12 +498,13 @@ class ClusterHelper(
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
     // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
-    val dummyInitBucket = GcsBucketName("dummy-init-bucket")
+    val dummyInitBucket = GcsBucketName("")
+    val dummyStagingBucket = GcsBucketName("")
 
     val clusterInit = ClusterInitValues(
       cluster,
       dummyInitBucket,
-      cluster.dataprocInfo.get.stagingBucket,
+      cluster.dataprocInfo.map(_.stagingBucket).getOrElse(dummyStagingBucket),
       None,
       dataprocConfig,
       proxyConfig,
