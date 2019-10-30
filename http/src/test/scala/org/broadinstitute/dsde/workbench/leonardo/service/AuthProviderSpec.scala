@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
@@ -20,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
@@ -292,6 +293,20 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).futureValue
+      listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
+    }
+
+    "should return clusters the user didn't create if the auth provider says yes" in isolatedDbTest {
+      val leo = leoWithAuthProvider(alwaysYesProvider)
+
+      // create
+      val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).futureValue
+
+      val newEmail = WorkbenchEmail("new-user@example.com")
+      val newUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("new-user"), newEmail, 0)
+
+      // list
+      val listResponse = leo.listClusters(newUserInfo, Map()).futureValue
       listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
     }
 
