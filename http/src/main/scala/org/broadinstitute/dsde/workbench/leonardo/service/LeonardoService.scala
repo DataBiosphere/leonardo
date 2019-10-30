@@ -800,12 +800,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield {
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-      val visibleClusters = samVisibleClusters ::: clusterList
+      val userCreatedClusters: List[(GoogleProject, ClusterInternalId)] = clusterList
         .filter(_.auditInfo.creator == userInfo.userEmail)
-        .map(c => (c.googleProject, c.clusterName))
+        .map(c => (c.googleProject, c.internalId))
         .toList
-      val visibleClustersSet = visibleClusters.toSet
-      clusterList.filter(c => visibleClustersSet.contains((c.googleProject, c.clusterName)))
+      val visibleClustersSet = (samVisibleClusters ::: userCreatedClusters).toSet
+      clusterList.filter(c => visibleClustersSet.contains((c.googleProject, c.internalId)))
     }
 
   private[service] def getActiveCluster(googleProject: GoogleProject,
