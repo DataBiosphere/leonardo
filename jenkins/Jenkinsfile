@@ -128,9 +128,9 @@ pipeline {
           description: "The google project to use")
     string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
           description: "The bucket where the image will be stored")
+    string(name: "dataproc_version", defaultValue: ["1.2.79-debian9", "1.4.15-debian9"],
+          description: "A custom image will be build for each of these dataproc versions")
     string(name: "terra_jupyter_base", defaultValue: "0.0.1")
-    string(name: "spark_version", defaultValue: "0.0.1",
-              description: "Is not currently baked into the image, but is here for future functionality")
     string(name: "terra_jupyter_hail", defaultValue: "0.0.1",
           description: "Is not currently baked into the image, but is here for future functionality")
     string(name: "terra_jupyter_r", defaultValue: "0.0.3")
@@ -181,7 +181,7 @@ pipeline {
             ))
           }
 
-          currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$imageID"
+          currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$dataproc_version-$imageID"
         }
       }
     }
@@ -268,15 +268,19 @@ pipeline {
           sh """
             git submodule init && git submodule update
             cd jenkins/dataproc-custom-images/dataproc-custom-images
-            python generate_custom_image.py \
-              --image-name "$IMAGE_BASE_NAME-$imageID" \
-              --dataproc-version "1.4.15-debian9" \
-              --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-              --zone us-central1-a \
-              --gcs-bucket $BUCKET_NAME \
-              --project-id=$GOOGLE_PROJECT \
-              --disk-size=30
           """
+          for(String version: dataproc_version) {
+            sh """
+              python generate_custom_image.py \
+                --image-name "$IMAGE_BASE_NAME-$version-$imageID" \
+                --dataproc-version $version \
+                --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+                --zone us-central1-a \
+                --gcs-bucket $BUCKET_NAME \
+                --project-id=$GOOGLE_PROJECT \
+                --disk-size=30
+            """
+          }
         }
       }
 
@@ -287,11 +291,13 @@ pipeline {
 
             def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
             for (String configFile: configPaths) {
-              sh (
-                  script: """
-                    sed -i "s/$IMAGE_BASE_NAME.*/$IMAGE_BASE_NAME-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
-                  """
-              )
+              for (String version: dataproc_versions) {
+                sh (
+                    script: """
+                      sed -i "s/$IMAGE_BASE_NAME-$version.*/$IMAGE_BASE_NAME-$version-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+                    """
+                )
+              }
             }
           }
 
@@ -343,7 +349,7 @@ pipeline {
       stage('Notify Slack') {
         when { expression { !shouldAbortBuild } }
         steps {
-          slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built a custom leo dataproc image with the name:  $IMAGE_BASE_NAME-$imageID. \nIf you would like to check the status of the PR, click: $prLink")
+          slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built a custom leo dataproc images for dataproc versions $dataproc_versions with the name:  $IMAGE_BASE_NAME-$imageID. \nIf you would like to check the status of the PR, click: $prLink")
         }
       }
 
