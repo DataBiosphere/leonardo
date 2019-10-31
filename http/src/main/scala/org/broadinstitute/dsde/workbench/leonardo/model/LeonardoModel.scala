@@ -333,9 +333,7 @@ object ClusterInitValues {
       dataprocConfig.welderServerName,
       proxyConfig.proxyServerName,
       cluster.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
-      cluster.dataprocInfo
-        .map(x => GcsPath(x.stagingBucket, GcsObjectName("userscript_output.txt")).toUri)
-        .getOrElse(""),
+      GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri,
       serviceAccountKey
         .map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri)
         .getOrElse(""),
