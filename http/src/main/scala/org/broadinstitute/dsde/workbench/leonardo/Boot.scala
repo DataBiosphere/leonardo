@@ -139,11 +139,8 @@ object Boot extends IOApp with LazyLogging {
           // TODO Template and get the group and domain values from config
           val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-11"
           val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
-          val ch = appDependencies.clusterHelper
-          ch.createDataprocImageUserGoogleGroupIfItDoesntExist(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
-            .flatMap { _ =>
-              ch.addIamRoleToDataprocImageGroup(dataprocConfig.customDataprocImage, dpImageUserGoogleGroupEmail)
-            }
+          appDependencies.clusterHelper.setupDataprocImageGoogleGroup(dpImageUserGoogleGroupName,
+                                                                      dpImageUserGoogleGroupEmail)
         }
 
         val clusterDateAccessedActor =
@@ -176,7 +173,7 @@ object Boot extends IOApp with LazyLogging {
     }
   }
 
-  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](
+  private def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](
     pathToCredentialJson: String,
     pem: Pem,
     pemWithServiceAccountUser: Pem,
