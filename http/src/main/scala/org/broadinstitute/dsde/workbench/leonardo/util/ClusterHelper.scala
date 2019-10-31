@@ -14,14 +14,16 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper.{
+  ClusterIamSetupException,
+  GoogleGroupCreationException,
+  ImageProjectNotFoundException
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.{ExecutionContext, Future}
-
-case class ClusterIamSetupException(googleProject: GoogleProject)
-    extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
 
 class ClusterHelper(
   dbRef: DbReference,
@@ -29,7 +31,7 @@ class ClusterHelper(
   gdDAO: GoogleDataprocDAO,
   googleComputeDAO: GoogleComputeDAO,
   googleDirectoryDAO: GoogleDirectoryDAO,
-  val googleIamDAO: GoogleIamDAO
+  googleIamDAO: GoogleIamDAO
 )(implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO])
     extends LazyLogging
     with Retry {
@@ -75,30 +77,8 @@ class ClusterHelper(
     val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
 
     // Add the user's service account to the Google group that has compute.imageUser role on the custom Dataproc image project.
-    val computeImageUserIO = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
-      case None => IO.unit
-      case Some(imageProject) =>
-        IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
-          // Note: Don't remove the account if there are existing active clusters in the same project,
-          // because it could potentially break other clusters. We only check this for the 'remove' case.
-          if (count > 0 && !createCluster) {
-            IO.unit
-          } else {
-            val projectNumberOptIO = IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
-            val clusterIamSetupExceptionIO = IO.raiseError[Long](ClusterIamSetupException(imageProject))
-            for {
-              projectNumber <- projectNumberOptIO.flatMap(_.fold(clusterIamSetupExceptionIO)(IO.pure))
-              // Note that the Dataproc service account is used to retrieve the image, and not the user's
-              // pet service account. There is one Dataproc service account per Google project. For more details:
-              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-              dataprocServiceAccountEmail = WorkbenchEmail(
-                s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(dataprocImageUserGoogleGroupEmail, dataprocServiceAccountEmail, createCluster)
-            } yield ()
-          }
-        }
-    }
+    val computeImageUserIO =
+      addMemberToDataprocImageGroup(dataprocImageUserGoogleGroupEmail, googleProject, createCluster)
 
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
@@ -119,8 +99,7 @@ class ClusterHelper(
         IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
     } getOrElse IO.unit
 
-  def createDataprocImageUserGoogleGroupIfItDoesntExist(googleDirectoryDAO: GoogleDirectoryDAO,
-                                                        dpImageUserGoogleGroupName: String,
+  def createDataprocImageUserGoogleGroupIfItDoesntExist(dpImageUserGoogleGroupName: String,
                                                         dpImageUserGoogleGroupEmail: WorkbenchEmail): Future[Unit] = {
     logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
     googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
@@ -134,7 +113,8 @@ class ClusterHelper(
                        Option(googleDirectoryDAO.lockedDownGroupSettings))
           .recoverWith {
             // In case group creation is attempted concurrently by multiple Leo instances
-            case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue => Future.unit
+            case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue =>
+              Future.unit
             case _ =>
               Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
           }
@@ -146,9 +126,8 @@ class ClusterHelper(
     }
   }
 
-  def addDataprocImageUserIamRole(googleIamDAO: GoogleIamDAO,
-                                  customDataprocImage: Option[String],
-                                  dpImageUserGoogleGroupEmail: WorkbenchEmail) = {
+  def addIamRoleToDataprocImageGroup(customDataprocImage: Option[String],
+                                     dpImageUserGoogleGroupEmail: WorkbenchEmail) = {
     val computeImageUserRole = Set("roles/compute.imageUser")
 
     dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
@@ -166,6 +145,44 @@ class ClusterHelper(
         }
     }
   }
+
+  /**
+   *  Add the user's service account to the Google group.
+   *  This group has compute.imageUser role on the custom Dataproc image project,
+   *  which allows the user's cluster to pull the image.
+   */
+  private def addMemberToDataprocImageGroup(dataprocImageUserGoogleGroupEmail: WorkbenchEmail,
+                                            googleProject: GoogleProject,
+                                            createCluster: Boolean): IO[Unit] =
+    dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
+      case None => IO.unit
+      case Some(imageProject) =>
+        IO.fromFuture(IO(dbRef.inTransaction {
+            _.clusterQuery.countActiveByProject(googleProject)
+          }))
+          .flatMap { count =>
+            // Note: Don't remove the account if there are existing active clusters in the same project,
+            // because it could potentially break other clusters. We only check this for the 'remove' case.
+            if (count > 0 && !createCluster) {
+              IO.unit
+            } else {
+              val projectNumberOptIO = IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
+              val clusterIamSetupExceptionIO = IO.raiseError[Long](ClusterIamSetupException(imageProject))
+              for {
+                projectNumber <- projectNumberOptIO.flatMap(_.fold(clusterIamSetupExceptionIO)(IO.pure))
+                // Note that the Dataproc service account is used to retrieve the image, and not the user's
+                // pet service account. There is one Dataproc service account per Google project. For more details:
+                // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+                dataprocServiceAccountEmail = WorkbenchEmail(
+                  s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
+                )
+                _ <- updateGroupMembership(dataprocImageUserGoogleGroupEmail,
+                                           dataprocServiceAccountEmail,
+                                           createCluster)
+              } yield ()
+            }
+          }
+    }
 
   private def updateGroupMembership(groupEmail: WorkbenchEmail,
                                     memberEmail: WorkbenchEmail,
@@ -196,4 +213,15 @@ class ClusterHelper(
     }
   }
 
+}
+
+object ClusterHelper {
+  final case class ClusterIamSetupException(googleProject: GoogleProject)
+      extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
+
+  final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail)
+      extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
+
+  final case class ImageProjectNotFoundException()
+      extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
 }

@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes
 import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
@@ -29,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterDateAccessedActor,
@@ -141,13 +140,9 @@ object Boot extends IOApp with LazyLogging {
           val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-11"
           val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
           val ch = appDependencies.clusterHelper
-          ch.createDataprocImageUserGoogleGroupIfItDoesntExist(appDependencies.googleDirectoryDAO,
-                                                               dpImageUserGoogleGroupName,
-                                                               dpImageUserGoogleGroupEmail)
+          ch.createDataprocImageUserGoogleGroupIfItDoesntExist(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
             .flatMap { _ =>
-              ch.addDataprocImageUserIamRole(ch.googleIamDAO,
-                                             dataprocConfig.customDataprocImage,
-                                             dpImageUserGoogleGroupEmail)
+              ch.addIamRoleToDataprocImageGroup(dataprocConfig.customDataprocImage, dpImageUserGoogleGroupEmail)
             }
         }
 
@@ -261,9 +256,3 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        welderDAO: HttpWelderDAO[F],
                                        clusterHelper: ClusterHelper,
                                        metrics: NewRelicMetrics[F])
-
-final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail)
-    extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
-
-final case class ImageProjectNotFoundException()
-    extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
