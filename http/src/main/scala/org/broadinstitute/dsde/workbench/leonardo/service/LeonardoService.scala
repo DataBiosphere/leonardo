@@ -537,15 +537,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             .createClusterIamRoles(existingCluster.googleProject, existingCluster.serviceAccountInfo)
             .unsafeToFuture()
 
+          _ <- clusterHelper
+            .updateDataprocImageGroupMembership(existingCluster.googleProject, createCluster = true)
+            .unsafeToFuture()
+
           // Resize the cluster
           _ <- gdDAO.resizeCluster(existingCluster.googleProject,
                                    existingCluster.clusterName,
                                    updatedNumWorkersAndPreemptibles.left,
                                    updatedNumWorkersAndPreemptibles.right) recoverWith {
             case gjre: GoogleJsonResponseException =>
-              // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
+              // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
+              // resize the cluster we need to revoke it manually here
               clusterHelper
                 .removeClusterIamRoles(existingCluster.googleProject, existingCluster.serviceAccountInfo)
+                .unsafeToFuture()
+              // Remove member from the Google Group that has the IAM role to pull the Dataproc image
+              clusterHelper
+                .updateDataprocImageGroupMembership(existingCluster.googleProject, createCluster = false)
                 .unsafeToFuture()
               logger.error(s"Could not successfully update cluster ${existingCluster.projectNameString}", gjre)
               Future.failed(InvalidDataprocMachineConfigException(gjre.getMessage))
@@ -859,6 +868,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Set up IAM roles necessary to create a cluster.
       _ <- clusterHelper.createClusterIamRoles(googleProject, serviceAccountInfo).unsafeToFuture()
+
+      // Add member to the Google Group that has the IAM role to pull the Dataproc image
+      _ <- clusterHelper
+        .updateDataprocImageGroupMembership(googleProject, createCluster = true)
+        .unsafeToFuture()
 
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.

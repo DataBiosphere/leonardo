@@ -95,10 +95,12 @@ class LeonardoServiceSpec
       (jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes()))
     )
 
-    Await.result(directoryDAO.createGroup(dataprocImageProjectGroupName,
-                                          dataprocImageProjectGroupEmail,
-                                          Option(directoryDAO.lockedDownGroupSettings)),
-                 Duration.Inf)
+    // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
+    directoryDAO
+      .createGroup(dataprocImageProjectGroupName,
+                   dataprocImageProjectGroupEmail,
+                   Option(directoryDAO.lockedDownGroupSettings))
+      .futureValue
 
     samDao = serviceAccountProvider.samDao
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
@@ -1419,7 +1421,7 @@ class LeonardoServiceSpec
       new MockGoogleStorageDAO
     }
 
-    //we meed to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
+    // We need to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO
     val clusterHelper =
       new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, directoryDAO, iamDAO)

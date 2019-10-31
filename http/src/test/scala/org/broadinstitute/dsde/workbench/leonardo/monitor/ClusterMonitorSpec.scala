@@ -214,10 +214,12 @@ class ClusterMonitorSpec
     directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO()
   )(testCode: ActorRef => T): T = {
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
-    Await.result(directoryDAO.createGroup(dataprocImageProjectGroupName,
-                                          dataprocImageProjectGroupEmail,
-                                          Option(directoryDAO.lockedDownGroupSettings)),
-                 Duration.Inf)
+    directoryDAO
+      .createGroup(dataprocImageProjectGroupName,
+                   dataprocImageProjectGroupEmail,
+                   Option(directoryDAO.lockedDownGroupSettings))
+      .futureValue
+
     val supervisor = createClusterSupervisor(gdDAO,
                                              computeDAO,
                                              directoryDAO,

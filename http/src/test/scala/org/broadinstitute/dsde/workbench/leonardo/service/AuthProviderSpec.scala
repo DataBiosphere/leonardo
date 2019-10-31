@@ -92,12 +92,12 @@ class AuthProviderSpec
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    Await.result(
-      mockGoogleDirectoryDAO.createGroup(dataprocImageProjectGroupName,
-                                         dataprocImageProjectGroupEmail,
-                                         Option(mockGoogleDirectoryDAO.lockedDownGroupSettings)),
-      Duration.Inf
-    )
+    // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
+    mockGoogleDirectoryDAO
+      .createGroup(dataprocImageProjectGroupName,
+                   dataprocImageProjectGroupEmail,
+                   Option(mockGoogleDirectoryDAO.lockedDownGroupSettings))
+      .futureValue
     startProxyServer()
   }
 
