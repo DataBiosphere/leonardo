@@ -112,7 +112,7 @@ class ClusterMonitorSupervisor(
     with LazyLogging {
   import context.dispatcher
 
-  var monitoredClusters: Set[Cluster] = Set.empty
+  var monitoredClusterIds: Set[Long] = Set.empty
 
   override def preStart(): Unit = {
     super.preStart()
@@ -127,17 +127,17 @@ class ClusterMonitorSupervisor(
 
     case ClusterCreated(cluster, stopAfterCreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for initialization.")
-      monitoredClusters += cluster
+      addToMonitoredClusters(cluster)
       startClusterMonitorActor(cluster, if (stopAfterCreate) Some(StopClusterAfterCreation(cluster)) else None)
 
     case ClusterDeleted(cluster, recreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
-      monitoredClusters += cluster
+      addToMonitoredClusters(cluster)
       startClusterMonitorActor(cluster, if (recreate) Some(RecreateCluster(cluster)) else None)
 
     case ClusterUpdated(cluster) =>
       logger.info(s"Monitor cluster ${cluster.projectNameString} for updating.")
-      monitoredClusters += cluster
+      addToMonitoredClusters(cluster)
       startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
@@ -182,12 +182,12 @@ class ClusterMonitorSupervisor(
 
     case ClusterStopped(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after stopping.")
-      monitoredClusters += cluster
+      addToMonitoredClusters(cluster)
       startClusterMonitorActor(cluster)
 
     case ClusterStarted(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after starting.")
-      monitoredClusters += cluster
+      addToMonitoredClusters(cluster)
       startClusterMonitorActor(cluster)
 
     case AutoFreezeClusters =>
@@ -290,8 +290,6 @@ class ClusterMonitorSupervisor(
     } yield ()
 
   private def createClusterMonitors(): Unit = {
-    val monitoredClusterIds = monitoredClusters.map(_.id)
-
     dbRef
       .inTransaction { _.clusterQuery.listMonitoredClusterOnly() }
       .onComplete {
@@ -316,8 +314,10 @@ class ClusterMonitorSupervisor(
       }
   }
 
+  private def addToMonitoredClusters(cluster: Cluster) =
+    monitoredClusterIds += cluster.id
   private def removeFromMonitoredClusters(cluster: Cluster) =
-    monitoredClusters -= cluster
+    monitoredClusterIds -= cluster.id
 
   override val supervisorStrategy = {
     // TODO add threshold monitoring stuff from Rawls

@@ -202,7 +202,7 @@ class ClusterMonitorActor(
         )
     } else {
       logger.info(
-        s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (Dataproc cluster status = $status, GCE instance statuses = ${instances
+        s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.millis.toSeconds} so far (Dataproc cluster status = $status, GCE instance statuses = ${instances
           .groupBy(_.status)
           .mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}. ${msg.getOrElse("")}"
       )
