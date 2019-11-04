@@ -22,8 +22,10 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, Mock
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
+import org.scalactic.source.Position
 import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.duration._
 
@@ -37,13 +39,16 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
   implicit private val nr = FakeNewRelicMetricsInterpreter
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
-  val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
-  // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
-  mockGoogleDirectoryDAO
-    .createGroup(dataprocImageProjectGroupName,
-                 dataprocImageProjectGroupEmail,
-                 Option(mockGoogleDirectoryDAO.lockedDownGroupSettings))
-    .futureValue
+  // Set up the mock directoryDAO to have the Google group used to grant permission to users
+  // to pull the custom dataproc image
+  val mockGoogleDirectoryDAO = {
+    implicit val mockGoogleDirectoryDAOPatience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
+    val dao = new MockGoogleDirectoryDAO()
+    dao
+      .createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(dao.lockedDownGroupSettings))
+      .futureValue(mockGoogleDirectoryDAOPatience, Position.here)
+    dao
+  }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
