@@ -12,21 +12,8 @@ import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  AutoFreezeConfig,
-  ClusterBucketConfig,
-  ClusterDefaultsConfig,
-  ClusterDnsCacheConfig,
-  ClusterFilesConfig,
-  ClusterResourcesConfig,
-  ClusterToolConfig,
-  DataprocConfig,
-  GoogleGroupsConfig,
-  MonitorConfig,
-  ProxyConfig,
-  SwaggerConfig,
-  ZombieClusterConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config._
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
@@ -41,7 +28,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
-import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 
 // values common to multiple tests, to reduce boilerplate
 
@@ -139,7 +125,7 @@ trait CommonTestData { this: ScalaFutures =>
 
   val clusterServiceAccount = Option(WorkbenchEmail("testClusterServiceAccount@example.com"))
   val notebookServiceAccount = Option(WorkbenchEmail("testNotebookServiceAccount@example.com"))
-  val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
+  val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, None)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
   val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)

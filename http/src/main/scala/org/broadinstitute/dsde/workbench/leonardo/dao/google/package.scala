@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
-import scala.collection.JavaConverters._
 
 package object google {
 
@@ -27,7 +26,7 @@ package object google {
 
   final val whenGoogleZoneCapacityIssue: Throwable => Boolean = {
     case t: GoogleJsonResponseException =>
-      t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getReason.equalsIgnoreCase("rateLimitExceeded")
+      t.getStatusCode == 429
     case _ => false
   }
 

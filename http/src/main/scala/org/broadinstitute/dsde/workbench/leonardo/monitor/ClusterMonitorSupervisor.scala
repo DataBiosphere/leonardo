@@ -289,7 +289,7 @@ class ClusterMonitorSupervisor(
       _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
     } yield ()
 
-  private def createClusterMonitors(): Unit = {
+  private def createClusterMonitors(): Unit =
     dbRef
       .inTransaction { _.clusterQuery.listMonitoredClusterOnly() }
       .onComplete {
@@ -312,7 +312,6 @@ class ClusterMonitorSupervisor(
         case Failure(e) =>
           logger.error("Error starting cluster monitor", e)
       }
-  }
 
   private def addToMonitoredClusters(cluster: Cluster) =
     monitoredClusterIds += cluster.id

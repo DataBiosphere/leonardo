@@ -10,8 +10,6 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.{Blocker, IO}
 import cats.mtl.ApplicativeAsk
-import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
-import com.google.api.client.testing.json.MockJsonFactory
 import com.typesafe.scalalogging.LazyLogging
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -45,8 +43,8 @@ import org.mockito.Mockito.{never, verify, _}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
+import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
 
 class LeonardoServiceSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -1249,35 +1247,5 @@ class LeonardoServiceSpec
     dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterDiskSize shouldBe Some(
       newDiskSize
     )
-  }
-
-  private class ErroredMockGoogleDataprocDAO extends MockGoogleDataprocDAO {
-    override def resizeCluster(googleProject: GoogleProject,
-                               clusterName: ClusterName,
-                               numWorkers: Option[Int] = None,
-                               numPreemptibles: Option[Int] = None): Future[Unit] = {
-      val jsonFactory = new MockJsonFactory
-      val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(
-        jsonFactory,
-        400,
-        "oh no i have failed due to a bad configuration"
-      )
-
-      Future.failed(testException)
-    }
-  }
-
-  private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
-    var invocationCount = 0
-    override def addIamRolesForUser(iamProject: GoogleProject,
-                                    email: WorkbenchEmail,
-                                    rolesToAdd: Set[String]): Future[Boolean] = {
-      invocationCount += 1
-      val jsonFactory = new MockJsonFactory
-      val testException =
-        GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, statusCode, "oh no i have failed")
-
-      Future.failed(testException)
-    }
   }
 }
