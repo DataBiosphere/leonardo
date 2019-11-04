@@ -122,13 +122,13 @@ pipeline {
           description: "The name to give the custom dataproc image. This will be appended with an hypen and the short version of the commit hash (first 7 characters).")
     booleanParam(name: "useCustomImageIdentifier", defaultValue: false)
     string(name: "custom_image_id", defaultValue: "sampleUniqueID",
-    description: "Specify along with useCustomImageIdentifier to build the image with a specific name")
+          description: "Specify along with useCustomImageIdentifier to build the image with a specific name")
     booleanParam(name: "useCustomImages", defaultValue: false)
     string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
           description: "The google project to use")
     string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
           description: "The bucket where the image will be stored")
-    string(name: "dataproc_version", defaultValue: ["1.2.79-debian9", "1.4.15-debian9"],
+    string(name: "dataproc_versions", defaultValue: "1.2.79-debian9 1.4.15-debian9",
           description: "A custom image will be build for each of these dataproc versions")
     string(name: "terra_jupyter_base", defaultValue: "0.0.1")
     string(name: "terra_jupyter_hail", defaultValue: "0.0.1",
@@ -181,7 +181,7 @@ pipeline {
             ))
           }
 
-          currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$dataproc_version-$imageID"
+          currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$dataproc_versions-$imageID"
         }
       }
     }
@@ -266,20 +266,25 @@ pipeline {
         when { expression { !shouldAbortBuild } }
         steps {
           sh """
-            git submodule init && git submodule update
-            cd jenkins/dataproc-custom-images/dataproc-custom-images
+              git submodule init && git submodule update
           """
-          for(String version: dataproc_version) {
-            sh """
-              python generate_custom_image.py \
-                --image-name "$IMAGE_BASE_NAME-$version-$imageID" \
-                --dataproc-version $version \
-                --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-                --zone us-central1-a \
-                --gcs-bucket $BUCKET_NAME \
-                --project-id=$GOOGLE_PROJECT \
-                --disk-size=30
-            """
+          script {
+            for(String dp_version: dataproc_versions.trim().split(' ')) {
+              def dp_version_formatted = dp_version.replace(".","-")
+              sh (
+                script: """
+                  cd jenkins/dataproc-custom-images/dataproc-custom-images
+                  python generate_custom_image.py \
+                    --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
+                    --dataproc-version "$dp_version" \
+                    --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+                    --zone us-central1-a \
+                    --gcs-bucket $BUCKET_NAME \
+                    --project-id=$GOOGLE_PROJECT \
+                    --disk-size=30
+                """
+              )
+            }
           }
         }
       }
@@ -291,10 +296,11 @@ pipeline {
 
             def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
             for (String configFile: configPaths) {
-              for (String version: dataproc_versions) {
+              for (String dp_version: dataproc_versions.trim().split(' ')) {
+                def dp_version_formatted = dp_version.replace(".","-")
                 sh (
                     script: """
-                      sed -i "s/$IMAGE_BASE_NAME-$version.*/$IMAGE_BASE_NAME-$version-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+                      sed -i "s/$IMAGE_BASE_NAME-$dp_version_formatted.*/$IMAGE_BASE_NAME-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
                     """
                 )
               }
