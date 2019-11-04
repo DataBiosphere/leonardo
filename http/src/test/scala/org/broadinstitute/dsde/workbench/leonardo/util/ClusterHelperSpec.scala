@@ -41,6 +41,11 @@ class ClusterHelperSpec
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
 
+  override val testCluster = makeCluster(1)
+    .copy(status = Creating,
+          dataprocInfo = None,
+          serviceAccountInfo = serviceAccountInfo.copy(notebookServiceAccount = None))
+
   val bucketHelper =
     new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
@@ -58,7 +63,6 @@ class ClusterHelperSpec
                                         blocker)
 
   "ClusterHelper" should "create a google cluster" in isolatedDbTest {
-    val testCluster = makeCluster(1).copy(status = Creating, dataprocInfo = None)
     val (cluster, initBucket, serviceAccountKey) = clusterHelper.createCluster(testCluster).unsafeToFuture().futureValue
 
     // verify the mock dataproc DAO
@@ -101,7 +105,6 @@ class ClusterHelperSpec
                                                  mockGoogleProjectDAO,
                                                  contentSecurityPolicy,
                                                  blocker)
-    val testCluster = makeCluster(1).copy(status = Creating, dataprocInfo = None)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
     exception shouldBe a[GoogleJsonResponseException]
@@ -129,8 +132,6 @@ class ClusterHelperSpec
                                                  mockGoogleProjectDAO,
                                                  contentSecurityPolicy,
                                                  blocker)
-
-    val testCluster = makeCluster(1).copy(status = Creating, dataprocInfo = None)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
     exception shouldBe a[GoogleJsonResponseException]
@@ -200,8 +201,6 @@ class ClusterHelperSpec
                                                  contentSecurityPolicy,
                                                  blocker)
 
-    val testCluster = makeCluster(1).copy(status = Creating, dataprocInfo = None)
-
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
     exception shouldBe a[GoogleJsonResponseException]
 
@@ -219,7 +218,6 @@ class ClusterHelperSpec
         GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, statusCode, "oh no i have failed")
 
       Future.failed(testException)
-
     }
   }
 

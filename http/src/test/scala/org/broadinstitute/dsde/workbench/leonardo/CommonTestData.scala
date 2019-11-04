@@ -125,7 +125,7 @@ trait CommonTestData { this: ScalaFutures =>
 
   val clusterServiceAccount = Option(WorkbenchEmail("testClusterServiceAccount@example.com"))
   val notebookServiceAccount = Option(WorkbenchEmail("testNotebookServiceAccount@example.com"))
-  val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, None)
+  val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
   val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
