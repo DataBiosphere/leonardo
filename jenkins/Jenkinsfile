@@ -229,7 +229,6 @@ pipeline {
 
     stage ('Use manually specified hashes') {
       when { expression { useCustomImages.equals("true") } }
-
       steps {
         script {
           for(String image: images) {
@@ -293,7 +292,6 @@ pipeline {
         when { expression { !shouldAbortBuild } }
         steps {
           script {
-
             def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
             for (String configFile: configPaths) {
               for (String dp_version: dataproc_versions.trim().split(' ')) {
@@ -320,10 +318,8 @@ pipeline {
 
       stage('Create PR') {
         when { expression { !shouldAbortBuild } }
-
         steps {
           script {
-
             def changeDescription = getChangeDescription(versionMap)
             withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
               sh """
