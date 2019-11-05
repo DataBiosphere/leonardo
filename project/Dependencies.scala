@@ -13,6 +13,7 @@ object Dependencies {
   val scalaTestV    = "3.0.8"
   val slickV        = "3.2.3"
   val http4sVersion = "0.21.0-M5" //remove http4s related dependencies once workbench-libs are upgraded
+  val guavaV        = "28.0-jre"
 
   val workbenchUtilV    = "0.5-4c7acd5"
   val workbenchModelV   = "0.13-6dc016b"
@@ -77,15 +78,15 @@ object Dependencies {
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
-  val workbenchUtil: ModuleID       = "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV   excludeAll(excludeWorkbenchModel, excludeGoogleError)
-  val workbenchModel: ModuleID      = "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV  excludeAll(excludeGoogleError)
-  val workbenchGoogle: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation)
-  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeFirestore)
-  val workbenchGoogleTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
-  val workbenchGoogle2Test: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google2" % workbenchGoogle2V % "test" classifier "tests" //for generators
-  val workbenchMetrics: ModuleID    = "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil, excludeSlf4j)
-  val workbenchNewRelic: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV
-  val workbenchNewRelicTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV % "test" classifier "tests"
+  val workbenchUtil: ModuleID       = "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV   excludeAll(excludeWorkbenchModel, excludeGoogleError, excludeGuava)
+  val workbenchModel: ModuleID      = "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV  excludeAll(excludeGoogleError, excludeGuava)
+  val workbenchGoogle: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeGuava)
+  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeFirestore, excludeGuava)
+  val workbenchGoogleTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeGuava)
+  val workbenchGoogle2Test: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google2" % workbenchGoogle2V % "test" classifier "tests" excludeAll(excludeGuava) //for generators
+  val workbenchMetrics: ModuleID    = "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil, excludeSlf4j, excludeGuava)
+  val workbenchNewRelic: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV excludeAll(excludeGuava)
+  val workbenchNewRelicTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV % "test" classifier "tests" excludeAll(excludeGuava)
 
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV excludeAll(excludeTypesafeConfig, excludeReactiveStream)
@@ -99,6 +100,7 @@ object Dependencies {
   val http4sBlazeClient = "org.http4s" %% "http4s-blaze-client" % http4sVersion
   val http4sDsl = "org.http4s"      %% "http4s-dsl"          % http4sVersion
   val fs2Io: ModuleID = "co.fs2" %% "fs2-io" % "2.0.1"
+  val guava: ModuleID = "com.google.guava" % "guava" % guavaV
 
   val coreDependencies = List(
     workbenchModel,
@@ -125,6 +127,7 @@ object Dependencies {
     ficus,
     httpClient,
     enumeratum,
+    guava,
 
     akkaActor,
     akkaContrib,
@@ -168,7 +171,8 @@ object Dependencies {
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (
     excludeWorkbenchModel,
-    excludeWorkbenchGoogle)
+    excludeWorkbenchGoogle,
+    excludeGuava)
 
   val automationDependencies = List(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
@@ -178,14 +182,15 @@ object Dependencies {
     "com.fasterxml.jackson.core" % "jackson-core"         % jacksonV,
     "com.fasterxml.jackson.module" % ("jackson-module-scala_" + scalaV) % jacksonV,
     "ch.qos.logback"  % "logback-classic" % "1.2.3"  % "test",
-    "com.google.guava" % "guava" % "28.0-jre",
     "com.google.apis" % "google-api-services-oauth2" % "v1-rev142-1.23.0" excludeAll (
       excludeGuavaJdk5,
+      excludeGuava,
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
     "com.google.api-client" % "google-api-client"   % automationGoogleV excludeAll (
       excludeGuavaJdk5,
+      excludeGuava,
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
@@ -204,6 +209,7 @@ object Dependencies {
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text"           % "1.2",
     googleRpc,
+    guava,
 
     workbenchUtil,
     workbenchModel,

@@ -249,7 +249,7 @@ trait LeonardoTestUtils
       }
     }
     // Save the cluster init log file whether or not the cluster created successfully
-    saveDataprocLogFiles(creatingCluster).unsafeRunSync()
+    saveDataprocLogFiles(creatingCluster).timeout(5.minutes).unsafeRunSync()
 
     // If the cluster is running, grab the jupyter.log and welder.log files for debugging.
     runningOrErroredCluster.foreach { cluster =>
