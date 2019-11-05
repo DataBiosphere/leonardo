@@ -204,7 +204,7 @@ class ClusterHelperSpec
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
     exception shouldBe a[GoogleJsonResponseException]
 
-    erroredIamDAO.invocationCount shouldBe 13
+    erroredIamDAO.invocationCount should be > 2
   }
 
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
