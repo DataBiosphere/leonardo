@@ -13,6 +13,7 @@ object Dependencies {
   val scalaTestV    = "3.0.8"
   val slickV        = "3.2.3"
   val http4sVersion = "0.21.0-M5" //remove http4s related dependencies once workbench-libs are upgraded
+  val guavaV        = "28.0-jre"
 
   val workbenchUtilV    = "0.5-4c7acd5"
   val workbenchModelV   = "0.13-6dc016b"
@@ -99,6 +100,7 @@ object Dependencies {
   val http4sBlazeClient = "org.http4s" %% "http4s-blaze-client" % http4sVersion
   val http4sDsl = "org.http4s"      %% "http4s-dsl"          % http4sVersion
   val fs2Io: ModuleID = "co.fs2" %% "fs2-io" % "2.0.1"
+  val guava: ModuleID = "com.google.guava" % "guava" % guavaV
 
   val coreDependencies = List(
     workbenchModel,
@@ -125,6 +127,7 @@ object Dependencies {
     ficus,
     httpClient,
     enumeratum,
+    guava,
 
     akkaActor,
     akkaContrib,
@@ -179,7 +182,6 @@ object Dependencies {
     "com.fasterxml.jackson.core" % "jackson-core"         % jacksonV,
     "com.fasterxml.jackson.module" % ("jackson-module-scala_" + scalaV) % jacksonV,
     "ch.qos.logback"  % "logback-classic" % "1.2.3"  % "test",
-    "com.google.guava" % "guava" % "28.0-jre",
     "com.google.apis" % "google-api-services-oauth2" % "v1-rev142-1.23.0" excludeAll (
       excludeGuavaJdk5,
       excludeApacheHttpClient,
@@ -205,6 +207,7 @@ object Dependencies {
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text"           % "1.2",
     googleRpc,
+    guava,
 
     workbenchUtil,
     workbenchModel,
