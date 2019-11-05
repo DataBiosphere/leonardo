@@ -73,7 +73,7 @@ class ClusterHelper(
    */
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): IO[Unit] = {
     // TODO Template and get the group and domain values from config
-    val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-11"
+    val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-13"
     val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
 
     dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
