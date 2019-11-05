@@ -72,7 +72,6 @@ trait LeonardoTestUtils
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(2, Seconds)))
-  val downloadDataprocLogsPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(10, Seconds)))
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(
     nbExtensions = Map("map" -> "gmaps"),
@@ -233,6 +232,9 @@ trait LeonardoTestUtils
     // wait for "Running", "Stopped", or error (fail fast)
     val stopAfterCreate = clusterRequest.stopAfterCreation.getOrElse(false)
 
+    implicit val patienceConfig: PatienceConfig =
+      if (stopAfterCreate) clusterStopAfterCreatePatience else clusterPatience
+
     val expectedStatuses =
       if (stopAfterCreate) {
         List(ClusterStatus.Stopped, ClusterStatus.Error)
@@ -241,16 +243,13 @@ trait LeonardoTestUtils
       }
 
     val runningOrErroredCluster = Try {
-      implicit val createPatience: PatienceConfig =
-        if (stopAfterCreate) clusterStopAfterCreatePatience else clusterPatience
       eventually {
         val cluster = Leonardo.cluster.get(googleProject, clusterName)
         verifyCluster(cluster, googleProject, clusterName, expectedStatuses, clusterRequest, true)
       }
     }
     // Save the cluster init log file whether or not the cluster created successfully
-    implicit val downloadPatience = downloadDataprocLogsPatience
-    saveDataprocLogFiles(creatingCluster).unsafeToFuture().futureValue
+    saveDataprocLogFiles(creatingCluster).timeout(5.minutes).unsafeRunSync()
 
     // If the cluster is running, grab the jupyter.log and welder.log files for debugging.
     runningOrErroredCluster.foreach { cluster =>
