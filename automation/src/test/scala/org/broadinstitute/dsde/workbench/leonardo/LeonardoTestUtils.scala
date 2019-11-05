@@ -241,7 +241,7 @@ trait LeonardoTestUtils
       }
 
     val runningOrErroredCluster = Try {
-      implicit val patienceConfig: PatienceConfig =
+      implicit val createPatience: PatienceConfig =
         if (stopAfterCreate) clusterStopAfterCreatePatience else clusterPatience
       eventually {
         val cluster = Leonardo.cluster.get(googleProject, clusterName)
@@ -249,7 +249,7 @@ trait LeonardoTestUtils
       }
     }
     // Save the cluster init log file whether or not the cluster created successfully
-    implicit val patienceConfig = downloadDataprocLogsPatience
+    implicit val downloadPatience = downloadDataprocLogsPatience
     saveDataprocLogFiles(creatingCluster).unsafeToFuture().futureValue
 
     // If the cluster is running, grab the jupyter.log and welder.log files for debugging.
