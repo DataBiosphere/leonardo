@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.effect._
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.api.services.admin.directory.model.Group
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO}
@@ -147,33 +148,41 @@ class ClusterHelper(
     dpImageUserGoogleGroupEmail: WorkbenchEmail
   ): IO[Unit] = {
     logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
+
+    for {
+      groupOpt <- IO.fromFuture[Option[Group]](IO(googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail)))
+      _ <- groupOpt match {
+        case None =>
+          logger.info(
+            s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' does not exist. Attempting to create it..."
+          )
+          createDataprocImageUserGoogleGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
+        case Some(group) =>
+          logger.info(
+            s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it."
+          )
+          IO.unit
+      }
+    } yield ()
+  }
+
+  private def createDataprocImageUserGoogleGroup(dpImageUserGoogleGroupName: String,
+                                                 dpImageUserGoogleGroupEmail: WorkbenchEmail): IO[Unit] =
     IO.fromFuture[Unit] {
       IO {
-        googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
-          case None =>
-            logger.info(
-              s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' does not exist. Attempting to create it..."
-            )
-            googleDirectoryDAO
-              .createGroup(dpImageUserGoogleGroupName,
-                           dpImageUserGoogleGroupEmail,
-                           Option(googleDirectoryDAO.lockedDownGroupSettings))
-              .recoverWith {
-                // In case group creation is attempted concurrently by multiple Leo instances
-                case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue =>
-                  Future.unit
-                case _ =>
-                  Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
-              }
-          case Some(group) =>
-            logger.info(
-              s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it."
-            )
-            Future.unit
-        }
+        googleDirectoryDAO
+          .createGroup(dpImageUserGoogleGroupName,
+                       dpImageUserGoogleGroupEmail,
+                       Option(googleDirectoryDAO.lockedDownGroupSettings))
+          .recoverWith {
+            // In case group creation is attempted concurrently by multiple Leo instances
+            case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue =>
+              Future.unit
+            case _ =>
+              Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
+          }
       }
     }
-  }
 
   private def addIamRoleToDataprocImageGroup(customDataprocImage: Option[String],
                                              dpImageUserGoogleGroupEmail: WorkbenchEmail): IO[Boolean] = {
