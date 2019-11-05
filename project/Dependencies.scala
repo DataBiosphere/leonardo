@@ -184,11 +184,13 @@ object Dependencies {
     "ch.qos.logback"  % "logback-classic" % "1.2.3"  % "test",
     "com.google.apis" % "google-api-services-oauth2" % "v1-rev142-1.23.0" excludeAll (
       excludeGuavaJdk5,
+      excludeGuava,
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
     "com.google.api-client" % "google-api-client"   % automationGoogleV excludeAll (
       excludeGuavaJdk5,
+      excludeGuava,
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
