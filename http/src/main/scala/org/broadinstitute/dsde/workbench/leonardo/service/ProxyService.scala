@@ -72,8 +72,8 @@ class ProxyService(
   /* Cache for the bearer token and corresponding google user email */
   private[leonardo] val googleTokenCache = CacheBuilder
     .newBuilder()
-    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
-    .maximumSize(proxyConfig.cacheMaxSize)
+    .expireAfterWrite(proxyConfig.tokenCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(proxyConfig.tokenCacheMaxSize)
     .build(
       new CacheLoader[String, Future[(UserInfo, Instant)]] {
         def load(key: String) =
@@ -94,8 +94,8 @@ class ProxyService(
   /* Cache for the cluster internal id from the database */
   private[leonardo] val clusterInternalIdCache = CacheBuilder
     .newBuilder()
-    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
-    .maximumSize(proxyConfig.cacheMaxSize)
+    .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
       new CacheLoader[(GoogleProject, ClusterName), Future[Option[ClusterInternalId]]] {
         def load(key: (GoogleProject, ClusterName)) = {
