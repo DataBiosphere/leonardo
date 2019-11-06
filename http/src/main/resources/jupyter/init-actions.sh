@@ -162,7 +162,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
  path /work/welder.log
  pos_file /var/tmp/fluentd.welder.pos
  read_from_head true
- format /^(?<time>[^ ]*\s*[^ ]* [^ ]*) (?<severity>[a-zA-Z]*) *(?<message>.*)$/
+ format /(?<time>[^ ]*\s*[^ ]* [^ ]*) (?<severity>[A-Z]*) (?<message>.*)/
  tag welder
 </source>
 END
