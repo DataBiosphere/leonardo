@@ -139,7 +139,7 @@ class ClusterHelper(
   }
 
   private def createDataprocImageUserGoogleGroupIfItDoesntExist(): IO[Unit] = {
-    logger.info(
+    logger.debug(
       s"Checking if Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' already exists..."
     )
 
@@ -149,12 +149,12 @@ class ClusterHelper(
       )
       _ <- groupOpt match {
         case None =>
-          logger.info(
+          logger.debug(
             s"Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' does not exist. Attempting to create it..."
           )
           createDataprocImageUserGoogleGroup()
         case Some(group) =>
-          logger.info(
+          logger.debug(
             s"Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
           )
           IO.unit
@@ -186,7 +186,7 @@ class ClusterHelper(
       case None =>
         IO.raiseError[Boolean](ImageProjectNotFoundException())
       case Some(imageProject) =>
-        logger.info(
+        logger.debug(
           s"Attempting to grant 'compute.imageUser' permissions to '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
         )
         IO.fromFuture[Boolean] {
@@ -211,13 +211,13 @@ class ClusterHelper(
     IO.fromFuture[Unit] {
       IO {
         retryExponentially(when409, s"Could not update group '$groupEmail' for member '$memberEmail'") { () =>
-          logger.info(s"Checking if '$memberEmail' is part of group '$groupEmail'...")
+          logger.debug(s"Checking if '$memberEmail' is part of group '$groupEmail'...")
           googleDirectoryDAO.isGroupMember(groupEmail, memberEmail).flatMap {
             case false if (addToGroup) =>
-              logger.info(s"Adding '$memberEmail' to group '$groupEmail'...")
+              logger.debug(s"Adding '$memberEmail' to group '$groupEmail'...")
               googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail)
             case true if (!addToGroup) =>
-              logger.info(s"Removing '$memberEmail' from group '$groupEmail'...")
+              logger.debug(s"Removing '$memberEmail' from group '$groupEmail'...")
               googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail)
             case _ => Future.unit
           }
