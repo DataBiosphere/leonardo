@@ -325,13 +325,6 @@ trait ClusterComponent extends LeoComponent {
         unmarshalFullCluster(recs).headOption
       }
 
-    def getMinimalClusterById(id: Long): DBIO[Option[Cluster]] =
-      findByIdQuery(id).result.headOption.map { recOpt =>
-        recOpt map { rec =>
-          unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty)
-        }
-      }
-
     def getActiveClusterInternalIdByName(project: GoogleProject, name: ClusterName): DBIO[Option[ClusterInternalId]] =
       clusterQuery
         .filter { _.googleProject === project.value }

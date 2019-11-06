@@ -202,17 +202,19 @@ class ClusterMonitorSupervisor(
 
   def createChildActor(cluster: Cluster): ActorRef =
     context.actorOf(
-      ClusterMonitorActor.props(cluster,
-                                monitorConfig,
-                                dataprocConfig,
-                                clusterBucketConfig,
-                                gdDAO,
-                                googleComputeDAO,
-                                googleStorageDAO,
-                                google2StorageDAO,
-                                dbRef,
-                                authProvider,
-                                clusterHelper)
+      ClusterMonitorActor.props(
+        cluster.id,
+        monitorConfig,
+        dataprocConfig,
+        clusterBucketConfig,
+        gdDAO,
+        googleComputeDAO,
+        googleStorageDAO,
+        google2StorageDAO,
+        dbRef,
+        authProvider,
+        clusterHelper
+      )
     )
 
   def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
