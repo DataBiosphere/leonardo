@@ -38,7 +38,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
@@ -58,8 +57,7 @@ object Boot extends IOApp with LazyLogging {
     val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
     }
-    // TODO Template and get the value from config
-    val googleAdminEmail = WorkbenchEmail("google@test.firecloud.org")
+
     val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
     // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
     val pemWithServiceAccountUser = Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleAdminEmail))
@@ -136,11 +134,8 @@ object Boot extends IOApp with LazyLogging {
                                      appDependencies.metrics)
           )
 
-          // TODO Template and get the group and domain values from config
-          val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-13"
-          val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
-          val isImageGroupSetup = appDependencies.clusterHelper
-            .setupDataprocImageGoogleGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
+          appDependencies.clusterHelper
+            .setupDataprocImageGoogleGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail)
             .unsafeRunSync()
         }
 

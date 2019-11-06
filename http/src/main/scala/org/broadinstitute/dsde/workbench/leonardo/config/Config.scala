@@ -18,7 +18,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 object Config {
-  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
@@ -221,4 +221,8 @@ object Config {
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
+
+  val googleAdminEmail = WorkbenchEmail(config.as[String]("google.subEmail"))
+  val dataprocImageProjectGroupName = config.as[String]("google.dataprocImageProjectGroupName")
+  val dataprocImageProjectGroupEmail = WorkbenchEmail(config.as[String]("google.dataprocImageProjectGroupEmail"))
 }
