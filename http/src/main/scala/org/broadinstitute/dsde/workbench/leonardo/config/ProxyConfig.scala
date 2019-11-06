@@ -9,6 +9,8 @@ case class ProxyConfig(
   jupyterProtocol: String,
   jupyterDomain: String,
   dnsPollPeriod: FiniteDuration,
-  cacheExpiryTime: FiniteDuration,
-  cacheMaxSize: Int
+  tokenCacheExpiryTime: FiniteDuration,
+  tokenCacheMaxSize: Int,
+  internalIdCacheExpiryTime: FiniteDuration,
+  internalIdCacheMaxSize: Int
 )
