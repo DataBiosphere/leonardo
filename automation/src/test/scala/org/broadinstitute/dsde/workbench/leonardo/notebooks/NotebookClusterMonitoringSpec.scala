@@ -256,22 +256,20 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
                                              labels = Map(deployWelderLabel -> "true"),
                                              welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage))
       ) { cluster =>
-        withWebDriver { implicit driver =>
-          // Verify welder is running with old version
-          val statusResponse = Welder.getWelderStatus(cluster).unsafeRunSync()
-          val oldWelderHash = LeonardoConfig.Leonardo.oldWelderDockerImage.split(":")(1)
-          statusResponse.gitHeadCommit should startWith(oldWelderHash)
+        // Verify welder is running with old version
+        val statusResponse = Welder.getWelderStatus(cluster).unsafeRunSync()
+        val oldWelderHash = LeonardoConfig.Leonardo.oldWelderDockerImage.split(":")(1)
+        statusResponse.gitHeadCommit should startWith(oldWelderHash)
 
-          // Stop the cluster
-          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+        // Stop the cluster
+        stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
-          // Start the cluster
-          startAndMonitor(cluster.googleProject, cluster.clusterName)
+        // Start the cluster
+        startAndMonitor(cluster.googleProject, cluster.clusterName)
 
-          // Verify welder is now running
-          val curWelderHash = LeonardoConfig.Leonardo.curWelderDockerImage.split(":")(1)
-          Welder.getWelderStatus(cluster).unsafeRunSync().gitHeadCommit should startWith(curWelderHash)
-        }
+        // Verify welder is now running
+        val curWelderHash = LeonardoConfig.Leonardo.curWelderDockerImage.split(":")(1)
+        Welder.getWelderStatus(cluster).unsafeRunSync().gitHeadCommit should startWith(curWelderHash)
       }
     }
 

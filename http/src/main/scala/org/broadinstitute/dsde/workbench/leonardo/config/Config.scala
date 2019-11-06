@@ -113,8 +113,10 @@ object Config {
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
-      toScalaDuration(config.getDuration("cacheExpiryTime")),
-      config.getInt("cacheMaxSize")
+      toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
+      config.getInt("tokenCacheMaxSize"),
+      toScalaDuration(config.getDuration("internalIdCacheExpiryTime")),
+      config.getInt("internalIdCacheMaxSize")
     )
   }
 

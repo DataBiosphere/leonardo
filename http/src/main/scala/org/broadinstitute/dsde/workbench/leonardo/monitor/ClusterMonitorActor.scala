@@ -574,6 +574,11 @@ class ClusterMonitorActor(
           logger.debug(
             s"Set staging bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName} to be deleted in ${ageToDelete} days."
           )
+        } handleErrorWith { error =>
+          IO(
+            logger.error(s"Error occurred setting staging bucket lifecycle for cluster ${cluster.projectNameString}",
+                         error)
+          ).unsafeToFuture()
         }
     }
 

@@ -46,7 +46,7 @@ object ContainerRegistry {
 // Repo format: https://docs.docker.com/docker-hub/repos/
 // Docker hub doesn't have documentation about length limitation on repo name and image name, but 100 max seems reasonable
   final case object DockerHub extends ContainerRegistry {
-    def regex: Regex = """^([a-z0-9-_\/\S]){1,100}(:?[a-z0-9-_]{1,100}\S)$""".r
+    def regex: Regex = """^[A-Za-z0-9]+[\w./-]+(?::\w[\w.-]+)?(?:@[\w+.-]+:[A-Fa-f0-9]{32,})?$""".r
     override def toString: String = "docker hub"
   }
 

@@ -155,6 +155,32 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
 
+    # Add stack driver configuration for welder
+    tee /etc/google-fluentd/config.d/welder.conf << END
+<source>
+ @type tail
+ path /work/welder.log
+ pos_file /var/tmp/fluentd.welder.pos
+ read_from_head true
+ format /(?<time>[^ ]*\s*[^ ]* [^ ]*) (?<severity>[A-Z]*) (?<message>.*)/
+ tag welder
+</source>
+END
+
+    # Add stack driver configuration for jupyter
+    tee /etc/google-fluentd/config.d/jupyter.conf << END
+<source>
+ @type tail
+ format none
+ path /work/jupyter.log
+ pos_file /var/tmp/fluentd.jupyter.pos
+ read_from_head true
+ tag jupyter
+</source>
+END
+
+    service google-fluentd reload
+
     # Install env var config
     if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
       log 'Copy custom env vars config...'

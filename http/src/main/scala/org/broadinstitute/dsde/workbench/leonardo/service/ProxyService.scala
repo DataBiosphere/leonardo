@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
+import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -65,11 +66,14 @@ class ProxyService(
 )(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext)
     extends LazyLogging {
 
+  final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
+  logger.info(s"Leo proxy request timeout is $requestTimeout")
+
   /* Cache for the bearer token and corresponding google user email */
   private[leonardo] val googleTokenCache = CacheBuilder
     .newBuilder()
-    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
-    .maximumSize(proxyConfig.cacheMaxSize)
+    .expireAfterWrite(proxyConfig.tokenCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(proxyConfig.tokenCacheMaxSize)
     .build(
       new CacheLoader[String, Future[(UserInfo, Instant)]] {
         def load(key: String) =
@@ -90,8 +94,8 @@ class ProxyService(
   /* Cache for the cluster internal id from the database */
   private[leonardo] val clusterInternalIdCache = CacheBuilder
     .newBuilder()
-    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
-    .maximumSize(proxyConfig.cacheMaxSize)
+    .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
       new CacheLoader[(GoogleProject, ClusterName), Future[Option[ClusterInternalId]]] {
         def load(key: (GoogleProject, ClusterName)) = {
@@ -259,7 +263,7 @@ class ProxyService(
       .via(flow)
       .map(fixContentDisposition)
       .runWith(Sink.head)
-      .flatMap(_.toStrict(5 seconds))
+      .flatMap(_.toStrict(requestTimeout))
 
     // That's it! This is our whole HTTP proxy.
     handler
