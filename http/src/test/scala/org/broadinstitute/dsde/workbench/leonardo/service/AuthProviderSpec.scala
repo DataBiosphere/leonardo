@@ -35,9 +35,6 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-
 class AuthProviderSpec
     extends FreeSpec
     with ScalatestRouteTest
@@ -84,6 +81,7 @@ class AuthProviderSpec
                                       serviceAccountProvider)
   val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                         dataprocConfig,
+                                        googleGroupsConfig,
                                         mockGoogleDataprocDAO,
                                         mockGoogleComputeDAO,
                                         mockGoogleDirectoryDAO,

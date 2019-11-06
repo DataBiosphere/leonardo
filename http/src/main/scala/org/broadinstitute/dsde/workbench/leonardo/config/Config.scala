@@ -27,6 +27,14 @@ object Config {
     )
   }
 
+  implicit val googleGroupConfigReader: ValueReader[GoogleGroupsConfig] = ValueReader.relative { config =>
+    GoogleGroupsConfig(
+      config.as[WorkbenchEmail]("subEmail"),
+      config.getString("dataprocImageProjectGroupName"),
+      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail")
+    )
+  }
+
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getString("applicationName"),
@@ -200,6 +208,7 @@ object Config {
     )
   }
 
+  val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
@@ -221,8 +230,4 @@ object Config {
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
-
-  val googleAdminEmail = WorkbenchEmail(config.as[String]("google.subEmail"))
-  val dataprocImageProjectGroupName = config.as[String]("google.dataprocImageProjectGroupName")
-  val dataprocImageProjectGroupEmail = WorkbenchEmail(config.as[String]("google.dataprocImageProjectGroupEmail"))
 }

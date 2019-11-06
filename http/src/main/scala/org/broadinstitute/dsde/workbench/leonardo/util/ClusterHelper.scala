@@ -11,7 +11,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, GoogleGroupsConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -29,6 +29,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class ClusterHelper(
   dbRef: DbReference,
   dataprocConfig: DataprocConfig,
+  googleGroupsConfig: GoogleGroupsConfig,
   gdDAO: GoogleDataprocDAO,
   googleComputeDAO: GoogleComputeDAO,
   googleDirectoryDAO: GoogleDirectoryDAO,
@@ -59,11 +60,10 @@ class ClusterHelper(
         IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
     } getOrElse IO.unit
 
-  def setupDataprocImageGoogleGroup(dpImageUserGoogleGroupName: String,
-                                    dpImageUserGoogleGroupEmail: WorkbenchEmail): IO[Boolean] =
-    createDataprocImageUserGoogleGroupIfItDoesntExist(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
+  def setupDataprocImageGoogleGroup(): IO[Boolean] =
+    createDataprocImageUserGoogleGroupIfItDoesntExist()
       .flatMap { _ =>
-        addIamRoleToDataprocImageGroup(dataprocConfig.customDataprocImage, dpImageUserGoogleGroupEmail)
+        addIamRoleToDataprocImageGroup(dataprocConfig.customDataprocImage)
       }
 
   /**
@@ -71,11 +71,7 @@ class ClusterHelper(
    * This group has compute.imageUser role on the custom Dataproc image project,
    * which allows the user's cluster to pull the image.
    */
-  def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): IO[Unit] = {
-    // TODO Template and get the group and domain values from config
-    val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-13"
-    val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
-
+  def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): IO[Unit] =
     dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
       case None => IO.unit
       case Some(imageProject) =>
@@ -98,14 +94,13 @@ class ClusterHelper(
                 dataprocServiceAccountEmail = WorkbenchEmail(
                   s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
                 )
-                _ <- updateGroupMembership(dataprocImageUserGoogleGroupEmail,
+                _ <- updateGroupMembership(googleGroupsConfig.dataprocImageProjectGroupEmail,
                                            dataprocServiceAccountEmail,
                                            createCluster)
               } yield ()
             }
           }
     }
-  }
 
   /**
    * Add the Dataproc Worker role in the user's project to the cluster service account, if present.
@@ -143,49 +138,48 @@ class ClusterHelper(
     } getOrElse IO.unit
   }
 
-  private def createDataprocImageUserGoogleGroupIfItDoesntExist(
-    dpImageUserGoogleGroupName: String,
-    dpImageUserGoogleGroupEmail: WorkbenchEmail
-  ): IO[Unit] = {
-    logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
+  private def createDataprocImageUserGoogleGroupIfItDoesntExist(): IO[Unit] = {
+    logger.info(
+      s"Checking if Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' already exists..."
+    )
 
     for {
-      groupOpt <- IO.fromFuture[Option[Group]](IO(googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail)))
+      groupOpt <- IO.fromFuture[Option[Group]](
+        IO(googleDirectoryDAO.getGoogleGroup(googleGroupsConfig.dataprocImageProjectGroupEmail))
+      )
       _ <- groupOpt match {
         case None =>
           logger.info(
-            s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' does not exist. Attempting to create it..."
+            s"Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' does not exist. Attempting to create it..."
           )
-          createDataprocImageUserGoogleGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
+          createDataprocImageUserGoogleGroup()
         case Some(group) =>
           logger.info(
-            s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it."
+            s"Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
           )
           IO.unit
       }
     } yield ()
   }
 
-  private def createDataprocImageUserGoogleGroup(dpImageUserGoogleGroupName: String,
-                                                 dpImageUserGoogleGroupEmail: WorkbenchEmail): IO[Unit] =
+  private def createDataprocImageUserGoogleGroup(): IO[Unit] =
     IO.fromFuture[Unit] {
       IO {
         googleDirectoryDAO
-          .createGroup(dpImageUserGoogleGroupName,
-                       dpImageUserGoogleGroupEmail,
+          .createGroup(googleGroupsConfig.dataprocImageProjectGroupName,
+                       googleGroupsConfig.dataprocImageProjectGroupEmail,
                        Option(googleDirectoryDAO.lockedDownGroupSettings))
           .recoverWith {
             // In case group creation is attempted concurrently by multiple Leo instances
             case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue =>
               Future.unit
             case _ =>
-              Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
+              Future.failed(GoogleGroupCreationException(googleGroupsConfig.dataprocImageProjectGroupEmail))
           }
       }
     }
 
-  private def addIamRoleToDataprocImageGroup(customDataprocImage: Option[String],
-                                             dpImageUserGoogleGroupEmail: WorkbenchEmail): IO[Boolean] = {
+  private def addIamRoleToDataprocImageGroup(customDataprocImage: Option[String]): IO[Boolean] = {
     val computeImageUserRole = Set("roles/compute.imageUser")
 
     dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
@@ -193,16 +187,16 @@ class ClusterHelper(
         IO.raiseError[Boolean](ImageProjectNotFoundException())
       case Some(imageProject) =>
         logger.info(
-          s"Attempting to grant 'compute.imageUser' permissions to '$dpImageUserGoogleGroupEmail' on project '$imageProject' ..."
+          s"Attempting to grant 'compute.imageUser' permissions to '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
         )
         IO.fromFuture[Boolean] {
           IO {
             retryExponentially(
               when409,
-              s"IAM policy change failed for '$dpImageUserGoogleGroupEmail' on Google project '$imageProject'."
+              s"IAM policy change failed for '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on Google project '$imageProject'."
             ) { () =>
               googleIamDAO.addIamRoles(imageProject,
-                                       dpImageUserGoogleGroupEmail,
+                                       googleGroupsConfig.dataprocImageProjectGroupEmail,
                                        MemberType.Group,
                                        computeImageUserRole)
             }

@@ -75,7 +75,13 @@ class ClusterMonitorSupervisorSpec
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
     val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, mockGoogleDirectoryDAO, iamDAO)
+      new ClusterHelper(DbSingleton.ref,
+                        dataprocConfig,
+                        googleGroupsConfig,
+                        gdDAO,
+                        computeDAO,
+                        mockGoogleDirectoryDAO,
+                        iamDAO)
 
     val leoService = new LeonardoService(dataprocConfig,
                                          MockWelderDAO,
@@ -159,7 +165,13 @@ class ClusterMonitorSupervisorSpec
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
     val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, mockGoogleDirectoryDAO, iamDAO)
+      new ClusterHelper(DbSingleton.ref,
+                        dataprocConfig,
+                        googleGroupsConfig,
+                        gdDAO,
+                        computeDAO,
+                        mockGoogleDirectoryDAO,
+                        iamDAO)
 
     val leoService = new LeonardoService(dataprocConfig,
                                          MockWelderDAO,
@@ -236,7 +248,13 @@ class ClusterMonitorSupervisorSpec
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
     val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, mockGoogleDirectoryDAO, iamDAO)
+      new ClusterHelper(DbSingleton.ref,
+                        dataprocConfig,
+                        googleGroupsConfig,
+                        gdDAO,
+                        computeDAO,
+                        mockGoogleDirectoryDAO,
+                        iamDAO)
 
     val leoService = new LeonardoService(dataprocConfig,
                                          MockWelderDAO,
@@ -316,7 +334,13 @@ class ClusterMonitorSupervisorSpec
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
     val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, mockGoogleDirectoryDAO, iamDAO)
+      new ClusterHelper(DbSingleton.ref,
+                        dataprocConfig,
+                        googleGroupsConfig,
+                        gdDAO,
+                        computeDAO,
+                        mockGoogleDirectoryDAO,
+                        iamDAO)
 
     val leoService = new LeonardoService(dataprocConfig,
                                          MockWelderDAO,

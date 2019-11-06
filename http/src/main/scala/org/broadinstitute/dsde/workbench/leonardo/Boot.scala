@@ -60,7 +60,8 @@ object Boot extends IOApp with LazyLogging {
 
     val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
     // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
-    val pemWithServiceAccountUser = Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleAdminEmail))
+    val pemWithServiceAccountUser =
+      Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleGroupsConfig.googleAdminEmail))
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
@@ -135,7 +136,7 @@ object Boot extends IOApp with LazyLogging {
           )
 
           appDependencies.clusterHelper
-            .setupDataprocImageGoogleGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail)
+            .setupDataprocImageGoogleGroup()
             .unsafeRunSync()
         }
 
@@ -210,6 +211,7 @@ object Boot extends IOApp with LazyLogging {
       googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
       clusterHelper = new ClusterHelper(dbRef,
                                         dataprocConfig,
+                                        googleGroupsConfig,
                                         gdDAO,
                                         googleComputeDAO,
                                         googleDirectoryDAO,

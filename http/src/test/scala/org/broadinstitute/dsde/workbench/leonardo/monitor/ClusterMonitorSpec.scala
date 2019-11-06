@@ -42,7 +42,7 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Random, Try}
 
@@ -154,7 +154,8 @@ class ClusterMonitorSpec
                               rstudioDAO: RStudioDAO,
                               welderDAO: WelderDAO[IO]): ActorRef = {
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, directoryDAO, iamDAO)
+    val clusterHelper =
+      new ClusterHelper(DbSingleton.ref, dataprocConfig, googleGroupsConfig, gdDAO, computeDAO, directoryDAO, iamDAO)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val leoService = new LeonardoService(dataprocConfig,
                                          MockWelderDAO,

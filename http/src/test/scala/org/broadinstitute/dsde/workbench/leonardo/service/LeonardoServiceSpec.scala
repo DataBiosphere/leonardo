@@ -106,7 +106,8 @@ class LeonardoServiceSpec
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
     bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, directoryDAO, iamDAO)
+    clusterHelper =
+      new ClusterHelper(DbSingleton.ref, dataprocConfig, googleGroupsConfig, gdDAO, computeDAO, directoryDAO, iamDAO)
 
     leo = new LeonardoService(dataprocConfig,
                               MockWelderDAO,
@@ -667,7 +668,13 @@ class LeonardoServiceSpec
     // we need to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO
     val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, directoryDAO, iamDAO)
+      new ClusterHelper(DbSingleton.ref,
+                        dataprocConfig,
+                        googleGroupsConfig,
+                        mockGoogleDataprocDAO,
+                        computeDAO,
+                        directoryDAO,
+                        iamDAO)
     val failingLeo = new LeonardoService(dataprocConfig,
                                          MockWelderDAO,
                                          clusterFilesConfig,
@@ -1424,7 +1431,13 @@ class LeonardoServiceSpec
     // We need to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO
     val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, directoryDAO, iamDAO)
+      new ClusterHelper(DbSingleton.ref,
+                        dataprocConfig,
+                        googleGroupsConfig,
+                        mockGoogleDataprocDAO,
+                        computeDAO,
+                        directoryDAO,
+                        iamDAO)
     leo = new LeonardoService(dataprocConfig,
                               MockWelderDAO,
                               clusterFilesConfig,
@@ -1466,7 +1479,13 @@ class LeonardoServiceSpec
     //we meed to use a special version of the MockGoogleIamDAO to simulate a conflict when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO(409)
     val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, directoryDAO, iamDAO)
+      new ClusterHelper(DbSingleton.ref,
+                        dataprocConfig,
+                        googleGroupsConfig,
+                        mockGoogleDataprocDAO,
+                        computeDAO,
+                        directoryDAO,
+                        iamDAO)
     leo = new LeonardoService(dataprocConfig,
                               MockWelderDAO,
                               clusterFilesConfig,

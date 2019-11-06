@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   ClusterResourcesConfig,
   ClusterToolConfig,
   DataprocConfig,
+  GoogleGroupsConfig,
   MonitorConfig,
   ProxyConfig,
   SwaggerConfig,
@@ -75,10 +76,11 @@ trait CommonTestData { this: ScalaFutures =>
   )
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
-  val dataprocImageProjectGroupName = config.getString("google.dataprocImageProjectGroupName")
-  val dataprocImageProjectGroupEmail = WorkbenchEmail(config.getString("google.dataprocImageProjectGroupEmail"))
+  val dataprocImageProjectGroupName = config.getString("google.groups.dataprocImageProjectGroupName")
+  val dataprocImageProjectGroupEmail = WorkbenchEmail(config.getString("google.groups.dataprocImageProjectGroupEmail"))
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
   val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")

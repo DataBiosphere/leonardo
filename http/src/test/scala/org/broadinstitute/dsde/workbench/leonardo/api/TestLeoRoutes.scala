@@ -75,6 +75,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                                       serviceAccountProvider)
   val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                         dataprocConfig,
+                                        googleGroupsConfig,
                                         mockGoogleDataprocDAO,
                                         mockGoogleComputeDAO,
                                         mockGoogleDirectoryDAO,
