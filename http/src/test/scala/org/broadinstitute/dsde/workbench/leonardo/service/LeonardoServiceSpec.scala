@@ -14,22 +14,15 @@ import com.google.api.client.googleapis.testing.json.GoogleJsonResponseException
 import com.google.api.client.testing.json.MockJsonFactory
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDataprocDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
-  NegativeIntegerArgumentInClusterRequestException,
-  OneWorkerSpecifiedInClusterRequestException
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -265,7 +258,7 @@ class LeonardoServiceSpec
   it should "create a cluster with a client-supplied welder image" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 1.second)
 
-    val customWelderImage = Some("my-custom-welder-image-link")
+    val customWelderImage = Some(GCR("my-custom-welder-image-link"))
 
     // create the cluster
     val clusterRequest = testClusterRequest.copy(

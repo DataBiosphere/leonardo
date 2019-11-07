@@ -16,6 +16,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   implicit val ronToken: AuthToken = ronAuthToken
 
   def jupyterDockerImage: Option[String] = None
+  def rstudioDockerImage: Option[String] = None
   var ronCluster: Cluster = _
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
@@ -48,9 +49,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
    * See
    *  https://www.artima.com/docs-scalatest-2.0.M5/org/scalatest/FreeSpec.html
    *   Section: "Overriding withFixture(OneArgTest)"
-   *
-   * Claim a billing project for project owner
-   * @param billingProject
    */
   case class ClusterFixture(cluster: Cluster)
 
@@ -83,6 +81,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     ClusterRequest(machineConfig = machineConfig,
                    enableWelder = Some(enableWelder),
                    jupyterDockerImage = jupyterDockerImage,
+                   rstudioDockerImage = rstudioDockerImage,
                    autopause = Some(false))
   }
 
