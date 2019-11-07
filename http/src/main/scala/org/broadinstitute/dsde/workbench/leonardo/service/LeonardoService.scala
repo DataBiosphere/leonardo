@@ -1378,8 +1378,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     //Eventually welder will be enabled for all clusters and this will be way cleaner.
     val welderImageOpt: Option[ClusterImage] = (clusterRequest.welderDockerImage, clusterRequest.enableWelder) match {
       case (Some(welderImage), _) => Some(ClusterImage(Welder, welderImage.imageUrl, now))
-      case (None, Some(true)) => Some(ClusterImage(Welder, dataprocConfig.welderDockerImage, now))
-      case _ => None
+      case (None, Some(true))     => Some(ClusterImage(Welder, dataprocConfig.welderDockerImage, now))
+      case _                      => None
     }
 
     // Note: Jupyter image is not currently optional

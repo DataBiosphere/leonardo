@@ -78,11 +78,13 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       )
     )
 
-    ClusterRequest(machineConfig = machineConfig,
-                   enableWelder = Some(enableWelder),
-                   jupyterDockerImage = jupyterDockerImage,
-                   rstudioDockerImage = rstudioDockerImage,
-                   autopause = Some(false))
+    ClusterRequest(
+      machineConfig = machineConfig,
+      enableWelder = Some(enableWelder),
+      jupyterDockerImage = jupyterDockerImage,
+      rstudioDockerImage = rstudioDockerImage,
+      autopause = Some(false)
+    )
   }
 
   /**
