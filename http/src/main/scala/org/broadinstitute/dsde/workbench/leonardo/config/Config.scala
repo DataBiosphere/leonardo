@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import java.io.File
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
