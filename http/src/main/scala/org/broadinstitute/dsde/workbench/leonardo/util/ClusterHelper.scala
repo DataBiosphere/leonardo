@@ -99,7 +99,7 @@ class ClusterHelper(
             .compile
             .drain
 
-          _ <- initializeBucketObjects(cluster, initBucketName, stagingBucketName, serviceAccountKeyOpt, Map.empty).compile.drain
+          _ <- initializeBucketObjects(cluster, initBucketName, stagingBucketName, serviceAccountKeyOpt).compile.drain
 
           // build cluster configuration
           machineConfig = cluster.machineConfig
@@ -324,8 +324,7 @@ class ClusterHelper(
     cluster: Cluster,
     initBucketName: GcsBucketName,
     stagingBucketName: GcsBucketName,
-    serviceAccountKey: Option[ServiceAccountKey],
-    customClusterEnvironmentVariables: Map[String, String]
+    serviceAccountKey: Option[ServiceAccountKey]
   ): Stream[IO, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = ClusterInitValues(cluster,
@@ -343,7 +342,7 @@ class ClusterHelper(
     //     var1=value1
     //     var2=value2
     // etc. We're building a string of that format here.
-    val customEnvVars = customClusterEnvironmentVariables.foldLeft("")({
+    val customEnvVars = cluster.customClusterEnvironmentVariables.foldLeft("")({
       case (memo, (key, value)) => memo + s"$key=$value\n"
     })
 

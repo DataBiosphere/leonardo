@@ -141,7 +141,8 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                          stopAfterCreation: Boolean,
                          clusterImages: Set[ClusterImage],
                          scopes: Set[String],
-                         welderEnabled: Boolean) {
+                         welderEnabled: Boolean,
+                         customClusterEnvironmentVariables: Map[String, String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -181,7 +182,8 @@ object Cluster {
       stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
       clusterImages = clusterImages,
       scopes = clusterScopes,
-      welderEnabled = clusterRequest.enableWelder.getOrElse(false)
+      welderEnabled = clusterRequest.enableWelder.getOrElse(false),
+      customClusterEnvironmentVariables = clusterRequest.customClusterEnvironmentVariables
     )
 
   def addDataprocFields(cluster: Cluster, operation: Operation, stagingBucket: GcsBucketName): Cluster =
@@ -570,7 +572,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
             fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],
             fields.getOrElse("scopes", JsNull).convertTo[Set[String]],
-            fields.getOrElse("welderEnabled", JsNull).convertTo[Boolean]
+            fields.getOrElse("welderEnabled", JsNull).convertTo[Boolean],
+            fields.getOrElse("customClusterEnvironmentVariables", JsNull).convertTo[Option[Map[String, String]]].getOrElse(Map.empty)
           )
         case _ => deserializationError("Cluster expected as a JsObject")
       }

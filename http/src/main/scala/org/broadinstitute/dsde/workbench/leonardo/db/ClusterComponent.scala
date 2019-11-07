@@ -42,7 +42,8 @@ final case class ClusterRecord(id: Long,
                                autopauseThreshold: Int,
                                defaultClientId: Option[String],
                                stopAfterCreation: Boolean,
-                               welderEnabled: Boolean)
+                               welderEnabled: Boolean,
+                               customClusterEnvironmentVariables: Map[String, String])
 
 final case class MachineConfigRecord(numberOfWorkers: Int,
                                      masterMachineType: String,
@@ -110,6 +111,7 @@ trait ClusterComponent extends LeoComponent {
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
     def welderEnabled = column[Boolean]("welderEnabled")
     def properties = column[Option[Json]]("properties")
+    def customClusterEnvironmentVariables = column[Option[Json]]("customClusterEnvironmentVariables")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -144,7 +146,8 @@ trait ClusterComponent extends LeoComponent {
         defaultClientId,
         stopAfterCreation,
         welderEnabled,
-        properties
+        properties,
+        customClusterEnvironmentVariables
       ).shaped <> ({
         case (id,
               internalId,
@@ -165,7 +168,8 @@ trait ClusterComponent extends LeoComponent {
               defaultClientId,
               stopAfterCreation,
               welderEnabled,
-              properties) =>
+              properties,
+              customClusterEnvironmentVariables) =>
           ClusterRecord(
             id,
             internalId,
@@ -193,7 +197,15 @@ trait ClusterComponent extends LeoComponent {
             autopauseThreshold,
             defaultClientId,
             stopAfterCreation,
-            welderEnabled
+            welderEnabled,
+            customClusterEnvironmentVariables
+              .map(
+                x =>
+                  x.as[Map[String, String]]
+                    .fold(e => throw new RuntimeException(s"fail to read `customClusterEnvironmentVariables` field due to ${e.getMessage}"),
+                          identity)
+              )
+              .getOrElse(Map.empty) //in theory, throw should never happen
           )
       }, { c: ClusterRecord =>
         def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
@@ -220,7 +232,8 @@ trait ClusterComponent extends LeoComponent {
             c.defaultClientId,
             c.stopAfterCreation,
             c.welderEnabled,
-            if (c.properties.isEmpty) None else Some(c.properties.asJson)
+            if (c.properties.isEmpty) None else Some(c.properties.asJson),
+            if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables.asJson)
           )
         )
       })
@@ -596,7 +609,8 @@ trait ClusterComponent extends LeoComponent {
         cluster.autopauseThreshold,
         cluster.defaultClientId,
         cluster.stopAfterCreation,
-        cluster.welderEnabled
+        cluster.welderEnabled,
+        cluster.customClusterEnvironmentVariables
       )
 
     private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
@@ -737,7 +751,8 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.stopAfterCreation,
         clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,
         ClusterComponent.this.scopeQuery.unmarshallScopes(scopes),
-        clusterRecord.welderEnabled
+        clusterRecord.welderEnabled,
+        clusterRecord.customClusterEnvironmentVariables
       )
     }
   }

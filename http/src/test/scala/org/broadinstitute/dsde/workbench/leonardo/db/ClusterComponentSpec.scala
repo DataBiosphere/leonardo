@@ -357,4 +357,15 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     )
     dbFutureValue { _.clusterQuery.listMonitoredFullCluster() }.toSet shouldBe Set(savedCluster1, savedCluster2)
   }
+
+  it should "persist custom environment variables" in isolatedDbTest {
+    val expectedEvs = Map("foo" -> "bar", "test" -> "this is a test")
+    val savedCluster = makeCluster(1).copy(customClusterEnvironmentVariables = expectedEvs).save()
+
+    val retrievedCluster = dbFutureValue { _.clusterQuery.getClusterById(savedCluster.id) }
+
+    retrievedCluster shouldBe 'defined
+    retrievedCluster.get.customClusterEnvironmentVariables shouldBe expectedEvs
+    retrievedCluster.get shouldBe savedCluster
+  }
 }

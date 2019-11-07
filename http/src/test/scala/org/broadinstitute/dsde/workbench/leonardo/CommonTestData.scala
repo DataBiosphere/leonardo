@@ -164,7 +164,8 @@ trait CommonTestData { this: ScalaFutures =>
       stopAfterCreation = false,
       clusterImages = Set(jupyterImage),
       scopes = defaultScopes,
-      welderEnabled = false
+      welderEnabled = false,
+      customClusterEnvironmentVariables = Map.empty
     )
   }
 
@@ -190,7 +191,8 @@ trait CommonTestData { this: ScalaFutures =>
     stopAfterCreation = false,
     clusterImages = Set(jupyterImage, rstudioImage),
     scopes = defaultScopes,
-    welderEnabled = false
+    welderEnabled = false,
+    customClusterEnvironmentVariables = Map.empty
   )
 
   // TODO look into parameterized tests so both provider impls can be tested
