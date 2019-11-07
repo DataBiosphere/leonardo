@@ -125,7 +125,7 @@ object Config {
     val timeoutMap: Map[ClusterStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
       for {
         status <- ClusterStatus.withNameInsensitiveOption(e.getKey)
-        duration <- config.getAs[FiniteDuration](e.getKey)
+        duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
       } yield (status, duration)
     }.toMap
 
