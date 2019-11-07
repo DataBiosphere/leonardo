@@ -30,15 +30,13 @@ sealed trait ContainerRegistry extends Product with Serializable {
 }
 object ContainerRegistry {
   final case object GCR extends ContainerRegistry {
-    def regex: Regex = """(.*gcr.io)\/(.+)\/(.+)(\:?.*)$""".r
-
+    val regex: Regex = """^(.*gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
     override def toString: String = "gcr"
   }
 
-// Repo format: https://docs.docker.com/docker-hub/repos/
-// Docker hub doesn't have documentation about length limitation on repo name and image name, but 100 max seems reasonable
+  // Repo format: https://docs.docker.com/docker-hub/repos/
   final case object DockerHub extends ContainerRegistry {
-    def regex: Regex = """^[A-Za-z0-9]+[\w./-]+(?::\w[\w.-]+)?(?:@[\w+.-]+:[A-Fa-f0-9]{32,})?$""".r
+    val regex: Regex = """^([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
     override def toString: String = "docker hub"
   }
 
@@ -80,8 +78,8 @@ final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 autopauseThreshold: Option[Int] = None,
                                 defaultClientId: Option[String] = None,
                                 jupyterDockerImage: Option[ContainerImage] = None,
-                                rstudioDockerImage: Option[String] = None,
-                                welderDockerImage: Option[String] = None,
+                                toolDockerImage: Option[ContainerImage] = None,
+                                welderDockerImage: Option[ContainerImage] = None,
                                 scopes: Set[String] = Set.empty,
                                 enableWelder: Option[Boolean] = None,
                                 customClusterEnvironmentVariables: Map[String, String] = Map.empty)
@@ -108,19 +106,23 @@ case class AuditInfo(creator: WorkbenchEmail,
 
 sealed trait ClusterContainerServiceType extends EnumEntry with Serializable with Product {
   def imageType: ClusterImageType
+  def proxySegment: String
 }
 object ClusterContainerServiceType extends Enum[ClusterContainerServiceType] {
   val values = findValues
   val imageTypeToClusterContainerServiceType: Map[ClusterImageType, ClusterContainerServiceType] =
     values.toList.map(v => v.imageType -> v).toMap
   case object JupyterService extends ClusterContainerServiceType {
-    def imageType: ClusterImageType = Jupyter
+    override def imageType: ClusterImageType = Jupyter
+    override def proxySegment: String = "jupyter"
   }
   case object RStudioService extends ClusterContainerServiceType {
-    def imageType: ClusterImageType = RStudio
+    override def imageType: ClusterImageType = RStudio
+    override def proxySegment: String = "rstudio"
   }
   case object WelderService extends ClusterContainerServiceType {
-    def imageType: ClusterImageType = Welder
+    override def imageType: ClusterImageType = Welder
+    override def proxySegment: String = "welder"
   }
 }
 
@@ -200,7 +202,7 @@ object Cluster {
              clusterUrlBase: String,
              autopauseThreshold: Int,
              clusterScopes: Set[String],
-             clusterImages: Set[ClusterImage] = Set.empty): Cluster =
+             clusterImages: Set[ClusterImage]): Cluster =
     Cluster(
       internalId = internalId,
       clusterName = clusterName,
@@ -210,7 +212,7 @@ object Cluster {
       auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
       machineConfig = machineConfig,
       properties = clusterRequest.properties,
-      clusterUrl = getClusterUrl(googleProject, clusterName),
+      clusterUrl = getClusterUrl(googleProject, clusterName, clusterImages),
       status = ClusterStatus.Creating,
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
@@ -232,8 +234,12 @@ object Cluster {
       dataprocInfo = Some(DataprocInfo(operation.uuid, operation.name, stagingBucket, None))
     )
 
-  def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL =
-    new URL(Config.dataprocConfig.clusterUrlBase + googleProject.value + "/" + clusterName.value)
+  def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName, clusterImages: Set[ClusterImage]): URL = {
+    val tool = clusterImages.map(_.tool).filterNot(_ == Welder).headOption.getOrElse(Jupyter)
+    new URL(
+      Config.dataprocConfig.clusterUrlBase + googleProject.value + "/" + clusterName.value + "/" + tool.proxySegment
+    )
+  }
 }
 
 // Default cluster labels
@@ -492,7 +498,7 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
     }
   }
 
-  // the one from workbench-libs is ignored from import cuz we need a different encoding/decoding
+  // the one from workbench-libs is ignored from import because we need a different encoding/decoding
   implicit val gcsPathFormat: JsonFormat[GcsPath] = new JsonFormat[GcsPath] {
     def write(obj: GcsPath) = JsString(obj.toUri)
 
@@ -547,8 +553,8 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
       fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
       fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[ContainerImage]),
-      fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
-      fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[String]),
+      fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[ContainerImage]),
+      fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[ContainerImage]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
       fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean]),
       fieldsWithoutNull

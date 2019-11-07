@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
   clusterEq
 }
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -129,7 +129,8 @@ class AuthProviderSpec
                         authProvider,
                         serviceAccountProvider,
                         bucketHelper,
-                        clusterHelper)
+                        clusterHelper,
+                        new MockDockerDAO)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider[IO]): ProxyService =

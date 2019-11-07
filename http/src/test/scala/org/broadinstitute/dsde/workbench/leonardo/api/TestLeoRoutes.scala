@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
@@ -94,7 +94,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                                             whitelistAuthProvider,
                                             serviceAccountProvider,
                                             bucketHelper,
-                                            clusterHelper)
+                                            clusterHelper,
+                                            new MockDockerDAO)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
   val proxyService =
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider, clusterDnsCache)

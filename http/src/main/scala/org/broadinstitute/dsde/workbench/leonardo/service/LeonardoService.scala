@@ -18,11 +18,11 @@ import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
+import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -124,11 +124,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val authProvider: LeoAuthProvider[IO],
                       protected val serviceAccountProvider: ServiceAccountProvider[IO],
                       protected val bucketHelper: BucketHelper,
-                      protected val clusterHelper: ClusterHelper)(implicit val executionContext: ExecutionContext,
-                                                                  implicit override val system: ActorSystem,
-                                                                  log: Logger[IO],
-                                                                  cs: ContextShift[IO],
-                                                                  metrics: NewRelicMetrics[IO])
+                      protected val clusterHelper: ClusterHelper,
+                      protected val dockerDAO: DockerDAO[IO])(implicit val executionContext: ExecutionContext,
+                                                              implicit override val system: ActorSystem,
+                                                              log: Logger[IO],
+                                                              cs: ContextShift[IO],
+                                                              metrics: NewRelicMetrics[IO])
     extends LazyLogging
     with Retry {
 
@@ -205,32 +206,37 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     googleProject: GoogleProject,
     clusterName: ClusterName,
     clusterRequest: ClusterRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] = {
-    val internalId = ClusterInternalId(UUID.randomUUID().toString)
-    val augmentedClusterRequest =
-      augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
-    val clusterImages = getClusterImages(clusterRequest)
-    val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
-    val autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
-    val clusterScopes = if (clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
-    val initialClusterToSave = Cluster.create(
-      augmentedClusterRequest,
-      internalId,
-      userEmail,
-      clusterName,
-      googleProject,
-      serviceAccountInfo,
-      machineConfig,
-      dataprocConfig.clusterUrlBase,
-      autopauseThreshold,
-      clusterScopes,
-      clusterImages = clusterImages
-    )
-
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     for {
       traceId <- ev.ask
+      internalId <- IO(ClusterInternalId(UUID.randomUUID().toString))
+      augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo,
+                                                      googleProject,
+                                                      clusterName,
+                                                      userEmail,
+                                                      clusterRequest)
+      clusterImages <- getClusterImages(augmentedClusterRequest)
+      machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
+      autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
+      clusterScopes = if (clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
+      initialClusterToSave = Cluster.create(
+        augmentedClusterRequest,
+        internalId,
+        userEmail,
+        clusterName,
+        googleProject,
+        serviceAccountInfo,
+        machineConfig,
+        dataprocConfig.clusterUrlBase,
+        autopauseThreshold,
+        clusterScopes,
+        clusterImages
+      )
+      _ <- log.info(
+        s"[$traceId] will deploy the following images to cluster ${initialClusterToSave.projectNameString}: ${clusterImages}"
+      )
       _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
       _ <- log.info(
         s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
@@ -245,7 +251,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
     } yield cluster
-  }
 
   // throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
@@ -785,31 +790,31 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         .copy(labels = allLabels)
   }
 
-  private[service] def getClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
-    val now = Instant.now
-
-    //If welder is enabled for this cluster, we need to ensure that an image is chosen.
-    //We will use the client-supplied image, if present, otherwise we will use a default.
-    //If welder is not enabled, we won't use any image.
-    //Eventually welder will be enabled for all clusters and this will be way cleaner.
-    val welderImageOpt: Option[ClusterImage] = if (clusterRequest.enableWelder.getOrElse(false)) {
-      val i = clusterRequest.welderDockerImage.getOrElse(dataprocConfig.welderDockerImage)
-      Some(ClusterImage(Welder, i, now))
-    } else None
-
-    // Note: Jupyter image is not currently optional
-    val jupyterImage: ClusterImage = ClusterImage(
-      Jupyter,
-      clusterRequest.jupyterDockerImage.map(_.imageUrl).getOrElse(dataprocConfig.jupyterImage),
-      now
-    )
-
-    // Optional RStudio image
-    val rstudioImageOpt: Option[ClusterImage] =
-      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
-
-    Set(welderImageOpt, Some(jupyterImage), rstudioImageOpt).flatten
-  }
+  private[service] def getClusterImages(
+    clusterRequest: ClusterRequest
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[ClusterImage]] =
+    for {
+      now <- IO(Instant.now)
+      // Try to autodetect the image
+      autodetectedImageOpt <- clusterRequest.toolDockerImage.flatTraverse { image =>
+        dockerDAO.detectTool(image).map(_.map(tool => ClusterImage(tool, image.imageUrl, now)))
+      }
+      // If we couldn't autodetect the image or it's not specified, fall back to the legacy jupyterDockerImage paramter
+      legacyJupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i.imageUrl, now))
+      fallbackOpt = autodetectedImageOpt orElse legacyJupyterImageOpt
+      // If we _still_ don't have an image, throw an error
+      toolImage <- fallbackOpt.fold(IO.raiseError[ClusterImage](new Exception))(IO.pure)
+      // Figure out the welder image. Rules:
+      // - only deploy welder if Jupyter is being installed
+      // - if the user passed a welderDockerImage, use that
+      // - if the user didn't pass a welderDockerImage, but specified welderEnabled=true, use a default welder image
+      // - otherwise, don't install welder
+      userDefinedWelderImageOpt = clusterRequest.welderDockerImage.map(i => ClusterImage(Welder, i.imageUrl, now))
+      defaultWelderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
+      shouldDeployWelder = toolImage.tool == Jupyter && (userDefinedWelderImageOpt.isDefined || clusterRequest.enableWelder
+        .exists(identity))
+      welderImageOpt = if (shouldDeployWelder) Some(userDefinedWelderImageOpt.getOrElse(defaultWelderImage)) else None
+    } yield Set(Some(toolImage), welderImageOpt).flatten
 
   private def getWelderAction(cluster: Cluster): WelderAction =
     if (cluster.welderEnabled) {

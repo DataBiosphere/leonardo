@@ -99,7 +99,8 @@ object Boot extends IOApp with LazyLogging {
                                                 appDependencies.authProvider,
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
-                                                clusterHelper)
+                                                clusterHelper,
+                                                appDependencies.dockerDAO)
       if (leoExecutionModeConfig.backLeo) {
         val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
         val rstudioDAO = new HttpRStudioDAO(appDependencies.clusterDnsCache)
@@ -187,12 +188,13 @@ object Boot extends IOApp with LazyLogging {
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 
-      samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
+      samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
       dbRef <- Resource.make(ConcurrentEffect[F].delay(DbReference.init(liquibaseConfig)))(
         db => ConcurrentEffect[F].delay(db.database.close)
       )
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
+      dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
@@ -221,6 +223,7 @@ object Boot extends IOApp with LazyLogging {
       gdDAO,
       samDao,
       welderDao,
+      dockerDao,
       serviceAccountProvider,
       authProvider,
       metrics,
@@ -252,6 +255,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        googleDataprocDAO: HttpGoogleDataprocDAO,
                                        samDAO: HttpSamDAO[F],
                                        welderDAO: HttpWelderDAO[F],
+                                       dockerDAO: HttpDockerDAO[F],
                                        serviceAccountProvider: ServiceAccountProvider[F],
                                        authProvider: LeoAuthProvider[F],
                                        metrics: NewRelicMetrics[F],

@@ -145,7 +145,7 @@ trait CommonTestData { this: ScalaFutures =>
       auditInfo = auditInfo,
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       properties = Map.empty,
-      clusterUrl = Cluster.getClusterUrl(project, clusterName),
+      clusterUrl = Cluster.getClusterUrl(project, clusterName, Set(jupyterImage)),
       status = ClusterStatus.Unknown,
       labels = Map(),
       jupyterExtensionUri = None,
@@ -172,7 +172,7 @@ trait CommonTestData { this: ScalaFutures =>
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     properties = Map.empty,
-    clusterUrl = Cluster.getClusterUrl(project, name1),
+    clusterUrl = Cluster.getClusterUrl(project, name1, Set(jupyterImage)),
     status = ClusterStatus.Unknown,
     labels = Map(),
     jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
@@ -183,11 +183,13 @@ trait CommonTestData { this: ScalaFutures =>
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
-    clusterImages = Set(jupyterImage, rstudioImage),
+    clusterImages = Set(jupyterImage),
     scopes = defaultScopes,
     welderEnabled = false,
     customClusterEnvironmentVariables = Map.empty
   )
+
+  // TODO make rstudio cluster
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

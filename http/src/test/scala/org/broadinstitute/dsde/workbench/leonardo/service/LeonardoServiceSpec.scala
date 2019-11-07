@@ -18,10 +18,13 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
+  NegativeIntegerArgumentInClusterRequestException,
+  OneWorkerSpecifiedInClusterRequestException
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -123,7 +126,8 @@ class LeonardoServiceSpec
                               authProvider,
                               serviceAccountProvider,
                               bucketHelper,
-                              clusterHelper)
+                              clusterHelper,
+                              new MockDockerDAO)
   }
 
   override def afterAll(): Unit = {
@@ -227,13 +231,13 @@ class LeonardoServiceSpec
   }
 
   it should "create a cluster with a client-supplied welder image" in isolatedDbTest {
-    val customWelderImage = Some("my-custom-welder-image-link")
+    val customWelderImage = GCR("my-custom-welder-image-link")
 
     // create the cluster
     val clusterRequest = testClusterRequest.copy(
       machineConfig = Some(singleNodeDefaultMachineConfig),
       stopAfterCreation = Some(true),
-      welderDockerImage = customWelderImage,
+      welderDockerImage = Some(customWelderImage),
       enableWelder = Some(true)
     )
 
@@ -487,7 +491,8 @@ class LeonardoServiceSpec
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
-                                         clusterHelper)
+                                         clusterHelper,
+                                         new MockDockerDAO)
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -538,7 +543,8 @@ class LeonardoServiceSpec
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
-                                         clusterHelper)
+                                         clusterHelper,
+                                         new MockDockerDAO)
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
