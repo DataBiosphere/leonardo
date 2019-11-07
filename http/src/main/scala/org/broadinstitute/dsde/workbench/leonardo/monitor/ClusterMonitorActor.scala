@@ -132,6 +132,7 @@ class ClusterMonitorActor(
 
   override def preStart(): Unit = {
     super.preStart()
+    logger.info(s"Using monitor status timeouts: ${monitorConfig.monitorStatusTimeouts}")
     scheduleInitialMonitorPass
   }
 

@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import java.io.File
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
@@ -121,18 +121,18 @@ object Config {
   }
 
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
-    val timeouts: Map[ClusterStatus, FiniteDuration] = Map(
-      ClusterStatus.Creating -> toScalaDuration(config.getDuration("creatingTimeLimit")),
-      ClusterStatus.Starting -> toScalaDuration(config.getDuration("startingTimeLimit")),
-      ClusterStatus.Stopping -> toScalaDuration(config.getDuration("stoppingTimeLimit")),
-      ClusterStatus.Deleting -> toScalaDuration(config.getDuration("deletingTimeLimit")),
-      ClusterStatus.Updating -> toScalaDuration(config.getDuration("updatingTimeLimit"))
-    )
+    val statusTimeouts = config.getConfig("statusTimeouts")
+    val timeoutMap: Map[ClusterStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
+      for {
+        status <- ClusterStatus.withNameInsensitiveOption(e.getKey)
+        duration <- config.getAs[FiniteDuration](e.getKey)
+      } yield (status, duration)
+    }.toMap
 
     MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")),
                   config.getInt("maxRetries"),
                   config.getBoolean("recreateCluster"),
-                  timeouts)
+                  timeoutMap)
   }
 
   implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
