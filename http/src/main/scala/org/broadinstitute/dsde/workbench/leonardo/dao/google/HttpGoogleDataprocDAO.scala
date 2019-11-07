@@ -342,8 +342,10 @@ class HttpGoogleDataprocDAO(
       "spark:spark.yarn.am.memory" -> "640m"
     )
 
+    val stackdriverProps = Map("dataproc:dataproc.monitoring.stackdriver.enable" -> "true")
+
     val swConfig = new SoftwareConfig()
-      .setProperties((authProps ++ dataprocProps ++ yarnProps ++ createClusterConfig.properties).asJava)
+      .setProperties((authProps ++ dataprocProps ++ yarnProps ++ createClusterConfig.properties ++ stackdriverProps).asJava)
 
     if (createClusterConfig.dataprocCustomImage.isEmpty) {
       swConfig.setImageVersion("1.2-deb9")
