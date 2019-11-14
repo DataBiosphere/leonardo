@@ -72,35 +72,32 @@ class ClusterHelper(
    * which allows the user's cluster to pull the image.
    */
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): IO[Unit] =
-    dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
-      case None => IO.unit
-      case Some(imageProject) =>
-        IO.fromFuture(IO(dbRef.inTransaction {
-            _.clusterQuery.countActiveByProject(googleProject)
-          }))
-          .flatMap { count =>
-            // Note: Don't remove the account if there are existing active clusters in the same project,
-            // because it could potentially break other clusters. We only check this for the 'remove' case.
-            if (count > 0 && !createCluster) {
-              IO.unit
-            } else {
-              val projectNumberOptIO = IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
-              val clusterIamSetupExceptionIO = IO.raiseError[Long](ClusterIamSetupException(imageProject))
-              for {
-                projectNumber <- projectNumberOptIO.flatMap(_.fold(clusterIamSetupExceptionIO)(IO.pure))
-                // Note that the Dataproc service account is used to retrieve the image, and not the user's
-                // pet service account. There is one Dataproc service account per Google project. For more details:
-                // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-                dataprocServiceAccountEmail = WorkbenchEmail(
-                  s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
-                )
-                _ <- updateGroupMembership(googleGroupsConfig.dataprocImageProjectGroupEmail,
-                                           dataprocServiceAccountEmail,
-                                           createCluster)
-              } yield ()
-            }
+    dataprocConfig.customDataprocImage
+      .flatMap(parseImageProject)
+      .traverse_ { imageProject =>
+        for {
+          count <- IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) }))
+          // Note: Don't remove the account if there are existing active clusters in the same project,
+          // because it could potentially break other clusters. We only check this for the 'remove' case.
+          _ <- if (count > 0 && !createCluster) {
+            IO.unit
+          } else {
+            for {
+              projectNumberOptIO <- IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
+              projectNumber <- IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject)))
+              // Note that the Dataproc service account is used to retrieve the image, and not the user's
+              // pet service account. There is one Dataproc service account per Google project. For more details:
+              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+              dataprocServiceAccountEmail = WorkbenchEmail(
+                s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
+              )
+              _ <- updateGroupMembership(googleGroupsConfig.dataprocImageProjectGroupEmail,
+                                         dataprocServiceAccountEmail,
+                                         createCluster)
+            } yield ()
           }
-    }
+        } yield ()
+      }
 
   /**
    * Add the Dataproc Worker role in the user's project to the cluster service account, if present.
@@ -113,17 +110,14 @@ class ClusterHelper(
     val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => IO[Unit] = (project, email, roles) =>
       IO.fromFuture[Unit](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") {
         () =>
-          val iamUpdate = if (createCluster) {
-            googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles)
+          if (createCluster) {
+            googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void
           } else {
-            googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles)
-          }
-          iamUpdate map { _ =>
-            ()
+            googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void
           }
       }))
 
-    serviceAccountInfo.clusterServiceAccount.map { email =>
+    serviceAccountInfo.clusterServiceAccount.traverse_ { email =>
       // Note: Don't remove the role if there are existing active clusters owned by the same user,
       // because it could potentially break other clusters. We only check this for the 'remove' case,
       // it's ok to re-add the roles.
@@ -135,7 +129,7 @@ class ClusterHelper(
             retryIam(googleProject, email, Set("roles/dataproc.worker"))
           }
       }
-    } getOrElse IO.unit
+    }
   }
 
   private def createDataprocImageUserGoogleGroupIfItDoesntExist(): IO[Unit] = {
@@ -184,7 +178,7 @@ class ClusterHelper(
 
     dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
       case None =>
-        IO.raiseError[Boolean](ImageProjectNotFoundException())
+        IO.raiseError[Boolean](ImageProjectNotFoundException)
       case Some(imageProject) =>
         logger.debug(
           s"Attempting to grant 'compute.imageUser' permissions to '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
@@ -243,6 +237,6 @@ object ClusterHelper {
   final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail)
       extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
 
-  final case class ImageProjectNotFoundException()
+  final case object ImageProjectNotFoundException
       extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
 }

@@ -549,15 +549,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             case gjre: GoogleJsonResponseException =>
               // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
               // resize the cluster we need to revoke it manually here
-              clusterHelper
-                .removeClusterIamRoles(existingCluster.googleProject, existingCluster.serviceAccountInfo)
-                .unsafeToFuture()
-              // Remove member from the Google Group that has the IAM role to pull the Dataproc image
-              clusterHelper
-                .updateDataprocImageGroupMembership(existingCluster.googleProject, createCluster = false)
-                .unsafeToFuture()
-              logger.error(s"Could not successfully update cluster ${existingCluster.projectNameString}", gjre)
-              Future.failed(InvalidDataprocMachineConfigException(gjre.getMessage))
+              val cleanupIO = for {
+                _ <- clusterHelper.removeClusterIamRoles(existingCluster.googleProject,
+                                                         existingCluster.serviceAccountInfo)
+                // Remove member from the Google Group that has the IAM role to pull the Dataproc image
+                _ <- clusterHelper
+                  .updateDataprocImageGroupMembership(existingCluster.googleProject, createCluster = false)
+                _ <- IO(
+                  logger.error(s"Could not successfully update cluster ${existingCluster.projectNameString}", gjre)
+                )
+                err <- IO.raiseError(InvalidDataprocMachineConfigException(gjre.getMessage))
+              } yield err
+
+              cleanupIO.unsafeToFuture
           }
 
           // Update the DB
