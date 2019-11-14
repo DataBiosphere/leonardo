@@ -159,10 +159,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     tee /etc/google-fluentd/config.d/welder.conf << END
 <source>
  @type tail
+ format json
  path /work/welder.log
  pos_file /var/tmp/fluentd.welder.pos
  read_from_head true
- format /(?<time>[^ ]*\s*[^ ]* [^ ]*) (?<severity>[A-Z]*) (?<message>.*)/
  tag welder
 </source>
 END
