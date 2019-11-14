@@ -38,7 +38,7 @@
     </appender>
 
 
-    <logger name="org.broadinstitute.dsde" level="debug" additivity="false">
+    <logger name="org.broadinstitute.dsde" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
