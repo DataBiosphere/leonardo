@@ -100,8 +100,10 @@ object Boot extends IOApp with LazyLogging {
         if (leoExecutionModeConfig.backLeo) {
           val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
           val rstudioDAO = new HttpRStudioDAO(appDependencies.clusterDnsCache)
+
           implicit def clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(jupyterDAO, appDependencies.welderDAO, rstudioDAO)
+
           system.actorOf(
             ClusterMonitorSupervisor.props(
               monitorConfig,
@@ -135,9 +137,9 @@ object Boot extends IOApp with LazyLogging {
                                      appDependencies.metrics)
           )
 
-          appDependencies.clusterHelper
-            .setupDataprocImageGoogleGroup()
-            .unsafeRunSync()
+          for {
+            _ <- appDependencies.clusterHelper.setupDataprocImageGoogleGroup()
+          } yield ()
         }
 
         val clusterDateAccessedActor =
@@ -155,17 +157,19 @@ object Boot extends IOApp with LazyLogging {
         val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
         with StandardUserInfoDirectives
 
-        IO.fromFuture(
-          IO(
-            Http()
-              .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-              .recover {
-                case t: Throwable =>
-                  logger.error("FATAL - failure starting http server", t)
-                  throw t
+        (
+          for {
+            _ <- IO.fromFuture {
+              IO {
+                Http()
+                  .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+                  .onError {
+                    case t: Throwable =>
+                      unsafeLogger.error(t)("FATAL - failure starting http server").unsafeToFuture()
+                  }
               }
-              .void
-          )
+            }
+          } yield ()
         ) >> IO.never
     }
   }
