@@ -202,7 +202,10 @@ trait ClusterComponent extends LeoComponent {
               .map(
                 x =>
                   x.as[Map[String, String]]
-                    .fold(e => throw new RuntimeException(s"fail to read `customClusterEnvironmentVariables` field due to ${e.getMessage}"),
+                    .fold(e =>
+                            throw new RuntimeException(
+                              s"fail to read `customClusterEnvironmentVariables` field due to ${e.getMessage}"
+                            ),
                           identity)
               )
               .getOrElse(Map.empty) //in theory, throw should never happen

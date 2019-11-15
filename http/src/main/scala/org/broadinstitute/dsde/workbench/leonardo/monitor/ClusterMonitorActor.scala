@@ -24,16 +24,16 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
   ClusterDeleted,
   ClusterSupervisorMessage,
   RemoveFromList
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
@@ -446,38 +446,13 @@ class ClusterMonitorActor(
           Future.successful(NotReadyCluster(cluster, googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
         case Running
-            if cluster.status != Deleting && cluster.status != Stopping && cluster.status != Starting && runningInstanceCount == googleInstances.size =>
-          getMasterIp(cluster).map {
-            case Some(ip) => ReadyCluster(cluster, ip, googleInstances)
-            case None     => NotReadyCluster(cluster, ClusterStatus.Running, googleInstances)
-          }
-        case Running if cluster.status == Starting && runningInstanceCount == googleInstances.size =>
+            if cluster.status != Deleting && cluster.status != Stopping && runningInstanceCount == googleInstances.size =>
           getMasterIp(cluster).flatMap {
-            case Some(ip) =>
-              // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
-              // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
-              // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
-              dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
-                dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id) }.flatMap { images =>
-                  Future
-                    .traverse(images) { image =>
-                      image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
-                    }
-                    .map {
-                      case isAvailable =>
-                        if (isAvailable.forall(x => x._2 == true))
-                          ReadyCluster(cluster, ip, googleInstances)
-                        else
-                          NotReadyCluster(
-                            cluster,
-                            ClusterStatus.Running,
-                            googleInstances,
-                            Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1 }}")
-                          )
-                    }
-                }
-              }
-            case None => Future.successful(NotReadyCluster(cluster, ClusterStatus.Running, googleInstances))
+            case Some(ip) => checkClusterTools(cluster, ip, googleInstances)
+            case None =>
+              Future.successful(
+                NotReadyCluster(cluster, ClusterStatus.Running, googleInstances, Some("Could not retrieve master IP"))
+              )
           }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
         case Error if cluster.status != Deleting && cluster.status != Stopping =>
@@ -498,6 +473,33 @@ class ClusterMonitorActor(
         case _ => Future.successful(NotReadyCluster(cluster, googleStatus, googleInstances))
       }
     } yield result
+
+  private def checkClusterTools(cluster: Cluster,
+                                ip: IP,
+                                googleInstances: Set[Instance]): Future[ClusterMonitorMessage] =
+    // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
+    // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
+    // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
+    dbRef.inTransaction { dataAccess =>
+      for {
+        _ <- dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip))
+        images <- dataAccess.clusterImageQuery.getAllForCluster(cluster.id)
+      } yield images
+    } flatMap { images =>
+      images.toList.traverse { image =>
+        image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
+      }
+    } map {
+      case isAvailable if isAvailable.forall(x => x._2 == true) =>
+        ReadyCluster(cluster, ip, googleInstances)
+      case isAvailable =>
+        NotReadyCluster(
+          cluster,
+          ClusterStatus.Running,
+          googleInstances,
+          Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1 }}")
+        )
+    }
 
   private def persistInstances(cluster: Cluster, googleInstances: Set[Instance]): Future[Unit] = {
     logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $googleInstances")

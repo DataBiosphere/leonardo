@@ -573,7 +573,10 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],
             fields.getOrElse("scopes", JsNull).convertTo[Set[String]],
             fields.getOrElse("welderEnabled", JsNull).convertTo[Boolean],
-            fields.getOrElse("customClusterEnvironmentVariables", JsNull).convertTo[Option[Map[String, String]]].getOrElse(Map.empty)
+            fields
+              .getOrElse("customClusterEnvironmentVariables", JsNull)
+              .convertTo[Option[Map[String, String]]]
+              .getOrElse(Map.empty)
           )
         case _ => deserializationError("Cluster expected as a JsObject")
       }
