@@ -294,6 +294,11 @@ class ClusterMonitorSpec
 
     val authProvider = mock[LeoAuthProvider[IO]]
 
+    val jupyterDAO = mock[JupyterDAO]
+    when {
+      jupyterDAO.isProxyAvailable(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(true)
+
     withClusterSupervisor(gdDAO,
                           computeDAO,
                           iamDAO,
@@ -301,7 +306,7 @@ class ClusterMonitorSpec
                           storageDAO,
                           FakeGoogleStorageService,
                           authProvider,
-                          MockJupyterDAO,
+                          jupyterDAO,
                           MockRStudioDAO,
                           MockWelderDAO,
                           false) { actor =>
@@ -315,6 +320,7 @@ class ClusterMonitorSpec
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
+      verify(jupyterDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])
     }
   }
 

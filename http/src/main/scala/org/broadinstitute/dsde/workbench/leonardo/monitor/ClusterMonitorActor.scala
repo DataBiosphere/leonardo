@@ -395,37 +395,13 @@ class ClusterMonitorActor(
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
         case Running
-            if leoClusterStatus != Deleting && leoClusterStatus != Stopping && leoClusterStatus != Starting && runningInstanceCount == googleInstances.size =>
-          getMasterIp.map {
-            case Some(ip) => ReadyCluster(ip, googleInstances)
-            case None     => NotReadyCluster(ClusterStatus.Running, googleInstances)
-          }
-        case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
+            if leoClusterStatus != Deleting && leoClusterStatus != Stopping && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
-            case Some(ip) =>
-              // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
-              // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
-              // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
-              dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
-                dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id) }.flatMap { images =>
-                  Future
-                    .traverse(images) { image =>
-                      image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
-                    }
-                    .map {
-                      case isAvailable =>
-                        if (isAvailable.forall(x => x._2 == true))
-                          ReadyCluster(ip, googleInstances)
-                        else
-                          NotReadyCluster(
-                            ClusterStatus.Running,
-                            googleInstances,
-                            Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1 }}")
-                          )
-                    }
-                }
-              }
-            case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
+            case Some(ip) => checkClusterTools(ip, googleInstances)
+            case None =>
+              Future.successful(
+                NotReadyCluster(ClusterStatus.Running, googleInstances, Some("Could not retrieve master IP"))
+              )
           }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
         case Error if leoClusterStatus != Deleting && leoClusterStatus != Stopping =>
@@ -445,6 +421,30 @@ class ClusterMonitorActor(
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
     } yield result
+
+  private def checkClusterTools(ip: IP, googleInstances: Set[Instance]): Future[ClusterMonitorMessage] =
+    // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
+    // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
+    // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
+    dbRef.inTransaction { dataAccess =>
+      for {
+        _ <- dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip))
+        images <- dataAccess.clusterImageQuery.getAllForCluster(cluster.id)
+      } yield images
+    } flatMap { images =>
+      images.toList.traverse { image =>
+        image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
+      }
+    } map {
+      case isAvailable if isAvailable.forall(x => x._2 == true) =>
+        ReadyCluster(ip, googleInstances)
+      case isAvailable =>
+        NotReadyCluster(
+          ClusterStatus.Running,
+          googleInstances,
+          Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1 }}")
+        )
+    }
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {
     logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $instances")

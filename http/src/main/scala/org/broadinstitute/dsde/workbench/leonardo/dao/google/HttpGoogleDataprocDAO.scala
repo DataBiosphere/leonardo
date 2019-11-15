@@ -345,7 +345,9 @@ class HttpGoogleDataprocDAO(
     val stackdriverProps = Map("dataproc:dataproc.monitoring.stackdriver.enable" -> "true")
 
     val swConfig = new SoftwareConfig()
-      .setProperties((authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.properties).asJava)
+      .setProperties(
+        (authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.properties).asJava
+      )
 
     if (createClusterConfig.dataprocCustomImage.isEmpty) {
       swConfig.setImageVersion("1.2-deb9")

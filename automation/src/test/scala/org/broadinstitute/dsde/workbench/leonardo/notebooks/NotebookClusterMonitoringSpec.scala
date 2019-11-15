@@ -257,9 +257,10 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
                                              welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage))
       ) { cluster =>
         // Verify welder is running with old version
-        val statusResponse = Welder.getWelderStatus(cluster).unsafeRunSync()
+        val statusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
+        statusResponse.isRight shouldBe true
         val oldWelderHash = LeonardoConfig.Leonardo.oldWelderDockerImage.split(":")(1)
-        statusResponse.gitHeadCommit should startWith(oldWelderHash)
+        statusResponse.toOption.get.gitHeadCommit should startWith(oldWelderHash)
 
         // Stop the cluster
         stopAndMonitor(cluster.googleProject, cluster.clusterName)
@@ -269,7 +270,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
         // Verify welder is now running
         val curWelderHash = LeonardoConfig.Leonardo.curWelderDockerImage.split(":")(1)
-        Welder.getWelderStatus(cluster).unsafeRunSync().gitHeadCommit should startWith(curWelderHash)
+        val newStatusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
+        newStatusResponse.isRight shouldBe true
+        newStatusResponse.toOption.get.gitHeadCommit should startWith(curWelderHash)
       }
     }
 
