@@ -136,10 +136,6 @@ object Boot extends IOApp with LazyLogging {
                                      appDependencies.dbReference,
                                      appDependencies.metrics)
           )
-
-          for {
-            _ <- appDependencies.clusterHelper.setupDataprocImageGoogleGroup()
-          } yield ()
         }
 
         val clusterDateAccessedActor =
@@ -157,20 +153,22 @@ object Boot extends IOApp with LazyLogging {
         val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
         with StandardUserInfoDirectives
 
-        (
-          for {
-            _ <- IO.fromFuture {
-              IO {
-                Http()
-                  .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-                  .onError {
-                    case t: Throwable =>
-                      unsafeLogger.error(t)("FATAL - failure starting http server").unsafeToFuture()
-                  }
-              }
+        val resultIO = for {
+          _ <- if (leoExecutionModeConfig.backLeo) appDependencies.clusterHelper.setupDataprocImageGoogleGroup()
+          else IO.unit
+          _ <- IO.fromFuture {
+            IO {
+              Http()
+                .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+                .onError {
+                  case t: Throwable =>
+                    unsafeLogger.error(t)("FATAL - failure starting http server").unsafeToFuture()
+                }
             }
-          } yield ()
-        ) >> IO.never
+          }
+        } yield ()
+
+        resultIO >> IO.never
     }
   }
 

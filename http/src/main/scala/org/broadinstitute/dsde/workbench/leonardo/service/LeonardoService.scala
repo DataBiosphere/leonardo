@@ -558,8 +558,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                 _ <- IO(
                   logger.error(s"Could not successfully update cluster ${existingCluster.projectNameString}", gjre)
                 )
-                err <- IO.raiseError(InvalidDataprocMachineConfigException(gjre.getMessage))
-              } yield err
+                _ <- IO.raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
+              } yield ()
 
               cleanupIO.unsafeToFuture
           }
