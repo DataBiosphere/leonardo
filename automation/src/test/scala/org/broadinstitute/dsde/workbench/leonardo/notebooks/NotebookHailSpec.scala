@@ -45,6 +45,13 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
           val tutorialCellResult = notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).get
           tutorialCellResult.output.get.toInt shouldBe (943)
 
+          // Verify spark job is run in non local mode
+          val getSparkContext =
+            """
+              |hl.spark_context()""".stripMargin
+          val getSparkContextCellResult = notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).get
+          getSparkContextCellResult.output.get.contains("yarn") shouldBe (true)
+
           // Verify spark job works
           val sparkJobToSucceed =
             """import random
