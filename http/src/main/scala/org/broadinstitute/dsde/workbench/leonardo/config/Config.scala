@@ -18,12 +18,20 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 object Config {
-  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
       config.getString("googleClientId"),
       config.getString("realm")
+    )
+  }
+
+  implicit val googleGroupConfigReader: ValueReader[GoogleGroupsConfig] = ValueReader.relative { config =>
+    GoogleGroupsConfig(
+      config.as[WorkbenchEmail]("subEmail"),
+      config.getString("dataprocImageProjectGroupName"),
+      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail")
     )
   }
 
@@ -202,6 +210,7 @@ object Config {
     )
   }
 
+  val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")

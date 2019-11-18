@@ -203,7 +203,7 @@ object Cluster {
   // A possible future solution might be to separate Cluster into an internal representation (backed by the database)
   // and an API-response representation (which may contain additional metadata/fields).
   private lazy val cachedClusterUrlBase: String = {
-    val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+    val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     dataprocConfig.clusterUrlBase
   }

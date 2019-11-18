@@ -8,7 +8,12 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
   clusterEq,
   clusterSetEq,
@@ -65,6 +70,7 @@ class AuthProviderSpec
         IO.pure(List.empty)
     }
 
+  val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
@@ -73,12 +79,23 @@ class AuthProviderSpec
                                       mockGoogleComputeDAO,
                                       mockGoogleStorageDAO,
                                       serviceAccountProvider)
-  val clusterHelper =
-    new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleIamDAO)
+  val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                        dataprocConfig,
+                                        googleGroupsConfig,
+                                        mockGoogleDataprocDAO,
+                                        mockGoogleComputeDAO,
+                                        mockGoogleDirectoryDAO,
+                                        mockGoogleIamDAO)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
+    // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
+    mockGoogleDirectoryDAO
+      .createGroup(dataprocImageProjectGroupName,
+                   dataprocImageProjectGroupEmail,
+                   Option(mockGoogleDirectoryDAO.lockedDownGroupSettings))
+      .futureValue
     startProxyServer()
   }
 

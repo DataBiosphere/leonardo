@@ -7,7 +7,12 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
@@ -17,19 +22,33 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, Mock
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
+import org.scalactic.source.Position
 import org.scalatest.Matchers
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.duration._
 
 /**
  * Created by rtitle on 8/15/17.
  */
-trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData =>
+trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with CommonTestData =>
 
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
   implicit private val nr = FakeNewRelicMetricsInterpreter
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+
+  // Set up the mock directoryDAO to have the Google group used to grant permission to users
+  // to pull the custom dataproc image
+  val mockGoogleDirectoryDAO = {
+    implicit val mockGoogleDirectoryDAOPatience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
+    val dao = new MockGoogleDirectoryDAO()
+    dao
+      .createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(dao.lockedDownGroupSettings))
+      .futureValue(mockGoogleDirectoryDAOPatience, Position.here)
+    dao
+  }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
@@ -54,8 +73,13 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData
                                       mockGoogleComputeDAO,
                                       mockGoogleStorageDAO,
                                       serviceAccountProvider)
-  val clusterHelper =
-    new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleIamDAO)
+  val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                        dataprocConfig,
+                                        googleGroupsConfig,
+                                        mockGoogleDataprocDAO,
+                                        mockGoogleComputeDAO,
+                                        mockGoogleDirectoryDAO,
+                                        mockGoogleIamDAO)
   val leonardoService = new LeonardoService(dataprocConfig,
                                             MockWelderDAO,
                                             clusterFilesConfig,

@@ -335,6 +335,11 @@ class ClusterMonitorActor(
       // than the compute engine default service account.
       _ <- clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
 
+      // Remove member from the Google Group that has the IAM role to pull the Dataproc image
+      _ <- clusterHelper
+        .updateDataprocImageGroupMembership(cluster.googleProject, createCluster = false)
+        .unsafeToFuture()
+
       // Record metrics in NewRelic
       _ <- recordMetrics(clusterStatus, ClusterStatus.Deleted).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
