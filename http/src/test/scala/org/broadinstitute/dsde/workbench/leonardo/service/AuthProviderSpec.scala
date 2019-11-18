@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
+import java.time.Instant
+
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
@@ -166,10 +168,11 @@ class AuthProviderSpec
         _.clusterQuery.updateAsyncClusterCreationFields(
           Some(GcsPath(initBucketPath, GcsObjectName(""))),
           Some(serviceAccountKey),
-          cluster1.copy(dataprocInfo = Some(makeDataprocInfo(1)))
+          cluster1.copy(dataprocInfo = Some(makeDataprocInfo(1))),
+          Instant.now
         )
       }
-      dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots")) }
+      dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now) }
 
       //delete
       leo.deleteCluster(userInfo, project, cluster1Name).unsafeToFuture.futureValue

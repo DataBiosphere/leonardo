@@ -6,8 +6,12 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSeqEq, clusterSetEq}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
+  clusterEq,
+  clusterSeqEq,
+  clusterSetEq,
+  stripFieldsForListCluster
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.FlatSpecLike
@@ -100,7 +104,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       SQLException
     ]
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster1.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster1.id, Instant.now) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActiveWithLabels() } should contain theSameElementsAs Seq(cluster2, cluster3)
       .map(stripFieldsForListCluster)
 
@@ -110,14 +114,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     cluster1status.dataprocInfo.flatMap(_.hostIp) shouldBe None
     cluster1status.instances shouldBe cluster1.instances
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster2.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster2.id, Instant.now) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActiveWithLabels() } shouldEqual Seq(cluster3).map(stripFieldsForListCluster)
     val cluster2status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) }.get
     cluster2status.status shouldEqual ClusterStatus.Deleting
     cluster2status.auditInfo.destroyedDate shouldBe None
     cluster2status.dataprocInfo.flatMap(_.hostIp) shouldBe None
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster3.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster3.id, Instant.now) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActiveWithLabels() } shouldEqual Seq()
     val cluster3status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster3.id) }.get
     cluster3status.status shouldEqual ClusterStatus.Deleting
@@ -180,7 +184,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val initialCluster = makeCluster(1).copy(status = ClusterStatus.Running).save()
 
     // note: this does not update the instance records
-    dbFutureValue { _.clusterQuery.setToStopping(initialCluster.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.setToStopping(initialCluster.id, Instant.now) } shouldEqual 1
     val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
     val expectedStoppedCluster = initialCluster.copy(
       dataprocInfo = initialCluster.dataprocInfo.map(_.copy(hostIp = None)),
@@ -190,7 +194,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     stoppedCluster.copy(auditInfo = stoppedCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedStoppedCluster
     stoppedCluster.auditInfo.dateAccessed should be > initialCluster.auditInfo.dateAccessed
 
-    dbFutureValue { _.clusterQuery.setToRunning(initialCluster.id, initialCluster.dataprocInfo.flatMap(_.hostIp).get) } shouldEqual 1
+    dbFutureValue {
+      _.clusterQuery.setToRunning(initialCluster.id, initialCluster.dataprocInfo.flatMap(_.hostIp).get, Instant.now)
+    } shouldEqual 1
     val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
     val expectedRunningCluster = initialCluster.copy(id = initialCluster.id,
                                                      auditInfo =
@@ -317,7 +323,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       .save()
 
     val newMachineType = MachineType("this-is-a-new-machine-type")
-    dbFutureValue { _.clusterQuery.updateMasterMachineType(savedCluster1.id, newMachineType) }
+    dbFutureValue { _.clusterQuery.updateMasterMachineType(savedCluster1.id, newMachineType, Instant.now) }
 
     dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }
       .flatMap(_.machineConfig.masterMachineType) shouldBe
@@ -338,7 +344,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       .save()
 
     val newDiskSize = 1000
-    dbFutureValue { _.clusterQuery.updateMasterDiskSize(savedCluster1.id, newDiskSize) }
+    dbFutureValue { _.clusterQuery.updateMasterDiskSize(savedCluster1.id, newDiskSize, Instant.now) }
 
     dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.flatMap(_.machineConfig.masterDiskSize) shouldBe
       Option(newDiskSize)

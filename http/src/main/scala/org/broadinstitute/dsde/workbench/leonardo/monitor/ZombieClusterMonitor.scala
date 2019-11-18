@@ -4,7 +4,7 @@ package monitor
 import java.time.{Duration, Instant}
 
 import akka.actor.{Actor, Props, Timers}
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
@@ -24,7 +24,7 @@ object ZombieClusterMonitor {
   def props(config: ZombieClusterConfig,
             gdDAO: GoogleDataprocDAO,
             googleProjectDAO: GoogleProjectDAO,
-            dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO]): Props =
+            dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO], contextShift: ContextShift[IO]): Props =
     Props(new ZombieClusterMonitor(config, gdDAO, googleProjectDAO, dbRef))
 
   sealed trait ZombieClusterMonitorMessage
@@ -38,7 +38,7 @@ object ZombieClusterMonitor {
 class ZombieClusterMonitor(config: ZombieClusterConfig,
                            gdDAO: GoogleDataprocDAO,
                            googleProjectDAO: GoogleProjectDAO,
-                           dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO])
+                           dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO], contextShift: ContextShift[IO])
     extends Actor
     with Timers
     with LazyLogging {
@@ -82,7 +82,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
       zombieClusters.flatMap { cs =>
         logger.info(s"Detected ${cs.size} zombie clusters across ${cs.map(_.googleProject).toSet.size} projects.")
         cs.traverse { cluster =>
-          handleZombieCluster(cluster)
+          handleZombieCluster(cluster).unsafeToFuture()
         }
       }
 
@@ -120,17 +120,19 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
     }
   }
 
-  private def handleZombieCluster(cluster: Cluster): Future[Unit] = {
-    logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}")
-    metrics.incrementCounter("zombieClusters").unsafeRunAsync(_ => ())
-    dbRef.inTransaction { dataAccess =>
-      for {
-        _ <- dataAccess.clusterQuery.completeDeletion(cluster.id)
-        error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
-                             -1,
-                             Instant.now)
-        _ <- dataAccess.clusterErrorQuery.save(cluster.id, error)
-      } yield ()
-    }.void
-  }
+  private def handleZombieCluster(cluster: Cluster): IO[Unit] =
+    for {
+      _ <- IO(logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}"))
+      _ <- metrics.incrementCounter("zombieClusters")
+      now <- IO(Instant.now)
+      _ <- dbRef.inTransactionIO { dataAccess =>
+        for {
+          _ <- dataAccess.clusterQuery.completeDeletion(cluster.id, now)
+          error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
+                               -1,
+                               Instant.now)
+          _ <- dataAccess.clusterErrorQuery.save(cluster.id, error)
+        } yield ()
+      }
+    } yield ()
 }

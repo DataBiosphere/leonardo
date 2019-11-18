@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
@@ -24,6 +25,8 @@ class ZombieClusterMonitorSpec
     with TestComponent
     with CommonTestData
     with GcsPathUtils { testKit =>
+
+  implicit val cs = IO.contextShift(system.dispatcher)
 
   val testCluster1 = makeCluster(1).copy(status = ClusterStatus.Running)
   val testCluster2 = makeCluster(2).copy(status = ClusterStatus.Running)

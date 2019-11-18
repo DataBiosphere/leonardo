@@ -4,6 +4,7 @@ package service
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -406,7 +407,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // change cluster status to Running so that it can be deleted
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name0).unsafeToFuture.futureValue
@@ -504,10 +505,11 @@ class LeonardoServiceSpec
       _.clusterQuery.updateAsyncClusterCreationFields(
         Some(GcsPath(initBucketPath, GcsObjectName(""))),
         Some(serviceAccountKey),
-        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1)))
+        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1))),
+        Instant.now
       )
     }
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now) }
 
     // delete the cluster
     leoForTest.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
@@ -555,10 +557,11 @@ class LeonardoServiceSpec
       _.clusterQuery.updateAsyncClusterCreationFields(
         Some(GcsPath(initBucketPath, GcsObjectName(""))),
         Some(serviceAccountKey),
-        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1)))
+        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1))),
+        Instant.now
       )
     }
-    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error, Instant.now) }
 
     // delete the cluster
     leoForTest.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
@@ -594,10 +597,11 @@ class LeonardoServiceSpec
       _.clusterQuery.updateAsyncClusterCreationFields(
         Some(GcsPath(initBucketPath, GcsObjectName(""))),
         Some(serviceAccountKey),
-        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1)))
+        cluster.copy(dataprocInfo = Some(makeDataprocInfo(1))),
+        Instant.now
       )
     }
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
@@ -747,7 +751,7 @@ class LeonardoServiceSpec
       .unsafeToFuture
       .futureValue
 
-    dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
+    dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id, Instant.now) }
 
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
       stripFieldsForListCluster
@@ -927,7 +931,7 @@ class LeonardoServiceSpec
     computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).unsafeToFuture.futureValue
@@ -958,7 +962,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
     leo
       .updateCluster(userInfo,
@@ -990,7 +994,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
     leo
       .updateCluster(userInfo,
@@ -1017,7 +1021,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set the cluster to Stopped
-    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, Stopped, Instant.now) }
 
     val newMachineType = "n1-micro-1"
     leo
@@ -1049,7 +1053,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
     val newMachineType = "n1-micro-1"
     val failure = leo
@@ -1079,7 +1083,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
     val newDiskSize = 1000
     leo
@@ -1109,7 +1113,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
     val newDiskSize = 10
     val failure = leo
@@ -1139,7 +1143,7 @@ class LeonardoServiceSpec
 
       // set the cluster to Running
       dbFutureValue {
-        _.clusterQuery.updateClusterStatusAndHostIp(cluster.id, status, Some(IP("1.2.3.4")))
+        _.clusterQuery.updateClusterStatusAndHostIp(cluster.id, status, Some(IP("1.2.3.4")), Instant.now)
       }
 
       intercept[ClusterCannotBeUpdatedException] {
@@ -1175,7 +1179,7 @@ class LeonardoServiceSpec
     val clusterInstances =
       Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))
     dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(cluster), clusterInstances) }
-    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, Instant.now) }
     computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
     computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
@@ -1210,7 +1214,7 @@ class LeonardoServiceSpec
     dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set its status to Stopped and update its createdDate
-    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, Instant.now) }
     dbFutureValue {
       _.clusterQuery.updateClusterCreatedDate(cluster.id,
                                               new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant)
@@ -1235,7 +1239,7 @@ class LeonardoServiceSpec
     val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
-    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
     val newDiskSize = 1000
     leo

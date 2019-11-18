@@ -425,52 +425,58 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def markPendingDeletion(id: Long): DBIO[Int] =
-      findByIdQuery(id)
-        .map(c => (c.status, c.hostIp))
-        .update(ClusterStatus.Deleting.toString, None)
-
-    def completeDeletion(id: Long): DBIO[Int] =
-      findByIdQuery(id)
-        .map(c => (c.destroyedDate, c.status, c.hostIp))
-        .update(Timestamp.from(Instant.now()), ClusterStatus.Deleted.toString, None)
-
-    def updateClusterStatusAndHostIp(id: Long, status: ClusterStatus, hostIp: Option[IP]): DBIO[Int] =
+    def markPendingDeletion(id: Long, dateAccessed: Instant): DBIO[Int] =
       findByIdQuery(id)
         .map(c => (c.status, c.hostIp, c.dateAccessed))
-        .update((status.toString, hostIp.map(_.value), Timestamp.from(Instant.now)))
+        .update((ClusterStatus.Deleting.toString, None, Timestamp.from(dateAccessed)))
 
-    def updateClusterHostIp(id: Long, hostIp: Option[IP]): DBIO[Int] =
+    def completeDeletion(id: Long, destroyedDate: Instant): DBIO[Int] =
+      findByIdQuery(id)
+        .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
+        .update((Timestamp.from(destroyedDate), ClusterStatus.Deleted.toString, None, Timestamp.from(destroyedDate)))
+
+    def updateClusterStatusAndHostIp(id: Long,
+                                     status: ClusterStatus,
+                                     hostIp: Option[IP],
+                                     dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id)
+        .map(c => (c.status, c.hostIp, c.dateAccessed))
+        .update((status.toString, hostIp.map(_.value), Timestamp.from(dateAccessed)))
+
+    def updateClusterHostIp(id: Long, hostIp: Option[IP], dateAccessed: Instant): DBIO[Int] =
       clusterQuery
         .filter { _.id === id }
         .map(c => (c.hostIp, c.dateAccessed))
-        .update((hostIp.map(_.value), Timestamp.from(Instant.now)))
+        .update((hostIp.map(_.value), Timestamp.from(dateAccessed)))
 
     def updateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                          serviceAccountKey: Option[ServiceAccountKey],
-                                         cluster: Cluster): DBIO[Int] =
+                                         cluster: Cluster,
+                                         dateAccessed: Instant): DBIO[Int] =
       findByIdQuery(cluster.id)
         .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
         .update(
-          initBucket.map(_.toUri),
-          serviceAccountKey.map(_.id.value),
-          cluster.dataprocInfo.map(_.googleId),
-          cluster.dataprocInfo.map(_.operationName.value),
-          cluster.dataprocInfo.map(_.stagingBucket.value),
-          Timestamp.from(Instant.now)
+          (
+            initBucket.map(_.toUri),
+            serviceAccountKey.map(_.id.value),
+            cluster.dataprocInfo.map(_.googleId),
+            cluster.dataprocInfo.map(_.operationName.value),
+            cluster.dataprocInfo.map(_.stagingBucket.value),
+            Timestamp.from(dateAccessed)
+          )
         )
 
-    def clearAsyncClusterCreationFields(cluster: Cluster): DBIO[Int] =
+    def clearAsyncClusterCreationFields(cluster: Cluster, dateAccessed: Instant): DBIO[Int] =
       findByIdQuery(cluster.id)
         .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
-        .update(None, None, None, None, None, Timestamp.from(Instant.now))
+        .update((None, None, None, None, None, Timestamp.from(dateAccessed)))
 
-    def updateClusterStatus(id: Long, newStatus: ClusterStatus): DBIO[Int] =
-      findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update(newStatus.toString, Timestamp.from(Instant.now))
+    def updateClusterStatus(id: Long, newStatus: ClusterStatus, dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update((newStatus.toString, Timestamp.from(dateAccessed)))
 
     // for testing only
     def updateClusterCreatedDate(id: Long, createdDate: Instant): DBIO[Int] =
-      findByIdQuery(id).map { _.createdDate }.update(Timestamp.from(createdDate))
+      findByIdQuery(id).map(_.createdDate).update(Timestamp.from(createdDate))
 
     def updateDateAccessed(id: Long, dateAccessed: Instant): DBIO[Int] =
       findByIdQuery(id)
@@ -486,44 +492,58 @@ trait ClusterComponent extends LeoComponent {
         case None    => DBIO.successful(0)
       }
 
-    def clearKernelFoundBusyDate(id: Long): DBIO[Int] =
-      findByIdQuery(id).map(_.kernelFoundBusyDate).update(None)
+    def clearKernelFoundBusyDate(id: Long, dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id).map(c => (c.kernelFoundBusyDate, c.dateAccessed)).update((None, Timestamp.from(dateAccessed)))
 
-    def updateKernelFoundBusyDate(id: Long, kernelFoundBusyDate: Instant): DBIO[Int] =
-      findByIdQuery(id).map(_.kernelFoundBusyDate).update(Option(Timestamp.from(kernelFoundBusyDate)))
+    def updateKernelFoundBusyDate(id: Long, kernelFoundBusyDate: Instant, dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id)
+        .map(c => (c.kernelFoundBusyDate, c.dateAccessed))
+        .update((Option(Timestamp.from(kernelFoundBusyDate)), Timestamp.from(dateAccessed)))
 
-    def clearKernelFoundBusyDateByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName): DBIO[Int] =
+    def clearKernelFoundBusyDateByProjectAndName(googleProject: GoogleProject,
+                                                 clusterName: ClusterName,
+                                                 dateAccessed: Instant): DBIO[Int] =
       clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
-        case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id)
+        case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id, dateAccessed)
         case None    => DBIO.successful(0)
       }
 
-    def updateAutopauseThreshold(id: Long, autopauseThreshold: Int): DBIO[Int] =
-      findByIdQuery(id).map(_.autopauseThreshold).update(autopauseThreshold)
+    def updateAutopauseThreshold(id: Long, autopauseThreshold: Int, dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id)
+        .map(c => (c.autopauseThreshold, c.dateAccessed))
+        .update((autopauseThreshold, Timestamp.from(dateAccessed)))
 
-    def updateNumberOfWorkers(id: Long, numberOfWorkers: Int): DBIO[Int] =
-      findByIdQuery(id).map(_.numberOfWorkers).update(numberOfWorkers)
+    def updateNumberOfWorkers(id: Long, numberOfWorkers: Int, dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id)
+        .map(c => (c.numberOfWorkers, c.dateAccessed))
+        .update((numberOfWorkers, Timestamp.from(dateAccessed)))
 
-    def updateNumberOfPreemptibleWorkers(id: Long, numberOfPreemptibleWorkers: Option[Int]): DBIO[Int] =
-      findByIdQuery(id).map(_.numberOfPreemptibleWorkers).update(numberOfPreemptibleWorkers)
+    def updateNumberOfPreemptibleWorkers(id: Long,
+                                         numberOfPreemptibleWorkers: Option[Int],
+                                         dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id)
+        .map(c => (c.numberOfPreemptibleWorkers, c.dateAccessed))
+        .update((numberOfPreemptibleWorkers, Timestamp.from(dateAccessed)))
 
-    def updateMasterMachineType(id: Long, newMachineType: MachineType): DBIO[Int] =
-      findByIdQuery(id).map(_.masterMachineType).update(newMachineType.value)
+    def updateMasterMachineType(id: Long, newMachineType: MachineType, dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id)
+        .map(c => (c.masterMachineType, c.dateAccessed))
+        .update((newMachineType.value, Timestamp.from(dateAccessed)))
 
-    def updateMasterDiskSize(id: Long, newSizeGb: Int): DBIO[Int] =
-      findByIdQuery(id).map(_.masterDiskSize).update(newSizeGb)
+    def updateMasterDiskSize(id: Long, newSizeGb: Int, dateAccessed: Instant): DBIO[Int] =
+      findByIdQuery(id).map(c => (c.masterDiskSize, c.dateAccessed)).update((newSizeGb, Timestamp.from(dateAccessed)))
 
-    def updateWelder(id: Long, welderImage: ClusterImage): DBIO[Unit] =
+    def updateWelder(id: Long, welderImage: ClusterImage, dateAccessed: Instant): DBIO[Unit] =
       for {
-        _ <- findByIdQuery(id).map(_.welderEnabled).update(true)
+        _ <- findByIdQuery(id).map(c => (c.welderEnabled, c.dateAccessed)).update((true, Timestamp.from(dateAccessed)))
         _ <- clusterImageQuery.upsert(id, welderImage)
       } yield ()
 
-    def setToRunning(id: Long, hostIp: IP): DBIO[Int] =
-      updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp))
+    def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =
+      updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp), dateAccessed)
 
-    def setToStopping(id: Long): DBIO[Int] =
-      updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None)
+    def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
+      updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None, dateAccessed)
 
     def listByLabels(labelMap: LabelMap,
                      includeDeleted: Boolean,

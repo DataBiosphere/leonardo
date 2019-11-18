@@ -10,7 +10,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
 import cats.data.{Ior, OptionT}
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
@@ -126,7 +126,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val bucketHelper: BucketHelper,
                       protected val clusterHelper: ClusterHelper)(implicit val executionContext: ExecutionContext,
                                                                   implicit override val system: ActorSystem,
-                                                                  timer: Timer[IO],
                                                                   log: Logger[IO],
                                                                   cs: ContextShift[IO],
                                                                   metrics: NewRelicMetrics[IO])
@@ -302,8 +301,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         ).separate
 
         // Set the cluster status to Updating if the cluster was resized
+        now <- IO(Instant.now)
         _ <- if (shouldUpdate.combineAll) {
-          dbRef.inTransactionIO { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }.void
+          dbRef.inTransactionIO { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating, now) }.void
         } else IO.unit
 
         cluster <- errors match {
@@ -333,13 +333,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     )
     updatedAutopauseThresholdOpt match {
       case Some(updatedAutopauseThreshold) =>
-        logger.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
-
-        dbRef
-          .inTransactionIO { dataAccess =>
-            dataAccess.clusterQuery.updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold)
-          }
-          .as(true)
+        for {
+          _ <- log.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
+          now <- IO(Instant.now)
+          res <- dbRef
+            .inTransactionIO { dataAccess =>
+              dataAccess.clusterQuery.updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
+            }
+            .as(true)
+        } yield res
 
       case None => IO.pure(false)
     }
@@ -380,14 +382,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           }
 
           // Update the DB
+          now <- IO(Instant.now)
           _ <- dbRef.inTransactionIO { dataAccess =>
             updatedNumWorkersAndPreemptibles.fold(
-              a => dataAccess.clusterQuery.updateNumberOfWorkers(existingCluster.id, a),
-              a => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(a)),
+              a => dataAccess.clusterQuery.updateNumberOfWorkers(existingCluster.id, a, now),
+              a => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(a), now),
               (a, b) =>
                 dataAccess.clusterQuery
-                  .updateNumberOfWorkers(existingCluster.id, a)
-                  .flatMap(_ => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(b)))
+                  .updateNumberOfWorkers(existingCluster.id, a, now)
+                  .flatMap(
+                    _ => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(b), now)
+                  )
             )
           }
         } yield true
@@ -412,8 +417,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Update the machine type in Google
           _ <- clusterHelper.setMasterMachineType(existingCluster, MachineType(updatedMasterMachineType))
           // Update the DB
+          now <- IO(Instant.now)
           _ <- dbRef.inTransactionIO {
-            _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType))
+            _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType), now)
           }
         } yield true
 
@@ -442,7 +448,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Update the disk in Google
           _ <- clusterHelper.updateMasterDiskSize(existingCluster, updatedMasterDiskSize)
           // Update the DB
-          _ <- dbRef.inTransactionIO { _.clusterQuery.updateMasterDiskSize(existingCluster.id, updatedMasterDiskSize) }
+          now <- IO(Instant.now)
+          _ <- dbRef.inTransactionIO {
+            _.clusterQuery.updateMasterDiskSize(existingCluster.id, updatedMasterDiskSize, now)
+          }
         } yield true
 
       case Some(_) =>
@@ -488,9 +497,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- if (hasDataprocInfo) clusterHelper.deleteCluster(cluster) else IO.unit
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
+        now <- IO(Instant.now)
         _ <- dbRef.inTransactionIO { dataAccess =>
-          if (hasDataprocInfo) dataAccess.clusterQuery.markPendingDeletion(cluster.id)
-          else dataAccess.clusterQuery.completeDeletion(cluster.id)
+          if (hasDataprocInfo) dataAccess.clusterQuery.markPendingDeletion(cluster.id, now)
+          else dataAccess.clusterQuery.completeDeletion(cluster.id, now)
         }
         _ <- if (hasDataprocInfo) IO.unit
         else
@@ -532,7 +542,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- clusterHelper.stopCluster(cluster)
 
         // Update the cluster status to Stopping
-        _ <- dbRef.inTransactionIO { _.clusterQuery.setToStopping(cluster.id) }
+        now <- IO(Instant.now)
+        _ <- dbRef.inTransactionIO { _.clusterQuery.setToStopping(cluster.id, now) }
       } yield ()
 
     } else IO.raiseError(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
@@ -567,8 +578,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- clusterHelper.startCluster(updatedCluster, welderAction)
 
         // Update the cluster status to Starting
+        now <- IO(Instant.now)
         _ <- dbRef.inTransactionIO { dataAccess =>
-          dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting)
+          dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting, now)
         }
       } yield ()
     } else IO.raiseError(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
@@ -828,11 +840,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       _ <- IO(logger.info(s"Will deploy welder to cluster ${cluster.projectNameString}"))
       _ <- metrics.incrementCounter("welder/deploy")
-      epochMilli <- timer.clock.realTime(MILLISECONDS)
-      now = Instant.ofEpochMilli(epochMilli)
+      now <- IO(Instant.now)
       welderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
       _ <- dbRef.inTransactionIO {
-        _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, now))
+        _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, now), now)
       }
       newCluster = cluster.copy(welderEnabled = true,
                                 clusterImages = cluster.clusterImages.filterNot(_.tool == Welder) + welderImage)

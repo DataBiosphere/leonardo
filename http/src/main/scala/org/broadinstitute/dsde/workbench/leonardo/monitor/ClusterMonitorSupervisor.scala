@@ -147,11 +147,15 @@ class ClusterMonitorSupervisor(
       if (monitorConfig.recreateCluster) {
         logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
         removeFromMonitoredClusters(cluster)
-        dbRef
-          .inTransaction { dataAccess =>
-            dataAccess.clusterQuery.clearAsyncClusterCreationFields(cluster) >>
-              dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating)
-          }
+        for {
+          now <- IO(Instant.now).unsafeToFuture()
+          _ <- dbRef
+            .inTransaction { dataAccess =>
+              dataAccess.clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
+                dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating, now)
+            }
+        } yield ()
+
       } else {
         logger.warn(
           s"[$traceId] Received RecreateCluster message for cluster ${cluster.projectNameString} but cluster recreation is disabled."
@@ -232,6 +236,7 @@ class ClusterMonitorSupervisor(
       clusters <- dbRef.inTransaction {
         _.clusterQuery.getClustersReadyToAutoFreeze()
       }
+      now <- IO(Instant.now).unsafeToFuture()
       pauseableClusters <- clusters.toList.filterA { cluster =>
         jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.map {
           case Left(t) =>
@@ -244,7 +249,7 @@ class ClusterMonitorSupervisor(
                 case Some(attemptedDate) => Duration.between(attemptedDate, Instant.now()).compareTo(idleLimit) == 1
                 case None => {
                   dbRef.inTransaction { dataAccess =>
-                    dataAccess.clusterQuery.updateKernelFoundBusyDate(cluster.id, Instant.now())
+                    dataAccess.clusterQuery.updateKernelFoundBusyDate(cluster.id, now, now)
                   }
                   false // max kernel active time has not been exceeded
                 }
@@ -288,7 +293,8 @@ class ClusterMonitorSupervisor(
       _ <- clusterHelper.stopCluster(cluster).unsafeToFuture()
 
       // Update the cluster status to Stopping
-      _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
+      now <- IO(Instant.now).unsafeToFuture()
+      _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id, now) }
     } yield ()
 
   private def createClusterMonitors(): Unit =

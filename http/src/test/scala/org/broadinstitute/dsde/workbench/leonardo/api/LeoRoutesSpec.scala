@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import java.time.Instant
+
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, OAuth2BearerToken}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
@@ -87,7 +89,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     // simulate the cluster transitioning to Running
     dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -116,7 +118,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     // simulate the cluster transitioning to Running
     dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -287,7 +289,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     // simulate the cluster transitioning to Running
     dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }

@@ -199,7 +199,8 @@ class ClusterMonitorActor(
           for {
             _ <- persistInstances(cluster, googleInstances)
             _ <- clusterHelper.stopCluster(cluster).unsafeToFuture()
-            _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
+            now <- IO(Instant.now).unsafeToFuture()
+            _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id, now) }
           } yield ScheduleMonitorPass
         } else {
           handleFailedCluster(
@@ -240,7 +241,8 @@ class ClusterMonitorActor(
       // create or update instances in the DB
       _ <- persistInstances(cluster, googleInstances)
       // update DB after auth futures finish
-      _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp) }
+      now <- IO(Instant.now).unsafeToFuture()
+      _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp, now) }
       // Record metrics in NewRelic
       _ <- recordMetrics(cluster.status, ClusterStatus.Running).unsafeToFuture()
     } yield {
@@ -277,6 +279,8 @@ class ClusterMonitorActor(
       // Record metrics in NewRelic
       _ <- recordMetrics(cluster.status, ClusterStatus.Error).unsafeToFuture()
 
+      now <- IO(Instant.now).unsafeToFuture()
+
       // Decide if we should try recreating the cluster
       res <- if (shouldRecreateCluster(cluster, errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message
@@ -285,7 +289,7 @@ class ClusterMonitorActor(
           s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate..."
         )
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.markPendingDeletion(cluster.id)
+          dataAccess.clusterQuery.markPendingDeletion(cluster.id, now)
         } map { _ =>
           ShutdownActor(ClusterDeleted(cluster, recreate = true))
         }
@@ -296,7 +300,7 @@ class ClusterMonitorActor(
         )
         for {
           // update the cluster status to Error
-          _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
+          _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error, now) }
           _ <- metrics.incrementCounterFuture(s"AsyncClusterCreationFailure/${errorDetails.code}")
 
           // Remove the Dataproc Worker IAM role for the pet service account
@@ -332,8 +336,10 @@ class ClusterMonitorActor(
       // delete instances in the DB
       _ <- persistInstances(cluster, Set.empty)
 
+      now <- IO(Instant.now).unsafeToFuture()
+
       _ <- dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.completeDeletion(cluster.id)
+        dataAccess.clusterQuery.completeDeletion(cluster.id, now)
       }
       _ <- authProvider
         .notifyClusterDeleted(cluster.internalId,
@@ -368,10 +374,11 @@ class ClusterMonitorActor(
     for {
       // create or update instances in the DB
       _ <- persistInstances(cluster, googleInstances)
+      now <- IO(Instant.now).unsafeToFuture()
       // this sets the cluster status to stopped and clears the cluster IP
-      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
+      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, now) }
       // reset the time at which the kernel was last found to be busy
-      _ <- dbRef.inTransaction { _.clusterQuery.clearKernelFoundBusyDate(cluster.id) }
+      _ <- dbRef.inTransaction { _.clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
       // Record metrics in NewRelic
       _ <- recordMetrics(cluster.status, ClusterStatus.Stopped).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
@@ -383,9 +390,13 @@ class ClusterMonitorActor(
     val createClusterFuture = for {
       _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")).unsafeToFuture()
       clusterResult <- clusterHelper.createCluster(cluster).unsafeToFuture()
+      now <- IO(Instant.now).unsafeToFuture()
       (cluster, initBucket, saKey) = clusterResult
       _ <- dbRef.inTransaction {
-        _.clusterQuery.updateAsyncClusterCreationFields(Some(GcsPath(initBucket, GcsObjectName(""))), saKey, cluster)
+        _.clusterQuery.updateAsyncClusterCreationFields(Some(GcsPath(initBucket, GcsObjectName(""))),
+                                                        saKey,
+                                                        cluster,
+                                                        now)
       }
       _ <- IO(
         logger.info(
@@ -480,24 +491,27 @@ class ClusterMonitorActor(
     // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
     // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
     // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
-    dbRef.inTransaction { dataAccess =>
-      for {
-        _ <- dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip))
-        images <- dataAccess.clusterImageQuery.getAllForCluster(cluster.id)
-      } yield images
-    } flatMap { images =>
-      images.toList.traverse { image =>
+    for {
+      now <- IO(Instant.now).unsafeToFuture()
+      images <- dbRef.inTransaction { dataAccess =>
+        for {
+          _ <- dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip), now)
+          images <- dataAccess.clusterImageQuery.getAllForCluster(cluster.id)
+        } yield images
+
+      }
+      availableTools <- images.toList.traverse { image =>
         image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b))
       }
-    } map {
-      case isAvailable if isAvailable.forall(x => x._2 == true) =>
+    } yield availableTools match {
+      case a if a.forall(x => x._2 == true) =>
         ReadyCluster(cluster, ip, googleInstances)
-      case isAvailable =>
+      case a =>
         NotReadyCluster(
           cluster,
           ClusterStatus.Running,
           googleInstances,
-          Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1 }}")
+          Some(s"Services not available: ${a.collect { case x if x._2 == false => x._1 }}")
         )
     }
 

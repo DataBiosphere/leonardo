@@ -62,14 +62,13 @@ class ClusterHelperSpec
                                         contentSecurityPolicy,
                                         blocker)
 
-  override def beforeAll(): Unit = {
+  override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     mockGoogleDirectoryDAO
       .createGroup(dataprocImageProjectGroupName,
-        dataprocImageProjectGroupEmail,
-        Option(mockGoogleDirectoryDAO.lockedDownGroupSettings))
+                   dataprocImageProjectGroupEmail,
+                   Option(mockGoogleDirectoryDAO.lockedDownGroupSettings))
       .futureValue
-  }
 
   "ClusterHelper" should "create a google cluster" in isolatedDbTest {
     val (cluster, initBucket, serviceAccountKey) = clusterHelper.createCluster(testCluster).unsafeToFuture().futureValue
