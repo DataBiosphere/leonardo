@@ -9,7 +9,12 @@ import cats.effect.{Blocker, IO}
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
   clusterEq,
   clusterSetEq,
@@ -70,6 +75,7 @@ class AuthProviderSpec
         IO.pure(List.empty)
     }
 
+  val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
@@ -78,6 +84,7 @@ class AuthProviderSpec
   val clusterHelper =
     new ClusterHelper(DbSingleton.ref,
                       dataprocConfig,
+                      googleGroupsConfig,
                       proxyConfig,
                       clusterResourcesConfig,
                       clusterFilesConfig,

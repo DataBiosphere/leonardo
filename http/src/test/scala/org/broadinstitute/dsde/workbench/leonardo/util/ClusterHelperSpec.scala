@@ -6,12 +6,8 @@ import cats.effect.{Blocker, IO}
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDataprocDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
+import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Creating
@@ -21,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageServi
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -32,12 +28,14 @@ class ClusterHelperSpec
     with FlatSpecLike
     with Matchers
     with CommonTestData
+    with BeforeAndAfterAll
     with ScalaFutures {
 
   implicit val cs = IO.contextShift(system.dispatcher)
   val blocker = Blocker.liftExecutionContext(system.dispatcher)
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
+  val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
 
@@ -51,16 +49,27 @@ class ClusterHelperSpec
 
   val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                         dataprocConfig,
+                                        googleGroupsConfig,
                                         proxyConfig,
                                         clusterResourcesConfig,
                                         clusterFilesConfig,
                                         bucketHelper,
                                         mockGoogleDataprocDAO,
                                         mockGoogleComputeDAO,
+                                        mockGoogleDirectoryDAO,
                                         mockGoogleIamDAO,
                                         mockGoogleProjectDAO,
                                         contentSecurityPolicy,
                                         blocker)
+
+  override def beforeAll(): Unit = {
+    // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
+    mockGoogleDirectoryDAO
+      .createGroup(dataprocImageProjectGroupName,
+        dataprocImageProjectGroupEmail,
+        Option(mockGoogleDirectoryDAO.lockedDownGroupSettings))
+      .futureValue
+  }
 
   "ClusterHelper" should "create a google cluster" in isolatedDbTest {
     val (cluster, initBucket, serviceAccountKey) = clusterHelper.createCluster(testCluster).unsafeToFuture().futureValue
@@ -95,12 +104,14 @@ class ClusterHelperSpec
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO
     val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
                                                  dataprocConfig,
+                                                 googleGroupsConfig,
                                                  proxyConfig,
                                                  clusterResourcesConfig,
                                                  clusterFilesConfig,
                                                  bucketHelper,
                                                  erroredDataprocDAO,
                                                  mockGoogleComputeDAO,
+                                                 mockGoogleDirectoryDAO,
                                                  mockGoogleIamDAO,
                                                  mockGoogleProjectDAO,
                                                  contentSecurityPolicy,
@@ -122,12 +133,14 @@ class ClusterHelperSpec
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO(429)
     val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
                                                  dataprocConfig,
+                                                 googleGroupsConfig,
                                                  proxyConfig,
                                                  clusterResourcesConfig,
                                                  clusterFilesConfig,
                                                  bucketHelper,
                                                  erroredDataprocDAO,
                                                  mockGoogleComputeDAO,
+                                                 mockGoogleDirectoryDAO,
                                                  mockGoogleIamDAO,
                                                  mockGoogleProjectDAO,
                                                  contentSecurityPolicy,
@@ -150,12 +163,14 @@ class ClusterHelperSpec
       dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
     val clusterHelperWithLabels = new ClusterHelper(DbSingleton.ref,
                                                     configWithProjectLabels,
+                                                    googleGroupsConfig,
                                                     proxyConfig,
                                                     clusterResourcesConfig,
                                                     clusterFilesConfig,
                                                     bucketHelper,
                                                     mockGoogleDataprocDAO,
                                                     mockGoogleComputeDAO,
+                                                    mockGoogleDirectoryDAO,
                                                     mockGoogleIamDAO,
                                                     mockGoogleProjectDAO,
                                                     contentSecurityPolicy,
@@ -172,12 +187,14 @@ class ClusterHelperSpec
     val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
     val clusterHelperWithNoSubnet = new ClusterHelper(DbSingleton.ref,
                                                       configWithNoSubnet,
+                                                      googleGroupsConfig,
                                                       proxyConfig,
                                                       clusterResourcesConfig,
                                                       clusterFilesConfig,
                                                       bucketHelper,
                                                       mockGoogleDataprocDAO,
                                                       mockGoogleComputeDAO,
+                                                      mockGoogleDirectoryDAO,
                                                       mockGoogleIamDAO,
                                                       mockGoogleProjectDAO,
                                                       contentSecurityPolicy,
@@ -190,12 +207,14 @@ class ClusterHelperSpec
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
     val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
                                                  dataprocConfig,
+                                                 googleGroupsConfig,
                                                  proxyConfig,
                                                  clusterResourcesConfig,
                                                  clusterFilesConfig,
                                                  bucketHelper,
                                                  mockGoogleDataprocDAO,
                                                  mockGoogleComputeDAO,
+                                                 mockGoogleDirectoryDAO,
                                                  erroredIamDAO,
                                                  mockGoogleProjectDAO,
                                                  contentSecurityPolicy,
@@ -223,9 +242,10 @@ class ClusterHelperSpec
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
     var invocationCount = 0
-    override def addIamRolesForUser(iamProject: GoogleProject,
-                                    email: WorkbenchEmail,
-                                    rolesToAdd: Set[String]): Future[Boolean] = {
+    override def addIamRoles(iamProject: GoogleProject,
+                             email: WorkbenchEmail,
+                             memberType: MemberType,
+                             rolesToAdd: Set[String]): Future[Boolean] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException =

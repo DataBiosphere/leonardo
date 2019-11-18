@@ -12,8 +12,9 @@ import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
@@ -23,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
@@ -158,29 +158,19 @@ class ClusterMonitorSpec
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
                                           clusterFilesConfig,
                                           bucketHelper,
                                           gdDAO,
                                           computeDAO,
+                                          directoryDAO,
                                           iamDAO,
                                           projectDAO,
                                           contentSecurityPolicy,
                                           blocker)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
-    val leoService = new LeonardoService(dataprocConfig,
-                                         MockWelderDAO,
-                                         clusterDefaultsConfig,
-                                         proxyConfig,
-                                         swaggerConfig,
-                                         autoFreezeConfig,
-                                         mockPetGoogleStorageDAO,
-                                         DbSingleton.ref,
-                                         whitelistAuthProvider,
-                                         serviceAccountProvider,
-                                         bucketHelper,
-                                         clusterHelper)
     val supervisorActor = system.actorOf(
       TestClusterSupervisorActor.props(
         monitorConfig,
@@ -204,18 +194,20 @@ class ClusterMonitorSpec
     supervisorActor
   }
 
-  def withClusterSupervisor[T](gdDAO: GoogleDataprocDAO,
-                               computeDAO: GoogleComputeDAO,
-                               iamDAO: GoogleIamDAO,
-                               projectDAO: GoogleProjectDAO,
-                               storageDAO: GoogleStorageDAO,
-                               storage2DAO: GoogleStorageService[IO],
-                               authProvider: LeoAuthProvider[IO],
-                               jupyterDAO: JupyterDAO = MockJupyterDAO,
-                               rstudioDAO: RStudioDAO = MockRStudioDAO,
-                               welderDAO: WelderDAO[IO] = MockWelderDAO,
-                               runningChild: Boolean = true,
-                               directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO())(testCode: ActorRef => T): T = {
+  def withClusterSupervisor[T](
+    gdDAO: GoogleDataprocDAO,
+    computeDAO: GoogleComputeDAO,
+    iamDAO: GoogleIamDAO,
+    projectDAO: GoogleProjectDAO,
+    storageDAO: GoogleStorageDAO,
+    storage2DAO: GoogleStorageService[IO],
+    authProvider: LeoAuthProvider[IO],
+    jupyterDAO: JupyterDAO = MockJupyterDAO,
+    rstudioDAO: RStudioDAO = MockRStudioDAO,
+    welderDAO: WelderDAO[IO] = MockWelderDAO,
+    runningChild: Boolean = true,
+    directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO()
+  )(testCode: ActorRef => T): T = {
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     directoryDAO
       .createGroup(dataprocImageProjectGroupName,
@@ -224,6 +216,7 @@ class ClusterMonitorSpec
       .futureValue
     val supervisor = createClusterSupervisor(gdDAO,
                                              computeDAO,
+                                             directoryDAO,
                                              iamDAO,
                                              projectDAO,
                                              storageDAO,

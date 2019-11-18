@@ -13,12 +13,7 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDataprocDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
@@ -62,6 +57,7 @@ class LeonardoServiceSpec
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var computeDAO: MockGoogleComputeDAO = _
+  private var directoryDAO: MockGoogleDirectoryDAO = _
   private var iamDAO: MockGoogleIamDAO = _
   private var projectDAO: MockGoogleProjectDAO = _
   private var storageDAO: MockGoogleStorageDAO = _
@@ -83,6 +79,7 @@ class LeonardoServiceSpec
   before {
     gdDAO = new MockGoogleDataprocDAO
     computeDAO = new MockGoogleComputeDAO
+    directoryDAO = new MockGoogleDirectoryDAO()
     iamDAO = new MockGoogleIamDAO
     projectDAO = new MockGoogleProjectDAO
     storageDAO = new MockGoogleStorageDAO
@@ -91,18 +88,27 @@ class LeonardoServiceSpec
       (jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes()))
     )
 
+    // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
+    directoryDAO
+      .createGroup(dataprocImageProjectGroupName,
+                   dataprocImageProjectGroupEmail,
+                   Option(directoryDAO.lockedDownGroupSettings))
+      .futureValue
+
     samDao = serviceAccountProvider.samDao
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
     bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
     clusterHelper = new ClusterHelper(DbSingleton.ref,
                                       dataprocConfig,
+                                      googleGroupsConfig,
                                       proxyConfig,
                                       clusterResourcesConfig,
                                       clusterFilesConfig,
                                       bucketHelper,
                                       gdDAO,
                                       computeDAO,
+                                      directoryDAO,
                                       iamDAO,
                                       projectDAO,
                                       contentSecurityPolicy,
@@ -429,12 +435,14 @@ class LeonardoServiceSpec
       dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
     val clusterHelperWithLabels = new ClusterHelper(DbSingleton.ref,
                                                     configWithProjectLabels,
+                                                    googleGroupsConfig,
                                                     proxyConfig,
                                                     clusterResourcesConfig,
                                                     clusterFilesConfig,
                                                     bucketHelper,
                                                     gdDAO,
                                                     computeDAO,
+                                                    directoryDAO,
                                                     iamDAO,
                                                     projectDAO,
                                                     contentSecurityPolicy,
@@ -451,12 +459,14 @@ class LeonardoServiceSpec
     val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
     val clusterHelperWithNoSubnet = new ClusterHelper(DbSingleton.ref,
                                                       configWithNoSubnet,
+                                                      googleGroupsConfig,
                                                       proxyConfig,
                                                       clusterResourcesConfig,
                                                       clusterFilesConfig,
                                                       bucketHelper,
                                                       gdDAO,
                                                       computeDAO,
+                                                      directoryDAO,
                                                       iamDAO,
                                                       projectDAO,
                                                       contentSecurityPolicy,

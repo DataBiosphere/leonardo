@@ -15,6 +15,7 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{
   GoogleStorageDAO,
+  HttpGoogleDirectoryDAO,
   HttpGoogleIamDAO,
   HttpGoogleProjectDAO,
   HttpGoogleStorageDAO
@@ -27,8 +28,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterDateAccessedActor,
   ClusterMonitorSupervisor,
@@ -46,20 +47,25 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 object Boot extends IOApp with LazyLogging {
+  val workbenchMetricsBaseName = "google"
+
   private def startup(): IO[Unit] = {
-    // we need an ActorSystem to host our application in
+    // We need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
     implicit val materializer = ActorMaterializer()
     import system.dispatcher
 
     val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
-      new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), "google")
+      new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
     }
 
     val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
+    // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
+    val pemWithServiceAccountUser =
+      Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleGroupsConfig.googleAdminEmail))
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
-    createDependencies(leoServiceAccountJsonFile, pem).use { appDependencies =>
+    createDependencies(leoServiceAccountJsonFile, pem, pemWithServiceAccountUser).use { appDependencies =>
       implicit val metrics = appDependencies.metrics
 
       val bucketHelper = new BucketHelper(appDependencies.googleComputeDAO,
@@ -69,12 +75,14 @@ object Boot extends IOApp with LazyLogging {
 
       val clusterHelper = new ClusterHelper(appDependencies.dbReference,
                                             dataprocConfig,
+                                            googleGroupsConfig,
                                             proxyConfig,
                                             clusterResourcesConfig,
                                             clusterFilesConfig,
                                             bucketHelper,
                                             appDependencies.googleDataprocDAO,
                                             appDependencies.googleComputeDAO,
+                                            appDependencies.googleDirectoryDAO,
                                             appDependencies.googleIamDAO,
                                             appDependencies.googleProjectDAO,
                                             contentSecurityPolicy,
@@ -143,24 +151,27 @@ object Boot extends IOApp with LazyLogging {
                                             dataprocConfig)
       val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
       with StandardUserInfoDirectives
-      IO.fromFuture(
-        IO(
-          Http()
-            .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-            .recover {
-              case t: Throwable =>
-                logger.error("FATAL - failure starting http server", t)
-                throw t
-            }
-            .void
-        )
-      ) >> IO.never
+
+      (for {
+        _ <- if (leoExecutionModeConfig.backLeo) clusterHelper.setupDataprocImageGoogleGroup() else IO.unit
+        _ <- IO.fromFuture {
+          IO {
+            Http()
+              .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+              .onError {
+                case t: Throwable =>
+                  unsafeLogger.error(t)("FATAL - failure starting http server").unsafeToFuture()
+              }
+          }
+        }
+      } yield ()) >> IO.never
     }
   }
 
-  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](
+  private def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](
     pathToCredentialJson: String,
-    pem: Pem
+    pem: Pem,
+    pemWithServiceAccountUser: Pem
   )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
     implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
 
@@ -185,13 +196,16 @@ object Boot extends IOApp with LazyLogging {
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider)
 
-      googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, "google")
-      googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, "google")
-      googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, "google")
-      googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, "google")
+      googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
+      googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
+      googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
+      googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName,
+                                                      pemWithServiceAccountUser,
+                                                      workbenchMetricsBaseName)
+      googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
       gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName,
                                         pem,
-                                        "google",
+                                        workbenchMetricsBaseName,
                                         NetworkTag(dataprocConfig.networkTag),
                                         dataprocConfig.dataprocDefaultRegion,
                                         dataprocConfig.dataprocZone)
@@ -202,6 +216,7 @@ object Boot extends IOApp with LazyLogging {
       googleStorageDAO,
       googleComputeDAO,
       googleProjectDAO,
+      googleDirectoryDAO,
       googleIamDAO,
       gdDAO,
       samDao,
@@ -232,6 +247,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        googleStorageDAO: HttpGoogleStorageDAO,
                                        googleComputeDAO: HttpGoogleComputeDAO,
                                        googleProjectDAO: HttpGoogleProjectDAO,
+                                       googleDirectoryDAO: HttpGoogleDirectoryDAO,
                                        googleIamDAO: HttpGoogleIamDAO,
                                        googleDataprocDAO: HttpGoogleDataprocDAO,
                                        samDAO: HttpSamDAO[F],

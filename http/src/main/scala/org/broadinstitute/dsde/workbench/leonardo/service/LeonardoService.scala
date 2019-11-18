@@ -366,13 +366,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            updatedNumWorkersAndPreemptibles.left,
                                            updatedNumWorkersAndPreemptibles.right) recoverWith {
             case gjre: GoogleJsonResponseException =>
-              // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
+              // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
+              // resize the cluster we need to revoke it manually here
               for {
                 _ <- clusterHelper.removeClusterIamRoles(existingCluster.googleProject,
                                                          existingCluster.serviceAccountInfo)
+                // Remove member from the Google Group that has the IAM role to pull the Dataproc image
+                _ <- clusterHelper.updateDataprocImageGroupMembership(existingCluster.googleProject,
+                                                                      createCluster = false)
                 _ <- log.error(gjre)(s"Could not successfully update cluster ${existingCluster.projectNameString}")
-                err <- IO.raiseError(InvalidDataprocMachineConfigException(gjre.getMessage))
-              } yield err
+                _ <- IO.raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
+              } yield ()
           }
 
           // Update the DB

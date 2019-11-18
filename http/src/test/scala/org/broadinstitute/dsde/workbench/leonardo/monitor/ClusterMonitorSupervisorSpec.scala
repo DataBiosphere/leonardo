@@ -7,10 +7,10 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.{Blocker, IO}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
@@ -38,6 +38,8 @@ class ClusterMonitorSupervisorSpec
   implicit val timer = IO.timer(system.dispatcher)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   val blocker = Blocker.liftExecutionContext(system.dispatcher)
+
+  val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -70,6 +72,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
                                           clusterFilesConfig,
@@ -144,6 +147,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
                                           clusterFilesConfig,
@@ -212,6 +216,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
                                           clusterFilesConfig,
@@ -282,6 +287,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
                                           clusterFilesConfig,
