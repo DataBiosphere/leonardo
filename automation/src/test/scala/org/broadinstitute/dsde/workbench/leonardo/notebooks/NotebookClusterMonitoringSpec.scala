@@ -172,10 +172,10 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         withNewCluster(billingProject, request = request) { cluster =>
           // Verify a Hail job uses preemptibles
           withWebDriver { implicit driver =>
-            withNewNotebook(cluster, PySpark3) { notebookPage =>
-              verifyHailImport(notebookPage, destPath, cluster)
-              notebookPage.saveAndCheckpoint()
-            }
+//            withNewNotebook(cluster, PySpark3) { notebookPage =>
+//              verifyHailImport(notebookPage, destPath, cluster)
+//              notebookPage.saveAndCheckpoint()
+//            }
 
             // Stop the cluster
             stopAndMonitor(cluster.googleProject, cluster.clusterName)
