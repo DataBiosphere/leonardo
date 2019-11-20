@@ -686,7 +686,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               s"User ${userEmail.value} does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}"
             ) >> IO.raiseError(BucketObjectAccessException(userEmail, gcsPath))
           case e if when401(e) =>
-            log.warn(e)(s"Could not validate object [${gcsUri}] as user [${userEmail.value}]") >> IO.unit
+            log.warn(e)(s"Could not validate object [${gcsUri}] as user [${userEmail.value}]")
         }
     }
   }
