@@ -187,14 +187,14 @@ object Boot extends IOApp with LazyLogging {
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 
-      samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config)
+      samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
       dbRef <- Resource.make(ConcurrentEffect[F].delay(DbReference.init(liquibaseConfig)))(
         db => ConcurrentEffect[F].delay(db.database.close)
       )
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
-      authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider)
+      authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
       googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
