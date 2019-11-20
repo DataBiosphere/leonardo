@@ -46,16 +46,11 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
       new CacheLoader[NotebookAuthCacheKey, java.lang.Boolean] {
         override def load(key: NotebookAuthCacheKey): java.lang.Boolean = {
           implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-          blocker
-            .blockOn(
-              checkNotebookClusterPermissionWithProjectFallback(key.internalId,
-                                                                key.authorization,
-                                                                key.action,
-                                                                key.googleProject,
-                                                                key.clusterName)
-            )
-            .toIO
-            .unsafeRunSync()
+          checkNotebookClusterPermissionWithProjectFallback(key.internalId,
+                                                            key.authorization,
+                                                            key.action,
+                                                            key.googleProject,
+                                                            key.clusterName).toIO.unsafeRunSync()
         }
       }
     )
@@ -131,10 +126,12 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     // Consult the notebook auth cache if enabled
     if (config.notebookAuthCacheEnabled) {
       // tokenExpiresIn should not taken into account when comparing cache keys
-      Effect[F].delay(
-        notebookAuthCache
-          .get(NotebookAuthCacheKey(internalId, authorization, action, googleProject, clusterName))
-          .booleanValue()
+      blocker.blockOn(
+        Effect[F].delay(
+          notebookAuthCache
+            .get(NotebookAuthCacheKey(internalId, authorization, action, googleProject, clusterName))
+            .booleanValue()
+        )
       )
     } else {
       checkNotebookClusterPermissionWithProjectFallback(internalId, authorization, action, googleProject, clusterName)
