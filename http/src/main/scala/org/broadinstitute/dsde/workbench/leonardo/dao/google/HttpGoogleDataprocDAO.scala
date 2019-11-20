@@ -23,9 +23,10 @@ import com.google.api.services.dataproc.model.{
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
+import org.broadinstitute.dsde.workbench.leonardo.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, DataprocDisabledException}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
@@ -249,10 +250,10 @@ class HttpGoogleDataprocDAO(
         .setTags(List(networkTag.value).asJava)
 
       config.clusterVPCSettings match {
-        case Some(Right(subnet)) =>
-          baseConfig.setSubnetworkUri(subnet.value)
-        case Some(Left(network)) =>
-          baseConfig.setNetworkUri(network.value)
+        case Some(VPCSubnet(value)) =>
+          baseConfig.setSubnetworkUri(value)
+        case Some(VPCNetwork(value)) =>
+          baseConfig.setNetworkUri(value)
         case _ =>
           baseConfig
       }

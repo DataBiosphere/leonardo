@@ -7,8 +7,8 @@ import java.util.concurrent.TimeUnit
 
 import _root_.io.circe.{Decoder, Json, KeyDecoder}
 import ca.mrvisser.sealerate
-import cats.effect.Effect
 import cats.effect.implicits._
+import cats.effect.{Blocker, ContextShift, Effect}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
@@ -19,6 +19,7 @@ import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import io.chrisdavenport.log4cats.Logger
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
@@ -30,15 +31,16 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Charset, Credentials, EntityDecoder, Headers, Method, Request, Response, Status, Uri}
+import org.http4s._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 
-class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig)(implicit logger: Logger[F])
-    extends SamDAO[F]
+class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, blocker: Blocker)(
+  implicit logger: Logger[F],
+  cs: ContextShift[F]
+) extends SamDAO[F]
     with Http4sClientDsl[F] {
   private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
 
@@ -50,7 +52,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig)(
       new CacheLoader[UserEmailAndProject, Option[String]] {
         def load(userEmailAndProject: UserEmailAndProject): Option[String] = {
           implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-          getPetAccessToken(userEmailAndProject.userEmail, userEmailAndProject.googleProject).toIO.unsafeRunSync()
+          getPetAccessToken(userEmailAndProject.userEmail, userEmailAndProject.googleProject).toIO
+            .unsafeRunSync()
         }
       }
     )
@@ -205,7 +208,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[String]] =
     if (config.petCacheEnabled) {
-      Effect[F].delay(petTokenCache.get(UserEmailAndProject(userEmail, googleProject)))
+      blocker.blockOn(Effect[F].delay(petTokenCache.get(UserEmailAndProject(userEmail, googleProject))))
     } else {
       getPetAccessToken(userEmail, googleProject)
     }
@@ -255,8 +258,10 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig)(
 }
 
 object HttpSamDAO {
-  def apply[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig)(implicit logger: Logger[F]): HttpSamDAO[F] =
-    new HttpSamDAO[F](httpClient, config)
+  def apply[F[_]: Effect](httpClient: Client[F],
+                          config: HttpSamDaoConfig,
+                          blocker: Blocker)(implicit logger: Logger[F], contextShift: ContextShift[F]): HttpSamDAO[F] =
+    new HttpSamDAO[F](httpClient, config, blocker)
 
   implicit val accessPolicyNameDecoder: Decoder[AccessPolicyName] =
     Decoder.decodeString.map(s => AccessPolicyName.stringToAccessPolicyName.getOrElse(s, AccessPolicyName.Other(s)))

@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
@@ -27,6 +27,7 @@ import scala.util.control.NoStackTrace
 class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   implicit val timer = IO.timer(global)
   implicit val cs = IO.contextShift(global)
+  val blocker = Blocker.liftExecutionContext(global)
 
   val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"),
                                 false,
@@ -62,7 +63,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config)
+    val samDao = new HttpSamDAO(okSam, config, blocker)
     val expectedResponse = StatusCheckResponse(
       true,
       Map(
@@ -88,7 +89,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config)
+    val samDao = new HttpSamDAO(okSam, config, blocker)
     val expectedResponse = StatusCheckResponse(true, Map.empty)
 
     samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
@@ -114,7 +115,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config)
+    val samDao = new HttpSamDAO(okSam, config, blocker)
     val expectedResponse =
       StatusCheckResponse(false,
                           Map(GoogleIam -> SubsystemStatus(true, None),
@@ -132,7 +133,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       }
     )
     val clientWithRetry = Retry(retryPolicy)(errorSam)
-    val samDao = new HttpSamDAO(clientWithRetry, config)
+    val samDao = new HttpSamDAO(clientWithRetry, config, blocker)
 
     val res = for {
       result <- samDao.getStatus.attempt

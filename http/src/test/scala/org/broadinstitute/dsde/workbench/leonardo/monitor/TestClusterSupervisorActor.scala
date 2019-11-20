@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, T
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
@@ -35,7 +34,6 @@ object TestClusterSupervisorActor {
             jupyterProxyDAO: JupyterDAO,
             rstudioProxyDAO: RStudioDAO,
             welderDAO: WelderDAO[IO],
-            leonardoService: LeonardoService,
             clusterHelper: ClusterHelper): Props =
     Props(
       new TestClusterSupervisorActor(monitorConfig,
@@ -52,7 +50,6 @@ object TestClusterSupervisorActor {
                                      jupyterProxyDAO,
                                      rstudioProxyDAO,
                                      welderDAO,
-                                     leonardoService,
                                      clusterHelper)
     )
 }
@@ -76,7 +73,6 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  jupyterProxyDAO: JupyterDAO,
                                  rstudioProxyDAO: RStudioDAO,
                                  welderDAO: WelderDAO[IO],
-                                 leonardoService: LeonardoService,
                                  clusterHelper: ClusterHelper)
     extends ClusterMonitorSupervisor(
       monitorConfig,
@@ -92,7 +88,6 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       jupyterProxyDAO,
       rstudioProxyDAO,
       welderDAO,
-      leonardoService,
       clusterHelper
     )(FakeNewRelicMetricsInterpreter, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO)) {
 

@@ -16,11 +16,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
   val cluster = makeCluster(1).copy(
-    dataprocInfo = makeDataprocInfo(1).copy(googleId = Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     stopAfterCreation = true,
-    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime))
+    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
+    welderEnabled = true
   )
 
   "ClusterRequestFormat" should "successfully decode json" in isolatedDbTest {
@@ -120,10 +121,14 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |    { "tool": "Jupyter",
         |      "dockerImage": "jupyter/jupyter-base:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
+        |      },
+        |    { "tool": "Welder",
+        |      "dockerImage": "welder/welder:latest",
+        |      "timestamp": "2018-08-07T10:12:35Z"
         |      }
         |    ],
         |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"],
-        |  "welderEnabled": false
+        |  "welderEnabled": true
         |}
       """.stripMargin.parseJson
 
@@ -185,21 +190,15 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   it should "create a map of ClusterInitValues object" in isolatedDbTest {
     val clusterInit = ClusterInitValues(
-      project,
-      name1,
-      stagingBucketName,
+      cluster,
       initBucketPath,
-      testClusterRequestWithExtensionAndScript,
+      stagingBucketName,
+      Some(serviceAccountKey),
       dataprocConfig,
+      proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
-      proxyConfig,
-      Some(serviceAccountKey),
-      userInfo.userEmail,
-      contentSecurityPolicy,
-      Set(jupyterImage, welderImage),
-      stagingBucketName,
-      true
+      contentSecurityPolicy
     )
     val clusterInitMap = clusterInit.toMap
 
@@ -207,7 +206,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("clusterName") shouldBe name1.value
     clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
-    clusterInitMap("googleClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
+    clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
     clusterInitMap("welderEnabled") shouldBe "true"
 

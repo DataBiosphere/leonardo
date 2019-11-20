@@ -12,6 +12,7 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import akka.stream.scaladsl._
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
@@ -25,6 +26,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{
   ErrorReport,
   TraceId,
+  WorkbenchEmail,
   WorkbenchException,
   WorkbenchExceptionWithErrorReport
 }
@@ -33,6 +35,10 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 
 import scala.concurrent.{ExecutionContext, Future}
+
+case class AuthenticationError(email: Option[WorkbenchEmail] = None)
+    extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
+                         StatusCodes.Unauthorized)
 
 abstract class LeoRoutes(
   val leonardoService: LeonardoService,
@@ -71,7 +77,7 @@ abstract class LeoRoutes(
                   entity(as[ClusterRequest]) { cluster =>
                     complete {
                       leonardoService
-                        .processClusterCreationRequest(userInfo, GoogleProject(googleProject), clusterName, cluster)
+                        .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
                         .map { cluster =>
                           StatusCodes.Accepted -> cluster
                         }
@@ -117,27 +123,27 @@ abstract class LeoRoutes(
                     } ~
                     delete {
                       complete {
-                        leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
-                          StatusCodes.Accepted
-                        }
+                        leonardoService
+                          .deleteCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .as(StatusCodes.Accepted)
                       }
                     }
                 } ~
                   path("stop") {
                     post {
                       complete {
-                        leonardoService.stopCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
-                          StatusCodes.Accepted
-                        }
+                        leonardoService
+                          .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .as(StatusCodes.Accepted)
                       }
                     }
                   } ~
                   path("start") {
                     post {
                       complete {
-                        leonardoService.startCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
-                          StatusCodes.Accepted
-                        }
+                        leonardoService
+                          .startCluster(userInfo, GoogleProject(googleProject), clusterName)
+                          .as(StatusCodes.Accepted)
                       }
                     }
                   }
@@ -149,18 +155,22 @@ abstract class LeoRoutes(
               path(Segment) { googleProject =>
                 get {
                   complete {
-                    leonardoService.listClusters(userInfo, params, Some(GoogleProject(googleProject))).map { clusters =>
-                      StatusCodes.OK -> clusters
-                    }
+                    leonardoService
+                      .listClusters(userInfo, params, Some(GoogleProject(googleProject)))
+                      .map { clusters =>
+                        StatusCodes.OK -> clusters
+                      }
                   }
                 }
               } ~
                 pathEndOrSingleSlash {
                   get {
                     complete {
-                      leonardoService.listClusters(userInfo, params).map { clusters =>
-                        StatusCodes.OK -> clusters
-                      }
+                      leonardoService
+                        .listClusters(userInfo, params)
+                        .map { clusters =>
+                          StatusCodes.OK -> clusters
+                        }
                     }
                   }
                 }

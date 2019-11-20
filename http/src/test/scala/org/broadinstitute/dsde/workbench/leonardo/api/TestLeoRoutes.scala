@@ -4,7 +4,7 @@ import java.io.ByteArrayInputStream
 
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{
@@ -29,20 +29,18 @@ import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.duration._
 
-/**
- * Created by rtitle on 8/15/17.
- */
 trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with CommonTestData =>
 
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
   implicit private val nr = FakeNewRelicMetricsInterpreter
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  val blocker = Blocker.liftExecutionContext(executor)
 
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
   // to pull the custom dataproc image
   val mockGoogleDirectoryDAO = {
-    implicit val mockGoogleDirectoryDAOPatience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
+    val mockGoogleDirectoryDAOPatience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
     val dao = new MockGoogleDirectoryDAO()
     dao
       .createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(dao.lockedDownGroupSettings))
@@ -68,37 +66,35 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
   }
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
-  val bucketHelper = new BucketHelper(dataprocConfig,
-                                      mockGoogleDataprocDAO,
-                                      mockGoogleComputeDAO,
-                                      mockGoogleStorageDAO,
-                                      serviceAccountProvider)
-  val clusterHelper = new ClusterHelper(DbSingleton.ref,
-                                        dataprocConfig,
-                                        googleGroupsConfig,
-                                        mockGoogleDataprocDAO,
-                                        mockGoogleComputeDAO,
-                                        mockGoogleDirectoryDAO,
-                                        mockGoogleIamDAO)
+  val bucketHelper =
+    new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, mockGoogle2StorageDAO, serviceAccountProvider)
+  val clusterHelper =
+    new ClusterHelper(DbSingleton.ref,
+                      dataprocConfig,
+                      googleGroupsConfig,
+                      proxyConfig,
+                      clusterResourcesConfig,
+                      clusterFilesConfig,
+                      bucketHelper,
+                      mockGoogleDataprocDAO,
+                      mockGoogleComputeDAO,
+                      mockGoogleDirectoryDAO,
+                      mockGoogleIamDAO,
+                      mockGoogleProjectDAO,
+                      contentSecurityPolicy,
+                      blocker)
   val leonardoService = new LeonardoService(dataprocConfig,
                                             MockWelderDAO,
-                                            clusterFilesConfig,
-                                            clusterResourcesConfig,
                                             clusterDefaultsConfig,
                                             proxyConfig,
                                             swaggerConfig,
                                             autoFreezeConfig,
-                                            mockGoogleDataprocDAO,
-                                            mockGoogleComputeDAO,
-                                            mockGoogleProjectDAO,
-                                            mockGoogleStorageDAO,
                                             mockPetGoogleStorageDAO,
                                             DbSingleton.ref,
                                             whitelistAuthProvider,
                                             serviceAccountProvider,
                                             bucketHelper,
-                                            clusterHelper,
-                                            contentSecurityPolicy)
+                                            clusterHelper)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
   val proxyService =
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider, clusterDnsCache)

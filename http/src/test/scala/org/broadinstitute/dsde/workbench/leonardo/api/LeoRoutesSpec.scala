@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import java.time.Instant
+
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, OAuth2BearerToken}
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
@@ -47,32 +49,27 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
                                     Map.empty,
                                     None,
                                     Some(UserJupyterExtensionConfig(Map("abc" -> "def"))))
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
 
-    forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
-      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
-        status shouldEqual statusCode
-
-        validateCookie { header[`Set-Cookie`] }
-      }
+      validateCookie { header[`Set-Cookie`] }
     }
 
     // GET endpoint has a single version
-    Seq(s"${clusterName.value}", s"${clusterName.value}-v2") foreach { cn =>
-      Get(s"/api/cluster/${googleProject.value}/$cn") ~> timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.OK
+    Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
 
-        val responseCluster = responseAs[Cluster]
-        responseCluster.clusterName.value shouldEqual cn
-        responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider
-          .getClusterServiceAccount(defaultUserInfo, googleProject)
-          .unsafeRunSync()
-        responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider
-          .getNotebookServiceAccount(defaultUserInfo, googleProject)
-          .unsafeRunSync()
-        responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
+      val responseCluster = responseAs[Cluster]
+      responseCluster.clusterName.value shouldEqual clusterName.value
+      responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider
+        .getClusterServiceAccount(defaultUserInfo, googleProject)
+        .unsafeRunSync()
+      responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider
+        .getNotebookServiceAccount(defaultUserInfo, googleProject)
+        .unsafeRunSync()
+      responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
 
-        validateCookie { header[`Set-Cookie`] }
-      }
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -85,24 +82,22 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   it should "202 when deleting a cluster" in isolatedDbTest {
     val newCluster = defaultClusterRequest
 
-    forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
-      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
-        status shouldEqual statusCode
-      }
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
 
-      // simulate the cluster transitioning to Running
-      dbFutureValue { dataAccess =>
-        dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clstrName)).flatMap {
-          case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
-          case None          => DBIO.successful(0)
-        }
+    // simulate the cluster transitioning to Running
+    dbFutureValue { dataAccess =>
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+        case None          => DBIO.successful(0)
       }
+    }
 
-      Delete(s"/api/cluster/${googleProject.value}/$clstrName") ~> timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.Accepted
+    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
 
-        validateCookie { header[`Set-Cookie`] }
-      }
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -123,7 +118,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     // simulate the cluster transitioning to Running
     dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -194,13 +189,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     val newCluster = defaultClusterRequest
     def clusterWithLabels(i: Int) = newCluster.copy(labels = Map(s"label$i" -> s"value$i"))
 
-    for (i <- 1 to 5) {
-      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", clusterWithLabels(i).toJson) ~> leoRoutes.route ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-    }
-
-    for (i <- 6 to 10) {
+    for (i <- 1 to 10) {
       Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", clusterWithLabels(i).toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
@@ -259,20 +248,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       responseClusters shouldBe List.empty[Cluster]
     }
 
-    Get(s"/api/clusters/${googleProject2.value}") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      val responseClusters = responseAs[List[Cluster]]
-      responseClusters shouldBe List.empty[Cluster]
-    }
-
-    for (i <- 1 to 5) {
-      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-    }
-
-    for (i <- 6 to 10) {
-      Put(s"/api/cluster/v2/${googleProject2.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+    for (i <- 1 to 10) {
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
     }
@@ -281,7 +258,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[Cluster]]
-      responseClusters should have size 5
+      responseClusters should have size 10
       responseClusters foreach { cluster =>
         cluster.googleProject shouldEqual googleProject
         cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
@@ -293,61 +270,42 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
       validateCookie { header[`Set-Cookie`] }
     }
-
-    Get(s"/api/clusters/${googleProject2.value}") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-
-      val responseClusters = responseAs[List[Cluster]]
-      responseClusters should have size 5
-      responseClusters foreach { cluster =>
-        cluster.googleProject shouldEqual googleProject2
-        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject2)
-        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject2)
-        cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
-                                       "creator" -> "user1@example.com",
-                                       "googleProject" -> googleProject2.value) ++ serviceAccountLabels
-      }
-
-      validateCookie { header[`Set-Cookie`] }
-    }
   }
 
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = defaultClusterRequest
 
-    forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
-      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
-        status shouldEqual statusCode
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
 
-        validateCookie { header[`Set-Cookie`] }
+      validateCookie { header[`Set-Cookie`] }
+    }
+
+    // stopping a creating cluster should return 409
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Conflict
+    }
+
+    // simulate the cluster transitioning to Running
+    dbFutureValue { dataAccess =>
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+        case None          => DBIO.successful(0)
       }
+    }
 
-      // stopping a creating cluster should return 409
-      Post(s"/api/cluster/${googleProject.value}/$clstrName/stop") ~> timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.Conflict
-      }
+    // stop should now return 202
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
 
-      // simulate the cluster transitioning to Running
-      dbFutureValue { dataAccess =>
-        dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clstrName)).flatMap {
-          case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
-          case None          => DBIO.successful(0)
-        }
-      }
+      validateCookie { header[`Set-Cookie`] }
+    }
 
-      // stop should now return 202
-      Post(s"/api/cluster/${googleProject.value}/$clstrName/stop") ~> timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.Accepted
+    // starting a stopping cluster should also return 202
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
 
-        validateCookie { header[`Set-Cookie`] }
-      }
-
-      // starting a stopping cluster should also return 202
-      Post(s"/api/cluster/${googleProject.value}/$clstrName/start") ~> timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.Accepted
-
-        validateCookie { header[`Set-Cookie`] }
-      }
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -364,13 +322,10 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
                                    Some(jupyterUserScriptUri),
                                    stopAfterCreation = Some(stopAfterCreation),
                                    properties = Map.empty)
-
-      forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
-        Put(s"/api/cluster$version/${googleProject.value}/$clstrName", request.toJson) ~> timedLeoRoutes.route ~> check {
-          status shouldEqual statusCode
-          validateCookie {
-            header[`Set-Cookie`]
-          }
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", request.toJson) ~> timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+        validateCookie {
+          header[`Set-Cookie`]
         }
       }
     }
@@ -383,13 +338,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
                                  Some(jupyterUserScriptUri),
                                  stopAfterCreation = None,
                                  properties = Map.empty)
-
-    val pathPrefixes = List("/api/cluster/", "/api/cluster/v2/")
-    pathPrefixes.map { prefix =>
-      Put(s"$prefix${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
-        responseAs[String] shouldBe (s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
-        status shouldEqual StatusCodes.BadRequest
-      }
+    Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
+      responseAs[String] shouldBe (s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
+      status shouldEqual StatusCodes.BadRequest
     }
   }
 
@@ -403,15 +354,4 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
         Map("notebookServiceAccount" -> sa.value)
       } getOrElse Map.empty
     )
-
-  private def forallClusterCreationVersions(
-    baseClusterName: ClusterName
-  )(testCode: (String, String, StatusCode) => Any) = {
-    val v1Params = ("", baseClusterName.value, StatusCodes.OK)
-    val v2Params = ("/v2", s"${baseClusterName.value}-v2", StatusCodes.Accepted)
-
-    Seq(v1Params, v2Params) foreach {
-      case (version, clstrName, statusCode) => testCode(version, clstrName, statusCode)
-    }
-  }
 }

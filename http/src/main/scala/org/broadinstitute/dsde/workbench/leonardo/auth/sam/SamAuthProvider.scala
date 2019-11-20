@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.effect.implicits._
-import cats.effect.{Effect, Sync}
+import cats.effect.{Blocker, ContextShift, Effect, Sync}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
@@ -30,7 +30,8 @@ case class UnknownLeoAuthAction(msg: String) extends LeoException(msg, StatusCod
 
 class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                             config: SamAuthProviderConfig,
-                                            saProvider: ServiceAccountProvider[F])
+                                            saProvider: ServiceAccountProvider[F],
+                                            blocker: Blocker)(implicit cs: ContextShift[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
@@ -125,10 +126,12 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     // Consult the notebook auth cache if enabled
     if (config.notebookAuthCacheEnabled) {
       // tokenExpiresIn should not taken into account when comparing cache keys
-      Effect[F].delay(
-        notebookAuthCache
-          .get(NotebookAuthCacheKey(internalId, authorization, action, googleProject, clusterName))
-          .booleanValue()
+      blocker.blockOn(
+        Effect[F].delay(
+          notebookAuthCache
+            .get(NotebookAuthCacheKey(internalId, authorization, action, googleProject, clusterName))
+            .booleanValue()
+        )
       )
     } else {
       checkNotebookClusterPermissionWithProjectFallback(internalId, authorization, action, googleProject, clusterName)

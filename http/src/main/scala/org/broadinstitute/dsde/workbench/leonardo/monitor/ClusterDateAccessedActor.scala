@@ -53,7 +53,7 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
     logger.info(s"Update dateAccessed for $clusterName in project $googleProject to $dateAccessed")
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery
-        .clearKernelFoundBusyDateByProjectAndName(googleProject, clusterName)
+        .clearKernelFoundBusyDateByProjectAndName(googleProject, clusterName, dateAccessed)
         .flatMap(
           _ => dataAccess.clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
         )

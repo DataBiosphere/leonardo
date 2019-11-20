@@ -4,7 +4,7 @@ package auth.sam
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -35,6 +35,8 @@ class SamAuthProviderSpec
     super.afterAll()
   }
 
+  implicit val cs = IO.contextShift(system.dispatcher)
+  val blocker = Blocker.liftExecutionContext(system.dispatcher)
   val gdDAO = new MockGoogleDataprocDAO
   val iamDAO = new MockGoogleIamDAO
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig = SamAuthProviderConfig(
@@ -45,7 +47,7 @@ class SamAuthProviderSpec
 
   val fakeUserInfo = UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
   val mockSam = new MockSamDAO
-  val samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider)
+  val samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, blocker)
   val fakeUserAuthorization = MockSamDAO.userEmailToAuthorization(fakeUserInfo.userEmail)
 
   val samAuthProviderConfigWithCache: SamAuthProviderConfig = SamAuthProviderConfig(
@@ -53,7 +55,8 @@ class SamAuthProviderSpec
     10,
     1.minutes
   )
-  val samAuthProviderWithCache = new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider)
+  val samAuthProviderWithCache =
+    new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, blocker)
 
   "should add and delete a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in {
     mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("launch_notebook_cluster")

@@ -7,8 +7,9 @@ import java.util.UUID
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import cats.mtl.ApplicativeAsk
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
@@ -23,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
@@ -62,7 +62,7 @@ class ClusterMonitorSpec
 
   val creatingCluster = makeCluster(1).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Creating,
     userJupyterExtensionConfig = Some(userExtConfig),
     stopAfterCreation = false
@@ -76,7 +76,7 @@ class ClusterMonitorSpec
 
   val stoppingCluster = makeCluster(3).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Stopping
   )
 
@@ -94,7 +94,7 @@ class ClusterMonitorSpec
 
   val stoppedCluster = makeCluster(6).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Stopped,
     clusterImages = Set(ClusterImage(ClusterTool.RStudio, "rstudio_image", Instant.now()))
   )
@@ -109,6 +109,8 @@ class ClusterMonitorSpec
 
   implicit val cs = IO.contextShift(system.dispatcher)
   implicit val timer = IO.timer(system.dispatcher)
+  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  val blocker = Blocker.liftExecutionContext(system.dispatcher)
 
   def stubComputeDAO(status: InstanceStatus): GoogleComputeDAO = {
     val dao = mock[GoogleComputeDAO]
@@ -153,29 +155,22 @@ class ClusterMonitorSpec
                               jupyterDAO: JupyterDAO,
                               rstudioDAO: RStudioDAO,
                               welderDAO: WelderDAO[IO]): ActorRef = {
-    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    val clusterHelper =
-      new ClusterHelper(DbSingleton.ref, dataprocConfig, googleGroupsConfig, gdDAO, computeDAO, directoryDAO, iamDAO)
+    val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                          dataprocConfig,
+                                          googleGroupsConfig,
+                                          proxyConfig,
+                                          clusterResourcesConfig,
+                                          clusterFilesConfig,
+                                          bucketHelper,
+                                          gdDAO,
+                                          computeDAO,
+                                          directoryDAO,
+                                          iamDAO,
+                                          projectDAO,
+                                          contentSecurityPolicy,
+                                          blocker)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
-    val leoService = new LeonardoService(dataprocConfig,
-                                         MockWelderDAO,
-                                         clusterFilesConfig,
-                                         clusterResourcesConfig,
-                                         clusterDefaultsConfig,
-                                         proxyConfig,
-                                         swaggerConfig,
-                                         autoFreezeConfig,
-                                         gdDAO,
-                                         computeDAO,
-                                         projectDAO,
-                                         storageDAO,
-                                         mockPetGoogleStorageDAO,
-                                         DbSingleton.ref,
-                                         whitelistAuthProvider,
-                                         serviceAccountProvider,
-                                         bucketHelper,
-                                         clusterHelper,
-                                         contentSecurityPolicy)
     val supervisorActor = system.actorOf(
       TestClusterSupervisorActor.props(
         monitorConfig,
@@ -192,7 +187,6 @@ class ClusterMonitorSpec
         jupyterDAO,
         rstudioDAO,
         welderDAO,
-        leoService,
         clusterHelper
       )
     )
@@ -220,7 +214,6 @@ class ClusterMonitorSpec
                    dataprocImageProjectGroupEmail,
                    Option(directoryDAO.lockedDownGroupSettings))
       .futureValue
-
     val supervisor = createClusterSupervisor(gdDAO,
                                              computeDAO,
                                              directoryDAO,
@@ -316,7 +309,7 @@ class ClusterMonitorSpec
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe Some(IP("1.2.3.4"))
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe Some(IP("1.2.3.4"))
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
@@ -344,7 +337,7 @@ class ClusterMonitorSpec
     } thenReturn Future.successful(clusterInstances)
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.map(_.operationName)))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some("Test message"))))
 
     when {
@@ -530,7 +523,7 @@ class ClusterMonitorSpec
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.map(_.operationName)))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
 
     when {
@@ -575,7 +568,7 @@ class ClusterMonitorSpec
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe None
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
 
@@ -603,7 +596,7 @@ class ClusterMonitorSpec
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.map(_.operationName)))
     } thenReturn Future.successful(None)
 
     when {
@@ -648,7 +641,7 @@ class ClusterMonitorSpec
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe None
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
@@ -727,7 +720,7 @@ class ClusterMonitorSpec
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe None
         updatedCluster.map(_.instances) shouldBe Some(Set.empty)
       }
       verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
@@ -784,7 +777,7 @@ class ClusterMonitorSpec
     }
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.map(_.operationName)))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.UNKNOWN.value, Some("Test message"))))
 
     when {
@@ -797,7 +790,7 @@ class ClusterMonitorSpec
                           mockitoEq(creatingCluster.clusterName),
                           any[CreateClusterConfig])
     } thenReturn Future.successful {
-      Operation(creatingCluster.dataprocInfo.operationName.get, newClusterId)
+      Operation(creatingCluster.dataprocInfo.map(_.operationName).get, newClusterId)
     }
 
     when {
@@ -901,27 +894,17 @@ class ClusterMonitorSpec
                           MockWelderDAO,
                           false) { actor =>
       eventually {
-        val oldCluster = dbFutureValue {
-          _.clusterQuery.getClusterById(savedCreatingCluster.id)
-        }
-
-        oldCluster shouldBe 'defined
-        oldCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
-        oldCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
-        oldCluster.map(_.instances) shouldBe Some(Set.empty)
-        oldCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
-
         val newCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          _.clusterQuery.getClusterById(savedCreatingCluster.id)
         }
         val newClusterBucket = dbFutureValue {
           _.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         newCluster shouldBe 'defined
         newClusterBucket shouldBe 'defined
-        newCluster.flatMap(_.dataprocInfo.googleId) shouldBe Some(newClusterId)
+        newCluster.flatMap(_.dataprocInfo.map(_.googleId)) shouldBe Some(newClusterId)
         newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
-        newCluster.flatMap(_.dataprocInfo.hostIp) shouldBe Some(IP("1.2.3.4"))
+        newCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe Some(IP("1.2.3.4"))
         newCluster.map(_.instances.count(_.status == InstanceStatus.Running)) shouldBe Some(3)
         newCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
 
@@ -1016,7 +999,7 @@ class ClusterMonitorSpec
     val creatingCluster2 = creatingCluster.copy(
       clusterName = ClusterName(creatingCluster.clusterName.value + "_2"),
       dataprocInfo =
-        creatingCluster.dataprocInfo.copy(googleId = Option(UUID.randomUUID()), hostIp = Option(IP("5.6.7.8")))
+        creatingCluster.dataprocInfo.map(_.copy(googleId = UUID.randomUUID(), hostIp = Some(IP("5.6.7.8"))))
     )
     val savedCreatingCluster2 = creatingCluster2.save()
     creatingCluster2 shouldEqual savedCreatingCluster2
@@ -1091,7 +1074,7 @@ class ClusterMonitorSpec
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe Some(IP("1.2.3.4"))
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe Some(IP("1.2.3.4"))
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
@@ -1105,7 +1088,7 @@ class ClusterMonitorSpec
         }
         updatedCluster2 shouldBe 'defined
         updatedCluster2.map(_.status) shouldBe Some(ClusterStatus.Running)
-        updatedCluster2.flatMap(_.dataprocInfo.hostIp) shouldBe Some(IP("1.2.3.4")) // same ip because we're using the same set of instances
+        updatedCluster2.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe Some(IP("1.2.3.4")) // same ip because we're using the same set of instances
         updatedCluster2.map(_.instances) shouldBe Some(
           Set(masterInstance, workerInstance1, workerInstance2).map(modifyInstance)
         )
@@ -1160,7 +1143,7 @@ class ClusterMonitorSpec
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe None
         updatedCluster.map(_.instances) shouldBe Some(
           Set(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))
         )
@@ -1250,7 +1233,7 @@ class ClusterMonitorSpec
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe Some(IP("1.2.3.4"))
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe Some(IP("1.2.3.4"))
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
@@ -1344,7 +1327,7 @@ class ClusterMonitorSpec
         updatedCluster shouldBe 'defined
 
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
-        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe None
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance.copy(status = InstanceStatus.Stopped)))
       }
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])

@@ -9,23 +9,11 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  AutoFreezeConfig,
-  ClusterBucketConfig,
-  ClusterDefaultsConfig,
-  ClusterDnsCacheConfig,
-  ClusterFilesConfig,
-  ClusterResourcesConfig,
-  ClusterToolConfig,
-  DataprocConfig,
-  GoogleGroupsConfig,
-  MonitorConfig,
-  ProxyConfig,
-  SwaggerConfig,
-  ZombieClusterConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config._
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
@@ -40,7 +28,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
-import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 
 // values common to multiple tests, to reduce boilerplate
 
@@ -127,6 +114,7 @@ trait CommonTestData { this: ScalaFutures =>
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val mockGoogleComputeDAO = new MockGoogleComputeDAO
+  val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
   val defaultUserInfo =
     UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
@@ -146,9 +134,9 @@ trait CommonTestData { this: ScalaFutures =>
 
   def makeDataprocInfo(index: Int): DataprocInfo =
     DataprocInfo(
-      Option(UUID.randomUUID()),
-      Option(OperationName("operationName" + index.toString)),
-      Option(GcsBucketName("stagingbucketname" + index.toString)),
+      UUID.randomUUID(),
+      OperationName("operationName" + index.toString),
+      GcsBucketName("stagingbucketname" + index.toString),
       Some(IP("numbers.and.dots"))
     )
 
@@ -159,11 +147,11 @@ trait CommonTestData { this: ScalaFutures =>
       internalId = internalId,
       googleProject = project,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = makeDataprocInfo(index),
+      dataprocInfo = Some(makeDataprocInfo(index)),
       auditInfo = auditInfo,
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       properties = Map.empty,
-      clusterUrl = Cluster.getClusterUrl(project, clusterName, clusterUrlBase),
+      clusterUrl = Cluster.getClusterUrl(project, clusterName),
       status = ClusterStatus.Unknown,
       labels = Map(),
       jupyterExtensionUri = None,
@@ -176,7 +164,8 @@ trait CommonTestData { this: ScalaFutures =>
       stopAfterCreation = false,
       clusterImages = Set(jupyterImage),
       scopes = defaultScopes,
-      welderEnabled = false
+      welderEnabled = false,
+      customClusterEnvironmentVariables = Map.empty
     )
   }
 
@@ -185,14 +174,11 @@ trait CommonTestData { this: ScalaFutures =>
     internalId = internalId,
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()),
-                                Option(OperationName("op")),
-                                Some(GcsBucketName("testStagingBucket1")),
-                                None),
+    dataprocInfo = Some(DataprocInfo(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     properties = Map.empty,
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    clusterUrl = Cluster.getClusterUrl(project, name1),
     status = ClusterStatus.Unknown,
     labels = Map(),
     jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
@@ -205,7 +191,8 @@ trait CommonTestData { this: ScalaFutures =>
     stopAfterCreation = false,
     clusterImages = Set(jupyterImage, rstudioImage),
     scopes = defaultScopes,
-    welderEnabled = false
+    welderEnabled = false,
+    customClusterEnvironmentVariables = Map.empty
   )
 
   // TODO look into parameterized tests so both provider impls can be tested

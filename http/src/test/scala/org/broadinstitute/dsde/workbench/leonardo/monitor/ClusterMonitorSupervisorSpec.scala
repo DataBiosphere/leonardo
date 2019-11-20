@@ -5,21 +5,15 @@ import java.time.temporal.ChronoUnit
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  JupyterDAO,
-  MockJupyterDAO,
-  MockRStudioDAO,
-  MockWelderDAO,
-  ToolDAO
-}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -42,6 +36,8 @@ class ClusterMonitorSupervisorSpec
 
   implicit val cs = IO.contextShift(system.dispatcher)
   implicit val timer = IO.timer(system.dispatcher)
+  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  val blocker = Blocker.liftExecutionContext(system.dispatcher)
 
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
 
@@ -72,36 +68,22 @@ class ClusterMonitorSupervisorSpec
       new MockGoogleStorageDAO
     }
 
-    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
+    val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper =
-      new ClusterHelper(DbSingleton.ref,
-                        dataprocConfig,
-                        googleGroupsConfig,
-                        gdDAO,
-                        computeDAO,
-                        mockGoogleDirectoryDAO,
-                        iamDAO)
-
-    val leoService = new LeonardoService(dataprocConfig,
-                                         MockWelderDAO,
-                                         clusterFilesConfig,
-                                         clusterResourcesConfig,
-                                         clusterDefaultsConfig,
-                                         proxyConfig,
-                                         swaggerConfig,
-                                         autoFreezeConfig,
-                                         gdDAO,
-                                         computeDAO,
-                                         projectDAO,
-                                         storageDAO,
-                                         mockPetGoogleStorageDAO,
-                                         DbSingleton.ref,
-                                         whitelistAuthProvider,
-                                         serviceAccountProvider,
-                                         bucketHelper,
-                                         clusterHelper,
-                                         contentSecurityPolicy)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                          dataprocConfig,
+                                          googleGroupsConfig,
+                                          proxyConfig,
+                                          clusterResourcesConfig,
+                                          clusterFilesConfig,
+                                          bucketHelper,
+                                          gdDAO,
+                                          computeDAO,
+                                          mockGoogleDirectoryDAO,
+                                          iamDAO,
+                                          projectDAO,
+                                          contentSecurityPolicy,
+                                          blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(MockJupyterDAO, MockWelderDAO, MockRStudioDAO)
     system.actorOf(
@@ -119,7 +101,6 @@ class ClusterMonitorSupervisorSpec
         MockJupyterDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        leoService,
         clusterHelper
       )
     )
@@ -162,36 +143,23 @@ class ClusterMonitorSupervisorSpec
       new MockGoogleStorageDAO
     }
 
-    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
+    val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper =
-      new ClusterHelper(DbSingleton.ref,
-                        dataprocConfig,
-                        googleGroupsConfig,
-                        gdDAO,
-                        computeDAO,
-                        mockGoogleDirectoryDAO,
-                        iamDAO)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                          dataprocConfig,
+                                          googleGroupsConfig,
+                                          proxyConfig,
+                                          clusterResourcesConfig,
+                                          clusterFilesConfig,
+                                          bucketHelper,
+                                          gdDAO,
+                                          computeDAO,
+                                          mockGoogleDirectoryDAO,
+                                          iamDAO,
+                                          projectDAO,
+                                          contentSecurityPolicy,
+                                          blocker)
 
-    val leoService = new LeonardoService(dataprocConfig,
-                                         MockWelderDAO,
-                                         clusterFilesConfig,
-                                         clusterResourcesConfig,
-                                         clusterDefaultsConfig,
-                                         proxyConfig,
-                                         swaggerConfig,
-                                         autoFreezeConfig,
-                                         gdDAO,
-                                         computeDAO,
-                                         projectDAO,
-                                         storageDAO,
-                                         mockPetGoogleStorageDAO,
-                                         DbSingleton.ref,
-                                         whitelistAuthProvider,
-                                         serviceAccountProvider,
-                                         bucketHelper,
-                                         clusterHelper,
-                                         contentSecurityPolicy)
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
     val clusterSupervisorActor = system.actorOf(
       ClusterMonitorSupervisor.props(
@@ -208,7 +176,6 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        leoService,
         clusterHelper
       )
     )
@@ -245,36 +212,22 @@ class ClusterMonitorSupervisorSpec
       new MockGoogleStorageDAO
     }
 
-    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
+    val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper =
-      new ClusterHelper(DbSingleton.ref,
-                        dataprocConfig,
-                        googleGroupsConfig,
-                        gdDAO,
-                        computeDAO,
-                        mockGoogleDirectoryDAO,
-                        iamDAO)
-
-    val leoService = new LeonardoService(dataprocConfig,
-                                         MockWelderDAO,
-                                         clusterFilesConfig,
-                                         clusterResourcesConfig,
-                                         clusterDefaultsConfig,
-                                         proxyConfig,
-                                         swaggerConfig,
-                                         autoFreezeConfig,
-                                         gdDAO,
-                                         computeDAO,
-                                         projectDAO,
-                                         storageDAO,
-                                         mockPetGoogleStorageDAO,
-                                         DbSingleton.ref,
-                                         whitelistAuthProvider,
-                                         serviceAccountProvider,
-                                         bucketHelper,
-                                         clusterHelper,
-                                         contentSecurityPolicy)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                          dataprocConfig,
+                                          googleGroupsConfig,
+                                          proxyConfig,
+                                          clusterResourcesConfig,
+                                          clusterFilesConfig,
+                                          bucketHelper,
+                                          gdDAO,
+                                          computeDAO,
+                                          mockGoogleDirectoryDAO,
+                                          iamDAO,
+                                          projectDAO,
+                                          contentSecurityPolicy,
+                                          blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
     val clusterSupervisorActor = system.actorOf(
@@ -292,7 +245,6 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        leoService,
         clusterHelper
       )
     )
@@ -331,36 +283,22 @@ class ClusterMonitorSupervisorSpec
       new MockGoogleStorageDAO
     }
 
-    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
+    val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper =
-      new ClusterHelper(DbSingleton.ref,
-                        dataprocConfig,
-                        googleGroupsConfig,
-                        gdDAO,
-                        computeDAO,
-                        mockGoogleDirectoryDAO,
-                        iamDAO)
-
-    val leoService = new LeonardoService(dataprocConfig,
-                                         MockWelderDAO,
-                                         clusterFilesConfig,
-                                         clusterResourcesConfig,
-                                         clusterDefaultsConfig,
-                                         proxyConfig,
-                                         swaggerConfig,
-                                         autoFreezeConfig,
-                                         gdDAO,
-                                         computeDAO,
-                                         projectDAO,
-                                         storageDAO,
-                                         mockPetGoogleStorageDAO,
-                                         DbSingleton.ref,
-                                         whitelistAuthProvider,
-                                         serviceAccountProvider,
-                                         bucketHelper,
-                                         clusterHelper,
-                                         contentSecurityPolicy)
+    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+                                          dataprocConfig,
+                                          googleGroupsConfig,
+                                          proxyConfig,
+                                          clusterResourcesConfig,
+                                          clusterFilesConfig,
+                                          bucketHelper,
+                                          gdDAO,
+                                          computeDAO,
+                                          mockGoogleDirectoryDAO,
+                                          iamDAO,
+                                          projectDAO,
+                                          contentSecurityPolicy,
+                                          blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
 
@@ -379,7 +317,6 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        leoService,
         clusterHelper
       )
     )
