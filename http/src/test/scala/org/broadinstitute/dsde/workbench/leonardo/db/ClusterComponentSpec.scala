@@ -354,14 +354,12 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val savedCluster1 = makeCluster(1).save()
     val savedCluster2 = makeCluster(2).copy(dataprocInfo = None).save()
 
-    // listMonitored should only return clusters that have google info defined
     dbFutureValue { _.clusterQuery.listMonitoredClusterOnly() }.toSet shouldBe Set(savedCluster1, savedCluster2)
       .map(stripFieldsForListCluster)
       .map(_.copy(labels = Map.empty))
     dbFutureValue { _.clusterQuery.listMonitored() }.toSet shouldBe Set(savedCluster1, savedCluster2).map(
       stripFieldsForListCluster
     )
-    dbFutureValue { _.clusterQuery.listMonitoredFullCluster() }.toSet shouldBe Set(savedCluster1, savedCluster2)
   }
 
   it should "persist custom environment variables" in isolatedDbTest {
