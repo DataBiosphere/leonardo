@@ -7,7 +7,7 @@ import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
-import org.broadinstitute.dsde.workbench.leonardo.dao.ImageIdentifier.{Sha, Tag}
+import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerRegistry.{DockerHub, GCR}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterTool, ContainerImage, ContainerRegistry, LeoException}
@@ -19,16 +19,29 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.client.middleware.FollowRedirect
 import org.http4s.headers.Authorization
 
+/**
+ * Talks to Docker remote APIs to retrieve manifest information in order to try and figure out
+ * what tool it's running.
+ *
+ * Currently supports:
+ * - Jupyter or RStudio images
+ * - Dockerhub or GCR repos
+ * - Tagged or untagged images
+ * Does not support:
+ * - Private images
+ * - SHA specifiers (e.g. myrepo/myimage@sha256:...)
+ *
+ * Note: this class uses the `Concurrent` typeclass to support following redirects.
+ */
 class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit logger: Logger[F])
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
 
-  // TODO test with private GCR image
   override def detectTool(image: ContainerImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[ClusterTool]] =
     for {
       parsed <- parseImage(image)
       tokenOpt <- getToken(parsed)
-      digest <- parsed.imageIdentifier match {
+      digest <- parsed.imageVersion match {
         case Tag(_)      => getManifestConfig(parsed, tokenOpt).map(_.digest)
         case Sha(digest) => Concurrent[F].pure(digest)
       }
@@ -94,25 +107,31 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
     Headers.of(acceptHeader) ++
       tokenOpt.fold(Headers.empty)(t => Headers.of(Authorization(Credentials.Token(AuthScheme.Bearer, t.token))))
 
-  private[dao] def parseImage(image: ContainerImage): F[ParsedImage] =
+  private[dao] def parseImage(image: ContainerImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[ParsedImage] =
     image.imageUrl match {
       case GCR.regex(registry, imageName, tagOpt, shaOpt) =>
-        val identifier = Option(tagOpt)
+        val version = Option(tagOpt)
           .map(Tag)
           .orElse(Option(shaOpt).map(Sha))
-        identifier.fold(Concurrent[F].raiseError[ParsedImage](ImageParseException(image)))(
-          i => Concurrent[F].pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
-        )
+        for {
+          traceId <- ev.ask
+          res <- version.fold(Concurrent[F].raiseError[ParsedImage](ImageParseException(traceId, image)))(
+            i => Concurrent[F].pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
+          )
+        } yield res
       case DockerHub.regex(imageName, tagOpt, shaOpt) =>
         val identifier = Option(tagOpt)
           .map(Tag)
           .orElse(Option(shaOpt).map(Sha))
           .getOrElse(Tag("latest"))
-
         Concurrent[F].pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
-      case _ => Concurrent[F].raiseError(ImageParseException(image))
+      case _ =>
+        for {
+          traceId <- ev.ask
+          _ <- logger.error(s"${traceId} | Unable to parse ${image.registry.toString} image ${image.imageUrl}")
+          res <- Concurrent[F].raiseError[ParsedImage](ImageParseException(traceId, image))
+        } yield res
     }
-
 }
 
 object HttpDockerDAO {
@@ -148,23 +167,23 @@ object HttpDockerDAO {
 }
 
 // Image parsing models
-sealed trait ImageIdentifier extends Product with Serializable {
+sealed trait ImageVersion extends Product with Serializable {
   def toString: String
 }
-object ImageIdentifier {
-  final case class Tag(tag: String) extends ImageIdentifier {
+object ImageVersion {
+  final case class Tag(tag: String) extends ImageVersion {
     override def toString = tag
   }
-  final case class Sha(sha: String) extends ImageIdentifier {
+  final case class Sha(sha: String) extends ImageVersion {
     override def toString = sha
   }
 }
 final case class ParsedImage(registry: ContainerRegistry,
                              registryUri: Uri,
                              imageName: String,
-                             imageIdentifier: ImageIdentifier) {
+                             imageVersion: ImageVersion) {
   def manifestUri: Uri =
-    registryUri.withPath(s"/v2/${imageName}/manifests/${imageIdentifier.toString}")
+    registryUri.withPath(s"/v2/${imageName}/manifests/${imageVersion.toString}")
   def blobUri(digest: String): Uri =
     registryUri.withPath(s"/v2/${imageName}/blobs/${digest}")
 }
@@ -176,7 +195,7 @@ final case class ContainerConfig(image: String, env: List[String])
 
 // Exceptions
 final case class DockerImageException(traceId: TraceId, msg: String)
-    extends LeoException(message = s"${traceId} | Docker validation error: $msg")
+    extends LeoException(message = s"${traceId} | Error occurred during Docker image auto-detection: $msg")
 
-final case class ImageParseException(image: ContainerImage)
-    extends LeoException(message = s"Error parsing ${image.registry.toString} image ${image.imageUrl}")
+final case class ImageParseException(traceId: TraceId, image: ContainerImage)
+    extends LeoException(message = s"${traceId} | Unable to parse ${image.registry} image ${image.imageUrl}")

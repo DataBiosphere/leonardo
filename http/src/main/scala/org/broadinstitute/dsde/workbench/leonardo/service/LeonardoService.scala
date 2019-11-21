@@ -113,6 +113,10 @@ case class IllegalLabelKeyException(labelKey: String)
 case class InvalidDataprocMachineConfigException(errorMsg: String)
     extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
+case class ImageAutoDetectionException(traceId: TraceId, image: ContainerImage)
+    extends LeoException(s"${traceId} | Unable to auto-detect tool for ${image.registry} image ${image.imageUrl}",
+                         StatusCodes.Conflict)
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val welderDao: WelderDAO[IO],
                       protected val clusterDefaultsConfig: ClusterDefaultsConfig,
@@ -795,9 +799,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[ClusterImage]] =
     for {
       now <- IO(Instant.now)
+      traceId <- ev.ask
       // Try to autodetect the image
-      autodetectedImageOpt <- clusterRequest.toolDockerImage.flatTraverse { image =>
-        dockerDAO.detectTool(image).map(_.map(tool => ClusterImage(tool, image.imageUrl, now)))
+      autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
+        dockerDAO.detectTool(image).flatMap {
+          case None       => IO.raiseError(ImageAutoDetectionException(traceId, image))
+          case Some(tool) => IO.pure(ClusterImage(tool, image.imageUrl, now))
+        }
       }
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
@@ -807,15 +815,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       defaultJupyterImage = ClusterImage(Jupyter, dataprocConfig.jupyterImage, now)
       toolImage = autodetectedImageOpt orElse jupyterImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
-      // - only deploy welder if Jupyter is being installed
-      // - if the user passed a welderDockerImage, use that
-      // - if the user didn't pass a welderDockerImage, but specified welderEnabled=true, use a default welder image
-      // - otherwise, don't install welder
-      userDefinedWelderImageOpt = clusterRequest.welderDockerImage.map(i => ClusterImage(Welder, i.imageUrl, now))
-      defaultWelderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
-      shouldDeployWelder = toolImage.tool == Jupyter && (userDefinedWelderImageOpt.isDefined || clusterRequest.enableWelder
-        .exists(identity))
-      welderImageOpt = if (shouldDeployWelder) Some(userDefinedWelderImageOpt.getOrElse(defaultWelderImage)) else None
+      // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
+      // - If welder is not enabled, we won't use any image.
+      welderImageOpt = if (clusterRequest.enableWelder.getOrElse(false)) {
+        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(dataprocConfig.welderDockerImage)
+        Some(ClusterImage(Welder, imageUrl, now))
+      } else None
     } yield Set(Some(toolImage), welderImageOpt).flatten
 
   private def getWelderAction(cluster: Cluster): WelderAction =

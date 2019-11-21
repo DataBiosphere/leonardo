@@ -160,7 +160,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           .futureValue
 
         val request = defaultClusterRequest.copy(
-          jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl),
+          jupyterDockerImage = None,
           machineConfig = Option(
             MachineConfig(
               // need at least 2 regular workers to enable preemptibles
@@ -214,7 +214,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         billingProject,
         request = defaultClusterRequest.copy(enableWelder = Some(false),
                                              labels = Map(deployWelderLabel -> "true"),
-                                             jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
+                                             toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
       ) { cluster =>
         withWebDriver { implicit driver =>
           // Verify welder is not running
@@ -280,7 +280,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       implicit val ronToken: AuthToken = ronAuthToken
 
       withNewCluster(billingProject,
-                     request = defaultClusterRequest.copy(jupyterDockerImage = None, enableWelder = Some(true))) {
+                     request = defaultClusterRequest.copy(toolDockerImage = None, enableWelder = Some(true))) {
         cluster =>
           withWebDriver { implicit driver =>
             withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>

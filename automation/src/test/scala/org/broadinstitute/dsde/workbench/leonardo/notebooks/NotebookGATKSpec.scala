@@ -9,7 +9,7 @@ import org.scalatest.DoNotDiscover
 @DoNotDiscover
 class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
-  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.gatkImageUrl)
+  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.gatkImageUrl)
   "NotebookGATKSpec" - {
 
     "should install Python packages, R, GATK, and Samtools" in { clusterFixture =>

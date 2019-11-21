@@ -19,41 +19,51 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
-  val testImages = Map(
-    Some(Jupyter) -> List(
-      // dockerhub no tag
-      DockerHub("broadinstitute/leonardo-notebooks"),
-      // dockerhub with tag
-      DockerHub("broadinstitute/leonardo-notebooks:dev"),
-      // dockerhub with sha TODO
-      DockerHub(
-        "broadinstitute/leonardo-notebooks@sha256:bb959cf74f31d2a10f7bb8ee0f0754138d7c90f7ed8a92c3697ac994ff8b40b7"
-      ),
-      // gcr with tag
-      GCR("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"),
-      // gcr with sha TODO
-      GCR(
-        "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter@sha256:fa11b7c528304726985b4ad4cb4cb4d8b9a2fbf7c5547671ef495f414564727c"
-      )
+  val jupyterImages = List(
+    // dockerhub no tag
+    DockerHub("broadinstitute/leonardo-notebooks"),
+    // dockerhub with tag
+    DockerHub("broadinstitute/leonardo-notebooks:dev"),
+    // dockerhub with sha
+    // TODO: shas are currently not working
+    DockerHub(
+      "broadinstitute/leonardo-notebooks@sha256:bb959cf74f31d2a10f7bb8ee0f0754138d7c90f7ed8a92c3697ac994ff8b40b7"
     ),
-    Some(RStudio) -> List(
-      // gcr with tag
-      GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.1"),
-      // gcr with sha TODO
-      GCR(
-        "us.gcr.io/anvil-gcr-public/anvil-rstudio-base@sha256:98ed9ed3072ab20633f5212ddc7201c0df369db28fd669a509987e0744bcef2c"
-      )
-    ),
-    None -> List(
-      // dockerhub
-      DockerHub("library/nginx:latest"),
-      // public gcr
-      GCR("us.gcr.io/broad-dsp-gcr-public/welder-server:latest"),
-      // private gcr TODO
-      GCR("gcr.io/broad-dsp-gcr-public/sam:dev"),
-      // gcr no tag
-      GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base")
+    // gcr with tag
+    GCR("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"),
+    // gcr with sha
+    // TODO shas are currently not working
+    GCR(
+      "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter@sha256:fa11b7c528304726985b4ad4cb4cb4d8b9a2fbf7c5547671ef495f414564727c"
     )
+  )
+
+  val rstudioImages = List(
+    // dockerhub no tag
+    DockerHub("rtitle/anvil-rstudio-base"),
+    // dockerhub with tag
+    DockerHub("rtitle/anvil-rstudio-base:0.0.1"),
+    // dockerhub with sha
+    // TODO: shas are currently not working
+//    DockerHub(
+//      "rocker/rstudio@sha256:5aea617714eb38a97a21de652ab667c6d7bb486d7468a4ab6b4d515154fec383"
+//    ),
+    // gcr with tag
+    GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.1")
+    // gcr with sha
+    // TODO shas are currently not working
+//    GCR(
+//      "us.gcr.io/anvil-gcr-public/anvil-rstudio-base@sha256:98ed9ed3072ab20633f5212ddc7201c0df369db28fd669a509987e0744bcef2c"
+//    )
+  )
+
+  val unknownImages = List(
+    // not a supported tool
+    DockerHub("library/nginx:latest"),
+    // not a supported tool
+    GCR("us.gcr.io/broad-dsp-gcr-public/welder-server:latest"),
+    // non existent tag
+    GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base")
   )
 
   def withDockerDAO(testCode: HttpDockerDAO[IO] => Any): Unit = {
@@ -66,7 +76,7 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     dockerDAOResource.use(dao => IO(testCode(dao))).unsafeRunSync()
   }
 
-  testImages.foreach {
+  Map(Some(Jupyter) -> jupyterImages, Some(RStudio) -> rstudioImages, None -> unknownImages).foreach {
     case (tool, images) =>
       images.foreach { image =>
         it should s"detect tool=$tool for image $image" in withDockerDAO { dockerDAO =>

@@ -11,7 +11,7 @@ import scala.concurrent.duration._
  */
 @DoNotDiscover
 class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
-  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
+  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
   "NotebookRKernelSpec" - {
 
     // See https://github.com/DataBiosphere/leonardo/issues/398

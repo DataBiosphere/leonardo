@@ -384,7 +384,7 @@ trait LeonardoTestUtils
   def defaultClusterRequest: ClusterRequest =
     ClusterRequest(Map("foo" -> makeRandomId()),
                    enableWelder = Some(enableWelder),
-                   jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
+                   toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
 
   def createNewCluster(googleProject: GoogleProject,
                        name: ClusterName = randomClusterName,

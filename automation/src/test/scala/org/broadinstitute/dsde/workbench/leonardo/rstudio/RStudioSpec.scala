@@ -9,7 +9,7 @@ import scala.util.Try
 @DoNotDiscover
 class RStudioSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
-  override val rstudioDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl)
+  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl)
 
   "RStudioSpec" - {
 
