@@ -24,6 +24,7 @@ object GPAllocFixtureSpec {
 
 trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils {
   this: TestSuite =>
+  def shouldUnclaimProjects: Boolean = true //TODO: find out a way to check if tests have passed
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -31,13 +32,13 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
     sys.props.put(gpallocProjectKey, billingProject.value)
   }
 
-  override def afterAll(): Unit = {
+  override def afterAll(): Unit = if(shouldUnclaimProjects) {
     sys.props.get(gpallocProjectKey).foreach { billingProject =>
       unclaimProject(GoogleProject(billingProject))
       sys.props.remove(gpallocProjectKey)
     }
     super.afterAll()
-  }
+  } else logger.info(s"Not going to release project: ${sys.props.get(gpallocProjectKey)} due to error happened")
 
   /**
    * Claim new billing project by Hermione
@@ -61,7 +62,6 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
     releaseGPAllocProject(project.value, hermioneCreds)
     logger.info(s"Billing project released: ${project.value}")
   }
-
 }
 
 final class LeonardoSuite
