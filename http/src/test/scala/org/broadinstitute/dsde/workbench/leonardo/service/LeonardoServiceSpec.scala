@@ -248,9 +248,9 @@ class LeonardoServiceSpec
     dbCluster shouldBe Some(clusterResponse)
 
     // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(dataprocConfig.jupyterImage)
-    clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
-    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe customWelderImage
+    clusterResponse.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
+    clusterResponse.clusterImages.find(_.tool == RStudio) shouldBe None
+    clusterResponse.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe customWelderImage
   }
 
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
@@ -647,7 +647,7 @@ class LeonardoServiceSpec
           |"${name1.value}"
           |"${project.value}"
           |"${jupyterImage.imageUrl}"
-          |"${rstudioImage.imageUrl}"
+          |""
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${testCluster.jupyterUserScriptUri.get.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"

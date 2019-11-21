@@ -799,11 +799,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       autodetectedImageOpt <- clusterRequest.toolDockerImage.flatTraverse { image =>
         dockerDAO.detectTool(image).map(_.map(tool => ClusterImage(tool, image.imageUrl, now)))
       }
-      // If we couldn't autodetect the image or it's not specified, fall back to the legacy jupyterDockerImage paramter
-      legacyJupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i.imageUrl, now))
-      fallbackOpt = autodetectedImageOpt orElse legacyJupyterImageOpt
-      // If we _still_ don't have an image, throw an error
-      toolImage <- fallbackOpt.fold(IO.raiseError[ClusterImage](new Exception))(IO.pure)
+      // Figure out the tool image. Rules:
+      // - if we were able to autodetect an image, use that
+      // - else if a legacy jupyterDockerImage param was sent, use that
+      // - ese use the default jupyter image
+      jupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i.imageUrl, now))
+      defaultJupyterImage = ClusterImage(Jupyter, dataprocConfig.jupyterImage, now)
+      toolImage = autodetectedImageOpt orElse jupyterImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
       // - only deploy welder if Jupyter is being installed
       // - if the user passed a welderDockerImage, use that
