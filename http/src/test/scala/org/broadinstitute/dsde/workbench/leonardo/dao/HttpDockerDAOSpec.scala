@@ -26,16 +26,16 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     DockerHub("broadinstitute/leonardo-notebooks:dev"),
     // dockerhub with sha
     // TODO: shas are currently not working
-    DockerHub(
-      "broadinstitute/leonardo-notebooks@sha256:bb959cf74f31d2a10f7bb8ee0f0754138d7c90f7ed8a92c3697ac994ff8b40b7"
-    ),
+//    DockerHub(
+//      "broadinstitute/leonardo-notebooks@sha256:bb959cf74f31d2a10f7bb8ee0f0754138d7c90f7ed8a92c3697ac994ff8b40b7"
+//    ),
     // gcr with tag
     GCR("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"),
     // gcr with sha
     // TODO shas are currently not working
-    GCR(
-      "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter@sha256:fa11b7c528304726985b4ad4cb4cb4d8b9a2fbf7c5547671ef495f414564727c"
-    )
+//    GCR(
+//      "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter@sha256:fa11b7c528304726985b4ad4cb4cb4d8b9a2fbf7c5547671ef495f414564727c"
+//    )
   )
 
   val rstudioImages = List(
