@@ -1365,7 +1365,7 @@ class ClusterMonitorSpec
                           MockJupyterDAO,
                           MockRStudioDAO,
                           MockWelderDAO,
-                          false) { actor =>
+                          false) { _ =>
       eventually {
         val dbCluster = dbFutureValue {
           _.clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName)
