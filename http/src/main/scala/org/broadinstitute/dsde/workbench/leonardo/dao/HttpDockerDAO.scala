@@ -23,6 +23,8 @@ import org.http4s.headers.Authorization
  * Talks to Docker remote APIs to retrieve manifest information in order to try and figure out
  * what tool it's running.
  *
+ * This article was used as a guide: https://ops.tips/blog/inspecting-docker-image-without-pull/
+ *
  * Currently supports:
  * - Jupyter or RStudio images
  * - Dockerhub or GCR repos
