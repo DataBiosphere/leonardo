@@ -31,6 +31,9 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 //    ),
     // gcr with tag
     GCR("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"),
+    GCR("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.4"),
+    GCR("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.5"),
+    GCR("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.4")
     // gcr with sha
     // TODO shas are currently not working
 //    GCR(

@@ -553,7 +553,7 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
       fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
       fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[ContainerImage]),
-      fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[ContainerImage]),
+      fieldsWithoutNull.get("toolDockerImage").map(_.convertTo[ContainerImage]),
       fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[ContainerImage]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
       fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean]),
