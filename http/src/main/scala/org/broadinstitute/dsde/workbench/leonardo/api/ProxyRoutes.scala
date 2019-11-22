@@ -9,7 +9,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, ProxyService}
+import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
@@ -107,9 +107,9 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
     }
 
   /**
-    * Extracts the user token from either a cookie or Authorization header.
-    */
-  private def extractToken: Directive1[String] = {
+   * Extracts the user token from either a cookie or Authorization header.
+   */
+  private def extractToken: Directive1[String] =
     optionalHeaderValueByType[`Authorization`](()) flatMap {
 
       // We have an Authorization header, extract the token
@@ -117,25 +117,24 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
       case Some(header) => provide(header.credentials.token)
 
       // We don't have an Authorization header; check the cookie
-      case None => optionalCookie(tokenCookieName) flatMap {
+      case None =>
+        optionalCookie(tokenCookieName) flatMap {
 
-        // We have a cookie, extract the token
-        case Some(cookie) => provide(cookie.value)
+          // We have a cookie, extract the token
+          case Some(cookie) => provide(cookie.value)
 
-        // Not found in cookie or Authorization header, fail
-        case None => failWith(AuthenticationError())
-      }
+          // Not found in cookie or Authorization header, fail
+          case None => failWith(AuthenticationError())
+        }
     }
-  }
 
   /**
-    * Extracts the user token from the request, and looks up the cached UserInfo.
-    */
-  private def extractUserInfo: Directive1[UserInfo] = {
+   * Extracts the user token from the request, and looks up the cached UserInfo.
+   */
+  private def extractUserInfo: Directive1[UserInfo] =
     extractToken.flatMap { token =>
       onSuccess(proxyService.getCachedUserInfoFromToken(token))
     }
-  }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private def logRequestResultForMetrics(userInfo: UserInfo): Directive0 = {
@@ -147,11 +146,15 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
 
       val entry = res match {
         case Complete(resp) =>
-          LogEntry(s"${headerMap.getOrElse("X-Forwarded-For", "0.0.0.0")} ${userInfo.userEmail} " +
-            s"${userInfo.userId} [${DateTime.now.toIsoDateTimeString()}] " +
-            s""""${req.method.value} ${req.uri} ${req.protocol.value}" """ +
-            s"""${resp.status.intValue} ${resp.entity.contentLengthOption.getOrElse("-")} ${headerMap.getOrElse("Origin", "-")} """ +
-            s"${headerMap.getOrElse("User-Agent", "unknown")}", Logging.InfoLevel)
+          LogEntry(
+            s"${headerMap.getOrElse("X-Forwarded-For", "0.0.0.0")} ${userInfo.userEmail} " +
+              s"${userInfo.userId} [${DateTime.now.toIsoDateTimeString()}] " +
+              s""""${req.method.value} ${req.uri} ${req.protocol.value}" """ +
+              s"""${resp.status.intValue} ${resp.entity.contentLengthOption
+                .getOrElse("-")} ${headerMap.getOrElse("Origin", "-")} """ +
+              s"${headerMap.getOrElse("User-Agent", "unknown")}",
+            Logging.InfoLevel
+          )
         case _ => LogEntry(s"No response - request not complete")
       }
       entry.logTo(logger)

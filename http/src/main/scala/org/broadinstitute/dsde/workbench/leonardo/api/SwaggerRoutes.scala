@@ -20,24 +20,24 @@ trait SwaggerRoutes {
             redirect(uri.withRawQueryString(""), StatusCodes.MovedPermanently)
           }
         } ~
-        serveIndex()
+          serveIndex()
       }
     } ~
-    path("api-docs.yaml") {
-      get {
-        getFromResource("swagger/api-docs.yaml")
+      path("api-docs.yaml") {
+        get {
+          getFromResource("swagger/api-docs.yaml")
+        }
+      } ~
+      // We have to be explicit about the paths here since we're matching at the root URL and we don't
+      // want to catch all paths lest we circumvent Spray's not-found and method-not-allowed error
+      // messages.
+      (pathSuffixTest("o2c.html") | pathSuffixTest("swagger-ui.js")
+        | pathPrefixTest("css" /) | pathPrefixTest("fonts" /) | pathPrefixTest("images" /)
+        | pathPrefixTest("lang" /) | pathPrefixTest("lib" /)) {
+        get {
+          getFromResourceDirectory(swaggerUiPath)
+        }
       }
-    } ~
-    // We have to be explicit about the paths here since we're matching at the root URL and we don't
-    // want to catch all paths lest we circumvent Spray's not-found and method-not-allowed error
-    // messages.
-    (pathSuffixTest("o2c.html") | pathSuffixTest("swagger-ui.js")
-      | pathPrefixTest("css" /) | pathPrefixTest("fonts" /) | pathPrefixTest("images" /)
-      | pathPrefixTest("lang" /) | pathPrefixTest("lib" /)) {
-      get {
-        getFromResourceDirectory(swaggerUiPath)
-      }
-    }
   }
 
   private def serveIndex(): server.Route = {
@@ -48,19 +48,19 @@ trait SwaggerRoutes {
         |        operationsSorter: "alpha",
       """.stripMargin
 
-    def scopeSeparator(sep: String) = {
+    def scopeSeparator(sep: String) =
       s"""scopeSeparator: "$sep""""
-    }
 
     mapResponseEntity { entityFromJar =>
       entityFromJar.transformDataBytes(Flow.fromFunction[ByteString, ByteString] { original: ByteString =>
-        ByteString(original.utf8String
-          .replace("your-client-id", swaggerConfig.googleClientId)
-          .replace("your-realms", swaggerConfig.realm)
-          .replace("your-app-name", swaggerConfig.realm)
-          .replace(scopeSeparator(","), scopeSeparator(" "))
-          .replace("jsonEditor: false,", "jsonEditor: false," + swaggerOptions)
-          .replace("""url = "http://petstore.swagger.io/v2/swagger.json";""", "url = '/api-docs.yaml';")
+        ByteString(
+          original.utf8String
+            .replace("your-client-id", swaggerConfig.googleClientId)
+            .replace("your-realms", swaggerConfig.realm)
+            .replace("your-app-name", swaggerConfig.realm)
+            .replace(scopeSeparator(","), scopeSeparator(" "))
+            .replace("jsonEditor: false,", "jsonEditor: false," + swaggerOptions)
+            .replace("""url = "http://petstore.swagger.io/v2/swagger.json";""", "url = '/api-docs.yaml';")
         )
       })
     } {

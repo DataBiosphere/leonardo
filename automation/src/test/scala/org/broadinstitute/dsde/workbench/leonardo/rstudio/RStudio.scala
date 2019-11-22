@@ -7,8 +7,8 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 
 /**
-  * Leonardo RStudio API service client.
-  */
+ * Leonardo RStudio API service client.
+ */
 object RStudio extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl

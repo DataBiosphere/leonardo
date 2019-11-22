@@ -4,7 +4,7 @@ package monitor
 import java.time.{Duration, Instant}
 
 import akka.actor.{Actor, Props, Timers}
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
@@ -21,9 +21,11 @@ import scala.concurrent.Future
 
 object ZombieClusterMonitor {
 
-  def props(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO]): Props = {
+  def props(config: ZombieClusterConfig,
+            gdDAO: GoogleDataprocDAO,
+            googleProjectDAO: GoogleProjectDAO,
+            dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO], contextShift: ContextShift[IO]): Props =
     Props(new ZombieClusterMonitor(config, gdDAO, googleProjectDAO, dbRef))
-  }
 
   sealed trait ZombieClusterMonitorMessage
   case object DetectZombieClusters extends ZombieClusterMonitorMessage
@@ -31,9 +33,15 @@ object ZombieClusterMonitor {
 }
 
 /**
-  * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
-  */
-class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO]) extends Actor with Timers with LazyLogging {
+ * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
+ */
+class ZombieClusterMonitor(config: ZombieClusterConfig,
+                           gdDAO: GoogleDataprocDAO,
+                           googleProjectDAO: GoogleProjectDAO,
+                           dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO], contextShift: ContextShift[IO])
+    extends Actor
+    with Timers
+    with LazyLogging {
   import context._
 
   override def preStart(): Unit = {
@@ -45,27 +53,28 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
     case DetectZombieClusters =>
       // Get active clusters from the Leo DB, grouped by project
       val zombieClusters = getActiveClustersFromDatabase.flatMap { clusterMap =>
-        clusterMap.toList.flatTraverse { case (project, clusters) =>
-          // Check if the project is active
-          isProjectActiveInGoogle(project).flatMap {
-            case true =>
-              // If the project is active, check each individual cluster
-              logger.debug(s"Project ${project.value} containing ${clusters.size} clusters is active in Google")
-              clusters.toList.traverseFilter { cluster =>
-                isClusterActiveInGoogle(cluster).map {
-                  case true =>
-                    logger.debug(s"Cluster ${cluster.projectNameString} is active in Google")
-                    None
-                  case false =>
-                    logger.debug(s"Cluster ${cluster.projectNameString} is a zombie!")
-                    Some(cluster)
+        clusterMap.toList.flatTraverse {
+          case (project, clusters) =>
+            // Check if the project is active
+            isProjectActiveInGoogle(project).flatMap {
+              case true =>
+                // If the project is active, check each individual cluster
+                logger.debug(s"Project ${project.value} containing ${clusters.size} clusters is active in Google")
+                clusters.toList.traverseFilter { cluster =>
+                  isClusterActiveInGoogle(cluster).map {
+                    case true =>
+                      logger.debug(s"Cluster ${cluster.projectNameString} is active in Google")
+                      None
+                    case false =>
+                      logger.debug(s"Cluster ${cluster.projectNameString} is a zombie!")
+                      Some(cluster)
+                  }
                 }
-              }
-            case false =>
-              // If the project is inactive, all clusters in the project are zombies
-              logger.debug(s"Project ${project.value} containing ${clusters.size} clusters is inactive in Google")
-              Future.successful(clusters.toList)
-          }
+              case false =>
+                // If the project is inactive, all clusters in the project are zombies
+                logger.debug(s"Project ${project.value} containing ${clusters.size} clusters is inactive in Google")
+                Future.successful(clusters.toList)
+            }
         }
       }
 
@@ -73,53 +82,57 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
       zombieClusters.flatMap { cs =>
         logger.info(s"Detected ${cs.size} zombie clusters across ${cs.map(_.googleProject).toSet.size} projects.")
         cs.traverse { cluster =>
-          handleZombieCluster(cluster)
+          handleZombieCluster(cluster).unsafeToFuture()
         }
       }
 
   }
 
-  private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] = {
+  private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] =
     dbRef.inTransaction {
       _.clusterQuery.listActiveWithLabels
     } map { clusters =>
       clusters.groupBy(_.googleProject)
     }
-  }
 
-  private def isProjectActiveInGoogle(googleProject: GoogleProject): Future[Boolean] = {
+  private def isProjectActiveInGoogle(googleProject: GoogleProject): Future[Boolean] =
     // Check the project and its billing info
     (googleProjectDAO.isProjectActive(googleProject.value), googleProjectDAO.isBillingActive(googleProject.value))
       .mapN(_ && _)
-      .recover { case e =>
-        logger.warn(s"Unable to check status of project ${googleProject.value} for zombie cluster detection", e)
-        true
+      .recover {
+        case e =>
+          logger.warn(s"Unable to check status of project ${googleProject.value} for zombie cluster detection", e)
+          true
       }
-  }
 
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
 
     val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).getSeconds
     //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
-    val isWithinHangTolerance =  cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation > config.creationHangTolerance.toSeconds
+    val isWithinHangTolerance = cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation > config.creationHangTolerance.toSeconds
 
-   gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
+    gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
       (ClusterStatus.activeStatuses contains clusterStatus) || isWithinHangTolerance
-    } recover { case e =>
-      logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
-      true
+    } recover {
+      case e =>
+        logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
+        true
     }
   }
 
-  private def handleZombieCluster(cluster: Cluster): Future[Unit] = {
-    logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}")
-    metrics.incrementCounter("zombieClusters").unsafeRunAsync(_ => ())
-    dbRef.inTransaction { dataAccess =>
-      for {
-        _ <- dataAccess.clusterQuery.completeDeletion(cluster.id)
-        error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.", -1, Instant.now)
-        _ <- dataAccess.clusterErrorQuery.save(cluster.id, error)
-      } yield ()
-    }.void
-  }
+  private def handleZombieCluster(cluster: Cluster): IO[Unit] =
+    for {
+      _ <- IO(logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}"))
+      _ <- metrics.incrementCounter("zombieClusters")
+      now <- IO(Instant.now)
+      _ <- dbRef.inTransactionIO { dataAccess =>
+        for {
+          _ <- dataAccess.clusterQuery.completeDeletion(cluster.id, now)
+          error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
+                               -1,
+                               Instant.now)
+          _ <- dataAccess.clusterErrorQuery.save(cluster.id, error)
+        } yield ()
+      }
+    } yield ()
 }

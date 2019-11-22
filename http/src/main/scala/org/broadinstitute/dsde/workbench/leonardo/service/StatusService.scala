@@ -23,21 +23,24 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
-  * Created by rtitle on 10/26/17.
-  */
-class StatusService(gdDAO: GoogleDataprocDAO,
-                    samDAO: SamDAO[IO],
-                    dbRef: DbReference,
-                    dataprocConfig: DataprocConfig,
-                    initialDelay: FiniteDuration = Duration.Zero,
-                    pollInterval: FiniteDuration = 1 minute)
-                   (implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO], cs: ContextShift[IO]) {
+ * Created by rtitle on 10/26/17.
+ */
+class StatusService(
+  gdDAO: GoogleDataprocDAO,
+  samDAO: SamDAO[IO],
+  dbRef: DbReference,
+  dataprocConfig: DataprocConfig,
+  initialDelay: FiniteDuration = Duration.Zero,
+  pollInterval: FiniteDuration = 1 minute
+)(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO], cs: ContextShift[IO]) {
   implicit val askTimeout = Timeout(5.seconds)
 
-  private val healthMonitor = system.actorOf(HealthMonitor.props(Set(GoogleDataproc, Sam, Database))(() => checkStatus()))
+  private val healthMonitor =
+    system.actorOf(HealthMonitor.props(Set(GoogleDataproc, Sam, Database))(() => checkStatus()))
   system.scheduler.schedule(initialDelay, pollInterval, healthMonitor, HealthMonitor.CheckAll)
 
-  def getStatus(): Future[StatusCheckResponse] = (healthMonitor ? GetCurrentStatus).asInstanceOf[Future[StatusCheckResponse]]
+  def getStatus(): Future[StatusCheckResponse] =
+    (healthMonitor ? GetCurrentStatus).asInstanceOf[Future[StatusCheckResponse]]
 
 //  {
 //    val res = for {
@@ -51,26 +54,29 @@ class StatusService(gdDAO: GoogleDataprocDAO,
 //    res.unsafeToFuture()
 //  }
 
-  private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] = {
+  private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] =
     Map(
       GoogleDataproc -> checkGoogleDataproc,
       Sam -> checkSam.unsafeToFuture(),
       Database -> checkDatabase
     ).map(logFailures.tupled)
-  }
 
   // Logs warnings if a subsystem status check fails
-  def logFailures: (Subsystem, Future[SubsystemStatus]) => (Subsystem, Future[SubsystemStatus]) = (subsystem, statusFuture) =>
-    subsystem -> statusFuture.attempt.flatMap {
-      case Right(status) if !status.ok =>
-        logger.warn(s"Subsystem [$subsystem] reported error status: $status").unsafeToFuture() >> Future.successful(status)
+  def logFailures: (Subsystem, Future[SubsystemStatus]) => (Subsystem, Future[SubsystemStatus]) =
+    (subsystem, statusFuture) =>
+      subsystem -> statusFuture.attempt.flatMap {
+        case Right(status) if !status.ok =>
+          logger.warn(s"Subsystem [$subsystem] reported error status: $status").unsafeToFuture() >> Future.successful(
+            status
+          )
 
-      case Right(s) =>
-        logger.debug(s"Subsystem [$subsystem] is OK").unsafeToFuture() >> Future.successful(s)
-      case Left(e) =>
-        logger.warn(s"Failure checking status for subsystem [$subsystem]: ${e.getMessage}").unsafeToFuture() >> Future.failed(e)
-    }
-  
+        case Right(s) =>
+          logger.debug(s"Subsystem [$subsystem] is OK").unsafeToFuture() >> Future.successful(s)
+        case Left(e) =>
+          logger.warn(s"Failure checking status for subsystem [$subsystem]: ${e.getMessage}").unsafeToFuture() >> Future
+            .failed(e)
+      }
+
   private def checkGoogleDataproc(): Future[SubsystemStatus] = {
     // Does a 'list clusters' in Leo's project.
     // Doesn't look at results, just checks if the request was successful.
@@ -86,20 +92,22 @@ class StatusService(gdDAO: GoogleDataprocDAO,
   private def checkSam: IO[SubsystemStatus] = {
     implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
-    logger.debug(s"Checking Sam status") >> samDAO.getStatus.map { statusCheckResponse =>
-      // SamDAO returns a StatusCheckResponse. Convert to a SubsystemStatus for use by the health checker.
-      val messages = statusCheckResponse.systems.toList match {
-        case Nil => None
-        case systems =>
-          systems.flatTraverse[Option, String] { case (subsystem, subSystemStatus) =>
-            subSystemStatus.messages.map(msgs => msgs.map(m => s"${subsystem.value} -> $m"))
-          }
+    logger.debug(s"Checking Sam status") >> samDAO.getStatus
+      .map { statusCheckResponse =>
+        // SamDAO returns a StatusCheckResponse. Convert to a SubsystemStatus for use by the health checker.
+        val messages = statusCheckResponse.systems.toList match {
+          case Nil => None
+          case systems =>
+            systems.flatTraverse[Option, String] {
+              case (subsystem, subSystemStatus) =>
+                subSystemStatus.messages.map(msgs => msgs.map(m => s"${subsystem.value} -> $m"))
+            }
+        }
+        SubsystemStatus(statusCheckResponse.ok, messages)
       }
-      SubsystemStatus(statusCheckResponse.ok, messages)
-    }.handleErrorWith {
-      t =>
+      .handleErrorWith { t =>
         logger.error(s"SAM is not healthy. ${t.getMessage}") >> IO.raiseError(t)
-    }
+      }
   }
 
 }

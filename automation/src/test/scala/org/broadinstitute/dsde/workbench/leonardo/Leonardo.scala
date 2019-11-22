@@ -10,8 +10,8 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 
 /**
-  * Leonardo API service client.
-  */
+ * Leonardo API service client.
+ */
 object Leonardo extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
@@ -43,8 +43,8 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def clusterPath(googleProject: GoogleProject,
-                          clusterName: ClusterName,
-                          version: Option[ApiVersion] = None): String = {
+                    clusterName: ClusterName,
+                    version: Option[ApiVersion] = None): String = {
       val versionPath = version.map(_.toUrlSegment).getOrElse("")
       s"api/cluster${versionPath}/${googleProject.value}/${clusterName.string}"
     }
@@ -60,10 +60,9 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
-    def create(googleProject: GoogleProject,
-               clusterName: ClusterName,
-               clusterRequest: ClusterRequest)
-              (implicit token: AuthToken): Cluster = {
+    def create(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(
+      implicit token: AuthToken
+    ): Cluster = {
       val path = clusterPath(googleProject, clusterName, Some(ApiVersion.V2))
       logger.info(s"Create cluster: PUT /$path")
       handleClusterResponse(putRequest(url + path, clusterRequest))
@@ -97,9 +96,9 @@ object Leonardo extends RestClient with LazyLogging {
       postRequest(url + path)
     }
 
-    def update(googleProject: GoogleProject,
-               clusterName: ClusterName,
-               clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
+    def update(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(
+      implicit token: AuthToken
+    ): Cluster = {
       val path = clusterPath(googleProject, clusterName)
       logger.info(s"Update cluster: PATCH /$path")
       handleClusterResponse(patchRequest(url + path, clusterRequest))
@@ -109,7 +108,8 @@ object Leonardo extends RestClient with LazyLogging {
 
 object AutomationTestJsonCodec {
   implicit val clusterNameDecoder: Decoder[ClusterName] = Decoder.decodeString.map(ClusterName)
-  implicit val clusterStatusDecoder: Decoder[ClusterStatus] = Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"Invalid cluster status ${s}"))
+  implicit val clusterStatusDecoder: Decoder[ClusterStatus] =
+    Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"Invalid cluster status ${s}"))
 
   implicit val clusterDecoder: Decoder[Cluster] = Decoder.forProduct11(
     "clusterName",
@@ -144,6 +144,6 @@ object ApiVersion {
   def fromString(s: String): Option[ApiVersion] = s match {
     case "v1" => Some(V1)
     case "v2" => Some(V2)
-    case _ => None
+    case _    => None
   }
 }

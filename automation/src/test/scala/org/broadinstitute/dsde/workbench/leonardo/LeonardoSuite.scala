@@ -12,18 +12,19 @@ import org.scalatest._
 
 trait GPAllocFixtureSpec extends fixture.FreeSpecLike {
   override type FixtureParam = GoogleProject
-  override def withFixture(test: OneArgTest): Outcome = {
+  override def withFixture(test: OneArgTest): Outcome =
     sys.props.get(gpallocProjectKey) match {
-      case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
       case Some(billingProject) => withFixture(test.toNoArgTest(GoogleProject(billingProject)))
     }
-  }
 }
 object GPAllocFixtureSpec {
   val gpallocProjectKey = "leonardo.billingProject"
 }
 
-trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils { this: TestSuite =>
+trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils {
+  this: TestSuite =>
+  def shouldUnclaimProjects: Boolean = true //TODO: find out a way to check if tests have passed
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -31,47 +32,53 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
     sys.props.put(gpallocProjectKey, billingProject.value)
   }
 
-  override def afterAll(): Unit = {
+  override def afterAll(): Unit = if(shouldUnclaimProjects) {
     sys.props.get(gpallocProjectKey).foreach { billingProject =>
       unclaimProject(GoogleProject(billingProject))
       sys.props.remove(gpallocProjectKey)
     }
     super.afterAll()
-  }
+  } else logger.info(s"Not going to release project: ${sys.props.get(gpallocProjectKey)} due to error happened")
 
   /**
-    * Claim new billing project by Hermione
-    */
+   * Claim new billing project by Hermione
+   */
   private def claimProject(): GoogleProject = {
     val claimedBillingProject = claimGPAllocProject(hermioneCreds)
-    Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
+    Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
+                                                  ronEmail,
+                                                  BillingProject.BillingProjectRole.User)(hermioneAuthToken)
     logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
     GoogleProject(claimedBillingProject.projectName)
   }
 
   /**
-    * Unclaiming billing project claim by Hermione
-    */
+   * Unclaiming billing project claim by Hermione
+   */
   private def unclaimProject(project: GoogleProject): Unit = {
-    Orchestration.billing.removeUserFromBillingProject(project.value, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
+    Orchestration.billing.removeUserFromBillingProject(project.value, ronEmail, BillingProject.BillingProjectRole.User)(
+      hermioneAuthToken
+    )
     releaseGPAllocProject(project.value, hermioneCreds)
     logger.info(s"Billing project released: ${project.value}")
   }
-
 }
 
-final class LeonardoSuite extends Suites(
-  new PingSpec,
-  new ClusterStatusTransitionsSpec,
-  new LabSpec,
-  new NotebookBioconductorKernelSpec,
-  new NotebookClusterMonitoringSpec,
-  new NotebookCustomizationSpec,
-  new NotebookDataSyncingSpec,
-  new NotebookGATKSpec,
-  new NotebookHailSpec,
-  new NotebookLocalizeFileSpec,
-  new NotebookPyKernelSpec,
-  new NotebookRKernelSpec,
-  new RStudioSpec
-) with TestSuite with GPAllocBeforeAndAfterAll with ParallelTestExecution
+final class LeonardoSuite
+    extends Suites(
+      new PingSpec,
+      new ClusterStatusTransitionsSpec,
+      new LabSpec,
+      new NotebookBioconductorKernelSpec,
+      new NotebookClusterMonitoringSpec,
+      new NotebookCustomizationSpec,
+      new NotebookDataSyncingSpec,
+      new NotebookGATKSpec,
+//      new NotebookHailSpec, TODO: revisit and enable this once hail image https://broadworkbench.atlassian.net/browse/IA-1237
+      new NotebookPyKernelSpec,
+      new NotebookRKernelSpec,
+      new RStudioSpec
+    )
+    with TestSuite
+    with GPAllocBeforeAndAfterAll
+    with ParallelTestExecution

@@ -26,7 +26,8 @@ object JsonCodec {
   implicit val gcsBucketNameDecoder: Decoder[GcsBucketName] = Decoder.decodeString.map(GcsBucketName)
   implicit val gcsBucketNameEncoder: Encoder[GcsBucketName] = Encoder.encodeString.contramap(_.value)
   implicit val gcsObjectNameEncoder: Encoder[GcsObjectName] = Encoder.encodeString.contramap(_.value)
-  implicit val instantDecoder: Decoder[Instant] = Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
+  implicit val instantDecoder: Decoder[Instant] =
+    Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
   implicit val clusterErrorDecoder: Decoder[ClusterError] = Decoder.forProduct3(
     "errorMessage",
     "errorCode",

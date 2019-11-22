@@ -6,12 +6,16 @@ import akka.testkit.TestKit
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AutoFreezeConfig,
+  ClusterBucketConfig,
+  DataprocConfig,
+  MonitorConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
@@ -30,19 +34,31 @@ object TestClusterSupervisorActor {
             jupyterProxyDAO: JupyterDAO,
             rstudioProxyDAO: RStudioDAO,
             welderDAO: WelderDAO[IO],
-            leonardoService: LeonardoService,
             clusterHelper: ClusterHelper): Props =
-    Props(new TestClusterSupervisorActor(
-      monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO,
-      google2StorageDAO, dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO,
-      leonardoService, clusterHelper))
+    Props(
+      new TestClusterSupervisorActor(monitorConfig,
+                                     dataprocConfig,
+                                     clusterBucketConfig,
+                                     gdDAO,
+                                     googleComputeDAO,
+                                     googleStorageDAO,
+                                     google2StorageDAO,
+                                     dbRef,
+                                     testKit,
+                                     authProvider,
+                                     autoFreezeConfig,
+                                     jupyterProxyDAO,
+                                     rstudioProxyDAO,
+                                     welderDAO,
+                                     clusterHelper)
+    )
 }
 
 object TearDown
 
 /**
-  * Extends ClusterMonitorSupervisor so the akka TestKit can watch the child ClusterMonitorActors.
-  */
+ * Extends ClusterMonitorSupervisor so the akka TestKit can watch the child ClusterMonitorActors.
+ */
 class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  dataprocConfig: DataprocConfig,
                                  clusterBucketConfig: ClusterBucketConfig,
@@ -57,12 +73,23 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  jupyterProxyDAO: JupyterDAO,
                                  rstudioProxyDAO: RStudioDAO,
                                  welderDAO: WelderDAO[IO],
-                                 leonardoService: LeonardoService,
                                  clusterHelper: ClusterHelper)
-  extends ClusterMonitorSupervisor(
-    monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO,
-    googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig,
-    jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper)(FakeNewRelicMetricsInterpreter, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO)) {
+    extends ClusterMonitorSupervisor(
+      monitorConfig,
+      dataprocConfig,
+      clusterBucketConfig,
+      gdDAO,
+      googleComputeDAO,
+      googleStorageDAO,
+      google2StorageDAO,
+      dbRef,
+      authProvider,
+      autoFreezeConfig,
+      jupyterProxyDAO,
+      rstudioProxyDAO,
+      welderDAO,
+      clusterHelper
+    )(FakeNewRelicMetricsInterpreter, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO)) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty

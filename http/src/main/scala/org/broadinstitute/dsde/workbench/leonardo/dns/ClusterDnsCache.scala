@@ -32,26 +32,27 @@ object ClusterDnsCache {
 case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
 
 /**
-  * This class provides in-memory caches of:
-  * 1. (GoogleProject, ClusterName) -> HostStatus
-  *    This is used by ProxyService to look up the hostname to connect to given the GoogleProject/ClusterName
-  *    in the Leo request URI.
-  * 2. Hostname -> IP
-  *    This is used by JupyterNameService to match a "fake" hostname to a real IP address. Note
-  *    this cache is in the object (instead of the class) because of the way
-  *    JupyterNameService needs to access the singleton.
-  * @param proxyConfig the proxy configuration
-  * @param dbRef provides access to the database
-  */
-class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)
-                     (implicit executionContext: ExecutionContext)
-  extends LazyLogging {
+ * This class provides in-memory caches of:
+ * 1. (GoogleProject, ClusterName) -> HostStatus
+ *    This is used by ProxyService to look up the hostname to connect to given the GoogleProject/ClusterName
+ *    in the Leo request URI.
+ * 2. Hostname -> IP
+ *    This is used by JupyterNameService to match a "fake" hostname to a real IP address. Note
+ *    this cache is in the object (instead of the class) because of the way
+ *    JupyterNameService needs to access the singleton.
+ * @param proxyConfig the proxy configuration
+ * @param dbRef provides access to the database
+ */
+class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)(
+  implicit executionContext: ExecutionContext
+) extends LazyLogging {
 
   def getHostStatus(key: DnsCacheKey): Future[HostStatus] = projectClusterToHostStatus.get(key)
   def size: Long = projectClusterToHostStatus.size
   def stats: CacheStats = projectClusterToHostStatus.stats
 
-  private val projectClusterToHostStatus = CacheBuilder.newBuilder()
+  private val projectClusterToHostStatus = CacheBuilder
+    .newBuilder()
     .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(dnsCacheConfig.cacheMaxSize)
     .recordStats
@@ -63,7 +64,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
             .inTransaction { _.clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.clusterName) }
             .map {
               case Some(cluster) => getHostStatusAndUpdateHostToIpIfHostReady(cluster)
-              case None => HostNotFound
+              case None          => HostNotFound
             }
         }
       }
@@ -80,22 +81,21 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
   }
 
   private def host(c: Cluster): Host = {
-    val googleId = c.dataprocInfo.googleId
+    val googleId = c.dataprocInfo.map(_.googleId)
     val assumption = s"Google ID for Google project/cluster ${c.googleProject}/${c.clusterName} must not be undefined."
     assert(googleId.isDefined, assumption)
 
     Host(googleId.get.toString + proxyConfig.jupyterDomain)
   }
 
-  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.hostIp.get
+  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.flatMap(_.hostIp).get
 
-  private def hostStatusByProjectAndCluster(c: Cluster): HostStatus = {
+  private def hostStatusByProjectAndCluster(c: Cluster): HostStatus =
     if (c.status.isStartable)
       HostPaused
-    else if (c.dataprocInfo.hostIp.isDefined)
+    else if (c.dataprocInfo.flatMap(_.hostIp).isDefined)
       HostReady(host(c))
     else
       HostNotReady
-  }
 
 }

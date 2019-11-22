@@ -6,8 +6,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.scalatest.FlatSpecLike
 
 /**
-  * Created by rtitle on 2/19/18.
-  */
+ * Created by rtitle on 2/19/18.
+ */
 class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
   val cluster1 = makeCluster(1)
@@ -26,7 +26,9 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     savedCluster1 shouldEqual cluster1
 
     dbFutureValue { _.instanceQuery.save(savedCluster1.id, masterInstance) } shouldEqual 1
-    dbFutureValue { _.instanceQuery.updateStatusAndIpForCluster(savedCluster1.id, InstanceStatus.Provisioning, Some(IP("4.5.6.7"))) } shouldEqual 1
+    dbFutureValue {
+      _.instanceQuery.updateStatusAndIpForCluster(savedCluster1.id, InstanceStatus.Provisioning, Some(IP("4.5.6.7")))
+    } shouldEqual 1
     val updated = dbFutureValue { _.instanceQuery.getInstanceByKey(masterInstance.key) }
     updated shouldBe 'defined
     updated.get.status shouldBe InstanceStatus.Provisioning
@@ -46,11 +48,16 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     dbFutureValue { _.instanceQuery.mergeForCluster(savedCluster1.id, noChange) } shouldEqual 3
     dbFutureValue { _.instanceQuery.getAllForCluster(savedCluster1.id) } shouldBe noChange
 
-    val updatedStatus = Seq(masterInstance.copy(status = InstanceStatus.Terminated), workerInstance1.copy(status = InstanceStatus.Terminated), workerInstance2.copy(status = InstanceStatus.Terminated))
+    val updatedStatus = Seq(
+      masterInstance.copy(status = InstanceStatus.Terminated),
+      workerInstance1.copy(status = InstanceStatus.Terminated),
+      workerInstance2.copy(status = InstanceStatus.Terminated)
+    )
     dbFutureValue { _.instanceQuery.mergeForCluster(savedCluster1.id, updatedStatus) } shouldEqual 3
     dbFutureValue { _.instanceQuery.getAllForCluster(savedCluster1.id) } shouldBe updatedStatus
 
-    val removedOne = Seq(masterInstance.copy(status = InstanceStatus.Terminated), workerInstance1.copy(status = InstanceStatus.Terminated))
+    val removedOne = Seq(masterInstance.copy(status = InstanceStatus.Terminated),
+                         workerInstance1.copy(status = InstanceStatus.Terminated))
     dbFutureValue { _.instanceQuery.mergeForCluster(savedCluster1.id, removedOne) } shouldEqual 3
     dbFutureValue { _.instanceQuery.getAllForCluster(savedCluster1.id) } shouldBe removedOne
 

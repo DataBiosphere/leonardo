@@ -4,7 +4,14 @@ import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, ToolDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  JupyterDAO,
+  MockJupyterDAO,
+  MockRStudioDAO,
+  MockWelderDAO,
+  ToolDAO,
+  WelderDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
@@ -19,8 +26,15 @@ import org.scalatest.concurrent.Eventually.eventually
 import scala.concurrent.duration._
 import scala.util.Try
 
-class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
-  FlatSpecLike with LazyLogging with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils with MockitoSugar { testKit =>
+class ClusterToolMonitorSpec
+    extends TestKit(ActorSystem("leonardotest"))
+    with FlatSpecLike
+    with LazyLogging
+    with BeforeAndAfterAll
+    with TestComponent
+    with CommonTestData
+    with GcsPathUtils
+    with MockitoSugar { testKit =>
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -35,56 +49,73 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
     welderEnabledCluster.save()
 
     withServiceActor() { (_, mockNewRelic) =>
-
       Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
-      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"),
+                                                           ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"),
+                                                           ArgumentMatchers.anyInt())(ArgumentMatchers.any())
     }
   }
 
   it should "report both services are down" in isolatedDbTest {
     welderEnabledCluster.save()
 
-    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
-
-      eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
-        //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
-        //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
-        verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
-        verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
-      }
+    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
+      (_, mockNewRelic) =>
+        eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
+          //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
+          //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
+          verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"),
+                                                                ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+          verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"),
+                                                                ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+        }
     }
   }
 
   it should "report welder as OK when it is disabled while jupyter is down" in isolatedDbTest {
     welderDisabledCluster.save()
 
-    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
+    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
+      (_, mockNewRelic) =>
+        eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
+          verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"),
+                                                                ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+        }
 
-      eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
-        verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
-      }
-
-      Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+        Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
+        verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"),
+                                                             ArgumentMatchers.anyInt())(ArgumentMatchers.any())
     }
   }
 
   it should "not check a non-active cluster" in isolatedDbTest {
     notRunningCluster.save()
 
-    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
-      Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
-      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
+      (_, mockNewRelic) =>
+        Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
+        verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"),
+                                                             ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+        verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"),
+                                                             ArgumentMatchers.anyInt())(ArgumentMatchers.any())
     }
   }
 
-  private def withServiceActor[T](newRelic: NewRelicMetrics[IO] =  mock[NewRelicMetrics[IO]], welderDAO: WelderDAO[IO] = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
-                                (testCode: (ActorRef, NewRelicMetrics[IO]) => T): T = {
+  private def withServiceActor[T](
+    newRelic: NewRelicMetrics[IO] = mock[NewRelicMetrics[IO]],
+    welderDAO: WelderDAO[IO] = new MockWelderDAO(),
+    jupyterDAO: JupyterDAO = new MockJupyterDAO()
+  )(testCode: (ActorRef, NewRelicMetrics[IO]) => T): T = {
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, MockRStudioDAO)
 
-    val actor = system.actorOf(ClusterToolMonitor.props(clusterToolConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, newRelic))
+    val actor = system.actorOf(
+      ClusterToolMonitor.props(clusterToolConfig,
+                               gdDAO = new MockGoogleDataprocDAO,
+                               googleProjectDAO = new MockGoogleProjectDAO,
+                               DbSingleton.ref,
+                               newRelic)
+    )
     val testResult = Try(testCode(actor, newRelic))
 
     // shut down the actor and wait for it to terminate

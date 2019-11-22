@@ -7,10 +7,12 @@ import org.openqa.selenium.WebDriver
 import org.scalatest.selenium.Page
 
 /**
-  * Created by rtitle on 1/4/18.
-  */
+ * Created by rtitle on 1/4/18.
+ */
 class DummyClientPage(override val url: String)(implicit val authToken: AuthToken, implicit val webDriver: WebDriver)
-  extends Page with PageUtil[DummyClientPage] with WebBrowserUtil {
+    extends Page
+    with PageUtil[DummyClientPage]
+    with WebBrowserUtil {
 
   val notebookLink: Query = cssSelector("[id='notebook']")
 

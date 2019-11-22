@@ -6,13 +6,12 @@ import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 
 import scala.util.control.NoStackTrace
 
-abstract class LeoException(
-                        val message: String = null,
-                        val statusCode: StatusCode = StatusCodes.InternalServerError,
-                        val cause: Throwable = null) extends WorkbenchException(message) {
-  def toErrorReport: ErrorReport = {
+abstract class LeoException(val message: String = null,
+                            val statusCode: StatusCode = StatusCodes.InternalServerError,
+                            val cause: Throwable = null)
+    extends WorkbenchException(message) {
+  def toErrorReport: ErrorReport =
     ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass))
-  }
 }
 
 final case class RequestValidationError(message: String) extends NoStackTrace {

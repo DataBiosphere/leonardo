@@ -17,16 +17,17 @@ case class InstanceName(value: String) extends ValueObject
 case class ZoneUri(value: String) extends ValueObject
 case class MachineType(value: String) extends ValueObject
 
-
-final case class CreateClusterConfig(machineConfig: MachineConfig,
-                                     initScripts: List[GcsPath],
-                                     clusterServiceAccount: Option[WorkbenchEmail],
-                                     credentialsFileName: Option[String],
-                                     stagingBucket: GcsBucketName,
-                                     clusterScopes: Set[String],
-                                     clusterVPCSettings: Option[Either[VPCNetworkName, VPCSubnetName]],
-                                     properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
-                                     dataprocCustomImage: Option[String])
+final case class CreateClusterConfig(
+  machineConfig: MachineConfig,
+  initScripts: List[GcsPath],
+  clusterServiceAccount: Option[WorkbenchEmail],
+  credentialsFileName: Option[String],
+  stagingBucket: GcsBucketName,
+  clusterScopes: Set[String],
+  clusterVPCSettings: Option[VPCConfig],
+  properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+  dataprocCustomImage: Option[String]
+)
 // Dataproc Operation
 case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)
@@ -51,17 +52,17 @@ object ClusterStatus extends Enum[ClusterStatus] {
   val values = findValues
 
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Unknown  extends ClusterStatus
+  case object Unknown extends ClusterStatus
   case object Creating extends ClusterStatus
-  case object Running  extends ClusterStatus
+  case object Running extends ClusterStatus
   case object Updating extends ClusterStatus
-  case object Error    extends ClusterStatus
+  case object Error extends ClusterStatus
   case object Deleting extends ClusterStatus
 
   // note: the below are Leo-specific statuses, not Dataproc statuses
-  case object Deleted  extends ClusterStatus
+  case object Deleted extends ClusterStatus
   case object Stopping extends ClusterStatus
-  case object Stopped  extends ClusterStatus
+  case object Stopped extends ClusterStatus
   case object Starting extends ClusterStatus
 
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
@@ -98,9 +99,19 @@ case class NetworkTag(value: String) extends ValueObject
 case class FirewallRuleName(value: String) extends ValueObject
 case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleProtocol(value: String) extends ValueObject
-case class VPCNetworkName(value: String) extends ValueObject
-case class VPCSubnetName(value: String) extends ValueObject
-case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: Option[VPCNetworkName], targetTags: List[NetworkTag])
+case class FirewallRule(name: FirewallRuleName,
+                        protocol: FirewallRuleProtocol,
+                        ports: List[FirewallRulePort],
+                        network: Option[VPCConfig],
+                        targetTags: List[NetworkTag])
+
+sealed trait VPCConfig extends Product with Serializable {
+  def value: String
+}
+object VPCConfig {
+  final case class VPCNetwork(value: String) extends VPCConfig
+  final case class VPCSubnet(value: String) extends VPCConfig
+}
 
 // Instance status
 // See: https://cloud.google.com/compute/docs/instances/checking-instance-status
@@ -110,18 +121,16 @@ object InstanceStatus extends Enum[InstanceStatus] {
 
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
   case object Provisioning extends InstanceStatus
-  case object Staging      extends InstanceStatus
-  case object Running      extends InstanceStatus
-  case object Stopping     extends InstanceStatus
-  case object Stopped      extends InstanceStatus
-  case object Suspending   extends InstanceStatus
-  case object Suspended    extends InstanceStatus
-  case object Terminated   extends InstanceStatus
+  case object Staging extends InstanceStatus
+  case object Running extends InstanceStatus
+  case object Stopping extends InstanceStatus
+  case object Stopped extends InstanceStatus
+  case object Suspending extends InstanceStatus
+  case object Suspended extends InstanceStatus
+  case object Terminated extends InstanceStatus
 }
 
-case class InstanceKey(project: GoogleProject,
-                       zone: ZoneUri,
-                       name: InstanceName)
+case class InstanceKey(project: GoogleProject, zone: ZoneUri, name: InstanceName)
 
 case class Instance(key: InstanceKey,
                     googleId: BigInt,
@@ -136,7 +145,7 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
     def read(json: JsValue): UUID = json match {
       case JsString(uuid) => UUID.fromString(uuid)
-      case other => throw DeserializationException("Expected UUID, got: " + other)
+      case other          => throw DeserializationException("Expected UUID, got: " + other)
     }
   }
 
@@ -154,7 +163,7 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   case class EnumEntryFormat[T <: EnumEntry](create: String => T) extends RootJsonFormat[T] {
     def read(obj: JsValue): T = obj match {
       case JsString(value) => create(value)
-      case _ => throw new DeserializationException(s"could not deserialize $obj")
+      case _               => throw new DeserializationException(s"could not deserialize $obj")
     }
 
     def write(obj: T): JsValue = JsString(obj.entryName)
@@ -167,8 +176,6 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val FirewallRuleNameFormat = ValueObjectFormat(FirewallRuleName)
   implicit val FirewallRulePortFormat = ValueObjectFormat(FirewallRulePort)
   implicit val FirewallRuleProtocolFormat = ValueObjectFormat(FirewallRuleProtocol)
-  implicit val VPCNetworkNameFormat = ValueObjectFormat(VPCNetworkName)
-  implicit val FirewallRuleFormat = jsonFormat5(FirewallRule)
 
   implicit val InstanceNameFormat = ValueObjectFormat(InstanceName)
   implicit val DataprocRoleFormat = EnumEntryFormat(DataprocRole.withName)

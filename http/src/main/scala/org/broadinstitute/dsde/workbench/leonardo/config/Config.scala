@@ -18,12 +18,20 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 object Config {
-  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
       config.getString("googleClientId"),
       config.getString("realm")
+    )
+  }
+
+  implicit val googleGroupConfigReader: ValueReader[GoogleGroupsConfig] = ValueReader.relative { config =>
+    GoogleGroupsConfig(
+      config.as[WorkbenchEmail]("subEmail"),
+      config.getString("dataprocImageProjectGroupName"),
+      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail")
     )
   }
 
@@ -105,21 +113,26 @@ object Config {
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
-      toScalaDuration(config.getDuration("cacheExpiryTime")),
-      config.getInt("cacheMaxSize")
+      toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
+      config.getInt("tokenCacheMaxSize"),
+      toScalaDuration(config.getDuration("internalIdCacheExpiryTime")),
+      config.getInt("internalIdCacheMaxSize")
     )
   }
 
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
-    val timeouts: Map[ClusterStatus, FiniteDuration] = Map(
-      ClusterStatus.Creating -> toScalaDuration(config.getDuration("creatingTimeLimit")),
-      ClusterStatus.Starting -> toScalaDuration(config.getDuration("startingTimeLimit")),
-      ClusterStatus.Stopping -> toScalaDuration(config.getDuration("stoppingTimeLimit")),
-      ClusterStatus.Deleting -> toScalaDuration(config.getDuration("deletingTimeLimit")),
-      ClusterStatus.Updating -> toScalaDuration(config.getDuration("updatingTimeLimit"))
-    )
+    val statusTimeouts = config.getConfig("statusTimeouts")
+    val timeoutMap: Map[ClusterStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
+      for {
+        status <- ClusterStatus.withNameInsensitiveOption(e.getKey)
+        duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
+      } yield (status, duration)
+    }.toMap
 
-    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("recreateCluster"), timeouts)
+    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")),
+                  config.getInt("maxRetries"),
+                  config.getBoolean("recreateCluster"),
+                  timeoutMap)
   }
 
   implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
@@ -172,17 +185,18 @@ object Config {
     SamAuthProviderConfig(
       config.getOrElse("notebookAuthCacheEnabled", true),
       config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
-      config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes),
+      config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
     )
   }
   implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
-  implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] = ValueReader.relative { config =>
-    ServiceAccountProviderConfig(
-      config.as[WorkbenchEmail]("leoServiceAccountEmail"),
-      config.as[File]("leoServiceAccountPemFile")
-    )
-  }
+  implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
+    ValueReader.relative { config =>
+      ServiceAccountProviderConfig(
+        config.as[WorkbenchEmail]("leoServiceAccountEmail"),
+        config.as[File]("leoServiceAccountPemFile")
+      )
+    }
 
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
 
@@ -196,6 +210,7 @@ object Config {
     )
   }
 
+  val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
@@ -205,7 +220,8 @@ object Config {
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-  val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
+  val contentSecurityPolicy =
+    config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")

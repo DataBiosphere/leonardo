@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
@@ -27,13 +27,13 @@ import scala.util.control.NoStackTrace
 class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   implicit val timer = IO.timer(global)
   implicit val cs = IO.contextShift(global)
+  val blocker = Blocker.liftExecutionContext(global)
 
   val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"),
-    false,
-    1 seconds,
-    10,
-    ServiceAccountProviderConfig(WorkbenchEmail("leo@gmail.com"), new File("test"))
-  )
+                                false,
+                                1 seconds,
+                                10,
+                                ServiceAccountProviderConfig(WorkbenchEmail("leo@gmail.com"), new File("test")))
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
@@ -63,13 +63,16 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config)
-    val expectedResponse = StatusCheckResponse(true,
-      Map(OpenDJ -> SubsystemStatus(true, None),
+    val samDao = new HttpSamDAO(okSam, config, blocker)
+    val expectedResponse = StatusCheckResponse(
+      true,
+      Map(
+        OpenDJ -> SubsystemStatus(true, None),
         GoogleIam -> SubsystemStatus(true, None),
         GoogleGroups -> SubsystemStatus(true, None),
         GooglePubSub -> SubsystemStatus(true, None)
-      ))
+      )
+    )
     samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
   }
 
@@ -86,7 +89,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config)
+    val samDao = new HttpSamDAO(okSam, config, blocker)
     val expectedResponse = StatusCheckResponse(true, Map.empty)
 
     samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
@@ -112,8 +115,11 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config)
-    val expectedResponse = StatusCheckResponse(false, Map(GoogleIam -> SubsystemStatus(true, None), OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
+    val samDao = new HttpSamDAO(okSam, config, blocker)
+    val expectedResponse =
+      StatusCheckResponse(false,
+                          Map(GoogleIam -> SubsystemStatus(true, None),
+                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
 
     samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
   }
@@ -122,10 +128,12 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     var hitCount = -1
     val retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(5 milliseconds, 4))
     val errorSam = Client.fromHttpApp[IO](
-      HttpApp{ _ => IO(hitCount = hitCount + 1) >>IO.raiseError[Response[IO]](FakeException(s"retried ${hitCount + 1} times"))}
+      HttpApp { _ =>
+        IO(hitCount = hitCount + 1) >> IO.raiseError[Response[IO]](FakeException(s"retried ${hitCount + 1} times"))
+      }
     )
     val clientWithRetry = Retry(retryPolicy)(errorSam)
-    val samDao = new HttpSamDAO(clientWithRetry, config)
+    val samDao = new HttpSamDAO(clientWithRetry, config, blocker)
 
     val res = for {
       result <- samDao.getStatus.attempt

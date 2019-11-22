@@ -16,58 +16,73 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
+class LabNotebookPage(override val url: String)(implicit override val authToken: AuthToken,
+                                                implicit override val webDriver: WebDriver)
+    extends LabPage
+    with Toolbar
+    with NotebookCell
+    with Eventually
+    with LazyLogging {
 
-class LabNotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends LabPage with Toolbar with NotebookCell with Eventually with LazyLogging {
-
-
-  override def open(implicit webDriver: WebDriver): LabNotebookPage = {
+  override def open(implicit webDriver: WebDriver): LabNotebookPage =
     super.open.asInstanceOf[LabNotebookPage]
-  }
 
   // menu elements
 
   lazy val fileMenu: Element = {
-    findAll(cssSelector(menus)).filter { e => e.text == "File" }.toList.head
+    findAll(cssSelector(menus))
+      .filter { e =>
+        e.text == "File"
+      }
+      .toList
+      .head
   }
 
   lazy val runMenu: Element = {
-    findAll(cssSelector(menus)).filter { e => e.text == "Run" }.toList.head
+    findAll(cssSelector(menus))
+      .filter { e =>
+        e.text == "Run"
+      }
+      .toList
+      .head
   }
 
   lazy val kernelMenu: Element = {
-    findAll(cssSelector(menus)).filter { e => e.text == "Kernel" }.toList.head
+    findAll(cssSelector(menus))
+      .filter { e =>
+        e.text == "Kernel"
+      }
+      .toList
+      .head
   }
 
   // is at least one cell currently executing?
-  def cellsAreRunning: Boolean = {
-    findAll(prompts).exists { e => e.text == "In [*]:" }
-  }
+  def cellsAreRunning: Boolean =
+    findAll(prompts).exists { e =>
+      e.text == "In [*]:"
+    }
 
   // has the specified cell completed execution? Cell number will appear in prompt once execution is complete
-  def cellIsRendered(cellNumber: Int): Boolean = {
-    findAll(cssSelector(prompts)).exists { e => e.text == s"[$cellNumber]:"}
-  }
+  def cellIsRendered(cellNumber: Int): Boolean =
+    findAll(cssSelector(prompts)).exists { e =>
+      e.text == s"[$cellNumber]:"
+    }
 
   lazy val cells: Query = cssSelector(cellSelector)
 
-  def lastCell: WebElement = {
+  def lastCell: WebElement =
     webDriver.findElements(cells.by).asScala.toList.last
-  }
 
-  def firstCell: WebElement = {
+  def firstCell: WebElement =
     webDriver.findElements(cells.by).asScala.toList.head
-  }
 
-  def numCellsOnPage: Int = {
+  def numCellsOnPage: Int =
     webDriver.findElements(cells.by).asScala.toList.length
-  }
 
   def cellOutput(cell: WebElement): Option[String] = {
     val outputs = cell.findElements(By.cssSelector(cellOutputSelector))
     outputs.asScala.headOption.map(_.getText)
   }
-
 
   def shutdownKernel(): Unit = {
     click on kernelMenu
@@ -100,13 +115,11 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     }
   }
 
-  def isKernelDisconnected: Boolean = {
+  def isKernelDisconnected: Boolean =
     find(className(kernelStatus)).exists(_.underlying.getAttribute("title") == "Kernel Dead")
-  }
 
-  def isKernelReady: Boolean = {
+  def isKernelReady: Boolean =
     find(className(kernelStatus)).exists(_.underlying.getAttribute("title") == "Kernel Idle")
-  }
 
   def runCodeInEmptyCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     Try {
@@ -120,12 +133,13 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     val cellNumber = numCellsOnPage
     click on cell.findElement(By.cssSelector(".CodeMirror"))
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
-    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell.findElement(By.cssSelector(".CodeMirror")))
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""",
+                  cell.findElement(By.cssSelector(".CodeMirror")))
 
     clickRunCell(timeout)
 
     try {
-      await condition(cellIsRendered(cellNumber), timeout.toSeconds)
+      await condition (cellIsRendered(cellNumber), timeout.toSeconds)
     } catch {
       case e: Exception => throw new TimeoutException(s"cellIsRendered($cellNumber) failed.", e)
     }

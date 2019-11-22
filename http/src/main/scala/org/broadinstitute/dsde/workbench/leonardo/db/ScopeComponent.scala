@@ -21,16 +21,13 @@ trait ScopeComponent extends LeoComponent {
 
   object scopeQuery extends TableQuery(new ScopeTable(_)) {
 
-    def save(clusterId: Long, scope: String): DBIO[Int] = {
+    def save(clusterId: Long, scope: String): DBIO[Int] =
       scopeQuery += ScopeRecord(clusterId, scope)
-    }
 
-
-    def saveAllForCluster(clusterId: Long, scopes: Set[String]) = {
+    def saveAllForCluster(clusterId: Long, scopes: Set[String]) =
       scopeQuery ++= scopes.map(scope => marshallScope(clusterId, scope))
-    }
 
-    def getAllForCluster(clusterId: Long): DBIO[Set[String]] = {
+    def getAllForCluster(clusterId: Long): DBIO[Set[String]] =
       scopeQuery.filter {
         _.clusterId === clusterId
       }.result map { recs =>
@@ -39,32 +36,28 @@ trait ScopeComponent extends LeoComponent {
         }
         clusterScopes.toSet
       }
-    }
 
-    def marshallScope(clusterId: Long, scope: String): ScopeRecord = {
+    def marshallScope(clusterId: Long, scope: String): ScopeRecord =
       ScopeRecord(clusterId, scope)
-    }
 
-    def unmarshallScopes(scopeList: List[ScopeRecord]): Set[String] = {
+    def unmarshallScopes(scopeList: List[ScopeRecord]): Set[String] =
       scopeList.map(rec => rec.scope).toSet
-    }
 
-    private def clusterScopeFilter(clusterId: Long, scope: String): Query[ScopeTable, ScopeRecord, Seq] = {
-      scopeQuery.filter {
-        _.clusterId === clusterId
-      }.filter {
-        _.scope === scope
-      }
-    }
+    private def clusterScopeFilter(clusterId: Long, scope: String): Query[ScopeTable, ScopeRecord, Seq] =
+      scopeQuery
+        .filter {
+          _.clusterId === clusterId
+        }
+        .filter {
+          _.scope === scope
+        }
 
-    def delete(clusterId: Long, scope: String): DBIO[Int] = {
+    def delete(clusterId: Long, scope: String): DBIO[Int] =
       clusterScopeFilter(clusterId, scope).delete
-    }
 
-    def deleteAllForCluster(clusterId: Long): DBIO[Int] = {
+    def deleteAllForCluster(clusterId: Long): DBIO[Int] =
       scopeQuery.filter {
         _.clusterId === clusterId
       }.delete
-    }
   }
 }

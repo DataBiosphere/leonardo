@@ -986,6 +986,9 @@ definitions:
         items:
           type: string
         description: The scopes for the cluster.
+      customClusterEnvironmentVariables:
+        type: object
+        description: Optional environment variables to be set on the cluster.
 
   InstanceKey:
     description: ''
@@ -1092,7 +1095,9 @@ definitions:
         type: boolean
         description: If set to true, sets up welder on the cluster. If unset, welder will not be put on the cluster.
         default: false
-
+      customClusterEnvironmentVariables:
+        type: object
+        description: Optional environment variables to be set on the cluster.
 
   ClusterError:
     description: 'Errors encountered on cluster create'

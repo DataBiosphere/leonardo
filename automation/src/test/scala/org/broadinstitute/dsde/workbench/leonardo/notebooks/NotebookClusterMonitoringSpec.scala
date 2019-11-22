@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEntity, GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.time.{Seconds, Span}
@@ -15,10 +15,10 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 /**
-  * This spec verifies cluster status transitions like pause/resume and cluster PATCH.
-  * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
-  * so lives in the notebooks sub-package.
-  */
+ * This spec verifies cluster status transitions like pause/resume and cluster PATCH.
+ * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
+ * so lives in the notebooks sub-package.
+ */
 @DoNotDiscover
 class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
@@ -63,66 +63,78 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
     "should update the cluster to add/remove worker nodes and change master machine type/disk" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
-      val initialMachineConfig = MachineConfig(numberOfWorkers = Some(2), masterMachineType = Some("n1-standard-2"), masterDiskSize = Some(50))
+      val initialMachineConfig =
+        MachineConfig(numberOfWorkers = Some(2), masterMachineType = Some("n1-standard-2"), masterDiskSize = Some(50))
 
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(machineConfig = Option(initialMachineConfig))) { cluster =>
-        // update the cluster to add another worker node and increase the master disk
-        val newMachineConfig = MachineConfig(numberOfWorkers = Some(3), masterDiskSize = Some(100))
-        Leonardo.cluster.update(billingProject, cluster.clusterName, ClusterRequest(machineConfig = Option(newMachineConfig)))
+      withNewCluster(billingProject, request = defaultClusterRequest.copy(machineConfig = Option(initialMachineConfig))) {
+        cluster =>
+          // update the cluster to add another worker node and increase the master disk
+          val newMachineConfig = MachineConfig(numberOfWorkers = Some(3), masterDiskSize = Some(100))
+          Leonardo.cluster.update(billingProject,
+                                  cluster.clusterName,
+                                  ClusterRequest(machineConfig = Option(newMachineConfig)))
 
-        eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
-          val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
-          status shouldBe ClusterStatus.Updating
-        }
-
-        val timeToAddWorker = time {
-          eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
-            val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
-            clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
-            clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
-            clusterResponse.status shouldBe ClusterStatus.Running
+          eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
+            val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
+            status shouldBe ClusterStatus.Updating
           }
-        }
 
-        logger.info(s"Adding worker to ${cluster.projectNameString}} took ${timeToAddWorker.duration.toSeconds} seconds")
-
-        // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
-        val twoWorkersConfig = newMachineConfig.copy(numberOfWorkers = Some(2))
-        Leonardo.cluster.update(billingProject, cluster.clusterName, ClusterRequest(machineConfig = Option(twoWorkersConfig)))
-
-        eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
-          val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
-          status shouldBe ClusterStatus.Updating
-        }
-
-        val timeToRemoveWorker = time {
-          eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
-            val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
-            clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
-            clusterResponse.machineConfig.masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
-            clusterResponse.status shouldBe ClusterStatus.Running
+          val timeToAddWorker = time {
+            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+              val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
+              clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
+              clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
+              clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
+              clusterResponse.status shouldBe ClusterStatus.Running
+            }
           }
-        }
 
-        logger.info(s"Removing worker to ${cluster.projectNameString}} took ${timeToRemoveWorker.duration.toSeconds} seconds")
+          logger.info(
+            s"Adding worker to ${cluster.projectNameString}} took ${timeToAddWorker.duration.toSeconds} seconds"
+          )
 
-        // finally, change the master machine type
-        // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
-        val newMachineTypeConfig = twoWorkersConfig.copy(masterMachineType = Some("n1-standard-4"))
-        withRestartCluster(cluster) { cluster =>
-          Leonardo.cluster.update(billingProject, cluster.clusterName, ClusterRequest(machineConfig = Option(newMachineTypeConfig)))
-          // cluster status should still be Stopped
-          val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
-          status shouldBe ClusterStatus.Stopped
-        }
+          // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
+          val twoWorkersConfig = newMachineConfig.copy(numberOfWorkers = Some(2))
+          Leonardo.cluster.update(billingProject,
+                                  cluster.clusterName,
+                                  ClusterRequest(machineConfig = Option(twoWorkersConfig)))
 
-        val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-        clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
-        clusterResponse.machineConfig.masterMachineType shouldBe newMachineTypeConfig.masterMachineType
-        clusterResponse.machineConfig.masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
-        clusterResponse.status shouldBe ClusterStatus.Running
+          eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
+            val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
+            status shouldBe ClusterStatus.Updating
+          }
+
+          val timeToRemoveWorker = time {
+            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+              val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
+              clusterResponse.machineConfig.numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
+              clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
+              clusterResponse.machineConfig.masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
+              clusterResponse.status shouldBe ClusterStatus.Running
+            }
+          }
+
+          logger.info(
+            s"Removing worker to ${cluster.projectNameString}} took ${timeToRemoveWorker.duration.toSeconds} seconds"
+          )
+
+          // finally, change the master machine type
+          // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
+          val newMachineTypeConfig = twoWorkersConfig.copy(masterMachineType = Some("n1-standard-4"))
+          withRestartCluster(cluster) { cluster =>
+            Leonardo.cluster.update(billingProject,
+                                    cluster.clusterName,
+                                    ClusterRequest(machineConfig = Option(newMachineTypeConfig)))
+            // cluster status should still be Stopped
+            val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
+            status shouldBe ClusterStatus.Stopped
+          }
+
+          val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
+          clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
+          clusterResponse.machineConfig.masterMachineType shouldBe newMachineTypeConfig.masterMachineType
+          clusterResponse.machineConfig.masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
+          clusterResponse.status shouldBe ClusterStatus.Running
       }
     }
 
@@ -132,19 +144,30 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       withNewGoogleBucket(billingProject) { bucket =>
         implicit val patienceConfig: PatienceConfig = storagePatience
 
-        val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
+        val srcPath = parseGcsPath(
+          "gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf"
+        ).right.get
         val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
-        googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
+        googleStorageDAO
+          .copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName)
+          .futureValue
 
         val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
         val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
-        googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
+        googleStorageDAO
+          .setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader)
+          .futureValue
 
-        val request = defaultClusterRequest.copy(jupyterDockerImage = None, machineConfig = Option(MachineConfig(
-          // need at least 2 regular workers to enable preemptibles
-          numberOfWorkers = Option(2),
-          numberOfPreemptibleWorkers = Option(10)
-        )))
+        val request = defaultClusterRequest.copy(
+          jupyterDockerImage = None,
+          machineConfig = Option(
+            MachineConfig(
+              // need at least 2 regular workers to enable preemptibles
+              numberOfWorkers = Option(2),
+              numberOfPreemptibleWorkers = Option(10)
+            )
+          )
+        )
 
         withNewCluster(billingProject, request = request) { cluster =>
           // Verify a Hail job uses preemptibles
@@ -170,7 +193,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
               // https://github.com/DataBiosphere/leonardo/issues/459
               // Re-enable this line once the above issue is fixed.
               //verifyHailImport(notebookPage, destPath, cluster.clusterName)
-              logger.info("ClusterMonitoringSpec: Hail verification is disabled after pause/resuming a cluster. See https://github.com/DataBiosphere/leonardo/issues/459.")
+              logger.info(
+                "ClusterMonitoringSpec: Hail verification is disabled after pause/resuming a cluster. See https://github.com/DataBiosphere/leonardo/issues/459."
+              )
 
               notebookPage.saveAndCheckpoint()
 
@@ -182,14 +207,15 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
     "should deploy welder on a cluster" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "saturnVersion"  // matches deployWelderLabel in Leo reference.conf
+      val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
       // Create a cluster with welder disabled
 
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(
-        enableWelder = Some(false),
-        labels = Map(deployWelderLabel -> "true"),
-        jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
+      withNewCluster(
+        billingProject,
+        request = defaultClusterRequest.copy(enableWelder = Some(false),
+                                             labels = Map(deployWelderLabel -> "true"),
+                                             jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
       ) { cluster =>
         withWebDriver { implicit driver =>
           // Verify welder is not running
@@ -220,31 +246,33 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
     "should update welder on a cluster" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "saturnVersion"  // matches deployWelderLabel in Leo reference.conf
+      val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
       // Create a cluster with welder disabled
 
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(
-        enableWelder = Some(true),
-        labels = Map(deployWelderLabel -> "true"),
-        welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage))
+      withNewCluster(
+        billingProject,
+        request = defaultClusterRequest.copy(enableWelder = Some(true),
+                                             labels = Map(deployWelderLabel -> "true"),
+                                             welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage))
       ) { cluster =>
-        withWebDriver { implicit driver =>
-          // Verify welder is running with old version
-          val statusResponse = Welder.getWelderStatus(cluster).unsafeRunSync()
-          val oldWelderHash = LeonardoConfig.Leonardo.oldWelderDockerImage.split(":")(1)
-          statusResponse.gitHeadCommit should startWith (oldWelderHash)
+        // Verify welder is running with old version
+        val statusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
+        statusResponse.isRight shouldBe true
+        val oldWelderHash = LeonardoConfig.Leonardo.oldWelderDockerImage.split(":")(1)
+        statusResponse.toOption.get.gitHeadCommit should startWith(oldWelderHash)
 
-          // Stop the cluster
-          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+        // Stop the cluster
+        stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
-          // Start the cluster
-          startAndMonitor(cluster.googleProject, cluster.clusterName)
+        // Start the cluster
+        startAndMonitor(cluster.googleProject, cluster.clusterName)
 
-          // Verify welder is now running
-          val curWelderHash = LeonardoConfig.Leonardo.curWelderDockerImage.split(":")(1)
-          Welder.getWelderStatus(cluster).unsafeRunSync().gitHeadCommit should startWith (curWelderHash)
-        }
+        // Verify welder is now running
+        val curWelderHash = LeonardoConfig.Leonardo.curWelderDockerImage.split(":")(1)
+        val newStatusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
+        newStatusResponse.isRight shouldBe true
+        newStatusResponse.toOption.get.gitHeadCommit should startWith(curWelderHash)
       }
     }
 
@@ -252,18 +280,20 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
     "should set environment variables for old image" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(jupyterDockerImage = None, enableWelder = Some(true))) { cluster =>
-        withWebDriver { implicit driver =>
-          withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
-            notebookPage.executeCell("import os")
-            notebookPage.executeCell("os.getenv('GOOGLE_PROJECT')").get shouldBe s"'${billingProject.value}'"
-            notebookPage.executeCell("os.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${billingProject.value}'"
-            notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
-            notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
-            // workspace bucket is not wired up in tests
-            notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
+      withNewCluster(billingProject,
+                     request = defaultClusterRequest.copy(jupyterDockerImage = None, enableWelder = Some(true))) {
+        cluster =>
+          withWebDriver { implicit driver =>
+            withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
+              notebookPage.executeCell("import os")
+              notebookPage.executeCell("os.getenv('GOOGLE_PROJECT')").get shouldBe s"'${billingProject.value}'"
+              notebookPage.executeCell("os.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${billingProject.value}'"
+              notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
+              notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
+              // workspace bucket is not wired up in tests
+              notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
+            }
           }
-        }
       }
     }
 

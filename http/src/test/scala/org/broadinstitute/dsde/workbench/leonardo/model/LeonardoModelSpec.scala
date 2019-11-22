@@ -11,19 +11,17 @@ import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
-
 class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers with CommonTestData with ScalaFutures {
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
   val cluster = makeCluster(1).copy(
-    dataprocInfo = makeDataprocInfo(1).copy(
-      googleId = Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
-    auditInfo = auditInfo.copy(createdDate = exampleTime,
-      dateAccessed = exampleTime),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
+    auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     stopAfterCreation = true,
-    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime))
+    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
+    welderEnabled = true
   )
 
   "ClusterRequestFormat" should "successfully decode json" in isolatedDbTest {
@@ -36,7 +34,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
-    decodeResult shouldBe(expectedClusterRequest)
+    decodeResult shouldBe (expectedClusterRequest)
   }
 
   it should "successfully decode cluster request with null values" in isolatedDbTest {
@@ -58,7 +56,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
-    decodeResult shouldBe(expectedClusterRequest)
+    decodeResult shouldBe (expectedClusterRequest)
   }
 
   it should "successfully decode cluster request with jupyterExtensionUri properly" in isolatedDbTest {
@@ -74,12 +72,16 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |}
       """.stripMargin.parseJson
 
-    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty,
+    val expectedClusterRequest = ClusterRequest(
+      labels = Map.empty,
+      properties = Map.empty,
+      scopes = Set.empty,
       jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
-      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))))
+      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
+    )
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
-    decodeResult shouldBe(expectedClusterRequest)
+    decodeResult shouldBe (expectedClusterRequest)
   }
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
@@ -119,10 +121,14 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |    { "tool": "Jupyter",
         |      "dockerImage": "jupyter/jupyter-base:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
+        |      },
+        |    { "tool": "Welder",
+        |      "dockerImage": "welder/welder:latest",
+        |      "timestamp": "2018-08-07T10:12:35Z"
         |      }
         |    ],
         |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"],
-        |  "welderEnabled": false
+        |  "welderEnabled": true
         |}
       """.stripMargin.parseJson
 
@@ -162,7 +168,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       """.stripMargin.parseJson
 
     val testJson = cluster.toJson(ClusterFormat)
-    testJson should equal (expectedJson)
+    testJson should equal(expectedJson)
 
     val returnedCluster = testJson.convertTo[Cluster]
     returnedCluster shouldBe cluster
@@ -183,28 +189,24 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   }
 
   it should "create a map of ClusterInitValues object" in isolatedDbTest {
-    val clusterInit = ClusterInitValues(project,
-      name1,
-      stagingBucketName,
+    val clusterInit = ClusterInitValues(
+      cluster,
       initBucketPath,
-      testClusterRequestWithExtensionAndScript,
+      stagingBucketName,
+      Some(serviceAccountKey),
       dataprocConfig,
+      proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
-      proxyConfig,
-      Some(serviceAccountKey),
-      userInfo.userEmail,
-      contentSecurityPolicy,
-      Set(jupyterImage, welderImage),
-      stagingBucketName,
-      true)
+      contentSecurityPolicy
+    )
     val clusterInitMap = clusterInit.toMap
 
     clusterInitMap("googleProject") shouldBe project.value
     clusterInitMap("clusterName") shouldBe name1.value
     clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
-    clusterInitMap("googleClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
+    clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
     clusterInitMap("welderEnabled") shouldBe "true"
 
@@ -212,20 +214,25 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe(true)
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe(true)
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe(false)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe (true)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe (false)
 
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/asdf") shouldBe(true)
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe(true)
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_sd_as:asdf") shouldBe(true)
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as:asdf ") shouldBe(false) //trailing white space
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as: asdf") shouldBe(false) //white space
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe(false)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/asdf") shouldBe (true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe (true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_sd_as:asdf") shouldBe (true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/as:asdf") shouldBe (true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as:asdf ") shouldBe (false) //trailing white space
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as: asdf") shouldBe (false) //white space
+    ContainerRegistry.DockerHub.regex.pattern
+      .asPredicate()
+      .test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe (false)
   }
 
   "ContainerImage.stringToJupyterDockerImage" should "match GCR first, and then dockerhub" in {
-    ContainerImage.stringToJupyterDockerImage("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe(Some(ContainerImage.GCR("us.gcr.io/broad-dsp-gcr-public/ubuntu1804")))
-    ContainerImage.stringToJupyterDockerImage("asd/asdf") shouldBe(Some(ContainerImage.DockerHub("asd/asdf")))
+    ContainerImage.stringToJupyterDockerImage("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (Some(
+      ContainerImage.GCR("us.gcr.io/broad-dsp-gcr-public/ubuntu1804")
+    ))
+    ContainerImage.stringToJupyterDockerImage("asd/asdf") shouldBe (Some(ContainerImage.DockerHub("asd/asdf")))
   }
 }
