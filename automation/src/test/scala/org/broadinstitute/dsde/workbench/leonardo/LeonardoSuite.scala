@@ -10,21 +10,34 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
 
-trait GPAllocFixtureSpec extends fixture.FreeSpecLike {
+trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
   override type FixtureParam = GoogleProject
-  override def withFixture(test: OneArgTest): Outcome =
+  override def withFixture(test: OneArgTest): Outcome = {
+    def runTestAndCheckOutcome(project: GoogleProject) = {
+      val outcome = super.withFixture(test.toNoArgTest(project))
+      if(! outcome.isSucceeded) {
+        System.setProperty(shouldUnclaimProjectsKey, "false")
+      }
+      outcome
+    }
+
     sys.props.get(gpallocProjectKey) match {
       case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
-      case Some(billingProject) => withFixture(test.toNoArgTest(GoogleProject(billingProject)))
+      case Some(billingProject) =>
+        if (isRetryable(test))
+          withRetry(runTestAndCheckOutcome(GoogleProject(billingProject)))
+        else
+          runTestAndCheckOutcome(GoogleProject(billingProject))
     }
+  }
 }
 object GPAllocFixtureSpec {
   val gpallocProjectKey = "leonardo.billingProject"
+  val shouldUnclaimProjectsKey = "leonardo.shouldUnclaimProjects"
 }
 
 trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils {
   this: TestSuite =>
-  def shouldUnclaimProjects: Boolean = true //TODO: find out a way to check if tests have passed
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -32,13 +45,17 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
     sys.props.put(gpallocProjectKey, billingProject.value)
   }
 
-  override def afterAll(): Unit = if(shouldUnclaimProjects) {
-    sys.props.get(gpallocProjectKey).foreach { billingProject =>
-      unclaimProject(GoogleProject(billingProject))
-      sys.props.remove(gpallocProjectKey)
-    }
+  override def afterAll(): Unit = {
+    val shouldUnclaim = sys.props.get(shouldUnclaimProjectsKey)
+    logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaim")
+    if(shouldUnclaim != Some("false")) {
+      sys.props.get(gpallocProjectKey).foreach { billingProject =>
+        unclaimProject(GoogleProject(billingProject))
+        sys.props.remove(gpallocProjectKey)
+      }
+    } else logger.info(s"Not going to release project: ${sys.props.get(gpallocProjectKey)} due to error happened")
     super.afterAll()
-  } else logger.info(s"Not going to release project: ${sys.props.get(gpallocProjectKey)} due to error happened")
+  }
 
   /**
    * Claim new billing project by Hermione

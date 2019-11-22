@@ -6,12 +6,12 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.scalatest.{fixture, BeforeAndAfterAll, Outcome}
+import org.scalatest.{BeforeAndAfterAll, Outcome, Retries, fixture}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils {
+abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
@@ -50,7 +50,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
    *   Section: "Overriding withFixture(OneArgTest)"
    *
    * Claim a billing project for project owner
-   * @param billingProject
    */
   case class ClusterFixture(cluster: Cluster)
 
@@ -61,7 +60,20 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       logger.info(s"[Debug] Using mocked cluster for cluster fixture tests")
       ronCluster = mockedCluster
     }
-    withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
+
+    def runTestAndCheckOutcome() = {
+      val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
+      if(! outcome.isSucceeded) {
+        System.setProperty(shouldUnclaimProjectsKey, "false")
+      }
+      outcome
+    }
+
+    if (isRetryable(test))
+      withRetry(runTestAndCheckOutcome())
+    else {
+      runTestAndCheckOutcome()
+    }
   }
 
   /**
@@ -99,7 +111,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     logger.info("beforeAll")
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
-        case Some(billingProject) => createRonCluster(GoogleProject(billingProject))
+        case Some(billingProject) =>
+          createRonCluster(GoogleProject(billingProject))
         case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
     }
@@ -107,7 +120,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   }
 
   override def afterAll(): Unit = {
-    logger.info("afterAll")
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))
@@ -116,5 +128,4 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     }
     super.afterAll()
   }
-
 }
