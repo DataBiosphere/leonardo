@@ -810,7 +810,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
       // - else if a legacy jupyterDockerImage param was sent, use that
-      // - ese use the default jupyter image
+      // - else use the default jupyter image
       jupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i.imageUrl, now))
       defaultJupyterImage = ClusterImage(Jupyter, dataprocConfig.jupyterImage, now)
       toolImage = autodetectedImageOpt orElse jupyterImageOpt getOrElse defaultJupyterImage
