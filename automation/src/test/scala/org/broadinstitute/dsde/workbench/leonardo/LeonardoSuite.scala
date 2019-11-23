@@ -69,6 +69,7 @@ final class LeonardoSuite
       new PingSpec,
       new ClusterStatusTransitionsSpec,
       new LabSpec,
+      new NotebookBioconductorKernelSpec,
       new NotebookClusterMonitoringSpec,
       new NotebookCustomizationSpec,
       new NotebookDataSyncingSpec,
