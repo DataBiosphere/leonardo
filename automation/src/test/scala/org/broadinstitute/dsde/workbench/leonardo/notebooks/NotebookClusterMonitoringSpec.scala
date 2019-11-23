@@ -7,11 +7,13 @@ import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEntity, GcsObjectName, GcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+
 import scala.concurrent.duration._
 
 /**
@@ -205,7 +207,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       }
     }
 
-    "should deploy welder on a cluster" in { billingProject =>
+    "should deploy welder on a cluster" taggedAs (Retryable) in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
@@ -244,7 +246,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       }
     }
 
-    "should update welder on a cluster" in { billingProject =>
+    "should update welder on a cluster" taggedAs Retryable in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 

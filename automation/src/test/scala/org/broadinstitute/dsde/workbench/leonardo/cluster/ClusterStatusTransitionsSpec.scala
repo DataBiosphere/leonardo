@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.cluster
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.service.RestException
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
@@ -94,7 +95,7 @@ class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
     }
 
     // set the "stop after creation" flag
-    "should stop a cluster after creation" in { billingProject =>
+    "should stop a cluster after creation" taggedAs(Retryable)  in { billingProject =>
       logger.info("Starting ClusterStatusTransitionsSpec: should stop a cluster after creation")
 
       val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))
