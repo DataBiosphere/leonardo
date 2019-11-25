@@ -1,11 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.time.Instant
+
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.AutomationTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 
@@ -111,7 +115,19 @@ object AutomationTestJsonCodec {
   implicit val clusterStatusDecoder: Decoder[ClusterStatus] =
     Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"Invalid cluster status ${s}"))
 
-  implicit val clusterDecoder: Decoder[Cluster] = Decoder.forProduct11(
+  implicit val clusterDecoder: Decoder[Cluster] = Decoder.forProduct11[Cluster,
+    ClusterName,
+    GoogleProject,
+    ServiceAccountInfo,
+    MachineConfig,
+    ClusterStatus,
+    WorkbenchEmail,
+    LabelMap,
+    Option[GcsBucketName],
+    Option[List[ClusterError]],
+    Instant,
+    Boolean
+  ](
     "clusterName",
     "googleProject",
     "serviceAccountInfo",
@@ -123,7 +139,10 @@ object AutomationTestJsonCodec {
     "errors",
     "dateAccessed",
     "stopAfterCreation"
-  )(Cluster.apply)
+  ){
+    (cn, gp, sa, mc, status, c, l, sb, e, da, sc) =>
+      Cluster(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc)
+  }
 }
 
 sealed trait ApiVersion {

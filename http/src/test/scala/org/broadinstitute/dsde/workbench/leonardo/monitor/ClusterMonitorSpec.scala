@@ -13,7 +13,7 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
@@ -27,20 +27,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, 
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GcsEntity,
-  GcsObjectName,
-  GoogleProject,
-  ServiceAccountKeyId
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually
-import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -83,8 +77,8 @@ class ClusterMonitorSpec
   val startingCluster = makeCluster(4).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     status = ClusterStatus.Starting,
-    clusterImages = Set(ClusterImage(ClusterTool.RStudio, "rstudio_image", Instant.now()),
-                        ClusterImage(ClusterTool.Jupyter, "jupyter_image", Instant.now()))
+    clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()),
+                        ClusterImage(ClusterImageType.Jupyter, "jupyter_image", Instant.now()))
   )
 
   val errorCluster = makeCluster(5).copy(
@@ -96,7 +90,7 @@ class ClusterMonitorSpec
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Stopped,
-    clusterImages = Set(ClusterImage(ClusterTool.RStudio, "rstudio_image", Instant.now()))
+    clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()))
   )
 
   val clusterInstances = Map(Master -> Set(masterInstance.key), Worker -> Set(workerInstance1.key, workerInstance2.key))
@@ -170,7 +164,6 @@ class ClusterMonitorSpec
                                           projectDAO,
                                           contentSecurityPolicy,
                                           blocker)
-    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val supervisorActor = system.actorOf(
       TestClusterSupervisorActor.props(
         monitorConfig,
@@ -782,7 +775,7 @@ class ClusterMonitorSpec
 
     when {
       gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-    } thenReturn Future.successful(())
+    } thenReturn Future.unit
 
     val newClusterId = UUID.randomUUID()
     when {
@@ -892,7 +885,7 @@ class ClusterMonitorSpec
                           MockJupyterDAO,
                           MockRStudioDAO,
                           MockWelderDAO,
-                          false) { actor =>
+                          false) { _ =>
       eventually {
         val newCluster = dbFutureValue {
           _.clusterQuery.getClusterById(savedCreatingCluster.id)
@@ -909,7 +902,6 @@ class ClusterMonitorSpec
         newCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
 
         verify(storageDAO, never).deleteBucket(mockitoEq(newClusterBucket.get.bucketName), any[Boolean])
-
       }
       // should only add/remove the dataproc.worker role 1 time
       val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
@@ -1094,9 +1086,6 @@ class ClusterMonitorSpec
         )
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      // Changing to atleast once since based on the timing of the monitor this method can be called once or twice
-      val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) atLeastOnce() else never()
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) atLeastOnce() else never()
     }
   }
 
@@ -1331,8 +1320,6 @@ class ClusterMonitorSpec
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance.copy(status = InstanceStatus.Stopped)))
       }
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
-      val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }

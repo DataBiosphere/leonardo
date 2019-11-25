@@ -18,9 +18,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
-  clusterEq,
-  clusterSetEq,
-  stripFieldsForListCluster
+  clusterEq
 }
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
@@ -153,7 +151,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
+      listResponse shouldBe Seq(cluster1).map(_.toListClusterResp)
 
       //connect
       val proxyRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
@@ -251,7 +249,7 @@ class AuthProviderSpec
       val proxy = proxyWithAuthProvider(spyProvider)
 
       //poke a cluster into the database so we actually have something to look for
-      cluster1.save(None)
+      val savedCluster = cluster1.save(None)
       // status should work for this user
       leo
         .getActiveClusterDetails(userInfo, project, cluster1.clusterName)
@@ -260,9 +258,7 @@ class AuthProviderSpec
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(cluster1).map(
-        stripFieldsForListCluster
-      )
+      leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(_.toListClusterResp)
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
@@ -329,7 +325,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
+      listResponse shouldBe Seq(cluster1).map(_.toListClusterResp)
     }
 
     "should return clusters the user didn't create if the auth provider says yes" in isolatedDbTest {
@@ -342,8 +338,8 @@ class AuthProviderSpec
       val newUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("new-user"), newEmail, 0)
 
       // list
-      val listResponse = leo.listClusters(newUserInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
+      val listResponse = leo.listClusters(newUserInfo, Map()).unsafeToFuture().futureValue
+      listResponse shouldBe Seq(cluster1).map(_.toListClusterResp)
     }
   }
 }

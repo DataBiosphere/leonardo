@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio}
 import org.scalatest.FlatSpecLike
 
 class ClusterImageComponentSpec extends TestComponent with FlatSpecLike with CommonTestData {
@@ -30,7 +30,7 @@ class ClusterImageComponentSpec extends TestComponent with FlatSpecLike with Com
 
     dbFutureValue { _.clusterImageQuery.getAllForCluster(cluster.id) }.toSet shouldBe Set(jupyterImage)
 
-    val newImage = jupyterImage.copy(dockerImage = "newImageString")
+    val newImage = jupyterImage.copy(imageUrl = "newImageString")
     dbFutureValue { _.clusterImageQuery.upsert(cluster.id, newImage) }
 
     dbFutureValue { _.clusterImageQuery.getAllForCluster(cluster.id) }.toSet shouldBe Set(newImage)

@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -244,7 +244,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
-
     } yield cluster
   }
 
@@ -277,7 +276,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest): IO[Cluster] = {
     implicit val booleanSumMonoidInstance = new Monoid[Boolean] {
       def empty = false
-      def combine(a: Boolean, b: Boolean) = a || b
+      def combine(a: Boolean, b: Boolean): Boolean = a || b
     }
 
     if (existingCluster.status.isUpdatable) {
@@ -587,7 +586,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Seq[Cluster]] =
+  ): IO[Vector[ListClusterResponse]] =
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransactionIO { da =>
@@ -602,8 +601,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         .filter(_.auditInfo.creator == userInfo.userEmail)
         .map(c => (c.googleProject, c.internalId))
         .toList
+
       val visibleClustersSet = (samVisibleClusters ::: userCreatedClusters).toSet
-      clusterList.filter(c => visibleClustersSet.contains((c.googleProject, c.internalId)))
+      clusterList.collect {
+        case c if visibleClustersSet.contains((c.googleProject, c.internalId)) =>
+          c.toListClusterResp
+      }.toVector
     }
 
   private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int =
@@ -813,9 +816,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Welder is already enabled; do we need to update it?
       val labelFound = dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
 
-      val imageChanged = cluster.clusterImages.find(_.tool == Welder) match {
-        case Some(welderImage) if welderImage.dockerImage != dataprocConfig.welderDockerImage => true
-        case _                                                                                => false
+      val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
+        case Some(welderImage) if welderImage.imageUrl != dataprocConfig.welderDockerImage => true
+        case _                                                                             => false
       }
 
       if (labelFound && imageChanged) UpdateWelder
@@ -846,7 +849,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, now), now)
       }
       newCluster = cluster.copy(welderEnabled = true,
-                                clusterImages = cluster.clusterImages.filterNot(_.tool == Welder) + welderImage)
+                                clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newCluster
 
 }

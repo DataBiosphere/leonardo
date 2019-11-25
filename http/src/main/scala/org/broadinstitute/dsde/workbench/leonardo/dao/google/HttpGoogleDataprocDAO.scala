@@ -281,9 +281,7 @@ class HttpGoogleDataprocDAO(
 
     // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
     // This overrides the imageVersion set in SoftwareConfig.
-    config.dataprocCustomImage.foreach { customImage =>
-      masterConfig.setImageUri(customImage)
-    }
+    masterConfig.setImageUri(config.dataprocCustomImage.asString)
 
     // Set the zone, if specified. If not specified, Dataproc will pick a zone within the configured region.
     zoneOpt.foreach { zone =>
@@ -345,16 +343,10 @@ class HttpGoogleDataprocDAO(
 
     val stackdriverProps = Map("dataproc:dataproc.monitoring.stackdriver.enable" -> "true")
 
-    val swConfig = new SoftwareConfig()
+    new SoftwareConfig()
       .setProperties(
         (authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.properties).asJava
       )
-
-    if (createClusterConfig.dataprocCustomImage.isEmpty) {
-      swConfig.setImageVersion("1.2-deb9")
-    }
-
-    swConfig
   }
 
   private def getMultiNodeClusterConfig(createClusterConfig: CreateClusterConfig): DataprocClusterConfig = {
@@ -370,9 +362,7 @@ class HttpGoogleDataprocDAO(
 
       // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
       // This overrides the imageVersion set in SoftwareConfig.
-      createClusterConfig.dataprocCustomImage.foreach { customImage =>
-        preemptibleWorkerConfig.setImageUri(customImage)
-      }
+      preemptibleWorkerConfig.setImageUri(createClusterConfig.dataprocCustomImage.asString)
 
       clusterConfigWithWorkerConfigs.setSecondaryWorkerConfig(preemptibleWorkerConfig)
     } else clusterConfigWithWorkerConfigs
@@ -390,9 +380,7 @@ class HttpGoogleDataprocDAO(
 
     // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
     // This overrides the imageVersion set in SoftwareConfig.
-    createClusterConfig.dataprocCustomImage.foreach { customImage =>
-      workerConfig.setImageUri(customImage)
-    }
+    workerConfig.setImageUri(createClusterConfig.dataprocCustomImage.asString)
 
     workerConfig
   }

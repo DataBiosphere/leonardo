@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package api
 
 import java.util.UUID
 
@@ -15,11 +16,16 @@ import akka.stream.scaladsl._
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
-import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoServiceJsonCodec.listClusterResponseWriter
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{
+  LeonardoService,
+  ProxyService,
+  StatusService
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -191,18 +197,20 @@ abstract class LeoRoutes(
       case leoException: LeoException =>
         complete(leoException.statusCode, leoException.toErrorReport)
       case withErrorReport: WorkbenchExceptionWithErrorReport =>
-        complete(withErrorReport.errorReport.statusCode.getOrElse(StatusCodes.InternalServerError),
-                 withErrorReport.errorReport)
+        complete(
+          withErrorReport.errorReport.statusCode
+            .getOrElse(StatusCodes.InternalServerError) -> withErrorReport.errorReport
+        )
       case workbenchException: WorkbenchException =>
         val report = ErrorReport(Option(workbenchException.getMessage).getOrElse(""),
                                  Some(StatusCodes.InternalServerError),
                                  Seq(),
                                  Seq(),
                                  Some(workbenchException.getClass))
-        complete(StatusCodes.InternalServerError, report)
+        complete(StatusCodes.InternalServerError -> report)
       case e: Throwable =>
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
-        complete(StatusCodes.InternalServerError, ErrorReport(e))
+        complete(StatusCodes.InternalServerError -> ErrorReport(e))
     }
   }
 

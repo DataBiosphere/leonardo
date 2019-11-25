@@ -34,23 +34,23 @@ import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName)
+final case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName)
     extends LeoException(
       s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet. It may be updating, try again later",
       StatusCodes.Locked
     )
 
-case class ClusterPausedException(googleProject: GoogleProject, clusterName: ClusterName)
+final case class ClusterPausedException(googleProject: GoogleProject, clusterName: ClusterName)
     extends LeoException(
       s"Cluster ${googleProject.value}/${clusterName.value} is stopped. Start your cluster before proceeding.",
       StatusCodes.UnprocessableEntity
     )
 
-case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
+final case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
     extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.value}",
                          StatusCodes.InternalServerError)
 
-case class AccessTokenExpiredException()
+final case object AccessTokenExpiredException
     extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
 
 /**
@@ -76,7 +76,7 @@ class ProxyService(
     .maximumSize(proxyConfig.tokenCacheMaxSize)
     .build(
       new CacheLoader[String, Future[(UserInfo, Instant)]] {
-        def load(key: String) =
+        def load(key: String): Future[(UserInfo, Instant)] =
           gdDAO.getUserInfoAndExpirationFromAccessToken(key)
       }
     )
@@ -88,7 +88,7 @@ class ProxyService(
         if (expireTime.isAfter(Instant.now))
           userInfo.copy(tokenExpiresIn = expireTime.getEpochSecond - Instant.now.getEpochSecond)
         else
-          throw AccessTokenExpiredException()
+          throw AccessTokenExpiredException
     }
 
   /* Cache for the cluster internal id from the database */
