@@ -176,6 +176,8 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           withWebDriver { implicit driver =>
             withNewNotebook(cluster, Python3) { notebookPage =>
               notebookPage.executeCell("""print("Hello Notebook!")""") shouldBe Some("Hello Notebook!")
+              notebookPage.saveAndCheckpoint()
+              notebookPage.shutdownKernel()
             }
 
             // Stop the cluster
