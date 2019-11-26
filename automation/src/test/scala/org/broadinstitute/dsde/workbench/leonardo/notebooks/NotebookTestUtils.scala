@@ -111,7 +111,9 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       )(30 seconds, 2 minutes) { () =>
         Future(
           notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
-            testCode(notebookPage)
+            val res = testCode(notebookPage)
+            notebookPage.saveAndCheckpoint()
+            res
           }
         )
       }
