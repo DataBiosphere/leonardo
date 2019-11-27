@@ -568,7 +568,20 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
 
   implicit val ClusterToolFormat = EnumEntryFormat(ClusterImageType.withName)
 
-  implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
+  implicit val ClusterImageFormat = new RootJsonFormat[ClusterImage] {
+    override def read(json: JsValue): ClusterImage = jsonFormat3(ClusterImage.apply).read(json)
+
+    override def write(obj: ClusterImage): JsValue = {
+      val allfields = List(
+        "imageUrl" -> obj.imageUrl.toJson,
+        "imageType" -> obj.imageType.toString.toJson,
+        "dockerImage" -> obj.imageUrl.toJson, //TODO: remove this once terra-ui stops using this field
+        "tool" -> obj.imageType.toString.toJson,  //TODO: remove this once terra-ui stops using this field
+        "timestamp" -> obj.timestamp.toJson
+      )
+      JsObject(allfields: _*)
+    }
+  }
 
   implicit val ClusterInternalIdFormat = ValueObjectFormat(ClusterInternalId)
 
