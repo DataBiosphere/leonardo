@@ -63,7 +63,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol{
         fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
         fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
         fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
-        fields.getOrElse("updateAndStop", JsNull).convertTo[Boolean],
+        fields.getOrElse("stopAndUpdate", JsNull).convertTo[Boolean],
         fields.getOrElse("updatedMachineConfig", JsNull).convertTo[MachineConfig],
         fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],
         fields.getOrElse("scopes", JsNull).convertTo[Set[String]],
