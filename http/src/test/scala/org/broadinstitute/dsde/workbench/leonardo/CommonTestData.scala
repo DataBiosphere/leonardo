@@ -93,6 +93,8 @@ trait CommonTestData { this: ScalaFutures =>
     None,
     Map.empty,
     None,
+    None,
+    None,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
     Some(30),
@@ -104,6 +106,8 @@ trait CommonTestData { this: ScalaFutures =>
     Some(jupyterUserScriptUri),
     None,
     Map.empty,
+    None,
+    None,
     None,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
@@ -140,6 +144,8 @@ trait CommonTestData { this: ScalaFutures =>
       Some(IP("numbers.and.dots"))
     )
 
+  val defaultMachineConfig =  MachineConfig(Some(0), Some(""), Some(500))
+
   def makeCluster(index: Int): Cluster = {
     val clusterName = ClusterName("clustername" + index.toString)
     Cluster(
@@ -149,7 +155,7 @@ trait CommonTestData { this: ScalaFutures =>
       serviceAccountInfo = serviceAccountInfo,
       dataprocInfo = Some(makeDataprocInfo(index)),
       auditInfo = auditInfo,
-      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
+      machineConfig = defaultMachineConfig,
       properties = Map.empty,
       clusterUrl = Cluster.getClusterUrl(project, clusterName, Set(jupyterImage)),
       status = ClusterStatus.Unknown,
@@ -162,6 +168,8 @@ trait CommonTestData { this: ScalaFutures =>
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
+      stopAndUpdate = false,
+      updatedMachineConfig = defaultMachineConfig,
       clusterImages = Set(jupyterImage),
       scopes = defaultScopes,
       welderEnabled = false,
@@ -176,7 +184,7 @@ trait CommonTestData { this: ScalaFutures =>
     serviceAccountInfo = serviceAccountInfo,
     dataprocInfo = Some(DataprocInfo(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
-    machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
+    machineConfig = defaultMachineConfig,
     properties = Map.empty,
     clusterUrl = Cluster.getClusterUrl(project, name1, Set(jupyterImage)),
     status = ClusterStatus.Unknown,
@@ -190,6 +198,8 @@ trait CommonTestData { this: ScalaFutures =>
     defaultClientId = None,
     stopAfterCreation = false,
     clusterImages = Set(jupyterImage),
+    stopAndUpdate = false,
+    updatedMachineConfig = defaultMachineConfig,
     scopes = defaultScopes,
     welderEnabled = false,
     customClusterEnvironmentVariables = Map.empty

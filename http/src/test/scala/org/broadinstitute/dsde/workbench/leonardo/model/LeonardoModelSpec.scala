@@ -118,6 +118,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
         |  "stopAfterCreation": true,
+        |  "stopAndUpdate": false,
+        |  "updatedMachineConfig": {
+        |    "numberOfWorkers": 0,
+        |    "masterMachineType": "",
+        |    "masterDiskSize": 500
+        |  },
         |  "clusterImages": [
         |    { "imageType": "Jupyter",
         |      "imageUrl": "jupyter/jupyter-base:latest",
@@ -164,6 +170,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 0,
         |  "stopAfterCreation": false,
+        |  "stopAndUpdate": false,
+        |  "updatedMachineConfig": {
+        |    "numberOfWorkers": 0,
+        |    "masterMachineType": "",
+        |    "masterDiskSize": 500
+        |  },
         |  "clusterImages": []
         |}
       """.stripMargin.parseJson

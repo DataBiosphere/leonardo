@@ -49,6 +49,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
                                     None,
                                     Map.empty,
                                     None,
+                                    None,
+                                    None,
                                     Some(UserJupyterExtensionConfig(Map("abc" -> "def"))))
     Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
