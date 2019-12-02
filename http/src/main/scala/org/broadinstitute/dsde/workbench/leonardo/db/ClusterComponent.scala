@@ -446,10 +446,11 @@ trait ClusterComponent extends LeoComponent {
 
     def updateClusterForStopTransition(id: Long, machineConfig: MachineConfig): DBIO[Int] = {
       machineConfig.masterMachineType match {
-        case Some(masterMachineType) => {
-          findByIdQuery(id).map(_.updatedMasterMachineType).update(masterMachineType.value)
-          findByIdQuery(id).map(_.stopAndUpdate).update(true)
-        }
+        case Some(masterMachineType) =>
+          for {
+            _ <- findByIdQuery(id).map(_.updatedMasterMachineType).update(masterMachineType.value)
+            dbio <- findByIdQuery(id).map(_.stopAndUpdate).update(true)
+          } yield dbio
         case _ => DBIO.successful(0)
       }
     }

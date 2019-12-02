@@ -158,7 +158,7 @@ class LeonardoServiceSpec
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
 
-  "LeonardoService" should "create a single node cluster with default machine configs" ignore isolatedDbTest {
+  "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
@@ -199,7 +199,7 @@ class LeonardoServiceSpec
     dbInitBucketOpt shouldBe None
   }
 
-  it should "create and get a cluster" ignore isolatedDbTest {
+  it should "create and get a cluster" in isolatedDbTest {
     // create a cluster
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -210,7 +210,7 @@ class LeonardoServiceSpec
     clusterCreateResponse shouldEqual clusterGetResponse
   }
 
-  it should "create a cluster with the default welder image" ignore isolatedDbTest {
+  it should "create a cluster with the default welder image" in isolatedDbTest {
     // create the cluster
     val clusterRequest = testClusterRequest.copy(
       machineConfig = Some(singleNodeDefaultMachineConfig),
@@ -291,7 +291,7 @@ class LeonardoServiceSpec
     )
   }
 
-  it should "create a single node cluster with an empty machine config" ignore isolatedDbTest {
+  it should "create a single node cluster with an empty machine config" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig()))
 
     val clusterCreateResponse =
@@ -299,7 +299,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
   }
 
-  it should "create a single node cluster with zero workers explicitly defined in machine config" ignore isolatedDbTest {
+  it should "create a single node cluster with zero workers explicitly defined in machine config" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0))))
 
     val clusterCreateResponse =
@@ -307,7 +307,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
   }
 
-  it should "create a single node cluster with master configs defined" ignore isolatedDbTest {
+  it should "create a single node cluster with master configs defined" in isolatedDbTest {
     val singleNodeDefinedMachineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(200))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(singleNodeDefinedMachineConfig))
 
@@ -316,7 +316,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefinedMachineConfig
   }
 
-  it should "create a single node cluster and override worker configs" ignore isolatedDbTest {
+  it should "create a single node cluster and override worker configs" in isolatedDbTest {
     // machine config is creating a single node cluster, but has worker configs defined
     val machineConfig = Some(
       MachineConfig(Some(0),
@@ -334,7 +334,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200))
   }
 
-  it should "create a standard cluster with 2 workers with default worker configs" ignore isolatedDbTest {
+  it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(2))))
     val machineConfigResponse = MachineConfig(
       Some(2),
@@ -351,7 +351,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.machineConfig shouldEqual machineConfigResponse
   }
 
-  it should "create a standard cluster with 10 workers with defined config" ignore isolatedDbTest {
+  it should "create a standard cluster with 10 workers with defined config" in isolatedDbTest {
     val machineConfig = MachineConfig(Some(10),
                                       Some("test-master-machine-type"),
                                       Some(200),
@@ -366,7 +366,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.machineConfig shouldEqual machineConfig
   }
 
-  it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" ignore isolatedDbTest {
+  it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
     val machineConfig = MachineConfig(Some(2),
                                       Some("test-master-machine-type"),
                                       Some(5),
@@ -388,7 +388,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.machineConfig shouldEqual expectedMachineConfig
   }
 
-  it should "throw OneWorkerSpecifiedInClusterRequestException when create a 1 worker cluster" ignore isolatedDbTest {
+  it should "throw OneWorkerSpecifiedInClusterRequestException when create a 1 worker cluster" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(1))))
 
     val clusterCreateResponse =
@@ -396,7 +396,7 @@ class LeonardoServiceSpec
     clusterCreateResponse shouldBe a[OneWorkerSpecifiedInClusterRequestException]
   }
 
-  it should "throw NegativeIntegerArgumentInClusterRequestException when master disk size in single node cluster request is a negative integer" ignore isolatedDbTest {
+  it should "throw NegativeIntegerArgumentInClusterRequestException when master disk size in single node cluster request is a negative integer" in isolatedDbTest {
     val clusterRequestWithMachineConfig =
       testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0), Some("test-worker-machine-type"), Some(-30))))
 
@@ -405,7 +405,7 @@ class LeonardoServiceSpec
     clusterCreateResponse shouldBe a[NegativeIntegerArgumentInClusterRequestException]
   }
 
-  it should "throw NegativeIntegerArgumentInClusterRequestException when number of preemptible workers in a 2 worker cluster request is a negative integer" ignore isolatedDbTest {
+  it should "throw NegativeIntegerArgumentInClusterRequestException when number of preemptible workers in a 2 worker cluster request is a negative integer" in isolatedDbTest {
     val machineConfig = MachineConfig(Some(10),
                                       Some("test-master-machine-type"),
                                       Some(200),
@@ -420,7 +420,7 @@ class LeonardoServiceSpec
     clusterCreateResponse shouldBe a[NegativeIntegerArgumentInClusterRequestException]
   }
 
-  it should "throw ClusterNotFoundException for nonexistent clusters" ignore isolatedDbTest {
+  it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
     val exc = leo
       .getActiveClusterDetails(userInfo, GoogleProject("nonexistent"), ClusterName("cluster"))
       .unsafeToFuture
@@ -429,13 +429,13 @@ class LeonardoServiceSpec
     exc shouldBe a[ClusterNotFoundException]
   }
 
-  it should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" ignore isolatedDbTest {
+  it should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
     val cluster1 = leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
     val exc = leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.failed.futureValue
     exc shouldBe a[ClusterAlreadyExistsException]
   }
 
-  it should "create two clusters with same name with only one active" ignore isolatedDbTest {
+  it should "create two clusters with same name with only one active" in isolatedDbTest {
     // create first cluster
     val cluster = leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
 
@@ -462,7 +462,7 @@ class LeonardoServiceSpec
   }
 
   // TODO move to a ClusterHelperSpec
-  it should "choose the correct VPC subnet and network settings" ignore isolatedDbTest {
+  it should "choose the correct VPC subnet and network settings" in isolatedDbTest {
     //if config isn't set up to look at labels (which the default one isn't), the labels don't matter
     //and we should fall back to the config
     val decoySubnetMap = Map("subnet-label" -> "incorrectSubnet", "network-label" -> "incorrectNetwork")
@@ -512,7 +512,7 @@ class LeonardoServiceSpec
     clusterHelperWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(VPCNetwork("test-network"))
   }
 
-  it should "delete a Running cluster" ignore isolatedDbTest {
+  it should "delete a Running cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider[IO] = spy(authProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
@@ -564,7 +564,7 @@ class LeonardoServiceSpec
                                                     mockitoEq(name1))(any[ApplicativeAsk[IO, TraceId]])
   }
 
-  it should "delete a cluster that has status Error" ignore isolatedDbTest {
+  it should "delete a cluster that has status Error" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider[IO] = spy(authProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
@@ -617,7 +617,7 @@ class LeonardoServiceSpec
                                                     mockitoEq(name1))(any[ApplicativeAsk[IO, TraceId]])
   }
 
-  it should "delete a cluster's instances" ignore isolatedDbTest {
+  it should "delete a cluster's instances" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -655,7 +655,7 @@ class LeonardoServiceSpec
   }
 
   // TODO move to TemplateHelperSpec
-  it should "template a script using config values" ignore isolatedDbTest {
+  it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
     val clusterInit = ClusterInitValues(
       testCluster,
@@ -700,7 +700,7 @@ class LeonardoServiceSpec
     new String(result, StandardCharsets.UTF_8) shouldEqual expected
   }
 
-  it should "throw a JupyterExtensionException when the extensionUri is too long" ignore isolatedDbTest {
+  it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {
     val jupyterExtensionUri =
       GcsPath(GcsBucketName("bucket"), GcsObjectName(Stream.continually('a').take(1025).mkString))
 
@@ -711,7 +711,7 @@ class LeonardoServiceSpec
     response shouldBe a[BucketObjectException]
   }
 
-  it should "throw a JupyterExtensionException when the jupyterExtensionUri does not point to a GCS object" ignore isolatedDbTest {
+  it should "throw a JupyterExtensionException when the jupyterExtensionUri does not point to a GCS object" in isolatedDbTest {
     val jupyterExtensionUri = parseGcsPath("gs://bogus/object.tar.gz").right.get
 
     // create the cluster
@@ -728,12 +728,12 @@ class LeonardoServiceSpec
     response shouldBe a[BucketObjectException]
   }
 
-  it should "list no clusters" ignore isolatedDbTest {
+  it should "list no clusters" in isolatedDbTest {
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue shouldBe 'empty
     leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).unsafeToFuture.futureValue shouldBe 'empty
   }
 
-  it should "list all clusters" ignore isolatedDbTest {
+  it should "list all clusters" in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).unsafeToFuture.futureValue
@@ -749,7 +749,7 @@ class LeonardoServiceSpec
     )
   }
 
-  it should "error when trying to delete a creating cluster" ignore isolatedDbTest {
+  it should "error when trying to delete a creating cluster" in isolatedDbTest {
     // create cluster
     leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
 
@@ -761,7 +761,7 @@ class LeonardoServiceSpec
       .futureValue shouldBe a[ClusterCannotBeDeletedException]
   }
 
-  it should "list all active clusters" ignore isolatedDbTest {
+  it should "list all active clusters" in isolatedDbTest {
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -804,7 +804,7 @@ class LeonardoServiceSpec
     leo.listClusters(userInfo, Map("includeDeleted" -> "true")).unsafeToFuture.futureValue.toSet.size shouldBe 3
   }
 
-  it should "list clusters with labels" ignore isolatedDbTest {
+  it should "list clusters with labels" in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).unsafeToFuture.futureValue
@@ -851,7 +851,7 @@ class LeonardoServiceSpec
     ).map(_.toListClusterResp)
   }
 
-  it should "throw IllegalLabelKeyException when using a forbidden label" ignore isolatedDbTest {
+  it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
     // cluster should not be allowed to have a label with key of "includeDeleted"
     val modifiedTestClusterRequest = testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))
     val includeDeletedResponse =
@@ -860,7 +860,7 @@ class LeonardoServiceSpec
     includeDeletedResponse shouldBe a[IllegalLabelKeyException]
   }
 
-  it should "list clusters with swagger-style labels" ignore isolatedDbTest {
+  it should "list clusters with swagger-style labels" in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).unsafeToFuture.futureValue
@@ -921,7 +921,7 @@ class LeonardoServiceSpec
       .futureValue shouldBe a[ParseLabelsException]
   }
 
-  it should "list clusters belonging to a project" ignore isolatedDbTest {
+  it should "list clusters belonging to a project" in isolatedDbTest {
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
     val cluster2 = leo
@@ -954,7 +954,7 @@ class LeonardoServiceSpec
       .toSet shouldBe Set.empty
   }
 
-  it should "stop a cluster" ignore isolatedDbTest {
+  it should "stop a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -991,7 +991,7 @@ class LeonardoServiceSpec
     computeDAO.instanceMetadata.values.toSet shouldBe Set(Map.empty)
   }
 
-  it should "resize a cluster" ignore isolatedDbTest {
+  it should "resize a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1023,7 +1023,7 @@ class LeonardoServiceSpec
     )
   }
 
-  it should "update the autopause threshold for a cluster" ignore isolatedDbTest {
+  it should "update the autopause threshold for a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1050,7 +1050,7 @@ class LeonardoServiceSpec
     dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.get.autopauseThreshold shouldBe 7
   }
 
-  it should "update the master machine type for a cluster" ignore isolatedDbTest {
+  it should "update the master machine type for a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1082,7 +1082,7 @@ class LeonardoServiceSpec
     )
   }
 
-  it should "not allow changing the master machine type for a cluster in RUNNING state without flag set" ignore isolatedDbTest {
+  it should "not allow changing the master machine type for a cluster in RUNNING state without flag set" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1115,89 +1115,38 @@ class LeonardoServiceSpec
   it should "allow changing the master machine type for a cluster in RUNNING state with flag set" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
+      leo.createCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(defaultMachineConfig))).unsafeToFuture.futureValue
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"), Instant.now) }
 
     val newMachineType = "n1-micro-1"
-    val newConfig = Some(MachineConfig(masterMachineType = Some(newMachineType)))
+    val newConfig = defaultMachineConfig.copy(masterMachineType = Some(newMachineType))
+
+    dbFutureValue {
+      _.clusterQuery.getClusterById(clusterCreateResponse.id)
+    }.get.stopAndUpdate shouldBe false
+
     leo
       .updateCluster(
         userInfo,
         project,
         name1,
-        testClusterRequest.copy(machineConfig = newConfig, stopAndUpdate = Some(true))
+        testClusterRequest.copy(machineConfig = Some(newConfig), stopAndUpdate = Some(true))
       )
       .unsafeRunSync
 
-    logger.info("here1")
-
-    eventually(timeout(2 minutes), interval(10 seconds)) {
       dbFutureValue {
         _.clusterQuery.getClusterById(clusterCreateResponse.id)
       }.get.stopAndUpdate shouldBe true
-    }
-
-    logger.info("here2")
 
     //check that machine is properly updated
-    eventually(timeout(2 minutes), interval(10 seconds)) {
-      dbFutureValue {
+     dbFutureValue {
         _.clusterQuery.getClusterById(clusterCreateResponse.id)
-      }.get.updatedMachineConfig.masterMachineType shouldBe newConfig.get
-    }
-
-//    //check that machine is properly updated
-//    eventually(timeout(3 minutes), interval(1 minute)) {
-//      val cluster = dbFutureValue {
-//        _.clusterQuery.getClusterById(clusterCreateResponse.id)
-//      }.get
-//
-//      cluster.machineConfig shouldBe newConfig
-//    }
-//
-//    eventually(timeout(3 minutes), interval(1 minute)) {
-//      dbFutureValue {
-//        _.clusterQuery.getClusterById(clusterCreateResponse.id)
-//      }.get.stopAndUpdate shouldBe false
-//    }
-
+      }.get.updatedMachineConfig shouldBe newConfig
   }
 
-  it should "eventually start a cluster that requires a stop to update" ignore isolatedDbTest {
-    // create the cluster
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
-
-    // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"), Instant.now) }
-
-    val newMachineType = "n1-micro-1"
-    val newConfig = Some(MachineConfig(masterMachineType = Some(newMachineType)))
-    leo
-      .updateCluster(
-        userInfo,
-        project,
-        name1,
-        testClusterRequest.copy(machineConfig = newConfig, stopAndUpdate = Some(true))
-      )
-      .unsafeRunSync
-
-    eventually(timeout(3 minutes), interval(1 minute)) {
-      dbFutureValue {
-        _.clusterQuery.getClusterStatus(clusterCreateResponse.id)
-      } shouldBe Some(ClusterStatus.Stopped)
-    }
-
-    eventually(timeout(3 minutes), interval(1 minute)) {
-      dbFutureValue {
-        _.clusterQuery.getClusterStatus(clusterCreateResponse.id)
-      } shouldBe Some(ClusterStatus.Running)
-    }
-  }
-
-  it should "update the master disk size for a cluster" ignore isolatedDbTest {
+  it should "update the master disk size for a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1227,7 +1176,7 @@ class LeonardoServiceSpec
     )
   }
 
-  it should "not allow decreasing the master disk size for a cluster" ignore isolatedDbTest {
+  it should "not allow decreasing the master disk size for a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1256,7 +1205,7 @@ class LeonardoServiceSpec
   }
 
   ClusterStatus.monitoredStatuses foreach { status =>
-    it should s"not allow updating a cluster in ${status.toString} state" ignore isolatedDbTest {
+    it should s"not allow updating a cluster in ${status.toString} state" in isolatedDbTest {
       // create the cluster
       val cluster =
         leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1290,7 +1239,7 @@ class LeonardoServiceSpec
     }
   }
 
-  it should "start a cluster" ignore isolatedDbTest {
+  it should "start a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1329,7 +1278,7 @@ class LeonardoServiceSpec
   }
 
   // TODO: remove this test once data syncing release is complete
-  it should "label and start an outdated cluster" ignore isolatedDbTest {
+  it should "label and start an outdated cluster" in isolatedDbTest {
     // create the cluster
     val request = testClusterRequest.copy(labels = Map("TEST_ONLY_DEPLOY_WELDER" -> "yes"))
     val cluster = leo.createCluster(userInfo, project, name1, request).unsafeToFuture.futureValue
@@ -1353,7 +1302,7 @@ class LeonardoServiceSpec
     dbCluster.labels.exists(_ == "welderInstallFailed" -> "true")
   }
 
-  it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" ignore isolatedDbTest {
+  it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {
     val clusterRequest =
       testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig), stopAfterCreation = Some(true))
 
