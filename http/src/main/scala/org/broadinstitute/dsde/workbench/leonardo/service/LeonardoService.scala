@@ -358,9 +358,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Int] = {
     transition match {
       case StopStart(machineConfig) =>
-        dbRef.inTransactionIO {
-          _.clusterQuery.updateClusterForStopTransition(existingCluster.id, machineConfig)
-        }
+        for {
+          _ <- internalStopCluster(existingCluster)
+          dbio <- dbRef.inTransactionIO {
+            _.clusterQuery.updateClusterForStopTransition(existingCluster.id, machineConfig)
+          }
+        } yield dbio
 
       //we need to record the desired update and set a flag on the cluster so the monitor picks it up
       //TODO: we currently do not support this

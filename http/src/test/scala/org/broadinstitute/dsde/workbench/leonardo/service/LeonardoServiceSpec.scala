@@ -1112,7 +1112,7 @@ class LeonardoServiceSpec
     failure shouldBe a[ClusterMachineTypeCannotBeChangedException]
   }
 
-  it should "allow changing the master machine type for a cluster in RUNNING state with flag set" in isolatedDbTest {
+  it should "allow changing the master machine type for a cluster in RUNNING state with flag set id2" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(defaultMachineConfig))).unsafeToFuture.futureValue
@@ -1126,6 +1126,15 @@ class LeonardoServiceSpec
     dbFutureValue {
       _.clusterQuery.getClusterById(clusterCreateResponse.id)
     }.get.stopAndUpdate shouldBe false
+
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+
+
+    // populate some instances for the cluster
+    val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances) }
+    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
+    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     leo
       .updateCluster(
@@ -1144,6 +1153,21 @@ class LeonardoServiceSpec
      dbFutureValue {
         _.clusterQuery.getClusterById(clusterCreateResponse.id)
       }.get.updatedMachineConfig shouldBe newConfig
+
+    eventually(timeout(30 seconds), interval(10 seconds)) {
+      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Stopping)
+    }
+
+    //we dont invoke the monitor, so this should be running in db
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+
+    // Google instances should be stopped
+    computeDAO.instances.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Stopped)).toSet
+    computeDAO.instanceMetadata.values.toSet shouldBe Set(Map.empty)
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {

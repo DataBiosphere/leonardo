@@ -187,12 +187,12 @@ class ClusterMonitorSupervisor(
           logger.error(s"Error occurred stopping cluster ${cluster.projectNameString} after creation", e)
         }
 
-    case ClusterStopQueued(cluster) =>
-      logger.info(s"Monitoring cluster ${cluster.projectNameString} with stop queued")
-      addToMonitoredClusters(cluster)
-      clusterHelper.stopCluster(cluster)
-
-      startClusterMonitorActor(cluster, Some(ClusterStopped(cluster, true)))
+//    case ClusterStopQueued(cluster) =>
+//      logger.info(s"Monitoring cluster ${cluster.projectNameString} with stop queued")
+//      addToMonitoredClusters(cluster)
+//      clusterHelper.stopCluster(cluster)
+//
+//      startClusterMonitorActor(cluster, Some(ClusterStopped(cluster, true)))
 
     case ClusterStopped(cluster, updateAfterStop) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after stopping.")
@@ -201,6 +201,7 @@ class ClusterMonitorSupervisor(
 
     case ClusterStopAndUpdate(cluster) =>
       logger.info(s"Updating cluster ${cluster.projectNameString} after stopping...")
+      logger.info("why am I here?")
 
       dbRef.inTransaction {
         dataAccess => dataAccess.clusterQuery.getClusterById(cluster.id)
@@ -348,7 +349,6 @@ class ClusterMonitorSupervisor(
           val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
 
           clustersNotAlreadyBeingMonitored foreach {
-            case c  if c.status == ClusterStatus.Running && c.stopAndUpdate => self ! ClusterStopQueued(c)
 
             case c if c.status == ClusterStatus.Deleting => self ! ClusterDeleted(c)
 
@@ -359,8 +359,6 @@ class ClusterMonitorSupervisor(
             case c if c.status == ClusterStatus.Updating => self ! ClusterUpdated(c)
 
             case c if c.status == ClusterStatus.Creating => self ! ClusterCreated(c, c.stopAfterCreation)
-
-            case c if c.status == ClusterStatus.Stopped && c.stopAndUpdate => self ! ClusterStopAndUpdate(c)
 
             case c => logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor")
           }
