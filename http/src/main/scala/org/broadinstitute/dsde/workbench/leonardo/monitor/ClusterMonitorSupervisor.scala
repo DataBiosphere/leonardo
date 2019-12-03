@@ -348,7 +348,7 @@ class ClusterMonitorSupervisor(
           val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
 
           clustersNotAlreadyBeingMonitored foreach {
-            case c  if c.status  == ClusterStatus.Running && c.stopAndUpdate == true => self ! ClusterStopQueued(c)
+            case c  if c.status == ClusterStatus.Running && c.stopAndUpdate => self ! ClusterStopQueued(c)
 
             case c if c.status == ClusterStatus.Deleting => self ! ClusterDeleted(c)
 
@@ -360,7 +360,7 @@ class ClusterMonitorSupervisor(
 
             case c if c.status == ClusterStatus.Creating => self ! ClusterCreated(c, c.stopAfterCreation)
 
-            case c if c.status == ClusterStatus.Stopped => self ! ClusterStopAndUpdate(c)
+            case c if c.status == ClusterStatus.Stopped && c.stopAndUpdate => self ! ClusterStopAndUpdate(c)
 
             case c => logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor")
           }

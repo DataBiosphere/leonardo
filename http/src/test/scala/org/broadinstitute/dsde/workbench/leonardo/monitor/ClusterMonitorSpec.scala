@@ -1331,6 +1331,98 @@ class ClusterMonitorSpec
   }
 
   // Pre:
+  // - cluster exists in the DB with status Running
+  // - dataproc DAO returns status RUNNING
+  // - compute DAO returns status RUNNING
+  // Post:
+  // - cluster is updated in the DB with status Stopped
+  // - instances are populated in the DB
+  // - monitor actor shuts down
+  it should "stop a cluster before an update when specified uniqueid1" in isolatedDbTest {
+    val stopBeforeUpdateCluster = creatingCluster.copy(stopAndUpdate = true,
+      updatedMachineConfig = creatingCluster.machineConfig.copy(masterMachineType = Some("n1-standard-8")))
+
+    stopBeforeUpdateCluster.save() shouldEqual stopBeforeUpdateCluster
+
+    val projectDAO = mock[GoogleProjectDAO]
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Running)
+
+    when {
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(Map((Master: DataprocRole) -> Set(masterInstance.key)))
+
+    when {
+      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(Some(masterInstance.key))
+
+    when {
+      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
+
+    val computeDAO = mock[GoogleComputeDAO]
+    when {
+      computeDAO.getInstance(mockitoEq(masterInstance.key))
+    } thenReturn {
+      Future.successful(Some(masterInstance.copy(status = InstanceStatus.Running)))
+    } thenReturn {
+      Future.successful(Some(masterInstance.copy(status = InstanceStatus.Stopped)))
+    }
+
+    when {
+      computeDAO.addInstanceMetadata(mockitoEq(masterInstance.key), any[Map[String, String]])
+    } thenReturn Future.successful(())
+
+    when {
+      computeDAO.stopInstance(mockitoEq(masterInstance.key))
+    } thenReturn Future.successful(())
+
+    val storageDAO = mock[GoogleStorageDAO]
+    when {
+      storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
+    } thenReturn Future.successful(())
+
+    when {
+      storageDAO.setBucketAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
+    } thenReturn Future.successful(())
+
+    when {
+      storageDAO.setDefaultObjectAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
+    } thenReturn Future.successful(())
+
+    val iamDAO = mock[GoogleIamDAO]
+
+    val authProvider = mock[LeoAuthProvider[IO]]
+
+    withClusterSupervisor(gdDAO,
+      computeDAO,
+      iamDAO,
+      projectDAO,
+      storageDAO,
+      FakeGoogleStorageService,
+      authProvider,
+      MockJupyterDAO,
+      MockRStudioDAO,
+      MockWelderDAO,
+      false) { actor =>
+      eventually {
+        val updatedCluster = dbFutureValue {
+          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+        }
+        updatedCluster shouldBe 'defined
+
+        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
+        updatedCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe None
+        updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance.copy(status = InstanceStatus.Stopped)))
+      }
+      verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
+      verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+    }
+  }
+
+  // Pre:
   // - cluster exists in the DB with status Error
   // - dataproc DAO throws exception
   // Post:
