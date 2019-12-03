@@ -1338,25 +1338,21 @@ class ClusterMonitorSpec
   // - cluster is updated in the DB with status Stopped
   // - instances are populated in the DB
   // - monitor actor shuts down
-  it should "update a cluster queued for stopAndUpdate uniqueid1" in isolatedDbTest {
+  it should "update a cluster after stopping uniqueid1" in isolatedDbTest {
     val newMachineType =  Some("n1-standard-8")
     val stopBeforeUpdateCluster = stoppingCluster.copy(stopAndUpdate = true,
       updatedMachineConfig = stoppingCluster.machineConfig.copy(masterMachineType = newMachineType))
 
     stopBeforeUpdateCluster.save() shouldEqual stopBeforeUpdateCluster
     stoppingCluster.machineConfig.masterMachineType should not equal(newMachineType)
-    
+
     val projectDAO = mock[GoogleProjectDAO]
     val gdDAO = mock[GoogleDataprocDAO]
 
     when {
       gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
     } thenReturn {
-      Future.successful(ClusterStatus.Stopping)
-    } thenReturn {
       Future.successful(ClusterStatus.Stopped)
-    } thenReturn {
-      Future.successful(ClusterStatus.Starting)
     }
 
     when {
@@ -1374,8 +1370,6 @@ class ClusterMonitorSpec
     val computeDAO = mock[GoogleComputeDAO]
     when {
       computeDAO.getInstance(mockitoEq(masterInstance.key))
-    } thenReturn {
-      Future.successful(Some(masterInstance.copy(status = InstanceStatus.Stopping)))
     } thenReturn {
       Future.successful(Some(masterInstance.copy(status = InstanceStatus.Stopped)))
     } thenReturn {
@@ -1410,7 +1404,6 @@ class ClusterMonitorSpec
     val iamDAO = mock[GoogleIamDAO]
 
     val authProvider = mock[LeoAuthProvider[IO]]
-
     withClusterSupervisor(gdDAO,
       computeDAO,
       iamDAO,
@@ -1424,20 +1417,16 @@ class ClusterMonitorSpec
       false) { actor =>
 
       eventually {
-        dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName)
-        }.get.status shouldBe ClusterStatus.Stopped
-      }
-
-      eventually {
         val updatedCluster = dbFutureValue {
           _.clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
 
-        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Starting)
         updatedCluster.map(_.machineConfig.masterMachineType) shouldBe Some(newMachineType)
         updatedCluster.map(_.stopAndUpdate) shouldBe Some(false)
+
+        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Starting)
+
       }
 
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
