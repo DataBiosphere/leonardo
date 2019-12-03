@@ -306,7 +306,7 @@ class ClusterHelper(
         s"New machine config present. Changing machine type to ${machineType} for cluster ${existingCluster.projectNameString}..."
       )
       // Update the machine type in Google
-      _ <- setMasterMachineType(existingCluster, MachineType(machineType.value))
+      _ <- setMasterMachineTypeInGoogle(existingCluster, MachineType(machineType.value))
       // Update the DB
       now <- IO(Instant.now)
       _ <- dbRef.inTransactionIO {
@@ -316,7 +316,7 @@ class ClusterHelper(
   }
 
   //updates machine type in gdDAO
-  private def setMasterMachineType(cluster: Cluster, machineType: MachineType): IO[Unit] =
+  private def setMasterMachineTypeInGoogle(cluster: Cluster, machineType: MachineType): IO[Unit] =
     cluster.instances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
