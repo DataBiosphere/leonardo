@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -18,8 +18,7 @@ class ClusterDnsCacheSpec
     with BeforeAndAfterAll
     with TestComponent
     with ScalaFutures
-    with Eventually
-    with CommonTestData {
+    with Eventually {
 
   override def afterAll(): Unit =
     super.afterAll()
@@ -40,7 +39,7 @@ class ClusterDnsCacheSpec
   )
   val stoppedClusterHost = Host(s"${stoppedCluster.dataprocInfo.map(_.googleId).get.toString}.jupyter.firecloud.org")
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db
@@ -51,11 +50,11 @@ class ClusterDnsCacheSpec
     // We test the projectClusterToHostStatus cache before the hostToIp map.
     // This replicates how the proxy accesses these maps as well.
     // projectClusterToHostStatus read updates the HostToIP map.
-    eventually { clusterDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).futureValue shouldEqual HostNotReady }
+    eventually { clusterDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).unsafeRunSync() shouldEqual HostNotReady }
     eventually {
-      clusterDnsCache.getHostStatus(cacheKeyForRunningCluster).futureValue shouldEqual HostReady(runningClusterHost)
+      clusterDnsCache.getHostStatus(cacheKeyForRunningCluster).unsafeRunSync() shouldEqual HostReady(runningClusterHost)
     }
-    eventually { clusterDnsCache.getHostStatus(cacheKeyForStoppedCluster).futureValue shouldEqual HostPaused }
+    eventually { clusterDnsCache.getHostStatus(cacheKeyForStoppedCluster).unsafeRunSync() shouldEqual HostPaused }
 
     clusterDnsCache.size shouldBe 3
     clusterDnsCache.stats.missCount shouldBe 3
@@ -70,7 +69,7 @@ class ClusterDnsCacheSpec
 
     // Check that the cache entries are eventually evicted and get re-loaded upon re-reading
     eventually {
-      cacheKeys.foreach(clusterDnsCache.getHostStatus)
+      cacheKeys.foreach(x => clusterDnsCache.getHostStatus(x).unsafeRunSync())
       clusterDnsCache.stats.evictionCount shouldBe 3
     }
 

@@ -12,15 +12,16 @@ import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec}
 
 import scala.collection.immutable
-import scala.concurrent.Future
 import scala.concurrent.duration._
+import CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 
 /**
  * Created by rtitle on 8/10/17.
@@ -31,13 +32,14 @@ class ProxyRoutesSpec
     with BeforeAndAfter
     with ScalatestRouteTest
     with ScalaFutures
-    with CommonTestData
+    with LeonardoTestSuite
     with TestLeoRoutes
     with TestProxy
     with TestComponent
     with GcsPathUtils {
   implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   implicit val routeTimeout = RouteTestTimeout(10 seconds)
+  override def proxyConfig: ProxyConfig = CommonTestData.proxyConfig
 
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
@@ -59,7 +61,7 @@ class ProxyRoutesSpec
   before {
     proxyService.googleTokenCache.invalidateAll()
     proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)),
-                                            Future.successful(Some(internalId)))
+                                            Some(internalId))
   }
 
   val pathPrefixes = Set("notebooks", "proxy")
@@ -76,6 +78,15 @@ class ProxyRoutesSpec
         status shouldEqual StatusCodes.OK
         validateCors()
       }
+      val newName = "aDifferentClusterName"
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
+                                              Some(internalId))
+      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+        handled shouldBe true
+        status shouldEqual StatusCodes.NotFound
+        validateCors()
+      }
+
       Get(s"/$prefix/").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe false
       }
@@ -92,7 +103,7 @@ class ProxyRoutesSpec
       }
       // should still 404 even if a cache entry is present
       proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
-                                              Future.successful(Some(internalId)))
+        Some(internalId))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
@@ -215,12 +226,11 @@ class ProxyRoutesSpec
     "setCookie" should s"set a cookie given a valid Authorization header ($prefix)" in {
       // cache should not initially contain the token
       proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
-
       // login request with Authorization header should succeed and return a Set-Cookie header
       Get(s"/$prefix/$googleProject/$clusterName/setCookie")
         .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
         .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
-        validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
+      validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
         status shouldEqual StatusCodes.NoContent
         validateCors(origin = Some("http://example.com"))
       }

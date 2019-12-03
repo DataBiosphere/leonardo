@@ -4,7 +4,7 @@ package monitor
 import java.time.{Duration, Instant}
 
 import akka.actor.{Actor, Props, Timers}
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
@@ -24,7 +24,7 @@ object ZombieClusterMonitor {
   def props(config: ZombieClusterConfig,
             gdDAO: GoogleDataprocDAO,
             googleProjectDAO: GoogleProjectDAO,
-            dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO], contextShift: ContextShift[IO]): Props =
+            dbRef: DbReference[IO])(implicit metrics: NewRelicMetrics[IO]): Props =
     Props(new ZombieClusterMonitor(config, gdDAO, googleProjectDAO, dbRef))
 
   sealed trait ZombieClusterMonitorMessage
@@ -38,7 +38,7 @@ object ZombieClusterMonitor {
 class ZombieClusterMonitor(config: ZombieClusterConfig,
                            gdDAO: GoogleDataprocDAO,
                            googleProjectDAO: GoogleProjectDAO,
-                           dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO], contextShift: ContextShift[IO])
+                           dbRef: DbReference[IO])(implicit metrics: NewRelicMetrics[IO])
     extends Actor
     with Timers
     with LazyLogging {
@@ -51,8 +51,9 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
 
   override def receive: Receive = {
     case DetectZombieClusters =>
+      val now = Instant.now()
       // Get active clusters from the Leo DB, grouped by project
-      val zombieClusters = getActiveClustersFromDatabase.flatMap { clusterMap =>
+      val zombieClusters = getActiveClustersFromDatabase.unsafeToFuture().flatMap { clusterMap =>
         clusterMap.toList.flatTraverse {
           case (project, clusters) =>
             // Check if the project is active
@@ -61,7 +62,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
                 // If the project is active, check each individual cluster
                 logger.debug(s"Project ${project.value} containing ${clusters.size} clusters is active in Google")
                 clusters.toList.traverseFilter { cluster =>
-                  isClusterActiveInGoogle(cluster).map {
+                  isClusterActiveInGoogle(cluster, now).map {
                     case true =>
                       logger.debug(s"Cluster ${cluster.projectNameString} is active in Google")
                       None
@@ -88,11 +89,11 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
 
   }
 
-  private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] =
+  private def getActiveClustersFromDatabase: IO[Map[GoogleProject, Seq[Cluster]]] =
     dbRef.inTransaction {
-      _.clusterQuery.listActiveWithLabels
-    } map { clusters =>
-      clusters.groupBy(_.googleProject)
+      dbRef.dataAccess.clusterQuery.listActiveWithLabels.map { clusters =>
+        clusters.groupBy(_.googleProject)
+      }
     }
 
   private def isProjectActiveInGoogle(googleProject: GoogleProject): Future[Boolean] =
@@ -105,10 +106,8 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
           true
       }
 
-  private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
-
-    val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).getSeconds
-
+  private def isClusterActiveInGoogle(cluster: Cluster, now: Instant): Future[Boolean] = {
+    val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, now).getSeconds
     //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
     val isWithinHangTolerance = cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation < config.creationHangTolerance.toSeconds
 
@@ -126,13 +125,13 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
       _ <- IO(logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}"))
       _ <- metrics.incrementCounter("zombieClusters")
       now <- IO(Instant.now)
-      _ <- dbRef.inTransactionIO { dataAccess =>
+      _ <- dbRef.inTransaction {
         for {
-          _ <- dataAccess.clusterQuery.completeDeletion(cluster.id, now)
+          _ <- dbRef.dataAccess.clusterQuery.completeDeletion(cluster.id, now)
           error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
                                -1,
-                               Instant.now)
-          _ <- dataAccess.clusterErrorQuery.save(cluster.id, error)
+                               now)
+          _ <- dbRef.dataAccess.clusterErrorQuery.save(cluster.id, error)
         } yield ()
       }
     } yield ()

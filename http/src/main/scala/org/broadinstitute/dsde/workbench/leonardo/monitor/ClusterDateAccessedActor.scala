@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 
 import akka.actor.{Actor, Props}
-
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedAct
 
 object ClusterDateAccessedActor {
 
-  def props(autoFreezeConfig: AutoFreezeConfig, dbReference: DbReference): Props =
+  def props(autoFreezeConfig: AutoFreezeConfig, dbReference: DbReference[IO]): Props =
     Props(new ClusterDateAccessedActor(autoFreezeConfig, dbReference))
 
   sealed trait ClusterAccessDateMessage
@@ -25,7 +25,9 @@ object ClusterDateAccessedActor {
 
 }
 
-class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbReference) extends Actor with LazyLogging {
+class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbReference[IO])
+    extends Actor
+    with LazyLogging {
 
   var dateAccessedMap: Map[(ClusterName, GoogleProject), Instant] = Map.empty
 
@@ -44,18 +46,21 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
       dateAccessedMap = dateAccessedMap + ((clusterName, googleProject) -> dateAccessed)
 
     case Flush => {
-      dateAccessedMap.map(da => updateDateAccessed(da._1._1, da._1._2, da._2))
+      dateAccessedMap.map(da => updateDateAccessed(da._1._1, da._1._2, da._2).unsafeToFuture())
       dateAccessedMap = Map.empty
     }
   }
 
-  private def updateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant) = {
+  private def updateDateAccessed(clusterName: ClusterName,
+                                 googleProject: GoogleProject,
+                                 dateAccessed: Instant): IO[Int] = {
     logger.info(s"Update dateAccessed for $clusterName in project $googleProject to $dateAccessed")
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery
+    dbRef.inTransaction {
+      dbRef.dataAccess.clusterQuery
         .clearKernelFoundBusyDateByProjectAndName(googleProject, clusterName, dateAccessed)
         .flatMap(
-          _ => dataAccess.clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
+          _ =>
+            dbRef.dataAccess.clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
         )
     }
   }

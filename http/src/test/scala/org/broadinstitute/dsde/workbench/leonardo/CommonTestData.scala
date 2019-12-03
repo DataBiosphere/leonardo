@@ -27,11 +27,10 @@ import org.broadinstitute.dsde.workbench.model.google.{
   _
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.scalatest.concurrent.ScalaFutures
 
 // values common to multiple tests, to reduce boilerplate
 
-trait CommonTestData { this: ScalaFutures =>
+object CommonTestData {
   val name0 = ClusterName("clustername0")
   val name1 = ClusterName("clustername1")
   val name2 = ClusterName("clustername2")
@@ -132,9 +131,9 @@ trait CommonTestData { this: ScalaFutures =>
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
-  val clusterServiceAccount = Option(WorkbenchEmail("testClusterServiceAccount@example.com"))
-  val notebookServiceAccount = Option(WorkbenchEmail("testNotebookServiceAccount@example.com"))
-  val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
+  val clusterServiceAccount = Some(WorkbenchEmail("testClusterServiceAccount@example.com"))
+  val notebookServiceAccount = Some(WorkbenchEmail("testNotebookServiceAccount@example.com"))
+  val serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
   val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
@@ -220,10 +219,10 @@ trait CommonTestData { this: ScalaFutures =>
 
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
-  protected def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] =
+  def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).unsafeRunSync()
 
-  protected def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] =
+  def notebookServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).unsafeRunSync()
 
   val masterInstance = Instance(
@@ -253,9 +252,9 @@ trait CommonTestData { this: ScalaFutures =>
     createdDate = Instant.now()
   )
 
-  protected def modifyInstance(instance: Instance): Instance =
+  def modifyInstance(instance: Instance): Instance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
-  protected def modifyInstanceKey(instanceKey: InstanceKey): InstanceKey =
+  def modifyInstanceKey(instanceKey: InstanceKey): InstanceKey =
     instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
 }
 

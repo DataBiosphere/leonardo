@@ -1,20 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import akka.util.Timeout
+import cats.effect.implicits._
+import cats.effect.{Concurrent, ContextShift, Timer}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dns.{ClusterDnsCache, DnsCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object Proxy {
-  def getTargetHost(clusterDnsCache: ClusterDnsCache,
-                    googleProject: GoogleProject,
-                    clusterName: ClusterName): Future[HostStatus] = {
-    implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.getHostStatus(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
-  }
+  def getTargetHost[F[_]: Timer: ContextShift: Concurrent](clusterDnsCache: ClusterDnsCache[F],
+                                                           googleProject: GoogleProject,
+                                                           clusterName: ClusterName): F[HostStatus] =
+    clusterDnsCache.getHostStatus(DnsCacheKey(googleProject, clusterName)).timeout(5 seconds)
 }

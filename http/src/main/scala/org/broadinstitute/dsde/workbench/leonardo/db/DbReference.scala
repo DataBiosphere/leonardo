@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import java.sql.SQLTimeoutException
+import java.sql.{Connection, SQLTimeoutException}
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.concurrent.Semaphore
+import cats.effect.{Async, Blocker, ContextShift, IO, Resource}
 import com.google.common.base.Throwables
 import com.typesafe.scalalogging.LazyLogging
 import liquibase.database.jvm.JdbcConnection
@@ -11,17 +12,16 @@ import liquibase.{Contexts, Liquibase}
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import slick.basic.DatabaseConfig
 import slick.dbio.DBIO
-import slick.jdbc.{JdbcBackend, JdbcDataSource, JdbcProfile, TransactionIsolation}
+import slick.jdbc.{JdbcBackend, JdbcProfile, TransactionIsolation}
 import sun.security.provider.certpath.SunCertPathBuilderException
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 object DbReference extends LazyLogging {
 
-  private def initWithLiquibase(dataSource: JdbcDataSource,
-                                liquibaseConfig: LiquibaseConfig,
-                                changelogParameters: Map[String, AnyRef] = Map.empty): Unit = {
-    val dbConnection = dataSource.createConnection()
+  private[db] def initWithLiquibase(dbConnection: Connection,
+                                    liquibaseConfig: LiquibaseConfig,
+                                    changelogParameters: Map[String, AnyRef] = Map.empty): Unit =
     try {
       val liquibaseConnection = new JdbcConnection(dbConnection)
       val resourceAccessor: ResourceAccessor = new ClassLoaderResourceAccessor()
@@ -43,42 +43,58 @@ object DbReference extends LazyLogging {
           }
         }
         throw e
-    } finally {
-      dbConnection.close()
     }
-  }
 
-  def init(config: LiquibaseConfig)(implicit executionContext: ExecutionContext): DbReference = {
+  def init[F[_]: Async: ContextShift](config: LiquibaseConfig,
+                                      concurrentDbAccessPermits: Semaphore[F],
+                                      blocker: Blocker): Resource[F, DbReference[F]] = {
     val dbConfig =
       DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
 
-    if (config.initWithLiquibase)
-      initWithLiquibase(dbConfig.db.source, config)
-
-    DbReference(dbConfig)
+    for {
+      db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
+      dbConnection <- Resource.make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
+      initLiquidbase = if (config.initWithLiquibase) Async[F].delay(initWithLiquibase(dbConnection, config))
+      else Async[F].unit
+      _ <- Resource.liftF(initLiquidbase)
+    } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
   }
 }
 
-case class DbReference(private val dbConfig: DatabaseConfig[JdbcProfile])(
-  implicit val executionContext: ExecutionContext
-) {
-  val dataAccess = new DataAccess(dbConfig.profile)
-  val database: JdbcBackend#DatabaseDef = dbConfig.db
-
-  def inTransaction[T](f: (DataAccess) => DBIO[T],
-                       isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead): Future[T] = {
-    import dataAccess.profile.api._
-    database.run(f(dataAccess).transactionally.withTransactionIsolation(isolationLevel))
-  }
-
-  def inTransactionIO[T](
-    f: (DataAccess) => DBIO[T],
+trait DbReference[F[_]] {
+  def dataAccess: DataAccess
+  def inTransaction[T](
+    dbio: DBIO[T],
     isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
-  )(implicit cs: ContextShift[IO]): IO[T] =
-    IO.fromFuture(IO(inTransaction(f, isolationLevel)))
+  ): F[T]
 }
 
-class DataAccess(val profile: JdbcProfile)(implicit val executionContext: ExecutionContext) extends AllComponents {
+private class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProfile],
+                                               database: JdbcBackend#DatabaseDef,
+                                               concurrentDbAccessPermits: Semaphore[F],
+                                               blocker: Blocker)
+    extends DbReference[F] {
+  val dataAccess = new DataAccess(dbConfig.profile, blocker)
+
+  private def inTransactionFuture[T](
+    dbio: DBIO[T],
+    isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
+  ): Future[T] = {
+    import dataAccess.profile.api._
+    database.run(dbio.transactionally.withTransactionIsolation(isolationLevel))
+  }
+
+  def inTransaction[T](
+    dbio: DBIO[T],
+    isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
+  ): F[T] =
+    concurrentDbAccessPermits.withPermit(
+      blocker.blockOn(Async.fromFuture(Async[F].delay(inTransactionFuture(dbio, isolationLevel))))
+    )
+}
+
+final class DataAccess(val profile: JdbcProfile, blocker: Blocker) extends AllComponents {
+  implicit val executionContext = blocker.blockingContext
 
   def truncateAll(): DBIO[Int] = {
     import profile.api._
@@ -99,4 +115,11 @@ class DataAccess(val profile: JdbcProfile)(implicit val executionContext: Execut
 
     sql"select version()".as[String]
   }
+}
+
+final class DBIOOps[A](private val dbio: DBIO[A]) extends AnyVal {
+  def transaction(implicit dbRef: DbReference[IO]): IO[A] = dbRef.inTransaction(dbio)
+  def transaction(isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead)(
+    implicit dbRef: DbReference[IO]
+  ): IO[A] = dbRef.inTransaction(dbio, isolationLevel)
 }

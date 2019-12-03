@@ -1,15 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.Future
+class MockJupyterDAO(isUp: Boolean = true) extends JupyterDAO[IO] {
+  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+    IO.pure(isUp)
 
-class MockJupyterDAO(isUp: Boolean = true) extends JupyterDAO {
-  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-    Future.successful(isUp)
-
-  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-    Future.successful(isUp)
+  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+    IO.pure(isUp)
 }
 
 object MockJupyterDAO extends MockJupyterDAO(isUp = true)

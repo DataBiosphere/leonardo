@@ -1,28 +1,29 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import cats.effect.{Blocker, IO}
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeoLenses}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterImageType, MemorySize}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, CreateClusterConfig, Operation}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterImageType, MemorySize}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
+import org.broadinstitute.dsde.workbench.leonardo.LeoLenses
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -31,19 +32,15 @@ class ClusterHelperSpec
     with TestComponent
     with FlatSpecLike
     with Matchers
-    with CommonTestData
     with BeforeAndAfterAll
     with ScalaFutures {
-
-  implicit val cs = IO.contextShift(system.dispatcher)
-  val blocker = Blocker.liftExecutionContext(system.dispatcher)
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
 
-  override val testCluster = makeCluster(1)
+  val testCluster = makeCluster(1)
     .copy(status = Creating,
           dataprocInfo = None,
           serviceAccountInfo = serviceAccountInfo.copy(notebookServiceAccount = None))
@@ -51,7 +48,7 @@ class ClusterHelperSpec
   val bucketHelper =
     new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-  val clusterHelper = new ClusterHelper(DbSingleton.ref,
+  val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                         dataprocConfig,
                                         imageConfig,
                                         googleGroupsConfig,
@@ -135,7 +132,7 @@ class ClusterHelperSpec
 
   it should "clean up Google resources on error" in isolatedDbTest {
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO
-    val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
+    val erroredClusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                                  dataprocConfig,
                                                  imageConfig,
                                                  googleGroupsConfig,
@@ -166,7 +163,7 @@ class ClusterHelperSpec
   it should "retry zone capacity issues" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO(429)
-    val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
+    val erroredClusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                                  dataprocConfig,
                                                  imageConfig,
                                                  googleGroupsConfig,
@@ -198,7 +195,7 @@ class ClusterHelperSpec
     // label behaviour should be: project-subnet, project-network, config-subnet, config-network
     val configWithProjectLabels =
       dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
-    val clusterHelperWithLabels = new ClusterHelper(DbSingleton.ref,
+    val clusterHelperWithLabels = new ClusterHelper(DbSingleton.dbRef,
                                                     configWithProjectLabels,
                                                     imageConfig,
                                                     googleGroupsConfig,
@@ -224,7 +221,7 @@ class ClusterHelperSpec
     clusterHelperWithLabels.getClusterVPCSettings(Map()) shouldBe Some(VPCSubnet("test-subnet"))
 
     val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
-    val clusterHelperWithNoSubnet = new ClusterHelper(DbSingleton.ref,
+    val clusterHelperWithNoSubnet = new ClusterHelper(DbSingleton.dbRef,
                                                       configWithNoSubnet,
                                                       imageConfig,
                                                       googleGroupsConfig,
@@ -246,7 +243,7 @@ class ClusterHelperSpec
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
-    val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
+    val erroredClusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                                  dataprocConfig,
                                                  imageConfig,
                                                  googleGroupsConfig,

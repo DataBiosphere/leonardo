@@ -4,6 +4,7 @@ package service
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+import cats.implicits._
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
@@ -12,26 +13,26 @@ import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
-import akka.util.Timeout
-import cats.effect.IO
+import cats.effect.{Blocker, ContextShift, IO, Timer}
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{ClusterDnsCache, DnsCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
-import org.broadinstitute.dsde.workbench.util.toScalaDuration
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.util.toScalaDuration
+import ProxyService._
 
 import scala.collection.immutable
-import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 final case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName)
@@ -59,11 +60,16 @@ final case object AccessTokenExpiredException
 class ProxyService(
   proxyConfig: ProxyConfig,
   gdDAO: GoogleDataprocDAO,
-  dbRef: DbReference,
-  clusterDnsCache: ClusterDnsCache,
+  clusterDnsCache: ClusterDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
-  clusterDateAccessedActor: ActorRef
-)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext)
+  clusterDateAccessedActor: ActorRef,
+  blocker: Blocker
+)(implicit val system: ActorSystem,
+  materializer: ActorMaterializer,
+  executionContext: ExecutionContext,
+  timer: Timer[IO],
+  cs: ContextShift[IO],
+  dbRef: DbReference[IO])
     extends LazyLogging {
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
@@ -82,14 +88,18 @@ class ProxyService(
     )
 
   /* Ask the cache for the corresponding user info given a token */
-  def getCachedUserInfoFromToken(token: String): Future[UserInfo] =
-    googleTokenCache.get(token).map {
-      case (userInfo, expireTime) =>
-        if (expireTime.isAfter(Instant.now))
-          userInfo.copy(tokenExpiresIn = expireTime.getEpochSecond - Instant.now.getEpochSecond)
-        else
-          throw AccessTokenExpiredException
-    }
+  def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
+    for {
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+      cache <- blocker.blockOn(IO.fromFuture(IO(googleTokenCache.get(token))))
+      res <- cache match {
+        case (userInfo, expireTime) =>
+          if (expireTime.isAfter(Instant.ofEpochMilli(now)))
+            IO.pure(userInfo.copy(tokenExpiresIn = expireTime.getEpochSecond - now / 1000))
+          else
+            IO.raiseError(AccessTokenExpiredException)
+      }
+    } yield res
 
   /* Cache for the cluster internal id from the database */
   private[leonardo] val clusterInternalIdCache = CacheBuilder
@@ -97,26 +107,28 @@ class ProxyService(
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
-      new CacheLoader[(GoogleProject, ClusterName), Future[Option[ClusterInternalId]]] {
-        def load(key: (GoogleProject, ClusterName)) = {
+      new CacheLoader[(GoogleProject, ClusterName), Option[ClusterInternalId]] {
+        def load(key: (GoogleProject, ClusterName)): Option[ClusterInternalId] = {
           val (googleProject, clusterName) = key
-          dbRef.inTransaction { dataAccess =>
-            dataAccess.clusterQuery.getActiveClusterInternalIdByName(googleProject, clusterName)
-          }
+          dbRef.dataAccess.clusterQuery
+            .getActiveClusterInternalIdByName(googleProject, clusterName)
+            .transaction
+            .unsafeRunSync()
         }
       }
     )
 
   def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): Future[ClusterInternalId] =
-    clusterInternalIdCache.get((googleProject, clusterName)).flatMap {
-      case Some(clusterInternalId) => Future.successful(clusterInternalId)
+  ): IO[ClusterInternalId] =
+    blocker.blockOn(IO(clusterInternalIdCache.get((googleProject, clusterName)))).flatMap {
+      case Some(clusterInternalId) => IO.pure(clusterInternalId)
       case None =>
-        logger.error(
-          s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.value}"
-        )
-        Future.failed[ClusterInternalId](ClusterNotFoundException(googleProject, clusterName))
+        IO(
+          logger.error(
+            s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.value}"
+          )
+        ) >> IO.raiseError[ClusterInternalId](ClusterNotFoundException(googleProject, clusterName))
     }
 
   /*
@@ -127,34 +139,32 @@ class ProxyService(
     googleProject: GoogleProject,
     clusterName: ClusterName,
     notebookAction: NotebookClusterAction
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Unit] =
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       internalId <- getCachedClusterInternalId(googleProject, clusterName)
       hasViewPermission <- authProvider
         .hasNotebookClusterPermission(internalId, userInfo, GetClusterStatus, googleProject, clusterName)
-        .unsafeToFuture() //TODO: combine the sam calls into one
+      //TODO: combine the sam calls into one
       hasRequiredPermission <- authProvider
         .hasNotebookClusterPermission(internalId, userInfo, notebookAction, googleProject, clusterName)
-        .unsafeToFuture()
-    } yield {
-      if (!hasViewPermission) {
-        throw ClusterNotFoundException(googleProject, clusterName)
+      _ <- if (!hasViewPermission) {
+        IO.raiseError(ClusterNotFoundException(googleProject, clusterName))
       } else if (!hasRequiredPermission) {
-        throw AuthorizationError(Some(userInfo.userEmail))
-      } else {
-        ()
-      }
-    }
+        IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
+      } else IO.unit
+    } yield ()
 
   def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): Future[HttpResponse] =
-    authCheck(userInfo, googleProject, clusterName, SyncDataToCluster).flatMap { _ =>
-      proxyInternal(userInfo, googleProject, clusterName, request)
-    }
+  ): IO[HttpResponse] =
+    for {
+      _ <- authCheck(userInfo, googleProject, clusterName, SyncDataToCluster)
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+      r <- proxyInternal(userInfo, googleProject, clusterName, request, Instant.ofEpochMilli(now))
+    } yield r
 
-  def invalidateAccessToken(token: String): Future[Unit] =
-    Future(googleTokenCache.invalidate(token))
+  def invalidateAccessToken(token: String): IO[Unit] =
+    blocker.blockOn(IO(googleTokenCache.invalidate(token)))
 
   /**
    * Entry point to this class. Given a google project, cluster name, and HTTP request,
@@ -169,56 +179,58 @@ class ProxyService(
    */
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): Future[HttpResponse] =
-    authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
-      proxyInternal(userInfo, googleProject, clusterName, request)
-    }
+  ): IO[HttpResponse] =
+    for {
+      _ <- authCheck(userInfo, googleProject, clusterName, ConnectToCluster)
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+      r <- proxyInternal(userInfo, googleProject, clusterName, request, Instant.ofEpochMilli(now))
+    } yield r
+
+  def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): IO[HostStatus] =
+    Proxy.getTargetHost[IO](clusterDnsCache, googleProject, clusterName)
 
   private def proxyInternal(userInfo: UserInfo,
                             googleProject: GoogleProject,
                             clusterName: ClusterName,
-                            request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Received proxy request for user $userInfo")
+                            request: HttpRequest,
+                            now: Instant): IO[HttpResponse] = {
+    logger.debug(s"Received proxy request for user $userInfo: ${clusterDnsCache.stats} / ${clusterDnsCache.size}")
     getTargetHost(googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
-        clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, Instant.now())
+        clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, now)
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
         // The presence of this header distinguishes WebSocket from http requests.
-        val responseFuture = request.header[UpgradeToWebSocket] match {
-          case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
-          case None          => handleHttpRequest(targetHost, request)
-        }
-        responseFuture recoverWith {
+        val res = for {
+          response <- request.header[UpgradeToWebSocket] match {
+            case Some(upgrade) =>
+              IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
+            case None =>
+              IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
+          }
+          r <- if (response.status.isFailure())
+            IO(logger.info(s"Error response for proxied request ${request.uri}: ${response.status}")).as(response)
+          else IO.pure(response)
+        } yield r
+
+        res.recoverWith {
           case e =>
-            logger.error("Error occurred in proxy", e)
-            Future.failed[HttpResponse](ProxyException(googleProject, clusterName))
+            IO(logger.error("Error occurred in proxy", e)) >> IO.raiseError[HttpResponse](
+              ProxyException(googleProject, clusterName)
+            )
         }
       case HostNotReady =>
-        throw ClusterNotReadyException(googleProject, clusterName)
+        IO(logger.warn(s"proxy host not ready for ${googleProject}/${clusterName}")) >> IO.raiseError(
+          ClusterNotReadyException(googleProject, clusterName)
+        )
       case HostPaused =>
-        throw ClusterPausedException(googleProject, clusterName)
+        IO(logger.warn(s"proxy host paused for ${googleProject}/${clusterName}")) >> IO.raiseError(
+          ClusterPausedException(googleProject, clusterName)
+        )
       case HostNotFound =>
-        throw ClusterNotFoundException(googleProject, clusterName)
-    }
-  }
-
-  // From the outside, we are going to support TWO paths to access Jupyter:
-  // 1)   /notebooks/{googleProject}/{clusterName}/
-  // 2)   /proxy/{googleProject}/{clusterName}/jupyter/
-  //
-  // To greatly simplify things on the backend, we will funnel all requests into path #1. Eventually
-  // we will remove that path and #2 will be the sole entry point for users. At that point, we can
-  // update the code in here to not rewrite any paths for Jupyter. We will also need to update the
-  // paths in related areas like jupyter_notebook_config.py
-  private def rewriteJupyterPath(request: HttpRequest): Uri.Path = {
-    val jupyterPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
-
-    request.uri.path.toString match {
-      case jupyterPattern(project, cluster, path) => {
-        Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
-      }
-      case _ => request.uri.path
+        IO(logger.warn(s"proxy host not found for ${googleProject}/${clusterName}")) >> IO.raiseError(
+          ClusterNotFoundException(googleProject, clusterName)
+        )
     }
   }
 
@@ -239,7 +251,7 @@ class ProxyService(
     // to the original request in order for the proxy to work:
 
     // Rewrite the path if it is proxy/*/*/jupyter/, otherwise pass it through as is (see rewriteJupyterPath)
-    val rewrittenPath = rewriteJupyterPath(request)
+    val rewrittenPath = rewriteJupyterPath(request.uri.path)
 
     // 1. filter out headers not needed for the backend server
     val newHeaders = filterHeaders(request.headers)
@@ -258,15 +270,12 @@ class ProxyService(
     // data between client, proxy, and server. However Jupyter is doing something strange and the proxy only
     // works when toStrict is used. Luckily, it's only needed for HTTP requests (which are fairly small) and not
     // WebSocket requests (which could potentially be large).
-    val handler: Future[HttpResponse] = Source
+    Source
       .single(newRequest)
       .via(flow)
       .map(fixContentDisposition)
       .runWith(Sink.head)
       .flatMap(_.toStrict(requestTimeout))
-
-    // That's it! This is our whole HTTP proxy.
-    handler
   }
 
   // This is our current workaround for a bug that causes notebooks to download with "utf-8''" prepended to the file name
@@ -311,7 +320,7 @@ class ProxyService(
     // Note that we are rewriting the paths for any requests that are routed to /proxy/*/*/jupyter/
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
       WebSocketRequest(
-        request.uri.copy(path = rewriteJupyterPath(request),
+        request.uri.copy(path = rewriteJupyterPath(request.uri.path),
                          authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.jupyterPort),
                          scheme = "wss"),
         extraHeaders = filterHeaders(request.headers),
@@ -337,14 +346,6 @@ class ProxyService(
     }
   }
 
-  /**
-   * Gets the notebook server hostname from the database given a google project and cluster name.
-   */
-  protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] = {
-    implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.getHostStatus(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
-  }
-
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) =
     headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
 
@@ -358,4 +359,30 @@ class ProxyService(
     "Upgrade",
     "Connection"
   ).map(_.toLowerCase)
+}
+
+object ProxyService {
+  // From the outside, we are going to support TWO paths to access Jupyter:
+  // 1)   /notebooks/{googleProject}/{clusterName}/
+  // 2)   /proxy/{googleProject}/{clusterName}/jupyter/
+  // 3)   /notebooks/{googleProject}/{clusterName}/jupyter/
+  //
+  // To greatly simplify things on the backend, we will funnel all requests into path #1. Eventually
+  // we will remove that path and #2 will be the sole entry point for users. At that point, we can
+  // update the code in here to not rewrite any paths for Jupyter. We will also need to update the
+  // paths in related areas like jupyter_notebook_config.py
+  private[service] def rewriteJupyterPath(path: Uri.Path): Uri.Path = {
+    val proxyPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+    val notebooksPattern = "\\/notebooks\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+
+    path.toString match {
+      case proxyPattern(project, cluster, path) => {
+        Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
+      }
+      case notebooksPattern(project, cluster, path) => {
+        Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
+      }
+      case _ => path
+    }
+  }
 }

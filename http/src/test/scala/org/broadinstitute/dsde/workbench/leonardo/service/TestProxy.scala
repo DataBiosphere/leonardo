@@ -28,7 +28,7 @@ import scala.concurrent.Future
 trait TestProxy { this: ScalaFutures =>
   val googleProject: String
   val clusterName: String
-  val proxyConfig: ProxyConfig
+  def proxyConfig: ProxyConfig
   val routeTest: RouteTest
 
   import routeTest._

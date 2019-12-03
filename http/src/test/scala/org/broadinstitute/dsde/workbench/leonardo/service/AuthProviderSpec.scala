@@ -7,17 +7,11 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import cats.effect.{Blocker, IO}
+import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDirectoryDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq}
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -34,6 +28,8 @@ import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
+import CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 
 class AuthProviderSpec
     extends FreeSpec
@@ -45,8 +41,7 @@ class AuthProviderSpec
     with OptionValues
     with GcsPathUtils
     with TestProxy
-    with BeforeAndAfterAll
-    with CommonTestData {
+    with BeforeAndAfterAll {
 
   val cluster1 = makeCluster(1)
   val cluster1Name = cluster1.clusterName
@@ -54,12 +49,10 @@ class AuthProviderSpec
   val clusterName = cluster1Name.value
   val googleProject = project.value
 
-  val routeTest = this
+  def proxyConfig: ProxyConfig = CommonTestData.proxyConfig
 
-  implicit val cs = IO.contextShift(executor)
-  implicit val timer = IO.timer(executor)
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val blocker = Blocker.liftExecutionContext(executor)
+
+  val routeTest = this
 
   private val alwaysYesProvider =
     new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
@@ -80,7 +73,7 @@ class AuthProviderSpec
   val bucketHelper =
     new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, FakeGoogleStorageService, serviceAccountProvider)
   val clusterHelper =
-    new ClusterHelper(DbSingleton.ref,
+    new ClusterHelper(DbSingleton.dbRef,
                       dataprocConfig,
                       imageConfig,
                       googleGroupsConfig,
@@ -96,7 +89,7 @@ class AuthProviderSpec
                       mockGoogleIamDAO,
                       mockGoogleProjectDAO,
                       blocker)
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -127,7 +120,6 @@ class AuthProviderSpec
                         autoFreezeConfig,
                         welderConfig,
                         mockPetGoogleStorageDAO,
-                        DbSingleton.ref,
                         authProvider,
                         serviceAccountProvider,
                         bucketHelper,
@@ -136,7 +128,7 @@ class AuthProviderSpec
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider[IO]): ProxyService =
-    new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, authProvider, clusterDnsCache)
+    new MockProxyService(proxyConfig, mockGoogleDataprocDAO, authProvider, clusterDnsCache)
 
   "Leo with an AuthProvider" - {
     "should let you do things if the auth provider says yes" in isolatedDbTest {
@@ -158,22 +150,22 @@ class AuthProviderSpec
 
       //connect
       val proxyRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
-      proxy.proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), proxyRequest).futureValue
+      proxy.proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), proxyRequest).unsafeRunSync()
 
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
-      proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).futureValue
+      proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).unsafeRunSync()
 
       // change cluster status to Running so that it can be deleted
       dbFutureValue {
-        _.clusterQuery.updateAsyncClusterCreationFields(
+        dbRef.dataAccess.clusterQuery.updateAsyncClusterCreationFields(
           Some(GcsPath(initBucketPath, GcsObjectName(""))),
           Some(serviceAccountKey),
           cluster1.copy(dataprocInfo = Some(makeDataprocInfo(1))),
           Instant.now
         )
       }
-      dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now) }
+      dbFutureValue { dbRef.dataAccess.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now) }
 
       //delete
       leo.deleteCluster(userInfo, project, cluster1Name).unsafeToFuture.futureValue
@@ -216,16 +208,22 @@ class AuthProviderSpec
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
       val clusterNotFoundException = proxy
         .proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest)
-        .failed
-        .futureValue
+        .attempt
+        .unsafeRunSync()
+        .swap
+        .toOption
+        .get
       clusterNotFoundException shouldBe a[ClusterNotFoundException]
 
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
       val syncNotFoundException = proxy
         .proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest)
-        .failed
-        .futureValue
+        .attempt
+        .unsafeRunSync()
+        .swap
+        .toOption
+        .get
       syncNotFoundException shouldBe a[ClusterNotFoundException]
 
       //destroy cluster
@@ -269,16 +267,22 @@ class AuthProviderSpec
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
       val clusterAuthException = proxy
         .proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest)
-        .failed
-        .futureValue
+        .attempt
+        .unsafeRunSync()
+        .swap
+        .toOption
+        .get
       clusterAuthException shouldBe a[AuthorizationError]
 
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
       val syncNotFoundException = proxy
         .proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest)
-        .failed
-        .futureValue
+        .attempt
+        .unsafeRunSync()
+        .swap
+        .toOption
+        .get
       syncNotFoundException shouldBe a[AuthorizationError]
 
       //destroy should 401 too
@@ -309,7 +313,7 @@ class AuthProviderSpec
       clusterCreateExc shouldBe a[RuntimeException]
 
       // no cluster should have been made
-      val clusterLookup = dbFutureValue { _.clusterQuery.getActiveClusterByName(project, cluster1Name) }
+      val clusterLookup = dbFutureValue { dbRef.dataAccess.clusterQuery.getActiveClusterByName(project, cluster1Name) }
       clusterLookup shouldBe 'empty
 
       // check that the cluster does not exist

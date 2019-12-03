@@ -2,20 +2,20 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import akka.actor.{Actor, Props, Timers}
+import cats.effect.{ContextShift, IO}
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterContainerServiceType, ClusterImageType}
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
-import ClusterToolMonitor._
-import cats.effect.IO
-
-import scala.concurrent.Future
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterContainerServiceType, ClusterImageType}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterToolMonitor._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 object ClusterToolMonitor {
 
@@ -23,16 +23,17 @@ object ClusterToolMonitor {
     config: ClusterToolConfig,
     gdDAO: GoogleDataprocDAO,
     googleProjectDAO: GoogleProjectDAO,
-    dbRef: DbReference,
+    dbRef: DbReference[IO],
     newRelic: NewRelicMetrics[IO]
-  )(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType]): Props =
+  )(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+    cs: ContextShift[IO]): Props =
     Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, newRelic))
 
   sealed trait ClusterToolMonitorMessage
   case object DetectClusterStatus extends ClusterToolMonitorMessage
   case object TimerKey extends ClusterToolMonitorMessage
 
-  case class ToolStatus(val isUp: Boolean, val tool: ClusterImageType, val cluster: Cluster)
+  final case class ToolStatus(isUp: Boolean, tool: ClusterImageType, cluster: RunningCluster)
 }
 
 /**
@@ -42,14 +43,13 @@ class ClusterToolMonitor(
   config: ClusterToolConfig,
   gdDAO: GoogleDataprocDAO,
   googleProjectDAO: GoogleProjectDAO,
-  dbRef: DbReference,
+  dbRef: DbReference[IO],
   newRelic: NewRelicMetrics[IO]
-)(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType])
+)(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+  cs: ContextShift[IO])
     extends Actor
     with Timers
     with LazyLogging {
-
-  import context._
 
   override def preStart(): Unit = {
     super.preStart()
@@ -58,31 +58,31 @@ class ClusterToolMonitor(
 
   override def receive: Receive = {
     case DetectClusterStatus =>
-      for {
+      val res = for {
         activeClusters <- getActiveClustersFromDatabase
-        statuses <- Future.traverse(activeClusters)(checkClusterStatus)
+        statuses <- activeClusters.toList.parFlatTraverse(checkClusterStatus)
         //statuses is a Seq[Seq[ToolStatus]] because we create a Seq[ToolStatus] for each cluster, necessitating the flatten below
-        _ <- Future.traverse(statuses.flatten)(handleClusterStatus)
+        _ <- statuses.parTraverse(handleClusterStatus)
       } yield ()
+      res.unsafeToFuture()
   }
 
-  private def handleClusterStatus(status: ToolStatus): Future[Unit] =
+  private def handleClusterStatus(status: ToolStatus): IO[Unit] =
     if (!status.isUp) {
       val toolName = status.tool.toString
-      logger.warn(
-        s"The tool ${toolName} is down on cluster ${status.cluster.googleProject.value}/${status.cluster.clusterName.value}"
-      )
-      newRelic.incrementCounterFuture(toolName + "Down")
-    } else {
-      Future.unit
-    }
+      IO(
+        logger.warn(
+          s"The tool ${toolName} is down on cluster ${status.cluster.googleProject.value}/${status.cluster.clusterName.value}"
+        )
+      ) >> newRelic.incrementCounter(toolName + "Down")
+    } else IO.unit
 
-  private def getActiveClustersFromDatabase: Future[Seq[Cluster]] =
-    dbRef.inTransaction {
-      _.clusterQuery.listRunningOnly
-    }
+  private def getActiveClustersFromDatabase: IO[Seq[RunningCluster]] =
+    dbRef.inTransaction(
+      dbRef.dataAccess.clusterQuery.listRunningOnly
+    )
 
-  def checkClusterStatus(cluster: Cluster): Future[List[ToolStatus]] =
+  def checkClusterStatus(cluster: RunningCluster): IO[List[ToolStatus]] =
     ClusterImageType.values.toList.traverseFilter { tool =>
       ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(tool).traverse {
         _.isProxyAvailable(cluster.googleProject, cluster.clusterName)
@@ -99,3 +99,5 @@ class ClusterToolMonitor(
     }
 
 }
+
+final case class RunningCluster(googleProject: GoogleProject, clusterName: ClusterName, welderEnabled: Boolean)

@@ -29,12 +29,12 @@ object TestClusterSupervisorActor {
             googleComputeDAO: GoogleComputeDAO,
             googleStorageDAO: GoogleStorageDAO,
             google2StorageDAO: GoogleStorageService[IO],
-            dbRef: DbReference,
+            dbRef: DbReference[IO],
             testKit: TestKit,
             authProvider: LeoAuthProvider[IO],
             autoFreezeConfig: AutoFreezeConfig,
-            jupyterProxyDAO: JupyterDAO,
-            rstudioProxyDAO: RStudioDAO,
+            jupyterProxyDAO: JupyterDAO[IO],
+            rstudioProxyDAO: RStudioDAO[IO],
             welderDAO: WelderDAO[IO],
             clusterHelper: ClusterHelper)(implicit cs: ContextShift[IO]): Props =
     Props(
@@ -70,12 +70,12 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  googleComputeDAO: GoogleComputeDAO,
                                  googleStorageDAO: GoogleStorageDAO,
                                  google2StorageDAO: GoogleStorageService[IO],
-                                 dbRef: DbReference,
+                                 dbRef: DbReference[IO],
                                  testKit: TestKit,
                                  authProvider: LeoAuthProvider[IO],
                                  autoFreezeConfig: AutoFreezeConfig,
-                                 jupyterProxyDAO: JupyterDAO,
-                                 rstudioProxyDAO: RStudioDAO,
+                                 jupyterProxyDAO: JupyterDAO[IO],
+                                 rstudioProxyDAO: RStudioDAO[IO],
                                  welderDAO: WelderDAO[IO],
                                  clusterHelper: ClusterHelper)(implicit cs: ContextShift[IO])
     extends ClusterMonitorSupervisor(
@@ -87,14 +87,13 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       googleComputeDAO,
       googleStorageDAO,
       google2StorageDAO,
-      dbRef,
       authProvider,
       autoFreezeConfig,
       jupyterProxyDAO,
       rstudioProxyDAO,
       welderDAO,
       clusterHelper
-    )(FakeNewRelicMetricsInterpreter, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO), cs) {
+    )(FakeNewRelicMetricsInterpreter, dbRef, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO), cs) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty

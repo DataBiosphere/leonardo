@@ -5,8 +5,7 @@ import java.time.temporal.ChronoUnit
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import cats.effect.{Blocker, IO}
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -22,7 +21,8 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
-import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+import CommonTestData._
 
 class ClusterMonitorSupervisorSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -31,13 +31,7 @@ class ClusterMonitorSupervisorSpec
     with MockitoSugar
     with BeforeAndAfterAll
     with TestComponent
-    with CommonTestData
     with GcsPathUtils { testKit =>
-
-  implicit val cs = IO.contextShift(system.dispatcher)
-  implicit val timer = IO.timer(system.dispatcher)
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val blocker = Blocker.liftExecutionContext(system.dispatcher)
 
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
 
@@ -64,13 +58,9 @@ class ClusterMonitorSupervisorSpec
 
     val authProvider = mock[LeoAuthProvider[IO]]
 
-    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                           dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
@@ -98,7 +88,6 @@ class ClusterMonitorSupervisorSpec
         computeDAO,
         storageDAO,
         FakeGoogleStorageService,
-        DbSingleton.ref,
         authProvider,
         autoFreezeConfig,
         MockJupyterDAO,
@@ -109,7 +98,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe Some(ClusterStatus.Stopping)
     }
   }
@@ -121,8 +110,6 @@ class ClusterMonitorSupervisorSpec
             autopauseThreshold = 1)
       .save()
 
-    val clusterRes = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
-
     val gdDAO = mock[GoogleDataprocDAO]
 
     val computeDAO = mock[GoogleComputeDAO]
@@ -135,11 +122,11 @@ class ClusterMonitorSupervisorSpec
 
     val authProvider = mock[LeoAuthProvider[IO]]
 
-    val jupyterProxyDAO = new JupyterDAO {
-      override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-        Future.successful(true)
-      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-        Future.successful(false)
+    val jupyterProxyDAO = new JupyterDAO[IO] {
+      override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+        IO.pure(true)
+      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+        IO.pure(false)
     }
 
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
@@ -148,7 +135,7 @@ class ClusterMonitorSupervisorSpec
 
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                           dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
@@ -176,7 +163,6 @@ class ClusterMonitorSupervisorSpec
         computeDAO,
         storageDAO,
         FakeGoogleStorageService,
-        DbSingleton.ref,
         authProvider,
         autoFreezeConfig,
         jupyterProxyDAO,
@@ -187,7 +173,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe (Some(ClusterStatus.Running))
     }
   }
@@ -199,7 +185,6 @@ class ClusterMonitorSupervisorSpec
             autopauseThreshold = 1)
       .save()
 
-    val clusterRes = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
     val gdDAO = mock[GoogleDataprocDAO]
     val computeDAO = mock[GoogleComputeDAO]
     val storageDAO = mock[GoogleStorageDAO]
@@ -207,20 +192,16 @@ class ClusterMonitorSupervisorSpec
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider[IO]]
 
-    val jupyterProxyDAO = new JupyterDAO {
-      override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-        Future.successful(true)
-      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-        Future.failed(new Exception)
-    }
-
-    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
+    val jupyterProxyDAO = new JupyterDAO[IO] {
+      override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+        IO.pure(true)
+      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+        IO.raiseError(new Exception)
     }
 
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                           dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
@@ -248,7 +229,6 @@ class ClusterMonitorSupervisorSpec
         computeDAO,
         storageDAO,
         FakeGoogleStorageService,
-        DbSingleton.ref,
         authProvider,
         autoFreezeConfig,
         jupyterProxyDAO,
@@ -259,7 +239,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe (Some(ClusterStatus.Stopping))
     }
   }
@@ -273,7 +253,6 @@ class ClusterMonitorSupervisorSpec
       )
       .save()
 
-    val clusterRes = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
     val gdDAO = mock[GoogleDataprocDAO]
     val computeDAO = mock[GoogleComputeDAO]
     val storageDAO = mock[GoogleStorageDAO]
@@ -281,11 +260,11 @@ class ClusterMonitorSupervisorSpec
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider[IO]]
 
-    val jupyterProxyDAO = new JupyterDAO {
-      override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-        Future.successful(true)
-      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-        Future.successful(false)
+    val jupyterProxyDAO = new JupyterDAO[IO] {
+      override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+        IO.pure(true)
+      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+        IO.pure(false)
     }
 
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
@@ -294,7 +273,7 @@ class ClusterMonitorSupervisorSpec
 
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                           dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
@@ -313,7 +292,7 @@ class ClusterMonitorSupervisorSpec
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
 
-    val clusterSupervisorActor = system.actorOf(
+    system.actorOf(
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
@@ -323,7 +302,6 @@ class ClusterMonitorSupervisorSpec
         computeDAO,
         storageDAO,
         FakeGoogleStorageService,
-        DbSingleton.ref,
         authProvider,
         autoFreezeConfig,
         jupyterProxyDAO,
@@ -334,7 +312,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { DbSingleton.dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe (Some(ClusterStatus.Stopping))
     }
   }

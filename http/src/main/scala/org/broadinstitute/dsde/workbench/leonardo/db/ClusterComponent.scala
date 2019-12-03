@@ -8,10 +8,11 @@ import java.util.UUID
 import cats.data.Chain
 import cats.implicits._
 import io.circe.syntax._
-import io.circe.{Json, Printer}
+import io.circe.Printer
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RunningCluster
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -25,9 +26,9 @@ import org.broadinstitute.dsde.workbench.model.google.{
 
 final case class ClusterRecord(id: Long,
                                internalId: String,
-                               clusterName: String,
+                               clusterName: ClusterName,
                                googleId: Option[UUID],
-                               googleProject: String,
+                               googleProject: GoogleProject,
                                operationName: Option[String],
                                status: String,
                                hostIp: Option[String],
@@ -74,23 +75,35 @@ trait ClusterComponent extends LeoComponent {
 
   import profile.api._
 
-  // mysql 5.6 doesns't support json. Hence writing properties field as string in json format
-  implicit private val jsValueMappedColumnType: BaseColumnType[Json] =
-    MappedColumnType
-      .base[Json, String](_.printWith(Printer.noSpaces), s => io.circe.parser.parse(s).fold(e => throw e, identity))
   implicit private val userScriptPathMappedColumnType: BaseColumnType[UserScriptPath] =
     MappedColumnType
       .base[UserScriptPath, String](_.asString, s => UserScriptPath.stringToUserScriptPath(s).fold(e => throw e, identity))
   implicit private val gsPathMappedColumnType: BaseColumnType[GcsPath] =
     MappedColumnType
       .base[GcsPath, String](_.toUri, s => parseGcsPath(s).fold(e => throw new Exception(e.toString()), identity))
+  implicit private val googleProjectMappedColumnType: BaseColumnType[GoogleProject] =
+    MappedColumnType
+      .base[GoogleProject, String](_.value, GoogleProject.apply)
+  implicit private val clusterNameMappedColumnType: BaseColumnType[ClusterName] =
+    MappedColumnType
+      .base[ClusterName, String](_.value, ClusterName.apply)
+  // mysql 5.6 doesns't support json. Hence writing properties field as string in json format
+  implicit private val mapMappedColumnType: BaseColumnType[Map[String, String]] =
+    MappedColumnType
+      .base[Map[String, String], String](_.asJson.printWith(Printer.noSpaces), s => {
+        val res = for {
+          s <- _root_.io.circe.parser.parse(s)
+          map <- s.as[Map[String, String]]
+        } yield map
+        res.fold(e => throw e, identity)
+      })
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
     def internalId = column[String]("internalId", O.Length(254))
-    def clusterName = column[String]("clusterName", O.Length(254))
+    def clusterName = column[ClusterName]("clusterName", O.Length(254))
     def googleId = column[Option[UUID]]("googleId")
-    def googleProject = column[String]("googleProject", O.Length(254))
+    def googleProject = column[GoogleProject]("googleProject", O.Length(254))
     def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
     def notebookServiceAccount = column[Option[String]]("notebookServiceAccount", O.Length(254))
     def numberOfWorkers = column[Int]("numberOfWorkers")
@@ -118,8 +131,8 @@ trait ClusterComponent extends LeoComponent {
     def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
     def welderEnabled = column[Boolean]("welderEnabled")
-    def properties = column[Option[Json]]("properties")
-    def customClusterEnvironmentVariables = column[Option[Json]]("customClusterEnvironmentVariables")
+    def properties = column[Option[Map[String, String]]]("properties")
+    def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -195,31 +208,14 @@ trait ClusterComponent extends LeoComponent {
             initBucket,
             AuditInfoRecord.tupled.apply(auditInfo),
             MachineConfigRecord.tupled.apply(machineConfig),
-            properties
-              .map(
-                x =>
-                  x.as[Map[String, String]]
-                    .fold(e => throw new RuntimeException(s"fail to read `properties` field due to ${e.getMessage}"),
-                          identity)
-              )
-              .getOrElse(Map.empty), //in theory, throw should never happen
+            properties.getOrElse(Map.empty), //in theory, throw should never happen
             ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
             stagingBucket,
             autopauseThreshold,
             defaultClientId,
             stopAfterCreation,
             welderEnabled,
-            customClusterEnvironmentVariables
-              .map(
-                x =>
-                  x.as[Map[String, String]]
-                    .fold(e =>
-                            throw new RuntimeException(
-                              s"fail to read `customClusterEnvironmentVariables` field due to ${e.getMessage}"
-                            ),
-                          identity)
-              )
-              .getOrElse(Map.empty) //in theory, throw should never happen
+            customClusterEnvironmentVariables.getOrElse(Map.empty) //in theory, throw should never happen
           )
       }, { c: ClusterRecord =>
         def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
@@ -247,8 +243,8 @@ trait ClusterComponent extends LeoComponent {
             c.defaultClientId,
             c.stopAfterCreation,
             c.welderEnabled,
-            if (c.properties.isEmpty) None else Some(c.properties.asJson),
-            if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables.asJson)
+            if (c.properties.isEmpty) None else Some(c.properties),
+            if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables)
           )
         )
       })
@@ -297,9 +293,9 @@ trait ClusterComponent extends LeoComponent {
           unmarshalMinimalCluster(recs)
       }
 
-    def listRunningOnly(): DBIO[Seq[Cluster]] =
+    def listRunningOnly(): DBIO[Seq[RunningCluster]] =
       clusterQuery.filter { _.status === ClusterStatus.Running.toString }.result map { recs =>
-        recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
+        recs.map(rec => RunningCluster(rec.googleProject, rec.clusterName, rec.welderEnabled))
       }
 
     def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
@@ -311,7 +307,7 @@ trait ClusterComponent extends LeoComponent {
 
     def countActiveByProject(googleProject: GoogleProject) =
       clusterQuery
-        .filter { _.googleProject === googleProject.value }
+        .filter { _.googleProject === googleProject }
         .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
         .length
         .result
@@ -332,8 +328,8 @@ trait ClusterComponent extends LeoComponent {
 
     def getActiveClusterByNameMinimal(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] =
       clusterQuery
-        .filter { _.googleProject === project.value }
-        .filter { _.clusterName === name.value }
+        .filter { _.googleProject === project }
+        .filter { _.clusterName === name }
         .filter { _.destroyedDate === Timestamp.from(dummyDate) }
         .result
         .map { recs =>
@@ -349,8 +345,8 @@ trait ClusterComponent extends LeoComponent {
 
     def getActiveClusterInternalIdByName(project: GoogleProject, name: ClusterName): DBIO[Option[ClusterInternalId]] =
       clusterQuery
-        .filter { _.googleProject === project.value }
-        .filter { _.clusterName === name.value }
+        .filter { _.googleProject === project }
+        .filter { _.clusterName === name }
         .filter { _.destroyedDate === Timestamp.from(dummyDate) }
         .result
         .map { recs =>
@@ -381,8 +377,8 @@ trait ClusterComponent extends LeoComponent {
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] =
       clusterQuery
-        .filter { _.googleProject === project.value }
-        .filter { _.clusterName === name.value }
+        .filter { _.googleProject === project }
+        .filter { _.clusterName === name }
         .map(_.initBucket)
         .result
         .map { recs =>
@@ -391,8 +387,8 @@ trait ClusterComponent extends LeoComponent {
 
     def getStagingBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] =
       clusterQuery
-        .filter { _.googleProject === project.value }
-        .filter { _.clusterName === name.value }
+        .filter { _.googleProject === project }
+        .filter { _.clusterName === name }
         .map(_.stagingBucket)
         .result
         // staging bucket is saved as a bucket name rather than a path
@@ -402,8 +398,8 @@ trait ClusterComponent extends LeoComponent {
 
     def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[ServiceAccountKeyId]] =
       clusterQuery
-        .filter { _.googleProject === project.value }
-        .filter { _.clusterName === name.value }
+        .filter { _.googleProject === project }
+        .filter { _.clusterName === name }
         .map(_.serviceAccountKeyId)
         .result
         .map { recs =>
@@ -558,7 +554,7 @@ trait ClusterComponent extends LeoComponent {
       val clusterStatusQuery =
         if (includeDeleted) clusterLabelQuery else clusterLabelQuery.filterNot { _._1.status === "Deleted" }
       val clusterStatusQueryByProject = googleProjectOpt match {
-        case Some(googleProject) => clusterStatusQuery.filter { _._1.googleProject === googleProject.value }
+        case Some(googleProject) => clusterStatusQuery.filter { _._1.googleProject === googleProject }
         case None                => clusterStatusQuery
       }
       val query = if (labelMap.isEmpty) {
@@ -604,9 +600,9 @@ trait ClusterComponent extends LeoComponent {
       ClusterRecord(
         id = 0, // DB AutoInc
         cluster.internalId.value,
-        cluster.clusterName.value,
+        cluster.clusterName,
         cluster.dataprocInfo.map(_.googleId),
-        cluster.googleProject.value,
+        cluster.googleProject,
         cluster.dataprocInfo.map(_.operationName.value),
         cluster.status.toString,
         cluster.dataprocInfo.flatMap(_.hostIp.map(_.value)),
@@ -729,8 +725,8 @@ trait ClusterComponent extends LeoComponent {
                                  userJupyterExtensionConfig: List[ExtensionRecord],
                                  clusterImageRecords: List[ClusterImageRecord],
                                  scopes: List[ScopeRecord]): Cluster = {
-      val name = ClusterName(clusterRecord.clusterName)
-      val project = GoogleProject(clusterRecord.googleProject)
+      val name = clusterRecord.clusterName
+      val project = clusterRecord.googleProject
       val machineConfig = MachineConfig(
         Some(clusterRecord.machineConfig.numberOfWorkers),
         Some(clusterRecord.machineConfig.masterMachineType),
@@ -804,8 +800,8 @@ trait ClusterComponent extends LeoComponent {
                                   destroyedDateOpt: Option[Instant]) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery
-      .filter(_.googleProject === googleProject.value)
-      .filter(_.clusterName === clusterName.value)
+      .filter(_.googleProject === googleProject)
+      .filter(_.clusterName === clusterName)
       .filter(_.destroyedDate === Timestamp.from(destroyedDate))
 
     fullClusterQuery(baseQuery)

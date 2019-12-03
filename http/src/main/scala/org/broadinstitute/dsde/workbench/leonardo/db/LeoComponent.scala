@@ -10,7 +10,7 @@ import scala.concurrent.ExecutionContext
 
 trait LeoComponent {
   val profile: JdbcProfile
-  implicit val executionContext: ExecutionContext
+  implicit private[db] val executionContext: ExecutionContext
 
   final protected val dummyDate: Instant = Instant.ofEpochMilli(1000)
 
