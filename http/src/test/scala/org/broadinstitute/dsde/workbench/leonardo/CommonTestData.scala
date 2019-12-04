@@ -195,8 +195,6 @@ trait CommonTestData { this: ScalaFutures =>
     customClusterEnvironmentVariables = Map.empty
   )
 
-  // TODO make rstudio cluster
-
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider
