@@ -49,7 +49,8 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
           val getSparkContext =
             """
               |hl.spark_context()""".stripMargin
-          val getSparkContextCellResult = notebookPage.executeCellWithCellOutput(getSparkContext, cellNumberOpt = Some(3)).get
+          val getSparkContextCellResult =
+            notebookPage.executeCellWithCellOutput(getSparkContext, cellNumberOpt = Some(3)).get
           getSparkContextCellResult.renderResult.contains("yarn") shouldBe true
 
           // Verify spark job works

@@ -95,7 +95,7 @@ class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
     }
 
     // set the "stop after creation" flag
-    "should stop a cluster after creation" taggedAs(Retryable)  in { billingProject =>
+    "should stop a cluster after creation" taggedAs (Retryable) in { billingProject =>
       logger.info("Starting ClusterStatusTransitionsSpec: should stop a cluster after creation")
 
       val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))

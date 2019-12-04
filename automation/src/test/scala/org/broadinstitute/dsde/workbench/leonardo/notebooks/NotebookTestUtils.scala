@@ -107,7 +107,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       )
       val result: Future[T] = retryUntilSuccessOrTimeout(
         whenKernelNotReady,
-        failureLogMessage = s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.string} for ${kernel}"
+        failureLogMessage =
+          s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.string} for ${kernel}"
       )(30 seconds, 2 minutes) { () =>
         Future(
           notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>

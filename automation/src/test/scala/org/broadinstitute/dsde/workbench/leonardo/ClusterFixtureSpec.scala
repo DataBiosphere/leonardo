@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.scalatest.{BeforeAndAfterAll, Outcome, Retries, fixture}
+import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -63,7 +63,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
     def runTestAndCheckOutcome() = {
       val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
-      if(! outcome.isSucceeded) {
+      if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")
       }
       outcome
@@ -115,7 +115,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) =>
           createRonCluster(GoogleProject(billingProject))
-        case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
+        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
     }
 

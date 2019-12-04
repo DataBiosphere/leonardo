@@ -19,7 +19,7 @@ class RStudioSpec extends ClusterFixtureSpec with NotebookTestUtils {
         // https://broadworkbench.atlassian.net/browse/IA-697
         val getResult = Try(RStudio.getApi(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName))
         getResult.isSuccess shouldBe true
-        getResult.get should include ("something") // TODO
+        getResult.get should include("something") // TODO
         getResult.get should not include "ProxyException"
       }
     }
