@@ -218,6 +218,13 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe (true)
     ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
     ContainerRegistry.GCR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe (false)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("eu.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
+    ContainerRegistry.GCR.regex.pattern
+      .asPredicate()
+      .test("asia.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
+    ContainerRegistry.GCR.regex.pattern
+      .asPredicate()
+      .test("unknown.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (false)
 
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/asdf") shouldBe (true)
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe (false)
@@ -230,6 +237,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ContainerRegistry.DockerHub.regex.pattern
       .asPredicate()
       .test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe (false)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("a///////") shouldBe (false)
   }
 
   "ContainerImage.stringToJupyterDockerImage" should "match GCR first, and then dockerhub" in {

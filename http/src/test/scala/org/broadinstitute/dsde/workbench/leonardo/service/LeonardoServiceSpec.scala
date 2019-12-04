@@ -258,6 +258,38 @@ class LeonardoServiceSpec
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(customWelderImage.imageUrl)
   }
 
+  it should "create a cluster with an rstudio image" in isolatedDbTest {
+    val rstudioImage = GCR("some-rstudio-image")
+
+    // create the cluster
+    val clusterRequest = testClusterRequest.copy(toolDockerImage = Some(rstudioImage), enableWelder = Some(true))
+    val leoForTest = new LeonardoService(dataprocConfig,
+                                         MockWelderDAO,
+                                         clusterDefaultsConfig,
+                                         proxyConfig,
+                                         swaggerConfig,
+                                         autoFreezeConfig,
+                                         mockPetGoogleDAO,
+                                         DbSingleton.ref,
+                                         authProvider,
+                                         serviceAccountProvider,
+                                         bucketHelper,
+                                         clusterHelper,
+                                         new MockDockerDAO(RStudio))
+    val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
+
+    // check the cluster persisted to the database matches the create response
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(clusterResponse.id) }
+    dbCluster shouldBe Some(clusterResponse)
+
+    // cluster images should contain welder and RStudio
+    clusterResponse.clusterImages.find(_.imageType == RStudio).map(_.imageUrl) shouldBe Some(rstudioImage.imageUrl)
+    clusterResponse.clusterImages.find(_.imageType == Jupyter) shouldBe None
+    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
+      dataprocConfig.welderDockerImage
+    )
+  }
+
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig()))
 

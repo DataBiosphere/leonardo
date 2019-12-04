@@ -31,7 +31,8 @@ sealed trait ContainerRegistry extends Product with Serializable {
 }
 object ContainerRegistry {
   final case object GCR extends ContainerRegistry {
-    val regex: Regex = """^(.*gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+    val regex: Regex =
+      """^((?:us\.|eu\.|asia\.)?gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
     override def toString: String = "gcr"
   }
 
