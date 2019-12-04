@@ -21,11 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoServiceJsonCod
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.{
-  LeonardoService,
-  ProxyService,
-  StatusService
-}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject

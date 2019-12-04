@@ -64,7 +64,9 @@ object LeonardoServiceJsonCodec extends DefaultJsonProtocol {
       "defaultClientId" -> obj.defaultClientId.toJson,
       "stopAfterCreation" -> obj.stopAfterCreation.toJson,
       "welderEnabled" -> obj.welderEnabled.toJson,
-      "scopes" -> List.empty[String].toJson //TODO: stubbing this out temporarily until AOU move to new swagger generated client
+      "scopes" -> List
+        .empty[String]
+        .toJson //TODO: stubbing this out temporarily until AOU move to new swagger generated client
     )
 
     val presentFields = allFields.filter(_._2 != JsNull)

@@ -45,10 +45,12 @@ trait ClusterImageComponent extends LeoComponent {
 
   object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
 
-    def save(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] = for {
-      exists <- getRecord(clusterId, clusterImage.imageType)
-      res <- if(exists.headOption.isDefined) DBIO.successful(0) else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
-    } yield res
+    def save(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] =
+      for {
+        exists <- getRecord(clusterId, clusterImage.imageType)
+        res <- if (exists.headOption.isDefined) DBIO.successful(0)
+        else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
+      } yield res
 
     def saveAllForCluster(clusterId: Long, clusterImages: Seq[ClusterImage]): DBIO[Option[Int]] =
       clusterImageQuery ++= clusterImages.map { c =>
@@ -59,8 +61,7 @@ trait ClusterImageComponent extends LeoComponent {
       clusterImageQuery.insertOrUpdate(marshallClusterImage(clusterId, clusterImage))
 
     def get(clusterId: Long, imageType: ClusterImageType): DBIO[Option[ClusterImage]] =
-      getRecord(clusterId, imageType)
-        .headOption
+      getRecord(clusterId, imageType).headOption
         .map(_.map(unmarshalClusterImage))
 
     def getRecord(clusterId: Long, imageType: ClusterImageType) =

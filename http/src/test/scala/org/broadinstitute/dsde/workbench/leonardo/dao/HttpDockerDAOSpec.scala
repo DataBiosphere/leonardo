@@ -5,7 +5,7 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.{DockerHub, GCR}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.http4s.client.blaze.BlazeClientBuilder

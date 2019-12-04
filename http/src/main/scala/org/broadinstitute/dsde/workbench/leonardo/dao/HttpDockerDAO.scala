@@ -8,9 +8,14 @@ import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerRegistry.{DockerHub, GCR}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterTool, ContainerImage, ContainerRegistry, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.{
+  ClusterImageType,
+  ContainerImage,
+  ContainerRegistry,
+  LeoException
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
@@ -39,7 +44,7 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
 
-  override def detectTool(image: ContainerImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[ClusterTool]] =
+  override def detectTool(image: ContainerImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[ClusterImageType]] =
     for {
       parsed <- parseImage(image)
       tokenOpt <- getToken(parsed)

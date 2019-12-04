@@ -20,7 +20,8 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
 import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
   NegativeIntegerArgumentInClusterRequestException,
   OneWorkerSpecifiedInClusterRequestException
@@ -223,7 +224,9 @@ class LeonardoServiceSpec
     dbCluster shouldBe Some(clusterResponse)
 
     // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(dataprocConfig.jupyterImage)
+    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
+      dataprocConfig.jupyterImage
+    )
     clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
       dataprocConfig.welderDockerImage
@@ -248,9 +251,11 @@ class LeonardoServiceSpec
     dbCluster shouldBe Some(clusterResponse)
 
     // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
-    clusterResponse.clusterImages.find(_.tool == RStudio) shouldBe None
-    clusterResponse.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe customWelderImage
+    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
+      dataprocConfig.jupyterImage
+    )
+    clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
+    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(customWelderImage.imageUrl)
   }
 
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
@@ -706,7 +711,9 @@ class LeonardoServiceSpec
       .unsafeToFuture
       .futureValue
 
-    leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(_.toListClusterResp)
+    leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
+      _.toListClusterResp
+    )
   }
 
   it should "error when trying to delete a creating cluster" in isolatedDbTest {

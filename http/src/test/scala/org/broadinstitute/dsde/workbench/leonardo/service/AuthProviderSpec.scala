@@ -17,9 +17,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleProjectDAO,
   MockGoogleStorageDAO
 }
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
-  clusterEq
-}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq}
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -259,7 +257,9 @@ class AuthProviderSpec
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(_.toListClusterResp)
+      leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(
+        _.toListClusterResp
+      )
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))

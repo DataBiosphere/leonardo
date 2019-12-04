@@ -12,6 +12,7 @@ import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
@@ -235,7 +236,12 @@ object Cluster {
     )
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName, clusterImages: Set[ClusterImage]): URL = {
-    val tool = clusterImages.map(_.tool).filterNot(_ == Welder).headOption.getOrElse(Jupyter)
+    val tool = clusterImages
+      .map(_.imageType)
+      .filterNot(_ == Welder)
+      .flatMap(ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get)
+      .headOption
+      .getOrElse(JupyterService)
     new URL(
       Config.dataprocConfig.clusterUrlBase + googleProject.value + "/" + clusterName.value + "/" + tool.proxySegment
     )
