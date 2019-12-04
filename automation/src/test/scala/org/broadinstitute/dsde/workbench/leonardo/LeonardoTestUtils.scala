@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import akka.actor.ActorSystem
+import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, IO}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -14,7 +15,7 @@ import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserA
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -86,6 +87,7 @@ trait LeonardoTestUtils
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   val blocker = Blocker.liftExecutionContext(global)
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker)
+  val concurrentClusterCreationPermits: Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveClusterLogFiles(googleProject: GoogleProject, clusterName: ClusterName, paths: List[String], suffix: String)(
@@ -198,7 +200,9 @@ trait LeonardoTestUtils
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
-    val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))
+    val clusterTimeResult = time(
+      concurrentClusterCreationPermits.withPermit(IO(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))).unsafeRunSync()
+    )
     logger.info(s"Time it took to get cluster create response with: ${clusterTimeResult.duration}")
 
     // We will verify the create cluster response.
