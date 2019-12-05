@@ -136,5 +136,52 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         }
       }
     }
+
+    "should execute user-specified start script" in { billingProject =>
+      implicit val ronToken: AuthToken = ronAuthToken
+
+      withNewGoogleBucket(billingProject) { bucketName =>
+        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
+        googleStorageDAO.setBucketAccessControl(bucketName,
+          EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+          GcsRoles.Owner)
+
+        // Add the user script to the bucket. This script increments and writes a count to file,
+        // tracking the number of times it has been invoked.
+        val startScriptString = "#!/usr/bin/env bash\n\n" +
+          "count=$(cat ~/leo_test_start_count.txt || echo 0)\n" +
+          "echo $(($count + 1)) > ~/leo_test_start_count.txt"
+        val startScriptObjectName = GcsObjectName("start-script.sh")
+        val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
+
+        withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
+          googleStorageDAO.setObjectAccessControl(bucketName,
+            objectName,
+            EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+            GcsRoles.Owner)
+
+          withNewCluster(billingProject,
+            request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
+          cluster =>
+            withWebDriver { implicit driver =>
+              withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat ~/leo_test_start_count.txt").get shouldBe "1"
+              }
+
+              // Stop the cluster
+              stopAndMonitor(cluster.googleProject, cluster.clusterName)
+
+              // Start the cluster
+              startAndMonitor(cluster.googleProject, cluster.clusterName)
+
+              withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat ~/leo_test_start_count.txt").get shouldBe "2"
+              }
+            }
+          }
+
+        }
+      }
+    }
   }
 }
