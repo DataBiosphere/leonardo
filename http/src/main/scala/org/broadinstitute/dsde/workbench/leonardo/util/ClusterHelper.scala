@@ -187,10 +187,14 @@ class ClusterHelper(
       else IO.unit
 
       // Now stop each instance individually
+      _ <- log.info(s"ABout to stop instances for cluster ${cluster.projectNameString}:\n\toverall instances present: ${cluster.instances.toList}\n\tnon-preemptible instances: ${cluster.nonPreemptibleInstances.toList}\n\t  current machine config: ${cluster.machineConfig}")
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
         IO.fromFuture(IO(googleComputeDAO.stopInstance(instance.key)))
       }
+      _ <- log.info(s"instances after stop finalization for cluster ${cluster.projectNameString}: ${cluster.instances}")
     } yield ()
+
+
 
   private def startCluster(cluster: Cluster, welderAction: WelderAction): IO[Unit] =
     for {
@@ -208,8 +212,9 @@ class ClusterHelper(
       else IO.unit
 
       // Start each instance individually
+      _ <- log.info(s"ABout to start instances for cluster ${cluster.projectNameString}:\n\toverall instances present: ${cluster.instances.toList}\n\tnon-preemptible instances: ${cluster.nonPreemptibleInstances.toList}\n\t  current machine config: ${cluster.machineConfig}")
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
-        // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
+        // Install a startup script on the master noxde so Jupyter starts back up again once the instance is restarted
         IO.fromFuture(IO(instance.dataprocRole.traverse {
           case Master =>
             googleComputeDAO.addInstanceMetadata(instance.key, metadata) >>

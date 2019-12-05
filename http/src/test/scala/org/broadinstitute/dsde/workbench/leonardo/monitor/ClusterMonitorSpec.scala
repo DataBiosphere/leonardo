@@ -1427,6 +1427,8 @@ class ClusterMonitorSpec
 
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Starting)
 
+
+
       }
 
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])

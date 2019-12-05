@@ -201,22 +201,21 @@ class ClusterMonitorSupervisor(
 
     case ClusterStopAndUpdate(cluster) =>
       logger.info(s"Updating cluster ${cluster.projectNameString} after stopping...")
-      logger.info("why am I here?")
 
       dbRef.inTransaction {
         dataAccess => dataAccess.clusterQuery.getClusterById(cluster.id)
       }.flatMap {
-        case Some(resolvedCluster) if resolvedCluster.status == ClusterStatus.Stopped && !cluster.machineConfig.masterMachineType.isEmpty => {
+        case Some(resolvedCluster) if resolvedCluster.status == ClusterStatus.Stopped && !resolvedCluster.updatedMachineConfig.masterMachineType.isEmpty => {
           // do update
-          logger.info("In update of UpdateClusterAfterStop")
+          logger.info(s"In update of UpdateClusterAfterStop, updating cluster to machine type ${MachineType(resolvedCluster.updatedMachineConfig.masterMachineType.get)}")
           for {
             // perform gddao and db updates for new resources
-            _ <- clusterHelper.updateMasterMachineType(cluster, MachineType(cluster.updatedMachineConfig.masterMachineType.get)).unsafeToFuture()
+            _ <- clusterHelper.updateMasterMachineType(resolvedCluster, MachineType(resolvedCluster.updatedMachineConfig.masterMachineType.get)).unsafeToFuture()
             // start cluster
-            _ <- clusterHelper.internalStartCluster(cluster).unsafeToFuture()
+            _ <- clusterHelper.internalStartCluster(resolvedCluster).unsafeToFuture()
             // clean up temporary state used for transition
             _ <- dbRef.inTransaction {
-              dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(cluster.id)
+              dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(resolvedCluster.id)
             }
           } yield ()
         }
