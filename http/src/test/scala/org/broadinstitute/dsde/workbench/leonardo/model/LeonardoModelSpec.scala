@@ -67,7 +67,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |{
         |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
         |  "jupyterUserScriptUri": "gs://userscript_bucket/userscript.sh",
-        |  "jupyterStartUserScriptUri": "gs://startcript_bucket/startscript.sh",
+        |  "jupyterStartUserScriptUri": "gs://startscript_bucket/startscript.sh",
         |  "labels": {},
         |  "properties": {},
         |  "scopes": [],
@@ -215,7 +215,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
     clusterInitMap("welderEnabled") shouldBe "true"
 
-    clusterInitMap.size shouldBe 34
+    clusterInitMap.size shouldBe 36
   }
 
   "DockerRegistry regex" should "match expected image url format" in {

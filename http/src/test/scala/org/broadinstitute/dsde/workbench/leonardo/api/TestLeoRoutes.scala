@@ -59,6 +59,9 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
     petMock.buckets += jupyterUserScriptUri.bucketName -> Set(
       (jupyterUserScriptUri.objectName, new ByteArrayInputStream("foo".getBytes()))
     )
+    petMock.buckets += jupyterStartUserScriptUri.bucketName -> Set(
+      (jupyterStartUserScriptUri.objectName, new ByteArrayInputStream("foo".getBytes()))
+    )
     petMock.buckets += jupyterExtensionUri.bucketName -> Set(
       (jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes()))
     )
