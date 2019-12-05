@@ -121,14 +121,10 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "clusterImages": [
         |    { "imageType": "Jupyter",
         |      "imageUrl": "jupyter/jupyter-base:latest",
-        |      "tool": "Jupyter",
-        |      "dockerImage": "jupyter/jupyter-base:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
         |      },
         |    { "imageType": "Welder",
         |      "imageUrl": "welder/welder:latest",
-        |      "tool": "Welder",
-        |      "dockerImage": "welder/welder:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
         |      }
         |    ],
