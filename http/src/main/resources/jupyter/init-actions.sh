@@ -129,6 +129,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
+    JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)

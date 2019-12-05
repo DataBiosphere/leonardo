@@ -9,6 +9,41 @@ set -e -x
 # cluster if not already installed.
 ##
 
+#
+# Functions
+# (copied from init-actions.sh, see documentation there)
+#
+
+function retry {
+  local retries=$1
+  shift
+
+  for ((i = 1; i <= $retries; i++)); do
+    # run with an 'or' so set -e doesn't abort the bash script on errors
+    exit=0
+    "$@" || exit=$?
+    if [ $exit -eq 0 ]; then
+      return 0
+    fi
+    wait=$((2 ** $i))
+    if [ $i -eq $retries ]; then
+      log "Retry $i/$retries exited $exit, no more retries left."
+      break
+    fi
+    log "Retry $i/$retries exited $exit, retrying in $wait seconds..."
+    sleep $wait
+  done
+  return 1
+}
+
+function log() {
+  echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
+}
+
+#
+# Main
+#
+
 # Templated values
 export GOOGLE_PROJECT=$(googleProject)
 export CLUSTER_NAME=$(clusterName)

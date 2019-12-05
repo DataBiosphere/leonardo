@@ -149,8 +149,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         // Add the user script to the bucket. This script increments and writes a count to file,
         // tracking the number of times it has been invoked.
         val startScriptString = "#!/usr/bin/env bash\n\n" +
-          "count=$(cat ~/leo_test_start_count.txt || echo 0)\n" +
-          "echo $(($count + 1)) > ~/leo_test_start_count.txt"
+          "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
+          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt"
         val startScriptObjectName = GcsObjectName("start-script.sh")
         val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
 
@@ -164,8 +164,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
           cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
-                notebookPage.executeCell("!cat ~/leo_test_start_count.txt").get shouldBe "1"
+              withNewNotebook(cluster, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
               }
 
               // Stop the cluster
@@ -174,8 +174,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
               // Start the cluster
               startAndMonitor(cluster.googleProject, cluster.clusterName)
 
-              withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
-                notebookPage.executeCell("!cat ~/leo_test_start_count.txt").get shouldBe "2"
+              withNewNotebook(cluster, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
               }
             }
           }
