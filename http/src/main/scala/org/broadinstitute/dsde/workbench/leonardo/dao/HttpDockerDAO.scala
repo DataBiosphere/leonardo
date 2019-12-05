@@ -151,11 +151,7 @@ object HttpDockerDAO {
     new HttpDockerDAO[F](httpClient)
 
   // Decoders
-  implicit val tokenDecoder: Decoder[Token] = Decoder.instance { d =>
-    for {
-      token <- d.downField("token").as[String]
-    } yield Token(token)
-  }
+  implicit val tokenDecoder: Decoder[Token] = Decoder.decodeString.map(Token)
   implicit val manifestConfigDecoder: Decoder[ManifestConfig] = Decoder.instance { d =>
     val cursor = d.downField("config")
     for {

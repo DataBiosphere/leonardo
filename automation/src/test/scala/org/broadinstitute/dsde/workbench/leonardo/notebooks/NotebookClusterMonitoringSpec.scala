@@ -162,7 +162,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           .futureValue
 
         val request = defaultClusterRequest.copy(
-          toolDockerImage = None,
+          toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl),
           machineConfig = Option(
             MachineConfig(
               // need at least 2 regular workers to enable preemptibles
