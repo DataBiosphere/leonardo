@@ -5,6 +5,7 @@ import java.io.File
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudio
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEntity, GcsObjectName, GcsPath}
@@ -15,6 +16,7 @@ import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
+import scala.util.Try
 
 /**
  * This spec verifies cluster status transitions like pause/resume and cluster PATCH.
@@ -293,6 +295,37 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
               notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
             }
           }
+      }
+    }
+
+    "should pause and resume an RStudio cluster" in { billingProject =>
+      implicit val ronToken: AuthToken = ronAuthToken
+
+      // Create a cluster
+      withNewCluster(billingProject,
+                     request = defaultClusterRequest.copy(toolDockerImage =
+                                                            Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl),
+                                                          enableWelder = Some(true))) { cluster =>
+        // Make sure RStudio is up
+        // See this ticket for adding more comprehensive selenium tests for RStudio:
+        // https://broadworkbench.atlassian.net/browse/IA-697
+        val getResult = Try(RStudio.getApi(cluster.googleProject, cluster.clusterName))
+        getResult.isSuccess shouldBe true
+        getResult.get should include("unsupported_browser")
+        getResult.get should not include "ProxyException"
+
+        // Stop the cluster
+        stopAndMonitor(cluster.googleProject, cluster.clusterName)
+
+        // Start the cluster
+        startAndMonitor(cluster.googleProject, cluster.clusterName)
+
+        // RStudio should still be up
+        // TODO: also check that the session is preserved after IA-697 is done
+        val getResultAfterResume = Try(RStudio.getApi(cluster.googleProject, cluster.clusterName))
+        getResultAfterResume.isSuccess shouldBe true
+        getResultAfterResume.get should include("unsupported_browser")
+        getResultAfterResume.get should not include "ProxyException"
       }
     }
 
