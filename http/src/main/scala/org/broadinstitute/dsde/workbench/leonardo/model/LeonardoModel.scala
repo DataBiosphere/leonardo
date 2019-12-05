@@ -611,7 +611,7 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
+  implicit val DefaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
 
   implicit val ClusterToolFormat = EnumEntryFormat(ClusterImageType.withName)
 
