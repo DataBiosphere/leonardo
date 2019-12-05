@@ -55,7 +55,7 @@ case class DefaultLabels(clusterName: ClusterName,
                          notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[String],
                          notebookUserScript: Option[String],
-                         jupyterUserScriptUri: Option[String]) {
+                         notebookStartUserScript: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
