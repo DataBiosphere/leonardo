@@ -149,14 +149,15 @@ trait LeonardoTestUtils
       case Some(x) => x.nbExtensions ++ x.combinedExtensions ++ x.serverExtensions ++ x.labExtensions
       case None    => Map()
     }
-    val expected = clusterRequest.labels ++ DefaultLabels(
+    val expected = clusterRequest.labels ++ DefaultLabels()
       clusterName,
       googleProject,
       creator,
       Some(dummyClusterSa),
       Some(dummyNotebookSa),
       clusterRequest.jupyterExtensionUri,
-      clusterRequest.jupyterUserScriptUri
+      clusterRequest.jupyterUserScriptUri,
+      clusterRequest.jupyterStartUserScriptUri
     ).toMap ++ jupyterExtensions
 
     (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")

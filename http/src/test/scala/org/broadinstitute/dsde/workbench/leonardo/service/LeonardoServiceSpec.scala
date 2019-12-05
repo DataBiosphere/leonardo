@@ -175,6 +175,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.status shouldBe ClusterStatus.Creating
     clusterCreateResponse.jupyterExtensionUri shouldBe None
     clusterCreateResponse.jupyterUserScriptUri shouldBe testClusterRequest.jupyterUserScriptUri
+    clusterCreateResponse.jupyterStartUserScriptUri shouldBe testClusterRequest.jupyterStartUserScriptUri
     clusterCreateResponse.errors shouldBe List.empty
     clusterCreateResponse.instances shouldBe Set.empty
     clusterCreateResponse.userJupyterExtensionConfig shouldBe testClusterRequest.userJupyterExtensionConfig

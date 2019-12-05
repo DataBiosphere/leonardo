@@ -47,6 +47,7 @@ trait CommonTestData { this: ScalaFutures =>
     UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("somecreep"), unauthorizedEmail, 0)
   val jupyterExtensionUri = GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))
   val jupyterUserScriptUri = GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))
+  val jupyterStartUserScriptUri = GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"),
                                             ServiceAccountPrivateKeyData("abcdefg"),
                                             Some(Instant.now),
@@ -102,6 +103,7 @@ trait CommonTestData { this: ScalaFutures =>
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
     Some(jupyterExtensionUri),
     Some(jupyterUserScriptUri),
+    Some(jupyterStartUserScriptUri),
     None,
     Map.empty,
     None,
@@ -156,6 +158,7 @@ trait CommonTestData { this: ScalaFutures =>
       labels = Map(),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
+      jupyterStartUserScriptUri = None,
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
@@ -183,6 +186,7 @@ trait CommonTestData { this: ScalaFutures =>
     labels = Map(),
     jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
     jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
+    jupyterStartUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript"))),
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,

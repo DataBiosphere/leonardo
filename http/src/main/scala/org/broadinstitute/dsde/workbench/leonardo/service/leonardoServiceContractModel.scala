@@ -57,6 +57,7 @@ object LeonardoServiceJsonCodec extends DefaultJsonProtocol {
       "labels" -> obj.labels.toJson,
       "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
       "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
+      "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.toJson,
       "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket.toJson).getOrElse(JsNull),
       "instances" -> obj.instances.toJson,
       "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,

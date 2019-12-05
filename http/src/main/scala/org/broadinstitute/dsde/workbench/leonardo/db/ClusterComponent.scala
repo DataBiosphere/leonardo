@@ -33,6 +33,7 @@ final case class ClusterRecord(id: Long,
                                hostIp: Option[String],
                                jupyterExtensionUri: Option[String],
                                jupyterUserScriptUri: Option[String],
+                               jupyterStartUserScriptUri: Option[String],
                                initBucket: Option[String],
                                auditInfo: AuditInfoRecord,
                                machineConfig: MachineConfigRecord,
@@ -101,6 +102,7 @@ trait ClusterComponent extends LeoComponent {
     def destroyedDate = column[Timestamp]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri = column[Option[String]]("jupyterExtensionUri", O.Length(1024))
     def jupyterUserScriptUri = column[Option[String]]("jupyterUserScriptUri", O.Length(1024))
+    def jupyterStartUserScriptUri = column[Option[String]]("jupyterStartUserScriptUri", O.Length(1024))
     def initBucket = column[Option[String]]("initBucket", O.Length(1024))
     def serviceAccountKeyId = column[Option[String]]("serviceAccountKeyId", O.Length(254))
     def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
@@ -131,6 +133,7 @@ trait ClusterComponent extends LeoComponent {
         hostIp,
         jupyterExtensionUri,
         jupyterUserScriptUri,
+        jupyterStartUserScriptUri,
         initBucket,
         (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
         (numberOfWorkers,
@@ -159,6 +162,7 @@ trait ClusterComponent extends LeoComponent {
               hostIp,
               jupyterExtensionUri,
               jupyterUserScriptUri,
+              jupyterStartUserScriptUri,
               initBucket,
               auditInfo,
               machineConfig,
@@ -181,6 +185,7 @@ trait ClusterComponent extends LeoComponent {
             hostIp,
             jupyterExtensionUri,
             jupyterUserScriptUri,
+            jupyterStartUserScriptUri,
             initBucket,
             AuditInfoRecord.tupled.apply(auditInfo),
             MachineConfigRecord.tupled.apply(machineConfig),
@@ -226,6 +231,7 @@ trait ClusterComponent extends LeoComponent {
             c.hostIp,
             c.jupyterExtensionUri,
             c.jupyterUserScriptUri,
+            c.jupyterStartUserScriptUri,
             c.initBucket,
             ai(c.auditInfo),
             mc(c.machineConfig),
@@ -600,6 +606,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.flatMap(_.hostIp.map(_.value)),
         cluster.jupyterExtensionUri map (_.toUri),
         cluster.jupyterUserScriptUri map (_.toUri),
+        cluster.jupyterStartUserScriptUri map (_.toUri),
         initBucket,
         AuditInfoRecord(
           cluster.auditInfo.creator.value,
@@ -762,6 +769,7 @@ trait ClusterComponent extends LeoComponent {
         labels,
         clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
+        clusterRecord.jupyterStartUserScriptUri flatMap { parseGcsPath(_).toOption },
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),

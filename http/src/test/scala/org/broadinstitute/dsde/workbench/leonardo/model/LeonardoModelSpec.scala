@@ -46,6 +46,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "jupyterDockerImage": null,
         |  "jupyterExtensionUri": null,
         |  "jupyterUserScriptUri": null,
+        |  "jupyterStartUserScriptUri": null,
         |  "machineConfig": null,
         |  "rstudioDockerImage": null,
         |  "scopes": null,
@@ -66,6 +67,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |{
         |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
         |  "jupyterUserScriptUri": "gs://userscript_bucket/userscript.sh",
+        |  "jupyterStartUserScriptUri": "gs://startcript_bucket/startscript.sh",
         |  "labels": {},
         |  "properties": {},
         |  "scopes": [],
@@ -78,7 +80,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       properties = Map.empty,
       scopes = Set.empty,
       jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
-      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
+      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))),
+      jupyterStartUserScriptUri = Some(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh")))
     )
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
@@ -158,6 +161,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |     },
         |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
         |  "jupyterUserScriptUri": "gs://userscript_bucket/userscript.sh",
+        |  "jupyterStartUserScriptUri": "gs://startscript_bucket/startscript.sh",
         |  "stagingBucket": "testStagingBucket1",
         |  "errors": [],
         |  "instances": [],
