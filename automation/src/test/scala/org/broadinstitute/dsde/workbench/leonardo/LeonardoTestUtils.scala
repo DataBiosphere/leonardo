@@ -149,7 +149,7 @@ trait LeonardoTestUtils
       case Some(x) => x.nbExtensions ++ x.combinedExtensions ++ x.serverExtensions ++ x.labExtensions
       case None    => Map()
     }
-    val expected = clusterRequest.labels ++ DefaultLabels()
+    val expected = clusterRequest.labels ++ DefaultLabels(
       clusterName,
       googleProject,
       creator,
