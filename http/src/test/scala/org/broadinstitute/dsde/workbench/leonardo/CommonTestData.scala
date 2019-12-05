@@ -92,6 +92,7 @@ trait CommonTestData { this: ScalaFutures =>
     None,
     None,
     None,
+    None,
     Map.empty,
     None,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
