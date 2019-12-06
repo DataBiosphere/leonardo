@@ -987,7 +987,7 @@ class LeonardoServiceSpec
     computeDAO.instances.keySet shouldBe clusterInstances.map(_.key).toSet
     computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
     computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Stopped)).toSet
-    computeDAO.instanceMetadata.values.toSet shouldBe Set(Map.empty)
+    computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("shutdown-script")
   }
 
   it should "resize a cluster" in isolatedDbTest {
