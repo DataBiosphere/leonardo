@@ -179,6 +179,30 @@ END
 </source>
 END
 
+    # Add stack driver configuration for user start up script
+    tee /etc/google-fluentd/config.d/userStartupScript.conf << END
+<source>
+ @type tail
+ format none
+ path /var/log/user.log
+ pos_file /var/tmp/fluentd.google.user.startup.pos
+ read_from_head true
+ tag user_startup
+</source>
+END
+
+    # Add stack driver configuration for user shut down script
+    tee /etc/google-fluentd/config.d/userShutdownScript.conf << END
+<source>
+ @type tail
+ format none
+ path /var/log/user.log
+ pos_file /var/tmp/fluentd.google.user.shutdown.pos
+ read_from_head true
+ tag user_shutdown
+</source>
+END
+
     service google-fluentd reload
 
     # Install env var config

@@ -176,6 +176,8 @@ class ClusterHelper(
 
   def stopCluster(cluster: Cluster): IO[Unit] =
     for {
+      metadata <- getMasterInstanceShutdownScript(cluster)
+
       // First remove all its preemptible instances, if any
       _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
         IO.fromFuture(IO(gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))))
@@ -183,7 +185,13 @@ class ClusterHelper(
 
       // Now stop each instance individually
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
-        IO.fromFuture(IO(googleComputeDAO.stopInstance(instance.key)))
+        IO.fromFuture(IO(instance.dataprocRole.traverse {
+          case Master =>
+            googleComputeDAO.addInstanceMetadata(instance.key, metadata) >>
+              googleComputeDAO.stopInstance(instance.key)
+          case _ =>
+            googleComputeDAO.stopInstance(instance.key)
+        }))
       }
     } yield ()
 
@@ -617,6 +625,34 @@ class ClusterHelper(
       bytes =>
         Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
     }
+  }
+
+  private def getMasterInstanceShutdownScript(cluster: Cluster): IO[Map[String, String]] = {
+    val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
+
+    // These things need to be provided to ClusterInitValues, but aren't actually needed for the shutdown script
+    val dummyInitBucket = GcsBucketName("")
+    val dummyStagingBucket = GcsBucketName("")
+
+    val replacements = ClusterInitValues(
+      cluster,
+      dummyInitBucket,
+      cluster.dataprocInfo.map(_.stagingBucket).getOrElse(dummyStagingBucket),
+      None,
+      dataprocConfig,
+      proxyConfig,
+      clusterFilesConfig,
+      clusterResourcesConfig,
+      contentSecurityPolicy
+    ).toMap
+
+    TemplateHelper
+      .templateResource(replacements, clusterResourcesConfig.shutdownScript, blocker)
+      .compile
+      .to[Array]
+      .map { bytes =>
+        Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
+      }
   }
 
 }

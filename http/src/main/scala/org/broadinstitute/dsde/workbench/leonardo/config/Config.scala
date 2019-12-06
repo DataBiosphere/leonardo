@@ -78,6 +78,7 @@ object Config {
     ClusterResourcesConfig(
       ClusterResource(config.getString("initActionsScript")),
       ClusterResource(config.getString("startupScript")),
+      ClusterResource(config.getString("shutdownScript")),
       ClusterResource(config.getString("jupyterDockerCompose")),
       ClusterResource(config.getString("rstudioDockerCompose")),
       ClusterResource(config.getString("proxyDockerCompose")),
