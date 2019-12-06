@@ -18,11 +18,11 @@ import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
+import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -113,6 +113,10 @@ case class IllegalLabelKeyException(labelKey: String)
 case class InvalidDataprocMachineConfigException(errorMsg: String)
     extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
+case class ImageAutoDetectionException(traceId: TraceId, image: ContainerImage)
+    extends LeoException(s"${traceId} | Unable to auto-detect tool for ${image.registry} image ${image.imageUrl}",
+                         StatusCodes.Conflict)
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val welderDao: WelderDAO[IO],
                       protected val clusterDefaultsConfig: ClusterDefaultsConfig,
@@ -124,11 +128,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val authProvider: LeoAuthProvider[IO],
                       protected val serviceAccountProvider: ServiceAccountProvider[IO],
                       protected val bucketHelper: BucketHelper,
-                      protected val clusterHelper: ClusterHelper)(implicit val executionContext: ExecutionContext,
-                                                                  implicit override val system: ActorSystem,
-                                                                  log: Logger[IO],
-                                                                  cs: ContextShift[IO],
-                                                                  metrics: NewRelicMetrics[IO])
+                      protected val clusterHelper: ClusterHelper,
+                      protected val dockerDAO: DockerDAO[IO])(implicit val executionContext: ExecutionContext,
+                                                              implicit override val system: ActorSystem,
+                                                              log: Logger[IO],
+                                                              cs: ContextShift[IO],
+                                                              metrics: NewRelicMetrics[IO])
     extends LazyLogging
     with Retry {
 
@@ -205,32 +210,37 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     googleProject: GoogleProject,
     clusterName: ClusterName,
     clusterRequest: ClusterRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] = {
-    val internalId = ClusterInternalId(UUID.randomUUID().toString)
-    val augmentedClusterRequest =
-      augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
-    val clusterImages = getClusterImages(clusterRequest)
-    val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
-    val autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
-    val clusterScopes = if (clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
-    val initialClusterToSave = Cluster.create(
-      augmentedClusterRequest,
-      internalId,
-      userEmail,
-      clusterName,
-      googleProject,
-      serviceAccountInfo,
-      machineConfig,
-      dataprocConfig.clusterUrlBase,
-      autopauseThreshold,
-      clusterScopes,
-      clusterImages = clusterImages
-    )
-
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     for {
       traceId <- ev.ask
+      internalId <- IO(ClusterInternalId(UUID.randomUUID().toString))
+      augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo,
+                                                      googleProject,
+                                                      clusterName,
+                                                      userEmail,
+                                                      clusterRequest)
+      clusterImages <- getClusterImages(augmentedClusterRequest)
+      machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
+      autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
+      clusterScopes = if (clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
+      initialClusterToSave = Cluster.create(
+        augmentedClusterRequest,
+        internalId,
+        userEmail,
+        clusterName,
+        googleProject,
+        serviceAccountInfo,
+        machineConfig,
+        dataprocConfig.clusterUrlBase,
+        autopauseThreshold,
+        clusterScopes,
+        clusterImages
+      )
+      _ <- log.info(
+        s"[$traceId] will deploy the following images to cluster ${initialClusterToSave.projectNameString}: ${clusterImages}"
+      )
       _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
       _ <- log.info(
         s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
@@ -245,7 +255,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
     } yield cluster
-  }
 
   // throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
@@ -785,31 +794,34 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         .copy(labels = allLabels)
   }
 
-  private[service] def getClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
-    val now = Instant.now
-
-    //If welder is enabled for this cluster, we need to ensure that an image is chosen.
-    //We will use the client-supplied image, if present, otherwise we will use a default.
-    //If welder is not enabled, we won't use any image.
-    //Eventually welder will be enabled for all clusters and this will be way cleaner.
-    val welderImageOpt: Option[ClusterImage] = if (clusterRequest.enableWelder.getOrElse(false)) {
-      val i = clusterRequest.welderDockerImage.getOrElse(dataprocConfig.welderDockerImage)
-      Some(ClusterImage(Welder, i, now))
-    } else None
-
-    // Note: Jupyter image is not currently optional
-    val jupyterImage: ClusterImage = ClusterImage(
-      Jupyter,
-      clusterRequest.jupyterDockerImage.map(_.imageUrl).getOrElse(dataprocConfig.jupyterImage),
-      now
-    )
-
-    // Optional RStudio image
-    val rstudioImageOpt: Option[ClusterImage] =
-      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
-
-    Set(welderImageOpt, Some(jupyterImage), rstudioImageOpt).flatten
-  }
+  private[service] def getClusterImages(
+    clusterRequest: ClusterRequest
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[ClusterImage]] =
+    for {
+      now <- IO(Instant.now)
+      traceId <- ev.ask
+      // Try to autodetect the image
+      autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
+        dockerDAO.detectTool(image).flatMap {
+          case None       => IO.raiseError(ImageAutoDetectionException(traceId, image))
+          case Some(tool) => IO.pure(ClusterImage(tool, image.imageUrl, now))
+        }
+      }
+      // Figure out the tool image. Rules:
+      // - if we were able to autodetect an image, use that
+      // - else if a legacy jupyterDockerImage param was sent, use that
+      // - else use the default jupyter image
+      jupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i.imageUrl, now))
+      defaultJupyterImage = ClusterImage(Jupyter, dataprocConfig.jupyterImage, now)
+      toolImage = autodetectedImageOpt orElse jupyterImageOpt getOrElse defaultJupyterImage
+      // Figure out the welder image. Rules:
+      // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
+      // - If welder is not enabled, we won't use any image.
+      welderImageOpt = if (clusterRequest.enableWelder.getOrElse(false)) {
+        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(dataprocConfig.welderDockerImage)
+        Some(ClusterImage(Welder, imageUrl, now))
+      } else None
+    } yield Set(Some(toolImage), welderImageOpt).flatten
 
   private def getWelderAction(cluster: Cluster): WelderAction =
     if (cluster.welderEnabled) {

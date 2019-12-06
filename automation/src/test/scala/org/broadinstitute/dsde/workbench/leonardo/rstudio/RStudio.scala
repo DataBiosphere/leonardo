@@ -14,7 +14,7 @@ object RStudio extends RestClient with LazyLogging {
   private val url = LeonardoConfig.Leonardo.apiUrl
 
   def rstudioPath(googleProject: GoogleProject, clusterName: ClusterName): String =
-    s"proxy/${googleProject.value}/${clusterName.string}/rstudio"
+    s"proxy/${googleProject.value}/${clusterName.string}/rstudio/"
 
   def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
     val path = rstudioPath(googleProject, clusterName)

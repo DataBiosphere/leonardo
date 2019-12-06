@@ -745,6 +745,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.auditInfo.dateAccessed.toInstant,
         clusterRecord.auditInfo.kernelFoundBusyDate.map(_.toInstant)
       )
+      val clusterImages = clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet
 
       Cluster(
         clusterRecord.id,
@@ -756,7 +757,7 @@ trait ClusterComponent extends LeoComponent {
         auditInfo,
         machineConfig,
         clusterRecord.properties,
-        Cluster.getClusterUrl(project, name),
+        Cluster.getClusterUrl(project, name, clusterImages),
         ClusterStatus.withName(clusterRecord.status),
         labels,
         clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
@@ -767,7 +768,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.autopauseThreshold,
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
-        clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,
+        clusterImages,
         ClusterComponent.this.scopeQuery.unmarshallScopes(scopes),
         clusterRecord.welderEnabled,
         clusterRecord.customClusterEnvironmentVariables

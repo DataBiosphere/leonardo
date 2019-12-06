@@ -14,7 +14,7 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
   // Should match the HAILHASH env var in the Jupyter Dockerfile
   val expectedHailVersion = "0.2.27"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
-  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
+  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
 
   "NotebookHailSpec" - {
     "should install the right Hail version" taggedAs Tags.SmokeTest in { clusterFixture =>
@@ -49,7 +49,8 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
           val getSparkContext =
             """
               |hl.spark_context()""".stripMargin
-          val getSparkContextCellResult = notebookPage.executeCellWithCellOutput(getSparkContext, cellNumberOpt = Some(3)).get
+          val getSparkContextCellResult =
+            notebookPage.executeCellWithCellOutput(getSparkContext, cellNumberOpt = Some(3)).get
           getSparkContextCellResult.renderResult.contains("yarn") shouldBe true
 
           // Verify spark job works

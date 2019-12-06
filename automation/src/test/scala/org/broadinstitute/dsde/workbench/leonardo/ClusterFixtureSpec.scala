@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.scalatest.{BeforeAndAfterAll, Outcome, Retries, fixture}
+import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -15,7 +15,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   implicit val ronToken: AuthToken = ronAuthToken
 
-  def jupyterDockerImage: Option[String] = None
+  def toolDockerImage: Option[String] = None
   var ronCluster: Cluster = _
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
@@ -63,7 +63,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
     def runTestAndCheckOutcome() = {
       val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
-      if(! outcome.isSucceeded) {
+      if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")
       }
       outcome
@@ -92,10 +92,12 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       )
     )
 
-    ClusterRequest(machineConfig = machineConfig,
-                   enableWelder = Some(enableWelder),
-                   jupyterDockerImage = jupyterDockerImage,
-                   autopause = Some(false))
+    ClusterRequest(
+      machineConfig = machineConfig,
+      enableWelder = Some(enableWelder),
+      toolDockerImage = toolDockerImage,
+      autopause = Some(false)
+    )
   }
 
   /**
@@ -113,13 +115,14 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) =>
           createRonCluster(GoogleProject(billingProject))
-        case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
+        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
     }
 
   }
 
   override def afterAll(): Unit = {
+    logger.info("afterAll")
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))

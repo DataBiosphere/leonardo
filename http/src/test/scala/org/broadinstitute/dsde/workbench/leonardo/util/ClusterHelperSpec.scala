@@ -105,12 +105,26 @@ class ClusterHelperSpec
 
   it should "be able to determine appropriate custom dataproc image" in isolatedDbTest {
     val cluster = LeoLenses.clusterToClusterImages
-      .modify(_ => Set(ClusterImage(ClusterImageType.Jupyter, "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1", Instant.now)))(testCluster)
+      .modify(
+        _ =>
+          Set(
+            ClusterImage(ClusterImageType.Jupyter,
+                         "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1",
+                         Instant.now)
+          )
+      )(testCluster)
 
     val res = clusterHelper.createCluster(cluster).unsafeToFuture().futureValue
     res.customDataprocImage shouldBe Config.dataprocConfig.customDataprocImage
     val clusterWithLegacyImage = LeoLenses.clusterToClusterImages
-      .modify(_ => Set(ClusterImage(ClusterImageType.Jupyter, "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da", Instant.now)))(testCluster)
+      .modify(
+        _ =>
+          Set(
+            ClusterImage(ClusterImageType.Jupyter,
+                         "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da",
+                         Instant.now)
+          )
+      )(testCluster)
 
     val resForLegacyImage = clusterHelper.createCluster(clusterWithLegacyImage).unsafeToFuture().futureValue
 

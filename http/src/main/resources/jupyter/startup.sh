@@ -16,6 +16,7 @@ export OWNER_EMAIL=$(loginHint)
 export JUPYTER_SERVER_NAME=$(jupyterServerName)
 export WELDER_SERVER_NAME=$(welderServerName)
 export NOTEBOOKS_DIR=$(notebooksDir)
+export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
 export DEPLOY_WELDER=$(deployWelder)
 export UPDATE_WELDER=$(updateWelder)
@@ -42,7 +43,6 @@ fi
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
     echo "Disabling localization on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-
     docker exec -i jupyter-server bash -c "find /home/jupyter-user -name .cache -prune -or -name .delocalize.json -exec rm -f {} \;"
 fi
 
@@ -55,15 +55,19 @@ if [ "$UPDATE_WELDER" == "true" ] ; then
 fi
 
 # Start Jupyter
-echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
+if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+    echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
+
+    if [ "$WELDER_ENABLED" == "true" ] ; then
+        # fix for https://broadworkbench.atlassian.net/browse/IA-1453
+        # TODO: remove this when we stop supporting the legacy docker image
+        docker exec -u root jupyter-server sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' /etc/jupyter/scripts/kernel/kernel_bootstrap.sh
+    fi
+fi
 
 # Start welder, if enabled
 if [ "$WELDER_ENABLED" == "true" ] ; then
-    # fix for https://broadworkbench.atlassian.net/browse/IA-1453
-    # TODO: remove this when we stop supporting the legacy docker image
-    docker exec -u root jupyter-server sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' /etc/jupyter/scripts/kernel/kernel_bootstrap.sh
-
     echo "Starting Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
     docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
 fi

@@ -15,14 +15,14 @@ trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
       val outcome = super.withFixture(test.toNoArgTest(project))
-      if(! outcome.isSucceeded) {
+      if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")
       }
       outcome
     }
 
     sys.props.get(gpallocProjectKey) match {
-      case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
+      case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       case Some(billingProject) =>
         if (isRetryable(test))
           withRetry(runTestAndCheckOutcome(GoogleProject(billingProject)))
@@ -48,7 +48,7 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
   override def afterAll(): Unit = {
     val shouldUnclaim = sys.props.get(shouldUnclaimProjectsKey)
     logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaim")
-    if(shouldUnclaim != Some("false")) {
+    if (shouldUnclaim != Some("false")) {
       sys.props.get(gpallocProjectKey).foreach { billingProject =>
         unclaimProject(GoogleProject(billingProject))
         sys.props.remove(gpallocProjectKey)

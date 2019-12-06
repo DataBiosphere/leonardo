@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserA
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -87,7 +87,8 @@ trait LeonardoTestUtils
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   val blocker = Blocker.liftExecutionContext(global)
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker)
-  val concurrentClusterCreationPermits: Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
+  val concurrentClusterCreationPermits
+    : Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveClusterLogFiles(googleProject: GoogleProject, clusterName: ClusterName, paths: List[String], suffix: String)(
@@ -201,7 +202,9 @@ trait LeonardoTestUtils
     Thread sleep Random.nextInt(30000)
 
     val clusterTimeResult = time(
-      concurrentClusterCreationPermits.withPermit(IO(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))).unsafeRunSync()
+      concurrentClusterCreationPermits
+        .withPermit(IO(Leonardo.cluster.create(googleProject, clusterName, clusterRequest)))
+        .unsafeRunSync()
     )
     logger.info(s"Time it took to get cluster create response with: ${clusterTimeResult.duration}")
 
@@ -384,7 +387,7 @@ trait LeonardoTestUtils
   def defaultClusterRequest: ClusterRequest =
     ClusterRequest(Map("foo" -> makeRandomId()),
                    enableWelder = Some(enableWelder),
-                   jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
+                   toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
 
   def createNewCluster(googleProject: GoogleProject,
                        name: ClusterName = randomClusterName,

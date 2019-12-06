@@ -18,10 +18,14 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
+import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
+  NegativeIntegerArgumentInClusterRequestException,
+  OneWorkerSpecifiedInClusterRequestException
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -123,7 +127,8 @@ class LeonardoServiceSpec
                               authProvider,
                               serviceAccountProvider,
                               bucketHelper,
-                              clusterHelper)
+                              clusterHelper,
+                              new MockDockerDAO)
   }
 
   override def afterAll(): Unit = {
@@ -219,7 +224,9 @@ class LeonardoServiceSpec
     dbCluster shouldBe Some(clusterResponse)
 
     // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(dataprocConfig.jupyterImage)
+    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
+      dataprocConfig.jupyterImage
+    )
     clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
       dataprocConfig.welderDockerImage
@@ -227,13 +234,13 @@ class LeonardoServiceSpec
   }
 
   it should "create a cluster with a client-supplied welder image" in isolatedDbTest {
-    val customWelderImage = Some("my-custom-welder-image-link")
+    val customWelderImage = GCR("my-custom-welder-image-link")
 
     // create the cluster
     val clusterRequest = testClusterRequest.copy(
       machineConfig = Some(singleNodeDefaultMachineConfig),
       stopAfterCreation = Some(true),
-      welderDockerImage = customWelderImage,
+      welderDockerImage = Some(customWelderImage),
       enableWelder = Some(true)
     )
 
@@ -244,9 +251,43 @@ class LeonardoServiceSpec
     dbCluster shouldBe Some(clusterResponse)
 
     // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(dataprocConfig.jupyterImage)
+    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
+      dataprocConfig.jupyterImage
+    )
     clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
-    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe customWelderImage
+    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(customWelderImage.imageUrl)
+  }
+
+  it should "create a cluster with an rstudio image" in isolatedDbTest {
+    val rstudioImage = GCR("some-rstudio-image")
+
+    // create the cluster
+    val clusterRequest = testClusterRequest.copy(toolDockerImage = Some(rstudioImage), enableWelder = Some(true))
+    val leoForTest = new LeonardoService(dataprocConfig,
+                                         MockWelderDAO,
+                                         clusterDefaultsConfig,
+                                         proxyConfig,
+                                         swaggerConfig,
+                                         autoFreezeConfig,
+                                         mockPetGoogleDAO,
+                                         DbSingleton.ref,
+                                         authProvider,
+                                         serviceAccountProvider,
+                                         bucketHelper,
+                                         clusterHelper,
+                                         new MockDockerDAO(RStudio))
+    val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
+
+    // check the cluster persisted to the database matches the create response
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(clusterResponse.id) }
+    dbCluster shouldBe Some(clusterResponse)
+
+    // cluster images should contain welder and RStudio
+    clusterResponse.clusterImages.find(_.imageType == RStudio).map(_.imageUrl) shouldBe Some(rstudioImage.imageUrl)
+    clusterResponse.clusterImages.find(_.imageType == Jupyter) shouldBe None
+    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
+      dataprocConfig.welderDockerImage
+    )
   }
 
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
@@ -487,7 +528,8 @@ class LeonardoServiceSpec
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
-                                         clusterHelper)
+                                         clusterHelper,
+                                         new MockDockerDAO)
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -538,7 +580,8 @@ class LeonardoServiceSpec
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
-                                         clusterHelper)
+                                         clusterHelper,
+                                         new MockDockerDAO)
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -641,7 +684,7 @@ class LeonardoServiceSpec
           |"${name1.value}"
           |"${project.value}"
           |"${jupyterImage.imageUrl}"
-          |"${rstudioImage.imageUrl}"
+          |""
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${testCluster.jupyterUserScriptUri.get.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"
@@ -700,7 +743,9 @@ class LeonardoServiceSpec
       .unsafeToFuture
       .futureValue
 
-    leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(_.toListClusterResp)
+    leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
+      _.toListClusterResp
+    )
   }
 
   it should "error when trying to delete a creating cluster" in isolatedDbTest {

@@ -21,7 +21,7 @@ class HttpRStudioDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
   def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
     Proxy.getTargetHost(clusterDnsCache, googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
-        val statusUri = Uri(s"https://${targetHost.toString}/proxy/$googleProject/$clusterName/rstudio")
+        val statusUri = Uri(s"https://${targetHost.toString}/proxy/$googleProject/$clusterName/rstudio/")
         http.singleRequest(HttpRequest(uri = statusUri)) map { response =>
           response.status.isSuccess
         }

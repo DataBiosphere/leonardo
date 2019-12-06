@@ -1,22 +1,21 @@
 /**
-  *  1. Check if singleCellExp, DESeq2 etc %in% installed.packages()
-  *  2. BiocManager::install() for
-  *  3. BiocManager::version() == 3.6.1
-  *  4. BiocManager::install('rsbml')
-  *  5. BiocManager::install('RCurl') ## tests libcurl
-  *  6. "XML" ##libxml
-  *  7. "graphviz" RGraphviz
-  *  8. "BiocSklearn"
-  *  9. "rhhdf5"
-  *  10. openbabel - ChemmineOB
-  *  11. gsl - DirichletMultinomial
-  *  12. gtk - RGtk2
-  *  13. magick++ EBImage
-  *  14. protobuf- protolite
-  *  15. databse stuff - RMySQL
-  *  16. jags - rjags
-  */
-
+ *  1. Check if singleCellExp, DESeq2 etc %in% installed.packages()
+ *  2. BiocManager::install() for
+ *  3. BiocManager::version() == 3.6.1
+ *  4. BiocManager::install('rsbml')
+ *  5. BiocManager::install('RCurl') ## tests libcurl
+ *  6. "XML" ##libxml
+ *  7. "graphviz" RGraphviz
+ *  8. "BiocSklearn"
+ *  9. "rhhdf5"
+ *  10. openbabel - ChemmineOB
+ *  11. gsl - DirichletMultinomial
+ *  12. gtk - RGtk2
+ *  13. magick++ EBImage
+ *  14. protobuf- protolite
+ *  15. databse stuff - RMySQL
+ *  16. jags - rjags
+ */
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
@@ -26,15 +25,14 @@ import org.scalatest.DoNotDiscover
 import scala.concurrent.duration._
 
 /**
-  * This spec verifies notebook functionality specifically around the R-Bioconductor kernel.
-  */
+ * This spec verifies notebook functionality specifically around the R-Bioconductor kernel.
+ */
 @DoNotDiscover
 class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
-  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.bioconductorImageUrl)
+  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.bioconductorImageUrl)
   "NotebookBioconductorKernelSpec" - {
 
     "should use Bioconductor version 3.9" in { clusterFixture =>
-
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           // Make sure BiocManager has the correct version of Bioconductor
@@ -46,7 +44,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
     "should create a notebook with a working R kernel and install package rsbml" ignore { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-
           // Make sure unicode characters display correctly
           notebookPage.executeCell("""BiocManager::install("rsbml")""")
           notebookPage.executeCell("library(rsbml)")
@@ -56,7 +53,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
     }
 
     "should create a notebook with a working R kernel and install package RCurl" ignore { clusterFixture =>
-
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           // Make sure unicode characters display correctly
@@ -67,11 +63,9 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should be able to call installed Bioconductor libraries" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-
           // it shouldn't take long to load libraries
           val callLibraryTimeout = 1.minutes
 
@@ -85,7 +79,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should have GenomicFeatures automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
@@ -93,7 +86,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
         }
       }
     }
-
 
     "should have SingleCellExperiment automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
@@ -103,7 +95,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should have GenomicAlignments automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
@@ -111,7 +102,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
         }
       }
     }
-
 
     "should have ShortRead automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
@@ -129,7 +119,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should be able to install packages that depend on libXML" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
@@ -142,7 +131,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should be able to install packages that depend on graphviz" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
@@ -153,7 +141,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
         }
       }
     }
-
 
     "should be able to install packages that depend on scikit-learn python package" in { clusterFixture =>
       withWebDriver { implicit driver =>
@@ -167,7 +154,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should be able to install packages that depend on hdf5" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
@@ -179,7 +165,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
         }
       }
     }
-
 
     "should be able to install packages that depend on openbabel" in { clusterFixture =>
       withWebDriver { implicit driver =>
@@ -193,19 +178,18 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should be able to install packages that depend on gsl" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
-          val installOutput = notebookPage.executeCell("""BiocManager::install('DirichletMultinomial')""", installTimeout)
+          val installOutput =
+            notebookPage.executeCell("""BiocManager::install('DirichletMultinomial')""", installTimeout)
           notebookPage.executeCell("library(DirichletMultinomial)")
 
         }
       }
     }
-
 
     "should be able to install packages that depend on magick++" in { clusterFixture =>
       withWebDriver { implicit driver =>
@@ -219,7 +203,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should be able to install packages that depend on database packages" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
@@ -231,7 +214,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
         }
       }
     }
-
 
     "should be able to install packages that depend on jags" in { clusterFixture =>
       withWebDriver { implicit driver =>
@@ -245,7 +227,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-
     "should be able to install packages that depend on protobuf" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
@@ -257,7 +238,6 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
         }
       }
     }
-
 
     "should be able to install packages that depend on Cairo and gtk" in { clusterFixture =>
       withWebDriver { implicit driver =>

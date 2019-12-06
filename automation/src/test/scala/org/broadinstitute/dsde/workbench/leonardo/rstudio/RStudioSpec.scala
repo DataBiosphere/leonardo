@@ -1,30 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
-import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
+import org.scalatest.DoNotDiscover
 
 import scala.util.Try
 
 @DoNotDiscover
-class RStudioSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+class RStudioSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
-  implicit val ronToken: AuthToken = ronAuthToken
+  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl)
 
   "RStudioSpec" - {
 
-    // TODO re-enable when RStudio is supported
-    "should install RStudio" taggedAs Tags.SmokeTest ignore { billingProject =>
-      withNewCluster(billingProject,
-                     request = defaultClusterRequest.copy(
-                       rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5")
-                     )) { cluster =>
-        withWebDriver { _ =>
-          val getResult = Try(RStudio.getApi(billingProject, cluster.clusterName))
-          getResult.isSuccess shouldBe true
-          getResult.get should not include "ProxyException"
-        }
+    "should launch RStudio" in { clusterFixture =>
+      withWebDriver { _ =>
+        // See this ticket for adding more comprehensive selenium tests for RStudio:
+        // https://broadworkbench.atlassian.net/browse/IA-697
+        val getResult = Try(RStudio.getApi(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName))
+        getResult.isSuccess shouldBe true
+        getResult.get should include("unsupported_browser")
+        getResult.get should not include "ProxyException"
       }
     }
   }

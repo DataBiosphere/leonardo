@@ -19,7 +19,13 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDA
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GoogleProject,
+  ServiceAccountKey,
+  ServiceAccountKeyId,
+  ServiceAccountPrivateKeyData,
+  _
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
 
@@ -145,7 +151,7 @@ trait CommonTestData { this: ScalaFutures =>
       auditInfo = auditInfo,
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       properties = Map.empty,
-      clusterUrl = Cluster.getClusterUrl(project, clusterName),
+      clusterUrl = Cluster.getClusterUrl(project, clusterName, Set(jupyterImage)),
       status = ClusterStatus.Unknown,
       labels = Map(),
       jupyterExtensionUri = None,
@@ -172,7 +178,7 @@ trait CommonTestData { this: ScalaFutures =>
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     properties = Map.empty,
-    clusterUrl = Cluster.getClusterUrl(project, name1),
+    clusterUrl = Cluster.getClusterUrl(project, name1, Set(jupyterImage)),
     status = ClusterStatus.Unknown,
     labels = Map(),
     jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
@@ -183,7 +189,7 @@ trait CommonTestData { this: ScalaFutures =>
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
-    clusterImages = Set(jupyterImage, rstudioImage),
+    clusterImages = Set(jupyterImage),
     scopes = defaultScopes,
     welderEnabled = false,
     customClusterEnvironmentVariables = Map.empty
