@@ -161,7 +161,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             GcsRoles.Owner)
 
           withNewCluster(billingProject,
-            request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri), jupyterUserScriptUri = Some(startScriptUri))) {
+            request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
           cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster, Python3) { notebookPage =>

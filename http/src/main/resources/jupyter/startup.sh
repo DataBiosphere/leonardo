@@ -62,6 +62,8 @@ export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
 export JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
 
+JUPYTER_HOME=/etc/jupyter
+
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DEPLOY_WELDER" == "true" ] ; then
     echo "Deploying Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
