@@ -185,7 +185,6 @@ final case class Cluster(id: Long = 0, // DB AutoInc
       labels,
       jupyterExtensionUri,
       jupyterUserScriptUri,
-      jupyterStartUserScriptUri,
       instances,
       autopauseThreshold,
       defaultClientId,

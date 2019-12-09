@@ -107,7 +107,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
           fields.getOrElse("labels", JsNull).convertTo[LabelMap],
           fields.getOrElse("jupyterExtensionUri", JsNull).convertTo[Option[GcsPath]],
           fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[GcsPath]],
-          fields.getOrElse("jupyterStartUserScriptUri", JsNull).convertTo[Option[GcsPath]],
           fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
           fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
           fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
