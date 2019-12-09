@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
@@ -47,6 +48,7 @@ class ClusterHelper(
   proxyConfig: ProxyConfig,
   clusterResourcesConfig: ClusterResourcesConfig,
   clusterFilesConfig: ClusterFilesConfig,
+  monitorConfig: MonitorConfig,
   bucketHelper: BucketHelper,
   gdDAO: GoogleDataprocDAO,
   googleComputeDAO: GoogleComputeDAO,
@@ -133,7 +135,8 @@ class ClusterHelper(
             cluster.scopes,
             clusterVPCSettings,
             cluster.properties,
-            dataprocImage
+            dataprocImage,
+            monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, 1 hour)
           )
           retryResult <- IO.fromFuture(
             IO(

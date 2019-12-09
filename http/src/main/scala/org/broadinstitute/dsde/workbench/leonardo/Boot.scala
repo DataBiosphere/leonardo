@@ -79,6 +79,7 @@ object Boot extends IOApp with LazyLogging {
                                             proxyConfig,
                                             clusterResourcesConfig,
                                             clusterFilesConfig,
+                                            monitorConfig,
                                             bucketHelper,
                                             appDependencies.googleDataprocDAO,
                                             appDependencies.googleComputeDAO,

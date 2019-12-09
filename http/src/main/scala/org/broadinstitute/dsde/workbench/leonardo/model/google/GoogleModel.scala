@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
 
+import scala.concurrent.duration.FiniteDuration
+
 // Primitives
 case class ClusterName(value: String) extends ValueObject
 case class InstanceName(value: String) extends ValueObject
@@ -26,7 +28,8 @@ final case class CreateClusterConfig(
   clusterScopes: Set[String],
   clusterVPCSettings: Option[VPCConfig],
   properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
-  dataprocCustomImage: CustomDataprocImage
+  dataprocCustomImage: CustomDataprocImage,
+  creationTimeout: FiniteDuration
 )
 // Dataproc Operation
 case class OperationName(value: String) extends ValueObject

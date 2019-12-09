@@ -75,6 +75,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                       proxyConfig,
                       clusterResourcesConfig,
                       clusterFilesConfig,
+                      monitorConfig,
                       bucketHelper,
                       mockGoogleDataprocDAO,
                       mockGoogleComputeDAO,
