@@ -31,9 +31,9 @@ final case class ClusterRecord(id: Long,
                                operationName: Option[String],
                                status: String,
                                hostIp: Option[String],
-                               jupyterExtensionUri: Option[String],
-                               jupyterUserScriptUri: Option[String],
-                               jupyterStartUserScriptUri: Option[String],
+                               jupyterExtensionUri: Option[GcsPath],
+                               jupyterUserScriptUri: Option[GcsPath],
+                               jupyterStartUserScriptUri: Option[GcsPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfoRecord,
                                machineConfig: MachineConfigRecord,
@@ -78,6 +78,9 @@ trait ClusterComponent extends LeoComponent {
   implicit private val jsValueMappedColumnType: BaseColumnType[Json] =
     MappedColumnType
       .base[Json, String](_.printWith(Printer.noSpaces), s => io.circe.parser.parse(s).fold(e => throw e, identity))
+  implicit private val gsPathMappedColumnType: BaseColumnType[GcsPath] =
+    MappedColumnType
+      .base[GcsPath, String](_.toUri, s => parseGcsPath(s).fold(e => throw new Exception(e.toString()), identity))
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -100,9 +103,9 @@ trait ClusterComponent extends LeoComponent {
     def creator = column[String]("creator", O.Length(254))
     def createdDate = column[Timestamp]("createdDate", O.SqlType("TIMESTAMP(6)"))
     def destroyedDate = column[Timestamp]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
-    def jupyterExtensionUri = column[Option[String]]("jupyterExtensionUri", O.Length(1024))
-    def jupyterUserScriptUri = column[Option[String]]("jupyterUserScriptUri", O.Length(1024))
-    def jupyterStartUserScriptUri = column[Option[String]]("jupyterStartUserScriptUri", O.Length(1024))
+    def jupyterExtensionUri = column[Option[GcsPath]]("jupyterExtensionUri", O.Length(1024))
+    def jupyterUserScriptUri = column[Option[GcsPath]]("jupyterUserScriptUri", O.Length(1024))
+    def jupyterStartUserScriptUri = column[Option[GcsPath]]("jupyterStartUserScriptUri", O.Length(1024))
     def initBucket = column[Option[String]]("initBucket", O.Length(1024))
     def serviceAccountKeyId = column[Option[String]]("serviceAccountKeyId", O.Length(254))
     def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
@@ -604,9 +607,9 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.map(_.operationName.value),
         cluster.status.toString,
         cluster.dataprocInfo.flatMap(_.hostIp.map(_.value)),
-        cluster.jupyterExtensionUri map (_.toUri),
-        cluster.jupyterUserScriptUri map (_.toUri),
-        cluster.jupyterStartUserScriptUri map (_.toUri),
+        cluster.jupyterExtensionUri,
+        cluster.jupyterUserScriptUri,
+        cluster.jupyterStartUserScriptUri,
         initBucket,
         AuditInfoRecord(
           cluster.auditInfo.creator.value,
@@ -767,9 +770,9 @@ trait ClusterComponent extends LeoComponent {
         Cluster.getClusterUrl(project, name, clusterImages),
         ClusterStatus.withName(clusterRecord.status),
         labels,
-        clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
-        clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
-        clusterRecord.jupyterStartUserScriptUri flatMap { parseGcsPath(_).toOption },
+        clusterRecord.jupyterExtensionUri,
+        clusterRecord.jupyterUserScriptUri,
+        clusterRecord.jupyterStartUserScriptUri,
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
