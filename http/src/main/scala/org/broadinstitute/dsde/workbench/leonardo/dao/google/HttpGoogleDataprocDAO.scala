@@ -270,7 +270,6 @@ class HttpGoogleDataprocDAO(
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = config.initScripts.map { script =>
-      //null means no timeout. Otherwise, the default is 10 minutes. We provide timeouts in the cluster monitor.
       new NodeInitializationAction().setExecutableFile(script.toUri).setExecutionTimeout(finiteDurationToGoogleDuration(config.creationTimeout))
     }
 
