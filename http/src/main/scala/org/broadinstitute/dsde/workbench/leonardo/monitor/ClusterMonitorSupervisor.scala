@@ -214,6 +214,7 @@ class ClusterMonitorSupervisor(
             // start cluster
             _ <- clusterHelper.internalStartCluster(resolvedCluster).unsafeToFuture()
             // clean up temporary state used for transition
+            //TODO: why doesn't this work
             _ <- dbRef.inTransaction {
               dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(resolvedCluster.id)
             }
@@ -223,7 +224,7 @@ class ClusterMonitorSupervisor(
           logger.warn(s"Unable to update cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after stopping.")
           //if we fail, we want to unmark the cluster for update in the db
           dbRef.inTransaction {
-            dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(cluster.id)
+            dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(resolvedCluster.id)
           }.void
         }
         case None => Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))

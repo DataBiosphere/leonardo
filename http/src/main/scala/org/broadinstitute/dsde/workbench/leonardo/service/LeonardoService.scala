@@ -302,9 +302,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       def empty = false
       def combine(a: Boolean, b: Boolean): Boolean = a || b
     }
-    
+
     //TODO: eventually, I will need to use this in a legit way, keeping this so compiler leaves me alone while im developing
-    metrics.incrementCounter("temp counter")\
+    metrics.incrementCounter("temp counter")
     logger.info("in start of internalUpdateCluster")
 
     if (existingCluster.status.isUpdatable) {
