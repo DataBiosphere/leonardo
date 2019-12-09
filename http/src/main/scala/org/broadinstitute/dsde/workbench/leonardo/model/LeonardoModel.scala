@@ -317,95 +317,118 @@ object MachineConfigOps {
 
 // Fields that must be templated into cluster resources (e.g. the init script).
 // see https://broadinstitute.atlassian.net/browse/GAWB-2619 for why these are Strings rather than value classes
-final case class ClusterInitValues private (googleProject: String,
-                                            clusterName: String,
-                                            stagingBucketName: String,
-                                            jupyterDockerImage: String,
-                                            rstudioDockerImage: String,
-                                            proxyDockerImage: String,
-                                            welderDockerImage: String,
-                                            jupyterServerCrt: String,
-                                            jupyterServerKey: String,
-                                            rootCaPem: String,
-                                            jupyterDockerCompose: String,
-                                            rstudioDockerCompose: String,
-                                            proxyDockerCompose: String,
-                                            welderDockerCompose: String,
-                                            proxySiteConf: String,
-                                            jupyterServerName: String,
-                                            rstudioServerName: String,
-                                            welderServerName: String,
-                                            proxyServerName: String,
-                                            jupyterUserScriptUri: String,
-                                            jupyterUserScriptOutputUri: String,
-                                            jupyterServiceAccountCredentials: String,
-                                            loginHint: String,
-                                            contentSecurityPolicy: String,
-                                            jupyterServerExtensions: String,
-                                            jupyterNbExtensions: String,
-                                            jupyterCombinedExtensions: String,
-                                            jupyterLabExtensions: String,
-                                            jupyterNotebookConfigUri: String,
-                                            jupyterNotebookFrontendConfigUri: String,
-                                            googleClientId: String,
-                                            welderEnabled: String,
-                                            notebooksDir: String,
-                                            customEnvVarsConfigUri: String) {
+final case class ClusterTemplateValues private (googleProject: String,
+                                                clusterName: String,
+                                                stagingBucketName: String,
+                                                jupyterDockerImage: String,
+                                                rstudioDockerImage: String,
+                                                proxyDockerImage: String,
+                                                welderDockerImage: String,
+                                                jupyterServerCrt: String,
+                                                jupyterServerKey: String,
+                                                rootCaPem: String,
+                                                jupyterDockerCompose: String,
+                                                rstudioDockerCompose: String,
+                                                proxyDockerCompose: String,
+                                                welderDockerCompose: String,
+                                                proxySiteConf: String,
+                                                jupyterServerName: String,
+                                                rstudioServerName: String,
+                                                welderServerName: String,
+                                                proxyServerName: String,
+                                                jupyterUserScriptUri: String,
+                                                jupyterUserScriptOutputUri: String,
+                                                jupyterServiceAccountCredentials: String,
+                                                loginHint: String,
+                                                contentSecurityPolicy: String,
+                                                jupyterServerExtensions: String,
+                                                jupyterNbExtensions: String,
+                                                jupyterCombinedExtensions: String,
+                                                jupyterLabExtensions: String,
+                                                jupyterNotebookConfigUri: String,
+                                                jupyterNotebookFrontendConfigUri: String,
+                                                googleClientId: String,
+                                                welderEnabled: String,
+                                                notebooksDir: String,
+                                                customEnvVarsConfigUri: String) {
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
 }
 
-object ClusterInitValues {
+object ClusterTemplateValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
   val customEnvVarFilename = "custom_env_vars.env"
 
   def apply(cluster: Cluster,
-            initBucketName: GcsBucketName,
-            stagingBucketName: GcsBucketName,
+            initBucketName: Option[GcsBucketName],
+            stagingBucketName: Option[GcsBucketName],
             serviceAccountKey: Option[ServiceAccountKey],
             dataprocConfig: DataprocConfig,
             proxyConfig: ProxyConfig,
             clusterFilesConfig: ClusterFilesConfig,
             clusterResourcesConfig: ClusterResourcesConfig,
-            contentSecurityPolicy: String): ClusterInitValues =
-    ClusterInitValues(
+            contentSecurityPolicy: String): ClusterTemplateValues =
+    ClusterTemplateValues(
       cluster.googleProject.value,
       cluster.clusterName.value,
-      stagingBucketName.value,
+      stagingBucketName.map(_.value).getOrElse(""),
       cluster.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
       cluster.clusterImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
       cluster.clusterImages.find(_.imageType == Welder).map(_.imageUrl).getOrElse(""),
-      GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterDockerCompose.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.rstudioDockerCompose.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.proxyDockerCompose.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.welderDockerCompose.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.proxySiteConf.value)).toUri,
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.jupyterDockerCompose.value)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.rstudioDockerCompose.value)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.proxyDockerCompose.value)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.welderDockerCompose.value)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.proxySiteConf.value)).toUri)
+        .getOrElse(""),
       dataprocConfig.jupyterServerName,
       dataprocConfig.rstudioServerName,
       dataprocConfig.welderServerName,
       proxyConfig.proxyServerName,
       cluster.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
-      GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri,
-      serviceAccountKey
-        .map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri)
-        .getOrElse(""),
+      stagingBucketName.map(n => GcsPath(n, GcsObjectName("userscript_output.txt")).toUri).getOrElse(""),
+      (for {
+        _ <- serviceAccountKey
+        n <- initBucketName
+      } yield GcsPath(n, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       cluster.auditInfo.creator.value,
       contentSecurityPolicy,
       cluster.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       cluster.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       cluster.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
       cluster.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri,
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri)
+        .getOrElse(""),
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri)
+        .getOrElse(""),
       cluster.defaultClientId.getOrElse(""),
       cluster.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
       if (cluster.welderEnabled) dataprocConfig.welderEnabledNotebooksDir
       else dataprocConfig.welderDisabledNotebooksDir,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri
+      initBucketName
+        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri)
+        .getOrElse("")
     )
 }
 

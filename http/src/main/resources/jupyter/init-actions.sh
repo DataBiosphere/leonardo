@@ -179,6 +179,18 @@ END
 </source>
 END
 
+    # Add stack driver configuration for user startup and shutdown scripts
+    tee /etc/google-fluentd/config.d/daemon.conf << END
+<source>
+ @type tail
+ format none
+ path /var/log/daemon.log
+ pos_file /var/tmp/fluentd.google.user.daemon.pos
+ read_from_head true
+ tag daemon
+</source>
+END
+
     service google-fluentd reload
 
     # Install env var config

@@ -4,13 +4,13 @@ package model
 import java.time.Instant
 import java.util.UUID._
 
+import org.broadinstitute.dsde.workbench.leonardo.RoutesTestJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
-import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.{FlatSpecLike, Matchers}
 import spray.json._
-import RoutesTestJsonSupport._
 
 class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers with CommonTestData with ScalaFutures {
 
@@ -189,11 +189,11 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     }
   }
 
-  it should "create a map of ClusterInitValues object" in isolatedDbTest {
-    val clusterInit = ClusterInitValues(
+  it should "create a map of ClusterTemplateValues object" in isolatedDbTest {
+    val clusterInit = ClusterTemplateValues(
       cluster,
-      initBucketPath,
-      stagingBucketName,
+      Some(initBucketPath),
+      Some(stagingBucketName),
       Some(serviceAccountKey),
       dataprocConfig,
       proxyConfig,

@@ -137,7 +137,7 @@ class LeonardoServiceSpec
   }
 
   lazy val serviceAccountCredentialFile = notebookServiceAccount(project)
-    .map(_ => List(ClusterInitValues.serviceAccountCredentialsFilename))
+    .map(_ => List(ClusterTemplateValues.serviceAccountCredentialsFilename))
     .getOrElse(List.empty)
 
   lazy val configFiles = List(
@@ -656,10 +656,10 @@ class LeonardoServiceSpec
   // TODO move to TemplateHelperSpec
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val clusterInit = ClusterInitValues(
+    val clusterInit = ClusterTemplateValues(
       testCluster,
-      initBucketPath,
-      stagingBucketName,
+      Some(initBucketPath),
+      Some(stagingBucketName),
       Some(serviceAccountKey),
       dataprocConfig,
       proxyConfig,
@@ -687,7 +687,7 @@ class LeonardoServiceSpec
           |""
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${testCluster.jupyterUserScriptUri.get.toUri}"
-          |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"
+          |"${GcsPath(initBucketPath, GcsObjectName(ClusterTemplateValues.serviceAccountCredentialsFilename)).toUri}"
           |""
           |""
           |""
@@ -987,7 +987,7 @@ class LeonardoServiceSpec
     computeDAO.instances.keySet shouldBe clusterInstances.map(_.key).toSet
     computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
     computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Stopped)).toSet
-    computeDAO.instanceMetadata.values.toSet shouldBe Set(Map.empty)
+    computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("shutdown-script")
   }
 
   it should "resize a cluster" in isolatedDbTest {
