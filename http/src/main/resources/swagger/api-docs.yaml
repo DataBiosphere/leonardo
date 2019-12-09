@@ -1052,6 +1052,10 @@ definitions:
       autopauseThreshold:
         type: integer
         description: The number of minutes of idle time to elapse before the cluster is autopaused. A value of 0 is equivalent to autopause being turned off.
+      jupyterUserScriptUri:
+        type: string
+      jupyterStartUserScriptUri:
+        type: string
       defaultClientId:
         type: string
         description: The default Google Client ID.
