@@ -115,7 +115,7 @@ class ClusterHelper(
           initScriptResources = List(clusterResourcesConfig.initActionsScript)
           initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
           credentialsFileName = cluster.serviceAccountInfo.notebookServiceAccount
-            .map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
+            .map(_ => s"/etc/${ClusterTemplateValues.serviceAccountCredentialsFilename}")
 
           // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
           // we will use the new custom dataproc image
@@ -385,15 +385,17 @@ class ClusterHelper(
     serviceAccountKey: Option[ServiceAccountKey]
   ): Stream[IO, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements = ClusterInitValues(cluster,
-                                         initBucketName,
-                                         stagingBucketName,
-                                         serviceAccountKey,
-                                         dataprocConfig,
-                                         proxyConfig,
-                                         clusterFilesConfig,
-                                         clusterResourcesConfig,
-                                         contentSecurityPolicy).toMap
+    val replacements = ClusterTemplateValues(
+      cluster,
+      Some(initBucketName),
+      Some(stagingBucketName),
+      serviceAccountKey,
+      dataprocConfig,
+      proxyConfig,
+      clusterFilesConfig,
+      clusterResourcesConfig,
+      contentSecurityPolicy
+    ).toMap
 
     // Jupyter allows setting of arbitrary environment variables on cluster creation if they are passed in to
     // docker-compose as a file of format:
@@ -446,7 +448,7 @@ class ClusterHelper(
       k <- Stream(serviceAccountKey).unNone
       data <- Stream(k.privateKeyData.decode).unNone
       _ <- bucketHelper.storeObject(initBucketName,
-                                    GcsBlobName(ClusterInitValues.serviceAccountCredentialsFilename),
+                                    GcsBlobName(ClusterTemplateValues.serviceAccountCredentialsFilename),
                                     data.getBytes(StandardCharsets.UTF_8),
                                     "text/plain")
     } yield ()
@@ -599,14 +601,10 @@ class ClusterHelper(
   private def getMasterInstanceStartupScript(cluster: Cluster, welderAction: WelderAction): IO[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
-    // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
-    val dummyInitBucket = GcsBucketName("")
-    val dummyStagingBucket = GcsBucketName("")
-
-    val clusterInit = ClusterInitValues(
+    val clusterInit = ClusterTemplateValues(
       cluster,
-      dummyInitBucket,
-      cluster.dataprocInfo.map(_.stagingBucket).getOrElse(dummyStagingBucket),
+      None,
+      cluster.dataprocInfo.map(_.stagingBucket),
       None,
       dataprocConfig,
       proxyConfig,
@@ -630,14 +628,10 @@ class ClusterHelper(
   private def getMasterInstanceShutdownScript(cluster: Cluster): IO[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
-    // These things need to be provided to ClusterInitValues, but aren't actually needed for the shutdown script
-    val dummyInitBucket = GcsBucketName("")
-    val dummyStagingBucket = GcsBucketName("")
-
-    val replacements = ClusterInitValues(
+    val replacements = ClusterTemplateValues(
       cluster,
-      dummyInitBucket,
-      cluster.dataprocInfo.map(_.stagingBucket).getOrElse(dummyStagingBucket),
+      None,
+      cluster.dataprocInfo.map(_.stagingBucket),
       None,
       dataprocConfig,
       proxyConfig,
