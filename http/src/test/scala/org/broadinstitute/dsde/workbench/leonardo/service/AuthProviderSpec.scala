@@ -86,6 +86,7 @@ class AuthProviderSpec
                       proxyConfig,
                       clusterResourcesConfig,
                       clusterFilesConfig,
+                      monitorConfig,
                       bucketHelper,
                       mockGoogleDataprocDAO,
                       mockGoogleComputeDAO,

@@ -162,6 +162,7 @@ class ClusterMonitorSpec
                                           proxyConfig,
                                           clusterResourcesConfig,
                                           clusterFilesConfig,
+                                          monitorConfig,
                                           bucketHelper,
                                           gdDAO,
                                           computeDAO,
