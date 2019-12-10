@@ -9,6 +9,41 @@ set -e -x
 # cluster if not already installed.
 ##
 
+#
+# Functions
+# (copied from init-actions.sh, see documentation there)
+#
+
+function retry {
+  local retries=$1
+  shift
+
+  for ((i = 1; i <= $retries; i++)); do
+    # run with an 'or' so set -e doesn't abort the bash script on errors
+    exit=0
+    "$@" || exit=$?
+    if [ $exit -eq 0 ]; then
+      return 0
+    fi
+    wait=$((2 ** $i))
+    if [ $i -eq $retries ]; then
+      log "Retry $i/$retries exited $exit, no more retries left."
+      break
+    fi
+    log "Retry $i/$retries exited $exit, retrying in $wait seconds..."
+    sleep $wait
+  done
+  return 1
+}
+
+function log() {
+  echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
+}
+
+#
+# Main
+#
+
 # Templated values
 export GOOGLE_PROJECT=$(googleProject)
 export CLUSTER_NAME=$(clusterName)
@@ -23,6 +58,11 @@ export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export DISABLE_DELOCALIZATION=$(disableDelocalization)
 export STAGING_BUCKET=$(stagingBucketName)
+export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
+# Include a timestamp suffix to differentiate different startup logs across restarts.
+export JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
+
+JUPYTER_HOME=/etc/jupyter
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DEPLOY_WELDER" == "true" ] ; then
@@ -52,6 +92,22 @@ if [ "$UPDATE_WELDER" == "true" ] ; then
     docker-compose -f /etc/welder-docker-compose.yaml stop
     docker-compose -f /etc/welder-docker-compose.yaml rm -f
     docker-compose -f /etc/welder-docker-compose.yaml up -d
+fi
+
+# If a Jupyter start user script was specified, execute it now. It should already be in the docker container
+# via initialization in init-actions.sh (we explicitly do not want to recopy it from GCS on every cluster resume).
+if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
+  JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
+  log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+  fi
 fi
 
 # Start Jupyter

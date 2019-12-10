@@ -29,6 +29,7 @@ case class Cluster(clusterName: ClusterName,
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
+                          jupyterStartUserScriptUri: Option[String] = None,
                           machineConfig: Option[MachineConfig] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
@@ -53,7 +54,8 @@ case class DefaultLabels(clusterName: ClusterName,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[String],
-                         notebookUserScript: Option[String]) {
+                         notebookUserScript: Option[String],
+                         notebookStartUserScript: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
@@ -62,6 +64,9 @@ case class DefaultLabels(clusterName: ClusterName,
     } getOrElse Map.empty
     val userScr: Map[String, String] = notebookUserScript map { userScr =>
       Map("notebookUserScript" -> userScr)
+    } getOrElse Map.empty
+    val startScr: Map[String, String] = notebookStartUserScript map { startScr =>
+      Map("notebookStartUserScript" -> startScr)
     } getOrElse Map.empty
     val clusterSa: Map[String, String] = clusterServiceAccount map { sa =>
       Map("clusterServiceAccount" -> sa.value)
@@ -74,7 +79,7 @@ case class DefaultLabels(clusterName: ClusterName,
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value
-    ) ++ ext ++ userScr ++ clusterSa ++ notebookSa
+    ) ++ ext ++ userScr ++ startScr ++ clusterSa ++ notebookSa
   }
 }
 

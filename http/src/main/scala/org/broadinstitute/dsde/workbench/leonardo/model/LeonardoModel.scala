@@ -72,6 +72,7 @@ object ContainerImage {
 final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 jupyterExtensionUri: Option[GcsPath] = None,
                                 jupyterUserScriptUri: Option[GcsPath] = None,
+                                jupyterStartUserScriptUri: Option[GcsPath] = None,
                                 machineConfig: Option[MachineConfig] = None,
                                 properties: Map[String, String] = Map.empty,
                                 stopAfterCreation: Option[Boolean] = None,
@@ -156,6 +157,7 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                          labels: LabelMap,
                          jupyterExtensionUri: Option[GcsPath],
                          jupyterUserScriptUri: Option[GcsPath],
+                         jupyterStartUserScriptUri: Option[GcsPath],
                          errors: List[ClusterError],
                          instances: Set[Instance],
                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
@@ -219,6 +221,7 @@ object Cluster {
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
+      jupyterStartUserScriptUri = clusterRequest.jupyterStartUserScriptUri,
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
@@ -255,7 +258,8 @@ case class DefaultLabels(clusterName: ClusterName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookUserScript: Option[GcsPath])
+                         notebookUserScript: Option[GcsPath],
+                         notebookStartUserScript: Option[GcsPath])
 
 // Provides ways of combining MachineConfigs with Leo defaults
 object MachineConfigOps {
@@ -338,6 +342,8 @@ final case class ClusterTemplateValues private (googleProject: String,
                                                 proxyServerName: String,
                                                 jupyterUserScriptUri: String,
                                                 jupyterUserScriptOutputUri: String,
+                                                jupyterStartUserScriptUri: String,
+                                                jupyterStartUserScriptOutputBaseUri: String,
                                                 jupyterServiceAccountCredentials: String,
                                                 loginHint: String,
                                                 contentSecurityPolicy: String,
@@ -351,6 +357,7 @@ final case class ClusterTemplateValues private (googleProject: String,
                                                 welderEnabled: String,
                                                 notebooksDir: String,
                                                 customEnvVarsConfigUri: String) {
+
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
 }
@@ -406,6 +413,8 @@ object ClusterTemplateValues {
       proxyConfig.proxyServerName,
       cluster.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
       stagingBucketName.map(n => GcsPath(n, GcsObjectName("userscript_output.txt")).toUri).getOrElse(""),
+      cluster.jupyterStartUserScriptUri.map(_.toUri).getOrElse(""),
+      stagingBucketName.map(n => GcsPath(n, GcsObjectName("startscript_output.txt")).toUri).getOrElse(""),
       (for {
         _ <- serviceAccountKey
         n <- initBucketName
@@ -575,6 +584,7 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
       fieldsWithoutNull.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),
       fieldsWithoutNull.get("jupyterExtensionUri").map(_.convertTo[GcsPath]),
       fieldsWithoutNull.get("jupyterUserScriptUri").map(_.convertTo[GcsPath]),
+      fieldsWithoutNull.get("jupyterStartUserScriptUri").map(_.convertTo[GcsPath]),
       fieldsWithoutNull.get("machineConfig").map(_.convertTo[MachineConfig]),
       properties.getOrElse(Map.empty),
       fieldsWithoutNull.get("stopAfterCreation").map(_.convertTo[Boolean]),
@@ -600,7 +610,7 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
+  implicit val DefaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
 
   implicit val ClusterToolFormat = EnumEntryFormat(ClusterImageType.withName)
 
@@ -629,6 +639,7 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
         "labels" -> obj.labels.toJson,
         "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
         "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
+        "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.toJson,
         "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket).toJson,
         "errors" -> obj.errors.toJson,
         "instances" -> obj.instances.toJson,

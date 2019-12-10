@@ -176,6 +176,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.status shouldBe ClusterStatus.Creating
     clusterCreateResponse.jupyterExtensionUri shouldBe None
     clusterCreateResponse.jupyterUserScriptUri shouldBe testClusterRequest.jupyterUserScriptUri
+    clusterCreateResponse.jupyterStartUserScriptUri shouldBe testClusterRequest.jupyterStartUserScriptUri
     clusterCreateResponse.errors shouldBe List.empty
     clusterCreateResponse.instances shouldBe Set.empty
     clusterCreateResponse.userJupyterExtensionConfig shouldBe testClusterRequest.userJupyterExtensionConfig
@@ -690,6 +691,7 @@ class LeonardoServiceSpec
           |""
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${testCluster.jupyterUserScriptUri.get.toUri}"
+          |"${testCluster.jupyterStartUserScriptUri.get.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterTemplateValues.serviceAccountCredentialsFilename)).toUri}"
           |""
           |""

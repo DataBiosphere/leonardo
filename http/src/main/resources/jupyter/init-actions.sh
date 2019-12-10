@@ -129,6 +129,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
+    JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
+    # Include a timestamp suffix to differentiate different startup logs across restarts.
+    JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
@@ -360,9 +363,9 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
-      # If a Jupyter user script was specified, copy it into the jupyter docker container.
+      # If a Jupyter user script was specified, copy it into the jupyter docker container and execute it.
       if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
-        log 'Installing Jupyter user extension [$JUPYTER_USER_SCRIPT_URI]...'
+        log 'Running Jupyter user script [$JUPYTER_USER_SCRIPT_URI]...'
         gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
         JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
         docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
@@ -370,13 +373,35 @@ END
         # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
         # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
         # can gain full access to the VM already, so using this flag is not a significant escalation.
-        docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
+        EXIT_CODE=0
+        docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
         if [ $EXIT_CODE -ne 0 ]; then
             log "User script failed with exit code $EXIT_CODE. Output is saved to $JUPYTER_USER_SCRIPT_OUTPUT_URI."
             retry 3 gsutil -h "x-goog-meta-passed":"false" cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
             exit $EXIT_CODE
         else
             retry 3 gsutil -h "x-goog-meta-passed":"true" cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
+        fi
+      fi
+
+      # If a Jupyter start user script was specified, copy it into the jupyter docker container for consumption by startup.sh.
+      if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
+        log 'Copying Jupyter start user script [$JUPYTER_START_USER_SCRIPT_URI]...'
+        gsutil cp ${JUPYTER_START_USER_SCRIPT_URI} /etc
+        JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
+        docker cp /etc/${JUPYTER_START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
+
+        # Keep in sync with startup.sh
+        log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
+        EXIT_CODE=0
+        docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
+          retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+          exit $EXIT_CODE
+        else
+          retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
         fi
       fi
 

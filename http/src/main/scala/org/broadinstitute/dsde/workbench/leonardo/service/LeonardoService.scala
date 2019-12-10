@@ -644,10 +644,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           ) as None
       })
 
-      // Validate the user script URI
+      // Validate the user script URIs
       _ <- clusterRequest.jupyterUserScriptUri match {
         case Some(userScriptUri) =>
           OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, userScriptUri.toUri))
+        case None => OptionT.pure[IO](())
+      }
+      _ <- clusterRequest.jupyterStartUserScriptUri match {
+        case Some(startScriptUri) =>
+          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, startScriptUri.toUri))
         case None => OptionT.pure[IO](())
       }
 
@@ -779,7 +784,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       creator,
       serviceAccountInfo.clusterServiceAccount,
       serviceAccountInfo.notebookServiceAccount,
-      clusterRequest.jupyterUserScriptUri
+      clusterRequest.jupyterUserScriptUri,
+      clusterRequest.jupyterStartUserScriptUri
     ).toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
 
     // combine default and given labels and add labels for extensions

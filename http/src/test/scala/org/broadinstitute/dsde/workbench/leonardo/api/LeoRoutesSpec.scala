@@ -46,6 +46,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     val newCluster = ClusterRequest(Map.empty,
                                     Some(jupyterExtensionUri),
                                     Some(jupyterUserScriptUri),
+                                    Some(jupyterStartUserScriptUri),
                                     None,
                                     Map.empty,
                                     None,
@@ -321,6 +322,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       val request = ClusterRequest(Map.empty,
                                    Some(jupyterExtensionUri),
                                    Some(jupyterUserScriptUri),
+                                   Some(jupyterStartUserScriptUri),
                                    stopAfterCreation = Some(stopAfterCreation),
                                    properties = Map.empty)
       Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", request.toJson) ~> timedLeoRoutes.route ~> check {
@@ -337,6 +339,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     val request = ClusterRequest(Map.empty,
                                  Some(jupyterExtensionUri),
                                  Some(jupyterUserScriptUri),
+                                 Some(jupyterStartUserScriptUri),
                                  stopAfterCreation = None,
                                  properties = Map.empty)
     Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {

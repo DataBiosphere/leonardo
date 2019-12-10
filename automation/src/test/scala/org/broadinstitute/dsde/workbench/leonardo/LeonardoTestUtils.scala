@@ -156,7 +156,8 @@ trait LeonardoTestUtils
       Some(dummyClusterSa),
       Some(dummyNotebookSa),
       clusterRequest.jupyterExtensionUri,
-      clusterRequest.jupyterUserScriptUri
+      clusterRequest.jupyterUserScriptUri,
+      clusterRequest.jupyterStartUserScriptUri
     ).toMap ++ jupyterExtensions
 
     (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
