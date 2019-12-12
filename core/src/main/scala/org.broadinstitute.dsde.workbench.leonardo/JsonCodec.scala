@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.time.Instant
 
 import cats.implicits._
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, Encoder, Json}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GoogleProject}
 
@@ -18,6 +18,17 @@ object JsonCodec {
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers"
   )(MachineConfig.apply)
+
+  implicit val machineConfigEncoder: Encoder[MachineConfig] = (config: MachineConfig) => Json.obj(
+    ("numberOfWorkers", Json.fromInt(config.numberOfWorkers.getOrElse(null))),
+    ("masterMachineType", Json.fromString(config.masterMachineType.getOrElse(null))),
+    ("masterDiskSize", Json.fromInt(config.masterDiskSize.getOrElse(null))),
+    ("workerMachineType", Json.fromString(config.masterMachineType.getOrElse(null))),
+    ("workerDiskSize", Json.fromInt(config.workerDiskSize.getOrElse(null))),
+    ("numberOfWorkerLocalSSDs", Json.fromInt(config.numberOfWorkerLocalSSDs.getOrElse(null))),
+    ("numberOfPreemptibleWorkers", Json.fromInt(config.numberOfPreemptibleWorkers.getOrElse(null)))
+  )
+
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val serviceAccountInfoDecoder: Decoder[ServiceAccountInfo] = Decoder.forProduct2(
     "clusterServiceAccount",
