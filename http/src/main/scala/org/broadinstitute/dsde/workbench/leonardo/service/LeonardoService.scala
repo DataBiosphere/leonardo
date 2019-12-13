@@ -133,11 +133,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val serviceAccountProvider: ServiceAccountProvider[IO],
                       protected val bucketHelper: BucketHelper,
                       protected val clusterHelper: ClusterHelper,
-                      protected val dockerDAO: DockerDAO[IO])(implicit val executionContext: ExecutionContext,
-                                                              implicit override val system: ActorSystem,
-                                                              log: Logger[IO],
-                                                              cs: ContextShift[IO],
-                                                              metrics: NewRelicMetrics[IO])
+                      protected val dockerDAO: DockerDAO[IO],
+                      protected val publisher: LeoGooglePublisher[IO])(implicit val executionContext: ExecutionContext,
+                                                                       implicit override val system: ActorSystem,
+                                                                       log: Logger[IO],
+                                                                       cs: ContextShift[IO],
+                                                                       metrics: NewRelicMetrics[IO])
     extends LazyLogging
     with Retry {
 

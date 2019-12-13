@@ -19,15 +19,11 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDA
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.google.{
-  GoogleProject,
-  ServiceAccountKey,
-  ServiceAccountKeyId,
-  ServiceAccountPrivateKeyData,
-  _
-}
+import org.broadinstitute.dsde.workbench.leonardo.service.LeoGooglePublisher
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatestplus.mockito.MockitoSugar
 
 // values common to multiple tests, to reduce boilerplate
 
@@ -62,6 +58,8 @@ trait CommonTestData { this: ScalaFutures =>
     "https://www.googleapis.com/auth/source.read_only"
   )
 
+  val mockGooglePublisher = MockitoSugar.mock[LeoGooglePublisher[IO]]
+
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val dataprocImageProjectGroupName = config.getString("google.groups.dataprocImageProjectGroupName")
   val dataprocImageProjectGroupEmail = WorkbenchEmail(config.getString("google.groups.dataprocImageProjectGroupEmail"))
@@ -86,6 +84,10 @@ trait CommonTestData { this: ScalaFutures =>
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers),
                                                      Some(clusterDefaultsConfig.masterMachineType),
                                                      Some(clusterDefaultsConfig.masterDiskSize))
+
+  val pubsubConfig = config.as[PubsubConfig]("pubsub")
+
+
   val testClusterRequest = ClusterRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
     None,

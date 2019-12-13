@@ -210,6 +210,13 @@ object Config {
     )
   }
 
+  implicit val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
+    PubsubConfig(
+      GoogleProject(config.getString("pubsubGoogleProject")),
+      config.getString("topicName")
+    )
+  }
+
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
@@ -232,4 +239,5 @@ object Config {
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
+  val pubsubConfig = config.as[PubsubConfig]("pubsub")
 }

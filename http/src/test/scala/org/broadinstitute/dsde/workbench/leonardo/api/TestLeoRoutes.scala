@@ -2,23 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import java.io.ByteArrayInputStream
 
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
+import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.{Blocker, IO}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDirectoryDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeoGooglePublisher, LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
@@ -26,6 +21,7 @@ import org.scalactic.source.Position
 import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
+import org.scalatestplus.mockito
 
 import scala.concurrent.duration._
 
@@ -95,7 +91,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                                             serviceAccountProvider,
                                             bucketHelper,
                                             clusterHelper,
-                                            new MockDockerDAO)
+                                            new MockDockerDAO,
+                                            mockGooglePublisher)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
   val proxyService =
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider, clusterDnsCache)

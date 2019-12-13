@@ -22,10 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
-  NegativeIntegerArgumentInClusterRequestException,
-  OneWorkerSpecifiedInClusterRequestException
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -40,6 +37,8 @@ import org.mockito.Mockito.{never, verify, _}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.concurrent.Eventually.eventually
+import org.scalatestplus.mockito
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -56,7 +55,8 @@ class LeonardoServiceSpec
     with CommonTestData
     with LeoComponent
     with Retry
-    with LazyLogging {
+    with LazyLogging
+    with MockitoSugar {
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var computeDAO: MockGoogleComputeDAO = _
@@ -129,7 +129,8 @@ class LeonardoServiceSpec
                               serviceAccountProvider,
                               bucketHelper,
                               clusterHelper,
-                              new MockDockerDAO)
+                              new MockDockerDAO,
+      mockGooglePublisher)
   }
 
   override def afterAll(): Unit = {
@@ -276,7 +277,9 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          clusterHelper,
-                                         new MockDockerDAO(RStudio))
+                                         new MockDockerDAO(RStudio),
+      mockGooglePublisher)
+
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
     // check the cluster persisted to the database matches the create response
@@ -530,7 +533,8 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          clusterHelper,
-                                         new MockDockerDAO)
+                                         new MockDockerDAO,
+      mockGooglePublisher)
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -582,7 +586,8 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          clusterHelper,
-                                         new MockDockerDAO)
+                                         new MockDockerDAO,
+      mockGooglePublisher)
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue

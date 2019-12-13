@@ -13,13 +13,7 @@ import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleStorageDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO,
-  HttpGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
@@ -30,13 +24,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  ClusterDateAccessedActor,
-  ClusterMonitorSupervisor,
-  ClusterToolMonitor,
-  ZombieClusterMonitor
-}
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, LeoGoogleSubscriber, ZombieClusterMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeoGooglePublisher, LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -100,7 +89,9 @@ object Boot extends IOApp with LazyLogging {
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
                                                 clusterHelper,
-                                                appDependencies.dockerDAO)
+                                                appDependencies.dockerDAO,
+                                                appDependencies.googlePublisher)
+
       if (leoExecutionModeConfig.backLeo) {
         val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
         val rstudioDAO = new HttpRStudioDAO(appDependencies.clusterDnsCache)
@@ -211,6 +202,10 @@ object Boot extends IOApp with LazyLogging {
                                         NetworkTag(dataprocConfig.networkTag),
                                         dataprocConfig.dataprocDefaultRegion,
                                         dataprocConfig.dataprocZone)
+
+      googlePublisher = new LeoGooglePublisher[F](pubsubConfig)
+      googleSubscriber = new LeoGoogleSubscriber[F](pubsubConfig)
+
     } yield AppDependencies(
       storage,
       dbRef,
@@ -227,7 +222,9 @@ object Boot extends IOApp with LazyLogging {
       serviceAccountProvider,
       authProvider,
       metrics,
-      blocker
+      blocker,
+      googlePublisher,
+      googleSubscriber
     )
   }
 
@@ -259,4 +256,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        serviceAccountProvider: ServiceAccountProvider[F],
                                        authProvider: LeoAuthProvider[F],
                                        metrics: NewRelicMetrics[F],
-                                       blocker: Blocker)
+                                       blocker: Blocker,
+                                       googlePublisher: LeoGooglePublisher[F],
+                                       googleSubscriber: LeoGoogleSubscriber[F],
+                                      )

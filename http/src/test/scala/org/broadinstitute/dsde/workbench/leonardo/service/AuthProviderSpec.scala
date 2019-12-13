@@ -32,14 +32,12 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 
 class AuthProviderSpec
     extends FreeSpec
     with ScalatestRouteTest
     with Matchers
-    with MockitoSugar
     with TestComponent
     with ScalaFutures
     with OptionValues
@@ -128,7 +126,8 @@ class AuthProviderSpec
                         serviceAccountProvider,
                         bucketHelper,
                         clusterHelper,
-                        new MockDockerDAO)
+                        new MockDockerDAO,
+      mockGooglePublisher)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider[IO]): ProxyService =
