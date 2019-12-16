@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
+
 import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
@@ -55,7 +56,8 @@ case class DefaultLabels(clusterName: ClusterName,
                          notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[String],
                          notebookUserScript: Option[String],
-                         notebookStartUserScript: Option[String]) {
+                         notebookStartUserScript: Option[String],
+                         tool: String) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
@@ -78,7 +80,8 @@ case class DefaultLabels(clusterName: ClusterName,
     Map(
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
-      "creator" -> creator.value
+      "creator" -> creator.value,
+      "tool" -> tool
     ) ++ ext ++ userScr ++ startScr ++ clusterSa ++ notebookSa
   }
 }

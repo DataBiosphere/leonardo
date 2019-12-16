@@ -133,6 +133,10 @@ trait LeonardoTestUtils
     linesWithoutIPs(left) shouldEqual linesWithoutIPs(right)
   }
 
+  def getExpectedToolLabel(imageUrl: String): String =
+    if (imageUrl == LeonardoConfig.Leonardo.rstudioBaseImageUrl) "RStudio"
+    else "Jupyter"
+
   def labelCheck(seen: LabelMap,
                  clusterName: ClusterName,
                  googleProject: GoogleProject,
@@ -157,7 +161,8 @@ trait LeonardoTestUtils
       Some(dummyNotebookSa),
       clusterRequest.jupyterExtensionUri,
       clusterRequest.jupyterUserScriptUri,
-      clusterRequest.jupyterStartUserScriptUri
+      clusterRequest.jupyterStartUserScriptUri,
+      clusterRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter")
     ).toMap ++ jupyterExtensions
 
     (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
