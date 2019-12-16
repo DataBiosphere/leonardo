@@ -767,7 +767,7 @@ trait ClusterComponent extends LeoComponent {
         auditInfo,
         machineConfig,
         clusterRecord.properties,
-        Cluster.getClusterUrl(project, name, clusterImages),
+        Cluster.getClusterUrl(project, name, clusterImages, labels),
         ClusterStatus.withName(clusterRecord.status),
         labels,
         clusterRecord.jupyterExtensionUri,

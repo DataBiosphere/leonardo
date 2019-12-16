@@ -265,7 +265,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         status = ClusterStatus.Running,
         clusterName = name2,
         googleProject = project2,
-        clusterUrl = Cluster.getClusterUrl(project2, name2, Set(jupyterImage)),
+        clusterUrl = Cluster.getClusterUrl(project2, name2, Set(jupyterImage), Map("bam" -> "yes")),
         labels = Map("bam" -> "yes")
       )
       .save(Some(serviceAccountKey.id))

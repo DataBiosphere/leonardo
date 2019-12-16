@@ -216,12 +216,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       traceId <- ev.ask
       internalId <- IO(ClusterInternalId(UUID.randomUUID().toString))
+      clusterImages <- getClusterImages(clusterRequest)
       augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo,
                                                       googleProject,
                                                       clusterName,
                                                       userEmail,
-                                                      clusterRequest)
-      clusterImages <- getClusterImages(augmentedClusterRequest)
+                                                      clusterRequest,
+                                                      clusterImages)
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       clusterScopes = if (clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
@@ -747,7 +748,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                              googleProject: GoogleProject,
                                              clusterName: ClusterName,
                                              userEmail: WorkbenchEmail,
-                                             clusterRequest: ClusterRequest): ClusterRequest = {
+                                             clusterRequest: ClusterRequest,
+                                             clusterImages: Set[ClusterImage]): ClusterRequest = {
     val userJupyterExt = clusterRequest.jupyterExtensionUri match {
       case Some(ext) => Map[String, String]("notebookExtension" -> ext.toUri)
       case None      => Map[String, String]()
@@ -769,14 +771,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           Some(updatedUserJupyterExtensionConfig)
     )
 
-    addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedClusterRequest)
+    addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedClusterRequest, clusterImages)
   }
 
   private[service] def addClusterLabels(serviceAccountInfo: ServiceAccountInfo,
                                         googleProject: GoogleProject,
                                         clusterName: ClusterName,
                                         creator: WorkbenchEmail,
-                                        clusterRequest: ClusterRequest): ClusterRequest = {
+                                        clusterRequest: ClusterRequest,
+                                        clusterImages: Set[ClusterImage]): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(
       clusterName,
@@ -785,7 +788,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       serviceAccountInfo.clusterServiceAccount,
       serviceAccountInfo.notebookServiceAccount,
       clusterRequest.jupyterUserScriptUri,
-      clusterRequest.jupyterStartUserScriptUri
+      clusterRequest.jupyterStartUserScriptUri,
+      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
     ).toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
 
     // combine default and given labels and add labels for extensions
