@@ -270,7 +270,9 @@ class HttpGoogleDataprocDAO(
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = config.initScripts.map { script =>
-      new NodeInitializationAction().setExecutableFile(script.toUri).setExecutionTimeout(finiteDurationToGoogleDuration(config.creationTimeout))
+      new NodeInitializationAction()
+        .setExecutableFile(script.toUri)
+        .setExecutionTimeout(finiteDurationToGoogleDuration(config.creationTimeout))
     }
 
     // Create a config for the master node, if properties are not specified in request, use defaults

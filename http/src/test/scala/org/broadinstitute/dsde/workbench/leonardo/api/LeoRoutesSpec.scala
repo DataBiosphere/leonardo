@@ -43,14 +43,16 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Map.empty,
-                                    Some(jupyterExtensionUri),
-                                    Some(jupyterUserScriptUri),
-                                    Some(jupyterStartUserScriptUri),
-                                    None,
-                                    Map.empty,
-                                    None,
-                                    Some(UserJupyterExtensionConfig(Map("abc" -> "def"))))
+    val newCluster = ClusterRequest(
+      Map.empty,
+      Some(jupyterExtensionUri),
+      Some(jupyterUserScriptUri),
+      Some(jupyterStartUserScriptUri),
+      None,
+      Map.empty,
+      None,
+      Some(UserJupyterExtensionConfig(Map("abc" -> "def")))
+    )
     Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
@@ -180,7 +182,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
         cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
         cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
                                        "creator" -> "user1@example.com",
-                                       "googleProject" -> googleProject.value) ++ serviceAccountLabels
+                                       "googleProject" -> googleProject.value,
+                                       "tool" -> "Jupyter") ++ serviceAccountLabels
       }
 
       validateCookie { header[`Set-Cookie`] }
@@ -211,6 +214,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       cluster.labels shouldEqual Map("clusterName" -> "test-cluster-6",
                                      "creator" -> "user1@example.com",
                                      "googleProject" -> googleProject.value,
+                                     "tool" -> "Jupyter",
                                      "label6" -> "value6") ++ serviceAccountLabels
 
       validateCookie { header[`Set-Cookie`] }
@@ -230,6 +234,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       cluster.labels shouldEqual Map("clusterName" -> "test-cluster-4",
                                      "creator" -> "user1@example.com",
                                      "googleProject" -> googleProject.value,
+                                     "tool" -> "Jupyter",
                                      "label4" -> "value4") ++ serviceAccountLabels
 
       validateCookie { header[`Set-Cookie`] }
@@ -267,7 +272,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
         cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
         cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
                                        "creator" -> "user1@example.com",
-                                       "googleProject" -> googleProject.value) ++ serviceAccountLabels
+                                       "googleProject" -> googleProject.value,
+                                       "tool" -> "Jupyter") ++ serviceAccountLabels
       }
 
       validateCookie { header[`Set-Cookie`] }
@@ -319,12 +325,14 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   Seq(true, false).foreach { stopAfterCreation =>
     it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
-      val request = ClusterRequest(Map.empty,
-                                   Some(jupyterExtensionUri),
-                                   Some(jupyterUserScriptUri),
-                                   Some(jupyterStartUserScriptUri),
-                                   stopAfterCreation = Some(stopAfterCreation),
-                                   properties = Map.empty)
+      val request = ClusterRequest(
+        Map.empty,
+        Some(jupyterExtensionUri),
+        Some(jupyterUserScriptUri),
+        Some(jupyterStartUserScriptUri),
+        stopAfterCreation = Some(stopAfterCreation),
+        properties = Map.empty
+      )
       Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", request.toJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
         validateCookie {

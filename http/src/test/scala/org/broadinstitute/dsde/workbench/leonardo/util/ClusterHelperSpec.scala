@@ -140,7 +140,7 @@ class ClusterHelperSpec
                                                  proxyConfig,
                                                  clusterResourcesConfig,
                                                  clusterFilesConfig,
-                                                  monitorConfig,
+                                                 monitorConfig,
                                                  bucketHelper,
                                                  erroredDataprocDAO,
                                                  mockGoogleComputeDAO,

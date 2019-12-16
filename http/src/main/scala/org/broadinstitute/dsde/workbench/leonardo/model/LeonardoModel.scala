@@ -216,7 +216,7 @@ object Cluster {
       auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
       machineConfig = machineConfig,
       properties = clusterRequest.properties,
-      clusterUrl = getClusterUrl(googleProject, clusterName, clusterImages),
+      clusterUrl = getClusterUrl(googleProject, clusterName, clusterImages, clusterRequest.labels),
       status = ClusterStatus.Creating,
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
@@ -239,13 +239,19 @@ object Cluster {
       dataprocInfo = Some(DataprocInfo(operation.uuid, operation.name, stagingBucket, None))
     )
 
-  def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName, clusterImages: Set[ClusterImage]): URL = {
+  def getClusterUrl(googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    clusterImages: Set[ClusterImage],
+                    labels: Map[String, String]): URL = {
     val tool = clusterImages
       .map(_.imageType)
       .filterNot(_ == Welder)
+      .headOption
+      .orElse(labels.get("tool").flatMap(ClusterImageType.withNameInsensitiveOption))
       .flatMap(ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get)
       .headOption
       .getOrElse(JupyterService)
+
     new URL(
       Config.dataprocConfig.clusterUrlBase + googleProject.value + "/" + clusterName.value + "/" + tool.proxySegment
     )
@@ -259,7 +265,8 @@ case class DefaultLabels(clusterName: ClusterName,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
                          notebookUserScript: Option[GcsPath],
-                         notebookStartUserScript: Option[GcsPath])
+                         notebookStartUserScript: Option[GcsPath],
+                         tool: Option[ClusterImageType])
 
 // Provides ways of combining MachineConfigs with Leo defaults
 object MachineConfigOps {
@@ -610,9 +617,9 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val DefaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
-
   implicit val ClusterToolFormat = EnumEntryFormat(ClusterImageType.withName)
+
+  implicit val DefaultLabelsFormat = jsonFormat8(DefaultLabels.apply)
 
   implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
 

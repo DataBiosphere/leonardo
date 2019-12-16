@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import java.io.ByteArrayInputStream
+import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -186,6 +187,8 @@ class LeonardoServiceSpec
     clusterCreateResponse.clusterImages.map(_.imageType) shouldBe Set(Jupyter)
     clusterCreateResponse.scopes shouldBe dataprocConfig.defaultScopes
     clusterCreateResponse.welderEnabled shouldBe false
+    clusterCreateResponse.labels.get("tool") shouldBe Some("Jupyter")
+    clusterCreateResponse.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name0/jupyter")
 
     // check the cluster persisted to the database matches the create response
     val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }
@@ -290,6 +293,15 @@ class LeonardoServiceSpec
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
       dataprocConfig.welderDockerImage
     )
+    clusterResponse.labels.get("tool") shouldBe Some("RStudio")
+    clusterResponse.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name1/rstudio")
+
+    // list clusters should return RStudio information
+    val clusterList = leoForTest.listClusters(userInfo, Map.empty, Some(project)).unsafeToFuture.futureValue
+    clusterList.size shouldBe 1
+    clusterList.toSet shouldBe Set(clusterResponse).map(_.toListClusterResp)
+    clusterList.head.labels.get("tool") shouldBe Some("RStudio")
+    clusterList.head.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name1/rstudio")
   }
 
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
