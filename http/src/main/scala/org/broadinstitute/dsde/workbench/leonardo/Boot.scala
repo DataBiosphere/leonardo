@@ -86,7 +86,6 @@ object Boot extends IOApp with LazyLogging {
                                             appDependencies.googleDirectoryDAO,
                                             appDependencies.googleIamDAO,
                                             appDependencies.googleProjectDAO,
-                                            contentSecurityPolicy,
                                             appDependencies.blocker)
 
       val leonardoService = new LeonardoService(dataprocConfig,
@@ -151,7 +150,7 @@ object Boot extends IOApp with LazyLogging {
                                             appDependencies.samDAO,
                                             appDependencies.dbReference,
                                             dataprocConfig)
-      val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
+      val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
       with StandardUserInfoDirectives
 
       (for {

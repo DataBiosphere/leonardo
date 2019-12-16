@@ -353,7 +353,6 @@ final case class ClusterTemplateValues private (googleProject: String,
                                                 jupyterStartUserScriptOutputBaseUri: String,
                                                 jupyterServiceAccountCredentials: String,
                                                 loginHint: String,
-                                                contentSecurityPolicy: String,
                                                 jupyterServerExtensions: String,
                                                 jupyterNbExtensions: String,
                                                 jupyterCombinedExtensions: String,
@@ -380,8 +379,7 @@ object ClusterTemplateValues {
             dataprocConfig: DataprocConfig,
             proxyConfig: ProxyConfig,
             clusterFilesConfig: ClusterFilesConfig,
-            clusterResourcesConfig: ClusterResourcesConfig,
-            contentSecurityPolicy: String): ClusterTemplateValues =
+            clusterResourcesConfig: ClusterResourcesConfig): ClusterTemplateValues =
     ClusterTemplateValues(
       cluster.googleProject.value,
       cluster.clusterName.value,
@@ -427,7 +425,6 @@ object ClusterTemplateValues {
         n <- initBucketName
       } yield GcsPath(n, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       cluster.auditInfo.creator.value,
-      contentSecurityPolicy,
       cluster.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       cluster.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       cluster.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),

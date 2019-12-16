@@ -26,7 +26,7 @@ object Notebook extends RestClient with LazyLogging {
     mapper.readValue(response, classOf[NotebookContentItem])
 
   def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
-    s"notebooks/${googleProject.value}/${clusterName.string}"
+    s"proxy/${googleProject.value}/${clusterName.string}/jupyter"
 
   def notebooksTreePath(googleProject: GoogleProject, clusterName: ClusterName): String =
     s"${notebooksBasePath(googleProject, clusterName)}/tree"

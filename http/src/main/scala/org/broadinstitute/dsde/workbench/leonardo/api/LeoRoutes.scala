@@ -46,7 +46,8 @@ abstract class LeoRoutes(
   val leonardoService: LeonardoService,
   val proxyService: ProxyService,
   val statusService: StatusService,
-  val swaggerConfig: SwaggerConfig
+  val swaggerConfig: SwaggerConfig,
+  val contentSecurityPolicy: String
 )(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext)
     extends LazyLogging
     with CookieHelper

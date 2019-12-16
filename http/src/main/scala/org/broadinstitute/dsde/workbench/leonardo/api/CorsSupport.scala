@@ -6,10 +6,9 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.http.scaladsl.server.Directives._
 
-/**
- * Created by rtitle on 1/3/18.
- */
 trait CorsSupport {
+  def contentSecurityPolicy: String
+
   def corsHandler(r: Route) =
     addAccessControlHeaders {
       preflightRequestHandler ~ r
@@ -32,12 +31,17 @@ trait CorsSupport {
       mapResponseHeaders { headers =>
         // Filter out the Access-Control-Allow-Origin set by Jupyter so we don't have duplicate headers
         // (causes issues on some browsers). See https://github.com/DataBiosphere/leonardo/issues/272
-        headers.filter(_.isNot(`Access-Control-Allow-Origin`.lowercaseName)) ++
+        headers.filter { h =>
+          h.isNot(`Access-Control-Allow-Origin`.lowercaseName) && h.isNot("content-security-policy")
+        } ++
           Seq(
             allowOrigin,
             `Access-Control-Allow-Credentials`(true),
             `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),
-            `Access-Control-Max-Age`(1728000)
+            `Access-Control-Max-Age`(1728000),
+            // There are no akka-http model objects for Content-Security-Policy. See:
+            // https://github.com/akka/akka-http/issues/155
+            RawHeader("Content-Security-Policy", contentSecurityPolicy)
           )
       }
     }

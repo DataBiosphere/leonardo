@@ -29,7 +29,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   private val googleProject = GoogleProject("test-project")
   private val googleProject2 = GoogleProject("test-project2")
   private val clusterName = ClusterName("test-cluster")
-  val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
+  val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
   with MockUserInfoDirectives {
     override val userInfo: UserInfo =
       UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
