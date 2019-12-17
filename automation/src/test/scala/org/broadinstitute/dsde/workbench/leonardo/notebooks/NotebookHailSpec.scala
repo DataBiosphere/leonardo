@@ -109,19 +109,8 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
               importResult.get should include ("Finished type imputation")
 
               // Verify the Hail table
-              val tableResult = notebookPage.executeCell("table.show()")
-              val expectedTableResult =
-                """+---------------------------------+
-                  || Sample     Height  Status  Age  |
-                  |+---------------------------------+
-                  || str                             |
-                  |+---------------------------------+
-                  || "PT-1234    154.1   ADHD    24" |
-                  || "PT-1236    160.9   Control 19" |
-                  || "PT-1238    NA      ADHD    89" |
-                  || "PT-1239    170.3   Control 55" |
-                  |+---------------------------------+""".stripMargin
-              tableResult shouldBe Some(expectedTableResult)
+              val tableResult = notebookPage.executeCell("table.count()")
+              tableResult shouldBe Some("4")
             }
           }
         }
