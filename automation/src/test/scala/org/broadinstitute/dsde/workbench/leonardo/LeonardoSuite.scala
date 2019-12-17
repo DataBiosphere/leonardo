@@ -10,6 +10,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
 
+import cats.implicits._
+
 trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
@@ -23,6 +25,7 @@ trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
 
     sys.props.get(gpallocProjectKey) match {
       case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      case Some(msg) if msg.startsWith("Failed To Claim Project") => throw new RuntimeException(msg)
       case Some(billingProject) =>
         if (isRetryable(test))
           withRetry(runTestAndCheckOutcome(GoogleProject(billingProject)))
@@ -41,8 +44,10 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    val billingProject = claimProject()
-    sys.props.put(gpallocProjectKey, billingProject.value)
+    Either.catchNonFatal(claimProject()) match {
+      case Left(e) => sys.props.put(gpallocProjectKey, "Failed To Claim Project: "+e.getMessage)
+      case Right(billingProject) => sys.props.put(gpallocProjectKey, billingProject.value)
+    }
   }
 
   override def afterAll(): Unit = {
