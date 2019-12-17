@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
+import cats.implicits._
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -17,6 +18,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   def toolDockerImage: Option[String] = None
   var ronCluster: Cluster = _
+  var clusterCreationFailureMsg: String = ""
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
   //You must also set debug to true. Example usage (goes in the Spec you are creating):
@@ -60,6 +62,9 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       logger.info(s"[Debug] Using mocked cluster for cluster fixture tests")
       ronCluster = mockedCluster
     }
+
+    if(clusterCreationFailureMsg.nonEmpty)
+      throw new Exception(clusterCreationFailureMsg)
 
     def runTestAndCheckOutcome() = {
       val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
@@ -114,8 +119,12 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) =>
-          createRonCluster(GoogleProject(billingProject))
-        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+          Either.catchNonFatal(createRonCluster(GoogleProject(billingProject))).handleError {
+            e =>
+              clusterCreationFailureMsg = e.getMessage
+              ronCluster = null
+          }
+        case None => clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
       }
     }
 
