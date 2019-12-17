@@ -83,7 +83,6 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
-                                          contentSecurityPolicy,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(MockJupyterDAO, MockWelderDAO, MockRStudioDAO)
@@ -159,7 +158,6 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
-                                          contentSecurityPolicy,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -229,7 +227,6 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
-                                          contentSecurityPolicy,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -301,7 +298,6 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
-                                          contentSecurityPolicy,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)

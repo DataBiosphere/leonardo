@@ -312,5 +312,6 @@ class ProxyRoutesSpec
       if (optionsRequest) Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
       else None
     )
+    header("Content-Security-Policy") shouldBe Some(RawHeader("Content-Security-Policy", contentSecurityPolicy))
   }
 }

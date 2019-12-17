@@ -85,7 +85,6 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                       mockGoogleDirectoryDAO,
                       mockGoogleIamDAO,
                       mockGoogleProjectDAO,
-                      contentSecurityPolicy,
                       blocker)
   val leonardoService = new LeonardoService(dataprocConfig,
                                             MockWelderDAO,
@@ -106,11 +105,11 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
   val statusService =
     new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
-  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
+  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
   with MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
-  val timedLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
+  val timedLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
   with MockUserInfoDirectives {
     override val userInfo: UserInfo = timedUserInfo
   }

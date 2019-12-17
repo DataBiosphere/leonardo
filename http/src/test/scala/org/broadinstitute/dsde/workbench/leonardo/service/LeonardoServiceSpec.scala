@@ -115,7 +115,6 @@ class LeonardoServiceSpec
                                       directoryDAO,
                                       iamDAO,
                                       projectDAO,
-                                      contentSecurityPolicy,
                                       blocker)
 
     leo = new LeonardoService(dataprocConfig,
@@ -497,7 +496,6 @@ class LeonardoServiceSpec
                                                     directoryDAO,
                                                     iamDAO,
                                                     projectDAO,
-                                                    contentSecurityPolicy,
                                                     blocker)
 
     val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
@@ -522,7 +520,6 @@ class LeonardoServiceSpec
                                                       directoryDAO,
                                                       iamDAO,
                                                       projectDAO,
-                                                      contentSecurityPolicy,
                                                       blocker)
     clusterHelperWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(VPCNetwork("test-network"))
   }
@@ -680,8 +677,7 @@ class LeonardoServiceSpec
       dataprocConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig,
-      contentSecurityPolicy
+      clusterResourcesConfig
     )
     val replacements: Map[String, String] = clusterInit.toMap
 

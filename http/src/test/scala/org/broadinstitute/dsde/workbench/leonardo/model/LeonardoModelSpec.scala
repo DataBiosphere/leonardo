@@ -202,8 +202,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       dataprocConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig,
-      contentSecurityPolicy
+      clusterResourcesConfig
     )
     val clusterInitMap = clusterInit.toMap
 
@@ -215,7 +214,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
     clusterInitMap("welderEnabled") shouldBe "true"
 
-    clusterInitMap.size shouldBe 36
+    clusterInitMap.size shouldBe 35
   }
 
   "DockerRegistry regex" should "match expected image url format" in {

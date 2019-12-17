@@ -169,7 +169,6 @@ class ClusterMonitorSpec
                                           directoryDAO,
                                           iamDAO,
                                           projectDAO,
-                                          contentSecurityPolicy,
                                           blocker)
     val supervisorActor = system.actorOf(
       TestClusterSupervisorActor.props(

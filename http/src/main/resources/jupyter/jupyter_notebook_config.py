@@ -40,11 +40,8 @@ if os.environ['WELDER_ENABLED'] == 'true':
   mgr_class = 'WelderContentsManager'
 c.NotebookApp.contents_manager_class = 'jupyter_delocalize.' + mgr_class
 
-# Unset Content-Security-Policy so Jupyter can be rendered in an iframe
+# Content-Security-Policy is set by the Leo proxy so Jupyter can be rendered in an iframe
 # See https://jupyter-notebook.readthedocs.io/en/latest/public_server.html?highlight=server#embedding-the-notebook-in-another-website
 c.NotebookApp.tornado_settings = {
-    'static_url_prefix':'/notebooks/' + fragment + '/static/',
-    'headers': {
-        'Content-Security-Policy': $(contentSecurityPolicy)
-    }
+    'static_url_prefix':'/notebooks/' + fragment + '/static/'
 }

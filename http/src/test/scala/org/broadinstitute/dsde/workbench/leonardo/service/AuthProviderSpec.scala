@@ -93,7 +93,6 @@ class AuthProviderSpec
                       mockGoogleDirectoryDAO,
                       mockGoogleIamDAO,
                       mockGoogleProjectDAO,
-                      contentSecurityPolicy,
                       blocker)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
 

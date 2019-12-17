@@ -55,7 +55,6 @@ class ClusterHelper(
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
   googleProjectDAO: GoogleProjectDAO,
-  contentSecurityPolicy: String,
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   val system: ActorSystem,
@@ -396,8 +395,7 @@ class ClusterHelper(
       dataprocConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig,
-      contentSecurityPolicy
+      clusterResourcesConfig
     ).toMap
 
     // Jupyter allows setting of arbitrary environment variables on cluster creation if they are passed in to
@@ -428,7 +426,8 @@ class ClusterHelper(
           clusterResourcesConfig.rstudioDockerCompose,
           clusterResourcesConfig.proxyDockerCompose,
           clusterResourcesConfig.proxySiteConf,
-          clusterResourcesConfig.welderDockerCompose
+          clusterResourcesConfig.welderDockerCompose,
+          clusterResourcesConfig.jupyterNotebookConfigUri
         )
       )
       bytes <- Stream.eval(TemplateHelper.resourceStream(r, blocker).compile.to[Array])
@@ -439,7 +438,6 @@ class ClusterHelper(
       r <- Stream.emits(
         Seq(
           clusterResourcesConfig.initActionsScript,
-          clusterResourcesConfig.jupyterNotebookConfigUri,
           clusterResourcesConfig.jupyterNotebookFrontendConfigUri
         )
       )
@@ -612,8 +610,7 @@ class ClusterHelper(
       dataprocConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig,
-      contentSecurityPolicy
+      clusterResourcesConfig
     )
     val replacements: Map[String, String] = clusterInit.toMap ++
       Map(
@@ -639,8 +636,7 @@ class ClusterHelper(
       dataprocConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig,
-      contentSecurityPolicy
+      clusterResourcesConfig
     ).toMap
 
     TemplateHelper
