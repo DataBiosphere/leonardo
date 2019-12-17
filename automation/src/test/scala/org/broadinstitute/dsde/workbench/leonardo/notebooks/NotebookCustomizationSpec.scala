@@ -143,8 +143,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       withNewGoogleBucket(billingProject) { bucketName =>
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
-          EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-          GcsRoles.Owner)
+                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                GcsRoles.Owner)
 
         // Add the user script to the bucket. This script increments and writes a count to file,
         // tracking the number of times it has been invoked.
@@ -156,28 +156,28 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
 
         withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
           googleStorageDAO.setObjectAccessControl(bucketName,
-            objectName,
-            EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-            GcsRoles.Owner)
+                                                  objectName,
+                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                  GcsRoles.Owner)
 
           withNewCluster(billingProject,
-            request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
-          cluster =>
-            withWebDriver { implicit driver =>
-              withNewNotebook(cluster, Python3) { notebookPage =>
-                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
+                         request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
+            cluster =>
+              withWebDriver { implicit driver =>
+                withNewNotebook(cluster, Python3) { notebookPage =>
+                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
+                }
+
+                // Stop the cluster
+                stopAndMonitor(cluster.googleProject, cluster.clusterName)
+
+                // Start the cluster
+                startAndMonitor(cluster.googleProject, cluster.clusterName)
+
+                withNewNotebook(cluster, Python3) { notebookPage =>
+                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
+                }
               }
-
-              // Stop the cluster
-              stopAndMonitor(cluster.googleProject, cluster.clusterName)
-
-              // Start the cluster
-              startAndMonitor(cluster.googleProject, cluster.clusterName)
-
-              withNewNotebook(cluster, Python3) { notebookPage =>
-                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
-              }
-            }
           }
 
         }

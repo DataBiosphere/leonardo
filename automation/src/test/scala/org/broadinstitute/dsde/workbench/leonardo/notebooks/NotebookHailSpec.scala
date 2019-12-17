@@ -1,7 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.ResourceFile
+import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
@@ -60,6 +63,66 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
           val sparkJobToSucceedcellResult =
             notebookPage.executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4)).get
           sparkJobToSucceedcellResult.output.get.toInt shouldBe (1000)
+        }
+      }
+    }
+
+    // Make sure we can import data from GCS into Hail.
+    // See https://broadworkbench.atlassian.net/browse/IA-1558
+    "should import data from GCS" in { clusterFixture =>
+      // Create a new bucket
+      withNewGoogleBucket(clusterFixture.cluster.googleProject) { bucketName =>
+        val ronPetServiceAccount =
+          Sam.user.petServiceAccountEmail(clusterFixture.cluster.googleProject.value)(ronAuthToken)
+        googleStorageDAO.setBucketAccessControl(bucketName,
+                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                GcsRoles.Owner)
+
+        // Add a sample TSV to the bucket
+        val tsvString =
+          """Sample     Height  Status  Age
+            |PT-1234    154.1   ADHD    24
+            |PT-1236    160.9   Control 19
+            |PT-1238    NA      ADHD    89
+            |PT-1239    170.3   Control 55""".stripMargin
+        val tsvObjectName = GcsObjectName("samples.tsv")
+        val tsvUri = s"gs://${bucketName.value}/${tsvObjectName.value}"
+
+        withNewBucketObject(bucketName, tsvObjectName, tsvString, "text/plain") { objectName =>
+          googleStorageDAO.setObjectAccessControl(bucketName,
+                                                  objectName,
+                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                  GcsRoles.Owner)
+
+          withWebDriver { implicit driver =>
+            withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+              // Import hail
+              val importHail =
+                """import hail as hl
+                  |hl.init()
+                """.stripMargin
+              notebookPage.executeCell(importHail)
+
+              // Import the TSV into a Hail table
+              val importResult = notebookPage.executeCell(s"table = hl.import_table('${tsvUri}', impute=True)")
+              importResult shouldBe None
+
+              // Verify the Hail table
+              val tableResult = notebookPage.executeCell("table.show()")
+              val expectedTableResult =
+                """+---------------------------------+
+                  || Sample     Height  Status  Age  |
+                  |+---------------------------------+
+                  || str                             |
+                  |+---------------------------------+
+                  || "PT-1234    154.1   ADHD    24" |
+                  || "PT-1236    160.9   Control 19" |
+                  || "PT-1238    NA      ADHD    89" |
+                  || "PT-1239    170.3   Control 55" |
+                  |+---------------------------------+""".stripMargin
+              tableResult shouldBe Some(expectedTableResult)
+            }
+          }
         }
       }
     }
