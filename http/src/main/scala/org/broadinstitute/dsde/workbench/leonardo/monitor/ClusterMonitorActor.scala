@@ -249,11 +249,31 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp, now) }
       // Record metrics in NewRelic
       _ <- recordMetrics(cluster.status, ClusterStatus.Running).unsafeToFuture()
+      toolImageType = findToolImageType(cluster.clusterImages)
+      baseName = s"ClusterMonitor/${toolImageType}-Creation"
+      counterName = s"${baseName}/count"
+      timerName = s"${baseName}/timer"
+      duration = Duration(ChronoUnit.MILLIS.between(cluster.auditInfo.createdDate, Instant.now()), MILLISECONDS)
+      _ <- metrics.incrementCounterFuture(counterName)
+      _ <- metrics.recordResponseTimeFuture(timerName, duration)
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
       ShutdownActor(RemoveFromList(cluster))
     }
+
+  private def findToolImageType(images: Set[ClusterImage]) = {
+    val terraJupyterImage = "us.gcr.io/broad-dsp-gcr-public/([a-z0-9-_]+):(.*)".r
+    val anvilRStudioImage = "us.gcr.io/anvil-gcr-public/([a-z0-9-_]+):(.*)".r
+    images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
+      case Some(toolImage) => toolImage.imageUrl match {
+        case terraJupyterImage(imageType, hash) => imageType
+        case anvilRStudioImage(imageType, hash) => imageType
+        case _ => "custom_image"
+      }
+      case None => "unknown"
+    }
+  }
 
   /**
    * Handles a dataproc cluster which has failed. We delete the cluster in Google, and then:
