@@ -6,15 +6,19 @@ import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
+import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.scalalogging.LazyLogging
 import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
 import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
+import fs2.concurrent.InspectableQueue
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
+import org.broadinstitute.dsde.workbench.google2.{Event, GooglePublisher, GoogleStorageService, PublisherConfig}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -25,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, LeoGoogleSubscriber, ZombieClusterMonitor}
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeoGooglePublisher, LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeoGooglePublisher, LeoPubsubMessage, LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -203,9 +207,9 @@ object Boot extends IOApp with LazyLogging {
                                         dataprocConfig.dataprocDefaultRegion,
                                         dataprocConfig.dataprocZone)
 
-      googlePublisher = new LeoGooglePublisher[F](pubsubConfig)
-      googleSubscriber = new LeoGoogleSubscriber[F](pubsubConfig)
-
+      googlePublisher <- GooglePublisher.resource(publisherConfig)//new LeoGooglePublisher[F](pubsubConfig)
+      publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](1000))
+      
     } yield AppDependencies(
       storage,
       dbRef,

@@ -2,9 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import java.io.File
 
+import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
+import org.broadinstitute.dsde.workbench.RetryConfig
+import org.broadinstitute.dsde.workbench.google2.PublisherConfig
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
@@ -240,4 +243,8 @@ object Config {
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
+
+  private val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
+  private val retryConfig = RetryConfig(1 minute, _ => 1 minute, 5) //TODO ?_?
+  val publisherConfig: PublisherConfig = PublisherConfig(leoServiceAccountJsonFile, topic, retryConfig)
 }
