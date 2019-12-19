@@ -112,6 +112,9 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             val query =
               """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
+            // Result should fail due to insufficient scopes.
+            // Note we used to check for 'Invalid credential' in the result but the error message from
+            // Google does not seem stable.
             val result = notebookPage.executeCell(query, timeout = 5.minutes).get
             result should include("BigQuery error in query operation")
             result should not include "scullion_count"
