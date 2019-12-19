@@ -114,7 +114,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
 
             val result = notebookPage.executeCell(query, timeout = 5.minutes).get
             result should include("BigQuery error in query operation")
-            result.replace(System.lineSeparator(), " ") should include("Invalid credential")
+            result should not include "scullion_count"
           }
         }
       }
