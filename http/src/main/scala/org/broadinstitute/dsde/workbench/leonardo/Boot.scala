@@ -148,10 +148,8 @@ object Boot extends IOApp with LazyLogging {
       val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
       with StandardUserInfoDirectives
 
-      (for {
+      val httpServer = for {
         _ <- if (leoExecutionModeConfig.backLeo) {
-
-          appDependencies.publisherStream
           clusterHelper.setupDataprocImageGoogleGroup()
         } else IO.unit
         _ <- IO.fromFuture {
@@ -164,7 +162,20 @@ object Boot extends IOApp with LazyLogging {
               }
           }
         }
-      } yield ()) >> IO.never
+      } yield ()
+
+      val publisherStream = if (leoExecutionModeConfig.backLeo) Stream.eval_(IO.unit) else appDependencies.publisherStream
+
+      val subscriberStream = if (leoExecutionModeConfig.backLeo) ??? else Stream.eval_(IO.unit)
+
+      val app = Stream(Stream.eval(httpServer), publisherStream, subscriberStream).parJoin(3)
+      app
+        .handleErrorWith { error =>
+          Stream.eval(Logger[IO].error(error)("Failed to start server")) >> Stream.raiseError[IO](error)
+        }
+        .compile
+        .drain
+        .as(ExitCode.Error)
     }
   }
 
