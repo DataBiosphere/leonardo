@@ -94,7 +94,7 @@ object Boot extends IOApp with LazyLogging {
                                                 bucketHelper,
                                                 clusterHelper,
                                                 appDependencies.dockerDAO,
-                                                appDependencies.googlePublisher)
+                                                appDependencies.publisherQueue)
 
       if (leoExecutionModeConfig.backLeo) {
         val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
@@ -149,7 +149,11 @@ object Boot extends IOApp with LazyLogging {
       with StandardUserInfoDirectives
 
       (for {
-        _ <- if (leoExecutionModeConfig.backLeo) clusterHelper.setupDataprocImageGoogleGroup() else IO.unit
+        _ <- if (leoExecutionModeConfig.backLeo) {
+
+          appDependencies.publisherStream
+          clusterHelper.setupDataprocImageGoogleGroup()
+        } else IO.unit
         _ <- IO.fromFuture {
           IO {
             Http()
@@ -209,7 +213,8 @@ object Boot extends IOApp with LazyLogging {
 
       googlePublisher <- GooglePublisher.resource(publisherConfig)//new LeoGooglePublisher[F](pubsubConfig)
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](1000))
-      
+      publisherStream = publisherQueue.dequeue through googlePublisher.publish
+
     } yield AppDependencies(
       storage,
       dbRef,
@@ -227,8 +232,9 @@ object Boot extends IOApp with LazyLogging {
       authProvider,
       metrics,
       blocker,
-      googlePublisher,
-      googleSubscriber
+      publisherStream,
+      publisherQueue,
+      null
     )
   }
 
@@ -261,6 +267,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        authProvider: LeoAuthProvider[F],
                                        metrics: NewRelicMetrics[F],
                                        blocker: Blocker,
-                                       googlePublisher: LeoGooglePublisher[F],
-                                       googleSubscriber: LeoGoogleSubscriber[F],
+                                       publisherStream: Stream[F, Unit],
+                                       publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage],
+                                       googleSubscriber: LeoGooglePublisher[F]
                                       )
