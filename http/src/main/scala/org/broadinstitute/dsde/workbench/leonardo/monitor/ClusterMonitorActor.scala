@@ -267,8 +267,8 @@ class ClusterMonitorActor(
     val anvilRStudioImage = "us.gcr.io/anvil-gcr-public/([a-z0-9-_]+):(.*)".r
     images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
       case Some(toolImage) => toolImage.imageUrl match {
-        case terraJupyterImage(imageType, hash) => imageType
-        case anvilRStudioImage(imageType, hash) => imageType
+        case terraJupyterImage(imageType, _) => imageType
+        case anvilRStudioImage(imageType, _) => imageType
         case _ => "custom_image"
       }
       case None => "unknown"
