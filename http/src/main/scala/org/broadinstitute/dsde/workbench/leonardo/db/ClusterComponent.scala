@@ -13,7 +13,15 @@ import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKey, ServiceAccountKeyId, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{
+  parseGcsPath,
+  GcsBucketName,
+  GcsPath,
+  GcsPathSupport,
+  GoogleProject,
+  ServiceAccountKey,
+  ServiceAccountKeyId
+}
 
 final case class ClusterRecord(id: Long,
                                internalId: String,
@@ -55,9 +63,7 @@ final case class AuditInfoRecord(creator: String,
                                  dateAccessed: Timestamp,
                                  kernelFoundBusyDate: Option[Timestamp])
 
-final case class ClusterFlagsRecord(welderEnabled: Boolean,
-                              stopAfterCreation: Boolean,
-                              stopAndUpdate: Boolean)
+final case class ClusterFlagsRecord(welderEnabled: Boolean, stopAfterCreation: Boolean, stopAndUpdate: Boolean)
 
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent
@@ -149,17 +155,15 @@ trait ClusterComponent extends LeoComponent {
         autopauseThreshold,
         defaultClientId,
         (updatedNumberOfWorkers,
-          updatedMasterMachineType,
-          updatedMasterDiskSize,
-          updatedWorkerMachineType,
-          updatedWorkerDiskSize,
-          updatedNumberOfWorkerLocalSSDs,
-          updatedNumberOfPreemptibleWorkers),
+         updatedMasterMachineType,
+         updatedMasterDiskSize,
+         updatedWorkerMachineType,
+         updatedWorkerDiskSize,
+         updatedNumberOfWorkerLocalSSDs,
+         updatedNumberOfPreemptibleWorkers),
         properties,
         customClusterEnvironmentVariables,
-        (welderEnabled,
-        stopAfterCreation,
-        stopAndUpdate)
+        (welderEnabled, stopAfterCreation, stopAndUpdate)
       ).shaped <> ({
         case (id,
               internalId,
@@ -181,7 +185,7 @@ trait ClusterComponent extends LeoComponent {
               updatedMachineConfig,
               properties,
               customClusterEnvironmentVariables,
-          clusterFlags) =>
+              clusterFlags) =>
           ClusterRecord(
             id,
             internalId,
@@ -444,7 +448,7 @@ trait ClusterComponent extends LeoComponent {
         .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
         .update((Timestamp.from(destroyedDate), ClusterStatus.Deleted.toString, None, Timestamp.from(destroyedDate)))
 
-    def updateClusterForStopTransition(id: Long, machineConfig: MachineConfig): DBIO[Int] = {
+    def updateClusterForStopTransition(id: Long, machineConfig: MachineConfig): DBIO[Int] =
       machineConfig.masterMachineType match {
         case Some(masterMachineType) =>
           for {
@@ -453,11 +457,9 @@ trait ClusterComponent extends LeoComponent {
           } yield dbio
         case _ => DBIO.successful(0)
       }
-    }
 
-    def updateClusterForFinishedTransition(id: Long): DBIO[Int]  = {
+    def updateClusterForFinishedTransition(id: Long): DBIO[Int] =
       findByIdQuery(id).map(_.stopAndUpdate).update(false)
-    }
 
     def updateClusterStatusAndHostIp(id: Long,
                                      status: ClusterStatus,
@@ -665,7 +667,7 @@ trait ClusterComponent extends LeoComponent {
           cluster.updatedMachineConfig.numberOfPreemptibleWorkers
         ),
         cluster.customClusterEnvironmentVariables,
-        ClusterFlagsRecord(cluster.welderEnabled, cluster.stopAfterCreation, cluster.stopAndUpdate )
+        ClusterFlagsRecord(cluster.welderEnabled, cluster.stopAfterCreation, cluster.stopAndUpdate)
       )
 
     private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {

@@ -13,7 +13,12 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AutoFreezeConfig,
+  ClusterBucketConfig,
+  DataprocConfig,
+  MonitorConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -202,33 +207,45 @@ class ClusterMonitorSupervisor(
     case ClusterStopAndUpdate(cluster) =>
       logger.info(s"Updating cluster ${cluster.projectNameString} after stopping...")
 
-      dbRef.inTransaction {
-        dataAccess => dataAccess.clusterQuery.getClusterById(cluster.id)
-      }.flatMap {
-        case Some(resolvedCluster) if resolvedCluster.status == ClusterStatus.Stopped && !resolvedCluster.updatedMachineConfig.masterMachineType.isEmpty => {
-          // do update
-          logger.info(s"In update of UpdateClusterAfterStop, updating cluster to machine type ${MachineType(resolvedCluster.updatedMachineConfig.masterMachineType.get)}")
-          for {
-            // perform gddao and db updates for new resources
-            _ <- clusterHelper.updateMasterMachineType(resolvedCluster, MachineType(resolvedCluster.updatedMachineConfig.masterMachineType.get)).unsafeToFuture()
-            // start cluster
-            _ <- clusterHelper.internalStartCluster(resolvedCluster).unsafeToFuture()
-            // clean up temporary state used for transition
-            //TODO: why doesn't this work
-            _ <- dbRef.inTransaction {
-              dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(resolvedCluster.id)
-            }
-          } yield ()
+      dbRef
+        .inTransaction { dataAccess =>
+          dataAccess.clusterQuery.getClusterById(cluster.id)
         }
-        case Some(resolvedCluster) => {
-          logger.warn(s"Unable to update cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after stopping.")
-          //if we fail, we want to unmark the cluster for update in the db
-          dbRef.inTransaction {
-            dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(resolvedCluster.id)
-          }.void
+        .flatMap {
+          case Some(resolvedCluster)
+              if resolvedCluster.status == ClusterStatus.Stopped && !resolvedCluster.updatedMachineConfig.masterMachineType.isEmpty => {
+            // do update
+            logger.info(
+              s"In update of UpdateClusterAfterStop, updating cluster to machine type ${MachineType(resolvedCluster.updatedMachineConfig.masterMachineType.get)}"
+            )
+            for {
+              // perform gddao and db updates for new resources
+              _ <- clusterHelper
+                .updateMasterMachineType(resolvedCluster,
+                                         MachineType(resolvedCluster.updatedMachineConfig.masterMachineType.get))
+                .unsafeToFuture()
+              // start cluster
+              _ <- clusterHelper.internalStartCluster(resolvedCluster).unsafeToFuture()
+              // clean up temporary state used for transition
+              //TODO: why doesn't this work
+              _ <- dbRef.inTransaction { dataAccess =>
+                dataAccess.clusterQuery.updateClusterForFinishedTransition(resolvedCluster.id)
+              }
+            } yield ()
+          }
+          case Some(resolvedCluster) => {
+            logger.warn(
+              s"Unable to update cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after stopping."
+            )
+            //if we fail, we want to unmark the cluster for update in the db
+            dbRef.inTransaction { dataAccess =>
+              dataAccess.clusterQuery.updateClusterForFinishedTransition(resolvedCluster.id)
+            }.void
+          }
+          case None =>
+            Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
         }
-        case None => Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
-      }.failed
+        .failed
         .foreach { e =>
           logger.error(s"Error occurred updating cluster ${cluster.projectNameString} after stopping", e)
         }

@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -117,28 +118,30 @@ case class ImageAutoDetectionException(traceId: TraceId, image: ContainerImage)
 case class UpdateResult(hasUpdateSucceded: Boolean, shouldFollowup: Boolean, followupAction: UpdateTransition)
 
 sealed trait UpdateTransition
-case class StopStart(updateConfig: MachineConfig) extends UpdateTransition
-case class DeleteCreate(updateConfig: MachineConfig) extends UpdateTransition
+case class StopStartTransition(updateConfig: MachineConfig) extends UpdateTransition
+case class DeleteCreateTransition(updateConfig: MachineConfig) extends UpdateTransition
 case class Noop(updateConfig: Option[MachineConfig]) extends UpdateTransition
 
-class LeonardoService(protected val dataprocConfig: DataprocConfig,
-                      protected val welderDao: WelderDAO[IO],
-                      protected val clusterDefaultsConfig: ClusterDefaultsConfig,
-                      protected val proxyConfig: ProxyConfig,
-                      protected val swaggerConfig: SwaggerConfig,
-                      protected val autoFreezeConfig: AutoFreezeConfig,
-                      protected val petGoogleStorageDAO: String => GoogleStorageDAO,
-                      protected val dbRef: DbReference,
-                      protected val authProvider: LeoAuthProvider[IO],
-                      protected val serviceAccountProvider: ServiceAccountProvider[IO],
-                      protected val bucketHelper: BucketHelper,
-                      protected val clusterHelper: ClusterHelper,
-                      protected val dockerDAO: DockerDAO[IO],
-                      protected val publisher: LeoGooglePublisher[IO])(implicit val executionContext: ExecutionContext,
-                                                                       implicit override val system: ActorSystem,
-                                                                       log: Logger[IO],
-                                                                       cs: ContextShift[IO],
-                                                                       metrics: NewRelicMetrics[IO])
+class LeonardoService(
+  protected val dataprocConfig: DataprocConfig,
+  protected val welderDao: WelderDAO[IO],
+  protected val clusterDefaultsConfig: ClusterDefaultsConfig,
+  protected val proxyConfig: ProxyConfig,
+  protected val swaggerConfig: SwaggerConfig,
+  protected val autoFreezeConfig: AutoFreezeConfig,
+  protected val petGoogleStorageDAO: String => GoogleStorageDAO,
+  protected val dbRef: DbReference,
+  protected val authProvider: LeoAuthProvider[IO],
+  protected val serviceAccountProvider: ServiceAccountProvider[IO],
+  protected val bucketHelper: BucketHelper,
+  protected val clusterHelper: ClusterHelper,
+  protected val dockerDAO: DockerDAO[IO],
+  protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
+)(implicit val executionContext: ExecutionContext,
+  implicit override val system: ActorSystem,
+  log: Logger[IO],
+  cs: ContextShift[IO],
+  metrics: NewRelicMetrics[IO])
     extends LazyLogging
     with Retry {
 
@@ -279,7 +282,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     dbRef.inTransactionIO { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
     } flatMap {
-      case None          => { logger.info("error in internalGetActiveClusterDetails"); IO.raiseError(ClusterNotFoundException(googleProject, clusterName)) }
+      case None => {
+        logger.info("error in internalGetActiveClusterDetails");
+        IO.raiseError(ClusterNotFoundException(googleProject, clusterName))
+      }
       case Some(cluster) => { logger.info("success in internalGetActiveClusterDetails"); IO.pure(cluster) }
     }
   }
@@ -356,22 +362,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
   }
 
-  private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Int] = {
+  private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] =
     transition match {
-      case StopStart(machineConfig) =>
-        for {
-          _ <- internalStopCluster(existingCluster)
-          dbio <- dbRef.inTransactionIO {
-            _.clusterQuery.updateClusterForStopTransition(existingCluster.id, machineConfig)
-          }
-        } yield dbio
+      case StopStartTransition(machineConfig) =>
+        publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
 
       //we need to record the desired update and set a flag on the cluster so the monitor picks it up
       //TODO: we currently do not support this
-      case DeleteCreate(_) => IO.pure(0)
-      case Noop(_) => IO.pure(0)
+      case DeleteCreateTransition(_) => IO.unit
+      case Noop(_)         => IO.unit
     }
-  }
 
   private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] =
     (existing, updated) match {
@@ -478,11 +478,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(updatedMasterMachineType) =>
         logger.info("in stop and update case of maybeChangeMasterMachineType")
         //        Future.failed(ClusterMachineTypeCannotBeChangedException(existingCluster))
-        val updatedConfig = machineConfigOpt.map(config => config.copy(masterMachineType = Option(updatedMasterMachineType)))
+        val updatedConfig =
+          machineConfigOpt.map(config => config.copy(masterMachineType = Option(updatedMasterMachineType)))
 
         if (stopAndUpdate) {
           logger.info("detected stop and update transition specified in request of maybeChangeMasterMachineType")
-          val transition = if (updatedConfig.isEmpty) Noop(None) else StopStart(updatedConfig.get)
+          val transition = if (updatedConfig.isEmpty) Noop(None) else StopStartTransition(updatedConfig.get)
           logger.info(s"transition in maybeChangeMasterMachineType ${transition}")
           IO.pure(UpdateResult(false, true, transition))
         } else {

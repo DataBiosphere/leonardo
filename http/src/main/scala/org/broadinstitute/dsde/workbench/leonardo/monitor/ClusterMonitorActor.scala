@@ -26,12 +26,16 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
+  ClusterDeleted,
+  ClusterSupervisorMessage,
+  RemoveFromList
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
+import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -385,39 +389,52 @@ class ClusterMonitorActor(
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
-  private def handleStoppedClusterUpdate(cluster: Cluster, googleInstances: Set[Instance]): Future[ClusterMonitorMessage] = {
+  private def handleStoppedClusterUpdate(cluster: Cluster,
+                                         googleInstances: Set[Instance]): Future[ClusterMonitorMessage] = {
     logger.info(s"Updating cluster ${cluster.projectNameString} after stopping...")
 
-    val resolution = dbRef.inTransaction {
-      dataAccess => dataAccess.clusterQuery.getClusterById(cluster.id)
-    }.flatMap {
-      case Some(resolvedCluster) if resolvedCluster.status == ClusterStatus.Stopped && !cluster.updatedMachineConfig.masterMachineType.isEmpty => {
-        // do update
-        logger.info("In update of UpdateClusterAfterStop")
-        for {
-          // perform gddao and db updates for new resources
-          _ <- clusterHelper.updateMasterMachineType(cluster, MachineType(cluster.updatedMachineConfig.masterMachineType.get)).unsafeToFuture()
-          // start cluster
-          _ <- clusterHelper.internalStartCluster(cluster).unsafeToFuture()
-          // clean up temporary state used for transition
-          _ <- dbRef.inTransaction {
-            dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(cluster.id)
-          }
-
-        } yield NotReadyCluster(cluster, cluster.status, googleInstances)
+    val resolution = dbRef
+      .inTransaction { dataAccess =>
+        dataAccess.clusterQuery.getClusterById(cluster.id)
       }
-      case Some(resolvedCluster) => {
-        logger.warn(s"Unable to update cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after stopping.")
-        //if we fail, we want to unmark the cluster for update in the db
-        dbRef.inTransaction {
-          dataAccess => dataAccess.clusterQuery.updateClusterForFinishedTransition(cluster.id)
-        }.void
+      .flatMap {
+        case Some(resolvedCluster)
+            if resolvedCluster.status == ClusterStatus.Stopped && !cluster.updatedMachineConfig.masterMachineType.isEmpty => {
+          // do update
+          logger.info("In update of UpdateClusterAfterStop")
+          for {
+            // perform gddao and db updates for new resources
+            _ <- clusterHelper
+              .updateMasterMachineType(cluster, MachineType(cluster.updatedMachineConfig.masterMachineType.get))
+              .unsafeToFuture()
+            // start cluster
+            _ <- clusterHelper.internalStartCluster(cluster).unsafeToFuture()
+            // clean up temporary state used for transition
+            _ <- dbRef.inTransaction { dataAccess =>
+              dataAccess.clusterQuery.updateClusterForFinishedTransition(cluster.id)
+            }
 
-        Future.failed(new WorkbenchException(s"For Cluster ${cluster.projectNameString}, leonardo service did not set the state up correctly for the async portion of a stop and update. Cluster status (should be Stopped): ${resolvedCluster.status}." +
-          s"Machine config provided in DB temp storage for update (masterMachineType should be present): ${cluster.updatedMachineConfig}"))
+          } yield NotReadyCluster(cluster, cluster.status, googleInstances)
+        }
+        case Some(resolvedCluster) => {
+          logger.warn(
+            s"Unable to update cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after stopping."
+          )
+          //if we fail, we want to unmark the cluster for update in the db
+          dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.updateClusterForFinishedTransition(cluster.id)
+          }.void
+
+          Future.failed(
+            new WorkbenchException(
+              s"For Cluster ${cluster.projectNameString}, leonardo service did not set the state up correctly for the async portion of a stop and update. Cluster status (should be Stopped): ${resolvedCluster.status}." +
+                s"Machine config provided in DB temp storage for update (masterMachineType should be present): ${cluster.updatedMachineConfig}"
+            )
+          )
+        }
+        case None =>
+          Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
       }
-      case None => Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
-    }
 
     resolution.failed
       .foreach { e =>

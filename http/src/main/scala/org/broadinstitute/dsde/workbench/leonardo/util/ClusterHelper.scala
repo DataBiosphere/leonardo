@@ -22,7 +22,13 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
-import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{ClusterOutOfDate, DeployWelder, DisableDelocalization, NoAction, UpdateWelder}
+import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{
+  ClusterOutOfDate,
+  DeployWelder,
+  DisableDelocalization,
+  NoAction,
+  UpdateWelder
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig._
@@ -187,14 +193,14 @@ class ClusterHelper(
       else IO.unit
 
       // Now stop each instance individually
-      _ <- log.info(s"ABout to stop instances for cluster ${cluster.projectNameString}:\n\toverall instances present: ${cluster.instances.toList}\n\tnon-preemptible instances: ${cluster.nonPreemptibleInstances.toList}\n\t  current machine config: ${cluster.machineConfig}")
+      _ <- log.info(
+        s"ABout to stop instances for cluster ${cluster.projectNameString}:\n\toverall instances present: ${cluster.instances.toList}\n\tnon-preemptible instances: ${cluster.nonPreemptibleInstances.toList}\n\t  current machine config: ${cluster.machineConfig}"
+      )
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
         IO.fromFuture(IO(googleComputeDAO.stopInstance(instance.key)))
       }
       _ <- log.info(s"instances after stop finalization for cluster ${cluster.projectNameString}: ${cluster.instances}")
     } yield ()
-
-
 
   private def startCluster(cluster: Cluster, welderAction: WelderAction): IO[Unit] =
     for {
@@ -212,7 +218,9 @@ class ClusterHelper(
       else IO.unit
 
       // Start each instance individually
-      _ <- log.info(s"ABout to start instances for cluster ${cluster.projectNameString}:\n\toverall instances present: ${cluster.instances.toList}\n\tnon-preemptible instances: ${cluster.nonPreemptibleInstances.toList}\n\t  current machine config: ${cluster.machineConfig}")
+      _ <- log.info(
+        s"ABout to start instances for cluster ${cluster.projectNameString}:\n\toverall instances present: ${cluster.instances.toList}\n\tnon-preemptible instances: ${cluster.nonPreemptibleInstances.toList}\n\t  current machine config: ${cluster.machineConfig}"
+      )
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
         // Install a startup script on the master noxde so Jupyter starts back up again once the instance is restarted
         IO.fromFuture(IO(instance.dataprocRole.traverse {
@@ -288,7 +296,7 @@ class ClusterHelper(
         _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, now), now)
       }
       newCluster = cluster.copy(welderEnabled = true,
-        clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
+                                clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newCluster
 
   def resizeCluster(cluster: Cluster, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =
@@ -305,7 +313,7 @@ class ClusterHelper(
     } yield ()
 
   //updates ref in db and gdDAO
-  def updateMasterMachineType(existingCluster: Cluster, machineType: MachineType): IO[Unit] = {
+  def updateMasterMachineType(existingCluster: Cluster, machineType: MachineType): IO[Unit] =
     for {
       _ <- log.info(
         s"New machine config present. Changing machine type to ${machineType} for cluster ${existingCluster.projectNameString}..."
@@ -318,7 +326,6 @@ class ClusterHelper(
         _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(machineType.value), now)
       }
     } yield ()
-  }
 
   //updates machine type in gdDAO
   private def setMasterMachineTypeInGoogle(cluster: Cluster, machineType: MachineType): IO[Unit] =
