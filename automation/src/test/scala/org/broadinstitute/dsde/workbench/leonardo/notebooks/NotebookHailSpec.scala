@@ -15,7 +15,7 @@ import org.scalatest.DoNotDiscover
 class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
-  val expectedHailVersion = "0.2.27"
+  val expectedHailVersion = "0.2.30-2ae07d872f43"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
 
