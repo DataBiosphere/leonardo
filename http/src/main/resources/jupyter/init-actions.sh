@@ -116,7 +116,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export NOTEBOOKS_DIR=$(notebooksDir)
 
     # Determine memory limit for Jupyter/RStudio containers
-    export MEM_LIMIT="$(awk '/MemAvailable/ {print $2}' /proc/meminfo)k"
+    # Take the current OS MemAvailable and subtract 600M to account for running welder, proxy containers
+    export MEM_LIMIT="$(awk '/MemAvailable/ {print $2-614400}' /proc/meminfo)k"
     log "Container memory limit is ${MEM_LIMIT}"
 
     SERVER_CRT=$(jupyterServerCrt)
