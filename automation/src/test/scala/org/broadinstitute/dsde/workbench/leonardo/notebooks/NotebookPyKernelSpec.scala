@@ -147,12 +147,12 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
             //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
             notebookPage.executeCell(
               "import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)"
-            ) shouldBe Some("1.9.0")
+            ) shouldBe Some("1.23.1")
             notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some(
-              "1.7.0"
+              "1.10.0"
             )
             notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some(
-              "1.13.0"
+              "1.23.0"
             )
           }
         }
@@ -160,33 +160,29 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     }
 
     // https://github.com/DataBiosphere/leonardo/issues/797
-    Seq(Python3).foreach { kernel =>
-      s"should be able to import ggplot for ${kernel.toString}" in { clusterFixture =>
-        withWebDriver { implicit driver =>
-          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            notebookPage.executeCell("from ggplot import *").get should not include ("ImportError")
-            notebookPage.executeCell("ggplot") shouldBe Some("ggplot.ggplot.ggplot")
-          }
+    s"should be able to import ggplot for ${Python3.toString}" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+          notebookPage.executeCell("from ggplot import *").get should not include ("ImportError")
+          notebookPage.executeCell("ggplot") shouldBe Some("ggplot.ggplot.ggplot")
         }
       }
     }
 
-    Seq(Python3).foreach { kernel =>
-      s"should have the workspace-related environment variables set in ${kernel.toString} kernel" in { clusterFixture =>
-        withWebDriver { implicit driver =>
-          withNewNotebookInSubfolder(clusterFixture.cluster, Python3) { notebookPage =>
-            notebookPage.executeCell("import os")
-            notebookPage
-              .executeCell("os.getenv('GOOGLE_PROJECT')")
-              .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-            notebookPage
-              .executeCell("os.getenv('WORKSPACE_NAMESPACE')")
-              .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-            notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
-            notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
-            // workspace bucket is not wired up in tests
-            notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
-          }
+    s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebookInSubfolder(clusterFixture.cluster, Python3) { notebookPage =>
+          notebookPage.executeCell("import os")
+          notebookPage
+            .executeCell("os.getenv('GOOGLE_PROJECT')")
+            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+          notebookPage
+            .executeCell("os.getenv('WORKSPACE_NAMESPACE')")
+            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+          notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
+          notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
+          // workspace bucket is not wired up in tests
+          notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
         }
       }
     }
