@@ -76,19 +76,25 @@ class ProxyRoutesSpec
         status shouldEqual StatusCodes.OK
         validateCors()
       }
-      val newName = "aDifferentClusterName"
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
-                                              Future.successful(Some(internalId)))
-      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.NotFound
-        validateCors()
-      }
       Get(s"/$prefix/").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe false
       }
       Get(s"/api/$prefix").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe false
+      }
+    }
+
+    it should s"404 for non-existent clusters ($prefix)" in {
+      val newName = "aDifferentClusterName"
+      // should 404 since the internal id cannot be looked up
+      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.NotFound
+      }
+      // should still 404 even if a cache entry is present
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
+        Future.successful(Some(internalId)))
+      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.NotFound
       }
     }
 
