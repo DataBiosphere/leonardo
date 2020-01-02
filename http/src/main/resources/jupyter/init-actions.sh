@@ -115,6 +115,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export WELDER_ENABLED=$(welderEnabled)
     export NOTEBOOKS_DIR=$(notebooksDir)
 
+    # Determine memory limit for Jupyter/RStudio containers
+    export MEM_LIMIT="$(awk '/MemAvailable/ {print $2}' /proc/meminfo)k"
+    log "Container memory limit is ${MEM_LIMIT}"
+
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
     ROOT_CA=$(rootCaPem)

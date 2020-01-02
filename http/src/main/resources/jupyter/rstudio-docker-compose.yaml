@@ -1,3 +1,7 @@
+# Note: we need to stay on docker-compose version 2 because version 3 doesn't support
+# configuring memory options in container mode. See discussion in:
+# https://docs.docker.com/compose/compose-file/#resources
+# https://github.com/docker/compose/issues/4513
 version: '2'
 services:
   rstudio:
@@ -13,10 +17,11 @@ services:
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
-      - rstudio-working:/home/rstudio
+      - /work:/home/rstudio
     env_file:
       - /etc/google_application_credentials.env
-
-volumes:
-  rstudio-working:
+    # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
+    mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
+    mem_reservation: 256m     # soft limit on memory consumpution by the container
+    memswap_limit: -1         # no constraints on swap usage - use as much as allowed by the host
   
