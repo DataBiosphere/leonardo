@@ -688,13 +688,15 @@ class ClusterMonitorActor(
       _ <- metrics.recordResponseTime(timerName, duration)
     } yield ()
 
-  private def findToolImageType(images: Set[ClusterImage]): String = {
+  private def findToolImageInfo(images: Set[ClusterImage]): String = {
     val terraJupyterImage = imageConfig.jupyterImageRegex.r
     val anvilRStudioImage = imageConfig.rstudioImageRegex.r
+    val dockerhubImageRegex = imageConfig.dockerhubImageRegex.r
     images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
       case Some(toolImage) => toolImage.imageUrl match {
-        case terraJupyterImage(imageType, hash) => s"${imageType}/${hash}"
-        case anvilRStudioImage(imageType, hash) => s"${imageType}/${hash}"
+        case terraJupyterImage(imageType, hash) => s"GCR/${imageType}/${hash}"
+        case anvilRStudioImage(imageType, hash) => s"GCR/${imageType}/${hash}"
+        case dockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
         case _ => "custom_image"
       }
       case None => "unknown"
@@ -704,8 +706,8 @@ class ClusterMonitorActor(
   private def recordClusterCreationMetrics(createdDate: Instant, clusterImages: Set[ClusterImage]): IO[Unit] =
     for {
       endTime <- IO(Instant.now())
-      toolImageType = findToolImageType(clusterImages)
-      baseName = s"ClusterMonitor/ClusterCreation/${toolImageType}"
+      toolImageInfo = findToolImageInfo(clusterImages)
+      baseName = s"ClusterMonitor/ClusterCreation/${toolImageInfo}"
       counterName = s"${baseName}/count"
       timerName = s"${baseName}/timer"
       duration = Duration(ChronoUnit.MILLIS.between(createdDate, endTime), MILLISECONDS)

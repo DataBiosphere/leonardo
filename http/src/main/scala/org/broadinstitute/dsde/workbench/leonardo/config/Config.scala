@@ -68,6 +68,7 @@ object Config {
       config.getString("jupyterImage"),
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),
+      config.getString("dockerhubImageRegex")
     )
   }
 

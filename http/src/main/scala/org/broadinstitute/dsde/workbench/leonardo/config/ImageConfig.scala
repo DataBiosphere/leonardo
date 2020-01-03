@@ -4,6 +4,7 @@ final case class ImageConfig(
   welderDockerImage: String,
   jupyterImage: String,
   jupyterImageRegex: String,
-  rstudioImageRegex: String
+  rstudioImageRegex: String,
+  dockerhubImageRegex: String
 )
 
