@@ -116,7 +116,7 @@ class ProxyService(
         logger.error(
           s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.value}"
         )
-        Future.failed[ClusterInternalId](ProxyException(googleProject, clusterName))
+        Future.failed[ClusterInternalId](ClusterNotFoundException(googleProject, clusterName))
     }
 
   /*
