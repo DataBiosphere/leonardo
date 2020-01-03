@@ -362,7 +362,8 @@ final case class ClusterTemplateValues private (googleProject: String,
                                                 googleClientId: String,
                                                 welderEnabled: String,
                                                 notebooksDir: String,
-                                                customEnvVarsConfigUri: String) {
+                                                customEnvVarsConfigUri: String,
+                                                memLimit: String) {
 
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
@@ -379,7 +380,8 @@ object ClusterTemplateValues {
             dataprocConfig: DataprocConfig,
             proxyConfig: ProxyConfig,
             clusterFilesConfig: ClusterFilesConfig,
-            clusterResourcesConfig: ClusterResourcesConfig): ClusterTemplateValues =
+            clusterResourcesConfig: ClusterResourcesConfig,
+            clusterResourceConstraints: Option[ClusterResourceConstraints]): ClusterTemplateValues =
     ClusterTemplateValues(
       cluster.googleProject.value,
       cluster.clusterName.value,
@@ -441,7 +443,8 @@ object ClusterTemplateValues {
       else dataprocConfig.welderDisabledNotebooksDir,
       initBucketName
         .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri)
-        .getOrElse("")
+        .getOrElse(""),
+      clusterResourceConstraints.map(_.memoryLimitMb.toString + "m").getOrElse("-1")
     )
 }
 
@@ -530,6 +533,8 @@ object WelderAction extends Enum[WelderAction] {
   case object ClusterOutOfDate extends WelderAction
   case object DisableDelocalization extends WelderAction
 }
+
+final case class ClusterResourceConstraints(memoryLimitMb: Int)
 
 object LeonardoJsonSupport extends DefaultJsonProtocol {
   implicit object URLFormat extends JsonFormat[URL] {

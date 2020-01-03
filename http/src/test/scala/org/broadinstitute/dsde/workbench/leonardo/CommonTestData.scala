@@ -137,6 +137,8 @@ trait CommonTestData { this: ScalaFutures =>
   val welderImage = ClusterImage(Welder, "welder/welder:latest", Instant.now)
   val customDataprocImage = ClusterImage(CustomDataProc, "custom_dataproc", Instant.now)
 
+  val clusterResourceConstraints = ClusterResourceConstraints(3584)
+
   def makeDataprocInfo(index: Int): DataprocInfo =
     DataprocInfo(
       UUID.randomUUID(),

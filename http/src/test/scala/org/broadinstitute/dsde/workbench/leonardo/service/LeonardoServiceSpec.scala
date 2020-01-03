@@ -684,7 +684,8 @@ class LeonardoServiceSpec
       dataprocConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig
+      clusterResourcesConfig,
+      Some(clusterResourceConstraints)
     )
     val replacements: Map[String, String] = clusterInit.toMap
 
@@ -714,7 +715,8 @@ class LeonardoServiceSpec
           |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
-          |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"""".stripMargin
+          |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"
+          |"${clusterResourceConstraints.memoryLimitMb}m"""".stripMargin
 
     new String(result, StandardCharsets.UTF_8) shouldEqual expected
   }

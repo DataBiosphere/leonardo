@@ -114,11 +114,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
     export WELDER_ENABLED=$(welderEnabled)
     export NOTEBOOKS_DIR=$(notebooksDir)
-
-    # Determine memory limit for Jupyter/RStudio containers
-    # Take the current OS MemAvailable and subtract 600M to account for running welder, proxy containers
-    export MEM_LIMIT="$(awk '/MemAvailable/ {print $2-614400}' /proc/meminfo)k"
-    log "Container memory limit is ${MEM_LIMIT}"
+    export MEM_LIMIT=$(memLimit)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)

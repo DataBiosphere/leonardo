@@ -9,6 +9,7 @@ import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import cats.effect.{Blocker, IO}
 import cats.mtl.ApplicativeAsk
+import com.google.api.services.compute.model
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
@@ -136,6 +137,12 @@ class ClusterMonitorSpec
     when {
       dao.getProjectNumber(any[GoogleProject])
     } thenReturn Future.successful(Some((new Random).nextLong()))
+    when {
+      dao.getZones(mockitoEq(masterInstance.key.project), any[String])
+    } thenReturn Future.successful(List(ZoneUri("us-central1-a")))
+    when {
+      dao.getMachineType(mockitoEq(masterInstance.key.project), any[ZoneUri], any[MachineType])
+    } thenReturn Future.successful(Some(new model.MachineType().setMemoryMb(7680)))
     dao
   }
 
