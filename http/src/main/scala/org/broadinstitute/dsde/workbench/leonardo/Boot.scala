@@ -75,6 +75,7 @@ object Boot extends IOApp with LazyLogging {
 
       val clusterHelper = new ClusterHelper(appDependencies.dbReference,
                                             dataprocConfig,
+                                            imageConfig,
                                             googleGroupsConfig,
                                             proxyConfig,
                                             clusterResourcesConfig,
@@ -89,6 +90,7 @@ object Boot extends IOApp with LazyLogging {
                                             appDependencies.blocker)
 
       val leonardoService = new LeonardoService(dataprocConfig,
+                                                imageConfig,
                                                 appDependencies.welderDAO,
                                                 clusterDefaultsConfig,
                                                 proxyConfig,
@@ -110,6 +112,7 @@ object Boot extends IOApp with LazyLogging {
           ClusterMonitorSupervisor.props(
             monitorConfig,
             dataprocConfig,
+            imageConfig,
             clusterBucketConfig,
             appDependencies.googleDataprocDAO,
             appDependencies.googleComputeDAO,

@@ -41,7 +41,6 @@ object Config {
       config.getString("dataprocDefaultRegion"),
       config.getAs[String]("dataprocZone"),
       GoogleProject(config.getString("leoGoogleProject")),
-      config.getString("jupyterImage"),
       config.getString("clusterUrlBase"),
       config.getString("jupyterServerName"),
       config.getString("rstudioServerName"),
@@ -49,7 +48,6 @@ object Config {
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
       config.getStringList("defaultScopes").asScala.toSet,
-      config.getString("welderDockerImage"),
       config.getAs[String]("vpcNetwork"),
       config.getAs[String]("vpcSubnet"),
       config.getAs[String]("projectVPCNetworkLabel"),
@@ -61,6 +59,15 @@ object Config {
       config.getAs[String]("deployWelderLabel"),
       config.getAs[String]("updateWelderLabel"),
       config.getAs[String]("deployWelderCutoffDate")
+    )
+  }
+
+  implicit val imageConfigReader: ValueReader[ImageConfig] = ValueReader.relative { config =>
+    ImageConfig(
+      config.getString("welderDockerImage"),
+      config.getString("jupyterImage"),
+      config.getString("jupyterImageRegex"),
+      config.getString("rstudioImageRegex"),
     )
   }
 
@@ -213,6 +220,7 @@ object Config {
 
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
+  val imageConfig = config.as[ImageConfig]("image")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")

@@ -17,7 +17,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -26,16 +26,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
-  ClusterDeleted,
-  ClusterSupervisorMessage,
-  RemoveFromList
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -55,6 +51,7 @@ object ClusterMonitorActor {
     clusterId: Long,
     monitorConfig: MonitorConfig,
     dataprocConfig: DataprocConfig,
+    imageConfig: ImageConfig,
     clusterBucketConfig: ClusterBucketConfig,
     gdDAO: GoogleDataprocDAO,
     googleComputeDAO: GoogleComputeDAO,
@@ -70,6 +67,7 @@ object ClusterMonitorActor {
       new ClusterMonitorActor(clusterId,
                               monitorConfig,
                               dataprocConfig,
+                              imageConfig,
                               clusterBucketConfig,
                               gdDAO,
                               googleComputeDAO,
@@ -112,6 +110,7 @@ class ClusterMonitorActor(
   val clusterId: Long,
   val monitorConfig: MonitorConfig,
   val dataprocConfig: DataprocConfig,
+  val imageConfig: ImageConfig,
   val clusterBucketConfig: ClusterBucketConfig,
   val gdDAO: GoogleDataprocDAO,
   val googleComputeDAO: GoogleComputeDAO,
@@ -690,8 +689,8 @@ class ClusterMonitorActor(
     } yield ()
 
   private def findToolImageType(images: Set[ClusterImage]): String = {
-    val terraJupyterImage = dataprocConfig.jupyterImageRegex.r
-    val anvilRStudioImage = dataprocConfig.rstudioImageRegex.r
+    val terraJupyterImage = imageConfig.jupyterImageRegex.r
+    val anvilRStudioImage = imageConfig.rstudioImageRegex.r
     images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
       case Some(toolImage) => toolImage.imageUrl match {
         case terraJupyterImage(imageType, hash) => s"${imageType}/${hash}"

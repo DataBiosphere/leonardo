@@ -44,6 +44,7 @@ final case object ImageProjectNotFoundException
 class ClusterHelper(
   dbRef: DbReference,
   dataprocConfig: DataprocConfig,
+  imageConfig: ImageConfig,
   googleGroupsConfig: GoogleGroupsConfig,
   proxyConfig: ProxyConfig,
   clusterResourcesConfig: ClusterResourcesConfig,
@@ -120,7 +121,7 @@ class ClusterHelper(
 
           // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
           // we will use the new custom dataproc image
-          dataprocImage = if (cluster.clusterImages.exists(_.imageUrl == dataprocConfig.jupyterImage))
+          dataprocImage = if (cluster.clusterImages.exists(_.imageUrl == imageConfig.jupyterImage))
             dataprocConfig.legacyCustomDataprocImage
           else dataprocConfig.customDataprocImage
 
