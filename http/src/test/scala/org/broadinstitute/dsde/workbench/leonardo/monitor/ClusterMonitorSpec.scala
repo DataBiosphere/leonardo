@@ -158,6 +158,7 @@ class ClusterMonitorSpec
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
@@ -174,6 +175,7 @@ class ClusterMonitorSpec
       TestClusterSupervisorActor.props(
         monitorConfig,
         dataprocConfig,
+        imageConfig,
         clusterBucketConfig,
         gdDAO,
         computeDAO,

@@ -74,6 +74,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
   val clusterHelper =
     new ClusterHelper(DbSingleton.ref,
                       dataprocConfig,
+                      imageConfig,
                       googleGroupsConfig,
                       proxyConfig,
                       clusterResourcesConfig,
@@ -87,6 +88,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                       mockGoogleProjectDAO,
                       blocker)
   val leonardoService = new LeonardoService(dataprocConfig,
+                                            imageConfig,
                                             MockWelderDAO,
                                             clusterDefaultsConfig,
                                             proxyConfig,

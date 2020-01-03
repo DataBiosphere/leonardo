@@ -82,6 +82,7 @@ class AuthProviderSpec
   val clusterHelper =
     new ClusterHelper(DbSingleton.ref,
                       dataprocConfig,
+                      imageConfig,
                       googleGroupsConfig,
                       proxyConfig,
                       clusterResourcesConfig,
@@ -117,6 +118,7 @@ class AuthProviderSpec
       new MockGoogleStorageDAO
     }
     new LeonardoService(dataprocConfig,
+                        imageConfig,
                         MockWelderDAO,
                         clusterDefaultsConfig,
                         proxyConfig,
