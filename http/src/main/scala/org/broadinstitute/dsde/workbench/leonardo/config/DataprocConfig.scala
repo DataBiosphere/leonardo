@@ -8,6 +8,8 @@ final case class DataprocConfig(
   dataprocZone: Option[String],
   leoGoogleProject: GoogleProject,
   jupyterImage: String,
+  jupyterImageRegex: String,
+  rstudioImageRegex: String,
   clusterUrlBase: String,
   jupyterServerName: String,
   rstudioServerName: String,

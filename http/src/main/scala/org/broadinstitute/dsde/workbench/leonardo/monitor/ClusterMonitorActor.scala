@@ -249,7 +249,7 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp, now) }
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Running).unsafeToFuture()
-      _ <- recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.clusterImages).unsafeToFuture()
+      _ <- if (cluster.status == ClusterStatus.Creating) recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.clusterImages).unsafeToFuture() else Future.unit
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -690,12 +690,12 @@ class ClusterMonitorActor(
     } yield ()
 
   private def findToolImageType(images: Set[ClusterImage]): String = {
-    val terraJupyterImage = "us.gcr.io/broad-dsp-gcr-public/([a-z0-9-_]+):(.*)".r
-    val anvilRStudioImage = "us.gcr.io/anvil-gcr-public/([a-z0-9-_]+):(.*)".r
+    val terraJupyterImage = dataprocConfig.jupyterImageRegex.r
+    val anvilRStudioImage = dataprocConfig.rstudioImageRegex.r
     images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
       case Some(toolImage) => toolImage.imageUrl match {
-        case terraJupyterImage(imageType, _) => imageType
-        case anvilRStudioImage(imageType, _) => imageType
+        case terraJupyterImage(imageType, hash) => s"${imageType}/${hash}"
+        case anvilRStudioImage(imageType, hash) => s"${imageType}/${hash}"
         case _ => "custom_image"
       }
       case None => "unknown"
