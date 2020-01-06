@@ -66,7 +66,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
                       logger.debug(s"Cluster ${cluster.projectNameString} is active in Google")
                       None
                     case false =>
-                      logger.debug(s"Cluster ${cluster.projectNameString} is a zombie!")
+                      logger.info(s"Cluster ${cluster.projectNameString} is a zombie!")
                       Some(cluster)
                   }
                 }
@@ -108,8 +108,9 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
 
     val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).getSeconds
+
     //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
-    val isWithinHangTolerance = cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation > config.creationHangTolerance.toSeconds
+    val isWithinHangTolerance = cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation < config.creationHangTolerance.toSeconds
 
     gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
       (ClusterStatus.activeStatuses contains clusterStatus) || isWithinHangTolerance
