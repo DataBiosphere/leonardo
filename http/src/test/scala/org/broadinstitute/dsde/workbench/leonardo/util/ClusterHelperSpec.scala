@@ -53,6 +53,7 @@ class ClusterHelperSpec
 
   val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                         dataprocConfig,
+                                        imageConfig,
                                         googleGroupsConfig,
                                         proxyConfig,
                                         clusterResourcesConfig,
@@ -135,6 +136,7 @@ class ClusterHelperSpec
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO
     val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
                                                  dataprocConfig,
+                                                 imageConfig,
                                                  googleGroupsConfig,
                                                  proxyConfig,
                                                  clusterResourcesConfig,
@@ -164,6 +166,7 @@ class ClusterHelperSpec
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO(429)
     val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
                                                  dataprocConfig,
+                                                 imageConfig,
                                                  googleGroupsConfig,
                                                  proxyConfig,
                                                  clusterResourcesConfig,
@@ -194,6 +197,7 @@ class ClusterHelperSpec
       dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
     val clusterHelperWithLabels = new ClusterHelper(DbSingleton.ref,
                                                     configWithProjectLabels,
+                                                    imageConfig,
                                                     googleGroupsConfig,
                                                     proxyConfig,
                                                     clusterResourcesConfig,
@@ -218,6 +222,7 @@ class ClusterHelperSpec
     val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
     val clusterHelperWithNoSubnet = new ClusterHelper(DbSingleton.ref,
                                                       configWithNoSubnet,
+                                                      imageConfig,
                                                       googleGroupsConfig,
                                                       proxyConfig,
                                                       clusterResourcesConfig,
@@ -238,6 +243,7 @@ class ClusterHelperSpec
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
     val erroredClusterHelper = new ClusterHelper(DbSingleton.ref,
                                                  dataprocConfig,
+                                                 imageConfig,
                                                  googleGroupsConfig,
                                                  proxyConfig,
                                                  clusterResourcesConfig,

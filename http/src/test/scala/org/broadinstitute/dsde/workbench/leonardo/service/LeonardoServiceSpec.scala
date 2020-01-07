@@ -104,6 +104,7 @@ class LeonardoServiceSpec
     bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
     clusterHelper = new ClusterHelper(DbSingleton.ref,
                                       dataprocConfig,
+                                      imageConfig,
                                       googleGroupsConfig,
                                       proxyConfig,
                                       clusterResourcesConfig,
@@ -118,6 +119,7 @@ class LeonardoServiceSpec
                                       blocker)
 
     leo = new LeonardoService(dataprocConfig,
+                              imageConfig,
                               MockWelderDAO,
                               clusterDefaultsConfig,
                               proxyConfig,
@@ -229,11 +231,11 @@ class LeonardoServiceSpec
 
     // cluster images should contain welder and Jupyter
     clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
-      dataprocConfig.jupyterImage
+      imageConfig.jupyterImage
     )
     clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
-      dataprocConfig.welderDockerImage
+      imageConfig.welderDockerImage
     )
   }
 
@@ -256,7 +258,7 @@ class LeonardoServiceSpec
 
     // cluster images should contain welder and Jupyter
     clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
-      dataprocConfig.jupyterImage
+      imageConfig.jupyterImage
     )
     clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(customWelderImage.imageUrl)
@@ -268,6 +270,7 @@ class LeonardoServiceSpec
     // create the cluster
     val clusterRequest = testClusterRequest.copy(toolDockerImage = Some(rstudioImage), enableWelder = Some(true))
     val leoForTest = new LeonardoService(dataprocConfig,
+                                         imageConfig,
                                          MockWelderDAO,
                                          clusterDefaultsConfig,
                                          proxyConfig,
@@ -290,7 +293,7 @@ class LeonardoServiceSpec
     clusterResponse.clusterImages.find(_.imageType == RStudio).map(_.imageUrl) shouldBe Some(rstudioImage.imageUrl)
     clusterResponse.clusterImages.find(_.imageType == Jupyter) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
-      dataprocConfig.welderDockerImage
+      imageConfig.welderDockerImage
     )
     clusterResponse.labels.get("tool") shouldBe Some("RStudio")
     clusterResponse.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name1/rstudio")
@@ -485,6 +488,7 @@ class LeonardoServiceSpec
       dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
     val clusterHelperWithLabels = new ClusterHelper(DbSingleton.ref,
                                                     configWithProjectLabels,
+                                                    imageConfig,
                                                     googleGroupsConfig,
                                                     proxyConfig,
                                                     clusterResourcesConfig,
@@ -509,6 +513,7 @@ class LeonardoServiceSpec
     val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
     val clusterHelperWithNoSubnet = new ClusterHelper(DbSingleton.ref,
                                                       configWithNoSubnet,
+                                                      imageConfig,
                                                       googleGroupsConfig,
                                                       proxyConfig,
                                                       clusterResourcesConfig,
@@ -531,6 +536,7 @@ class LeonardoServiceSpec
       new MockGoogleStorageDAO
     }
     val leoForTest = new LeonardoService(dataprocConfig,
+                                         imageConfig,
                                          MockWelderDAO,
                                          clusterDefaultsConfig,
                                          proxyConfig,
@@ -583,6 +589,7 @@ class LeonardoServiceSpec
       new MockGoogleStorageDAO
     }
     val leoForTest = new LeonardoService(dataprocConfig,
+                                         imageConfig,
                                          MockWelderDAO,
                                          clusterDefaultsConfig,
                                          proxyConfig,

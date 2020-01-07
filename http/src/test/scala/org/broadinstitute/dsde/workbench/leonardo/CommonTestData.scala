@@ -70,6 +70,7 @@ trait CommonTestData { this: ScalaFutures =>
   val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
+  val imageConfig = config.as[ImageConfig]("image")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")

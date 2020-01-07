@@ -17,7 +17,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -26,16 +26,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
-  ClusterDeleted,
-  ClusterSupervisorMessage,
-  RemoveFromList
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -55,6 +51,7 @@ object ClusterMonitorActor {
     clusterId: Long,
     monitorConfig: MonitorConfig,
     dataprocConfig: DataprocConfig,
+    imageConfig: ImageConfig,
     clusterBucketConfig: ClusterBucketConfig,
     gdDAO: GoogleDataprocDAO,
     googleComputeDAO: GoogleComputeDAO,
@@ -70,6 +67,7 @@ object ClusterMonitorActor {
       new ClusterMonitorActor(clusterId,
                               monitorConfig,
                               dataprocConfig,
+                              imageConfig,
                               clusterBucketConfig,
                               gdDAO,
                               googleComputeDAO,
@@ -112,6 +110,7 @@ class ClusterMonitorActor(
   val clusterId: Long,
   val monitorConfig: MonitorConfig,
   val dataprocConfig: DataprocConfig,
+  val imageConfig: ImageConfig,
   val clusterBucketConfig: ClusterBucketConfig,
   val gdDAO: GoogleDataprocDAO,
   val googleComputeDAO: GoogleComputeDAO,
@@ -248,7 +247,8 @@ class ClusterMonitorActor(
       now <- IO(Instant.now).unsafeToFuture()
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp, now) }
       // Record metrics in NewRelic
-      _ <- recordMetrics(cluster.status, ClusterStatus.Running).unsafeToFuture()
+      _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Running).unsafeToFuture()
+      _ <- if (cluster.status == ClusterStatus.Creating) recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.clusterImages).unsafeToFuture() else Future.unit
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -281,7 +281,7 @@ class ClusterMonitorActor(
       )
 
       // Record metrics in NewRelic
-      _ <- recordMetrics(cluster.status, ClusterStatus.Error).unsafeToFuture()
+      _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Error).unsafeToFuture()
 
       now <- IO(Instant.now).unsafeToFuture()
 
@@ -363,7 +363,7 @@ class ClusterMonitorActor(
         .unsafeToFuture()
 
       // Record metrics in NewRelic
-      _ <- recordMetrics(cluster.status, ClusterStatus.Deleted).unsafeToFuture()
+      _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Deleted).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
@@ -384,7 +384,7 @@ class ClusterMonitorActor(
       // reset the time at which the kernel was last found to be busy
       _ <- dbRef.inTransaction { _.clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
       // Record metrics in NewRelic
-      _ <- recordMetrics(cluster.status, ClusterStatus.Stopped).unsafeToFuture()
+      _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Stopped).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
@@ -677,13 +677,40 @@ class ClusterMonitorActor(
       )
     } yield cluster
 
-  private def recordMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] =
+  private def recordStatusTransitionMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] =
     for {
       endTime <- IO(System.currentTimeMillis)
       baseName = s"ClusterMonitor/${origStatus}->${finalStatus}"
       counterName = s"${baseName}/count"
       timerName = s"${baseName}/timer"
       duration = (endTime - startTime).millis
+      _ <- metrics.incrementCounter(counterName)
+      _ <- metrics.recordResponseTime(timerName, duration)
+    } yield ()
+
+  private def findToolImageInfo(images: Set[ClusterImage]): String = {
+    val terraJupyterImage = imageConfig.jupyterImageRegex.r
+    val anvilRStudioImage = imageConfig.rstudioImageRegex.r
+    val dockerhubImageRegex = imageConfig.dockerhubImageRegex.r
+    images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
+      case Some(toolImage) => toolImage.imageUrl match {
+        case terraJupyterImage(imageType, hash) => s"GCR/${imageType}/${hash}"
+        case anvilRStudioImage(imageType, hash) => s"GCR/${imageType}/${hash}"
+        case dockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
+        case _ => "custom_image"
+      }
+      case None => "unknown"
+    }
+  }
+
+  private def recordClusterCreationMetrics(createdDate: Instant, clusterImages: Set[ClusterImage]): IO[Unit] =
+    for {
+      endTime <- IO(Instant.now())
+      toolImageInfo = findToolImageInfo(clusterImages)
+      baseName = s"ClusterMonitor/ClusterCreation/${toolImageInfo}"
+      counterName = s"${baseName}/count"
+      timerName = s"${baseName}/timer"
+      duration = Duration(ChronoUnit.MILLIS.between(createdDate, endTime), MILLISECONDS)
       _ <- metrics.incrementCounter(counterName)
       _ <- metrics.recordResponseTime(timerName, duration)
     } yield ()

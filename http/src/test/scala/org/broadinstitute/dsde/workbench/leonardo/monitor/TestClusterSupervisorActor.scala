@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   AutoFreezeConfig,
   ClusterBucketConfig,
   DataprocConfig,
+  ImageConfig,
   MonitorConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
@@ -22,6 +23,7 @@ import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterp
 object TestClusterSupervisorActor {
   def props(monitorConfig: MonitorConfig,
             dataprocConfig: DataprocConfig,
+            imageConfig: ImageConfig,
             clusterBucketConfig: ClusterBucketConfig,
             gdDAO: GoogleDataprocDAO,
             googleComputeDAO: GoogleComputeDAO,
@@ -38,6 +40,7 @@ object TestClusterSupervisorActor {
     Props(
       new TestClusterSupervisorActor(monitorConfig,
                                      dataprocConfig,
+                                     imageConfig,
                                      clusterBucketConfig,
                                      gdDAO,
                                      googleComputeDAO,
@@ -61,6 +64,7 @@ object TearDown
  */
 class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  dataprocConfig: DataprocConfig,
+                                 imageConfig: ImageConfig,
                                  clusterBucketConfig: ClusterBucketConfig,
                                  gdDAO: GoogleDataprocDAO,
                                  googleComputeDAO: GoogleComputeDAO,
@@ -77,6 +81,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
     extends ClusterMonitorSupervisor(
       monitorConfig,
       dataprocConfig,
+      imageConfig,
       clusterBucketConfig,
       gdDAO,
       googleComputeDAO,

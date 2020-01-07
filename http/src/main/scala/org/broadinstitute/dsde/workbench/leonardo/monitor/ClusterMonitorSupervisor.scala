@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   AutoFreezeConfig,
   ClusterBucketConfig,
   DataprocConfig,
+  ImageConfig,
   MonitorConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
@@ -35,6 +36,7 @@ object ClusterMonitorSupervisor {
   def props(
     monitorConfig: MonitorConfig,
     dataprocConfig: DataprocConfig,
+    imageConfig: ImageConfig,
     clusterBucketConfig: ClusterBucketConfig,
     gdDAO: GoogleDataprocDAO,
     googleComputeDAO: GoogleComputeDAO,
@@ -53,6 +55,7 @@ object ClusterMonitorSupervisor {
     Props(
       new ClusterMonitorSupervisor(monitorConfig,
                                    dataprocConfig,
+                                   imageConfig,
                                    clusterBucketConfig,
                                    gdDAO,
                                    googleComputeDAO,
@@ -96,6 +99,7 @@ object ClusterMonitorSupervisor {
 class ClusterMonitorSupervisor(
   monitorConfig: MonitorConfig,
   dataprocConfig: DataprocConfig,
+  imageConfig: ImageConfig,
   clusterBucketConfig: ClusterBucketConfig,
   gdDAO: GoogleDataprocDAO,
   googleComputeDAO: GoogleComputeDAO,
@@ -213,6 +217,7 @@ class ClusterMonitorSupervisor(
         cluster.id,
         monitorConfig,
         dataprocConfig,
+        imageConfig,
         clusterBucketConfig,
         gdDAO,
         googleComputeDAO,

@@ -72,6 +72,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
@@ -90,6 +91,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        imageConfig,
         clusterBucketConfig,
         gdDAO,
         computeDAO,
@@ -147,6 +149,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
@@ -165,6 +168,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        imageConfig,
         clusterBucketConfig,
         gdDAO,
         computeDAO,
@@ -216,6 +220,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
@@ -234,6 +239,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        imageConfig,
         clusterBucketConfig,
         gdDAO,
         computeDAO,
@@ -287,6 +293,7 @@ class ClusterMonitorSupervisorSpec
 
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
+                                          imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
                                           clusterResourcesConfig,
@@ -306,6 +313,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        imageConfig,
         clusterBucketConfig,
         gdDAO,
         computeDAO,

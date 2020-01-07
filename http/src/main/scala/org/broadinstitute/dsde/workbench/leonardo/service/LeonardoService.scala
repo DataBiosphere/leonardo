@@ -118,6 +118,7 @@ case class ImageAutoDetectionException(traceId: TraceId, image: ContainerImage)
                          StatusCodes.Conflict)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
+                      protected val imageConfig: ImageConfig,
                       protected val welderDao: WelderDAO[IO],
                       protected val clusterDefaultsConfig: ClusterDefaultsConfig,
                       protected val proxyConfig: ProxyConfig,
@@ -822,13 +823,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // - else if a legacy jupyterDockerImage param was sent, use that
       // - else use the default jupyter image
       jupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i.imageUrl, now))
-      defaultJupyterImage = ClusterImage(Jupyter, dataprocConfig.jupyterImage, now)
+      defaultJupyterImage = ClusterImage(Jupyter, imageConfig.jupyterImage, now)
       toolImage = autodetectedImageOpt orElse jupyterImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
       // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
       // - If welder is not enabled, we won't use any image.
       welderImageOpt = if (clusterRequest.enableWelder.getOrElse(false)) {
-        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(dataprocConfig.welderDockerImage)
+        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(imageConfig.welderDockerImage)
         Some(ClusterImage(Welder, imageUrl, now))
       } else None
     } yield Set(Some(toolImage), welderImageOpt).flatten
@@ -839,7 +840,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       val labelFound = dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
 
       val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
-        case Some(welderImage) if welderImage.imageUrl != dataprocConfig.welderDockerImage => true
+        case Some(welderImage) if welderImage.imageUrl != imageConfig.welderDockerImage => true
         case _                                                                             => false
       }
 
@@ -866,9 +867,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- IO(logger.info(s"Will deploy welder to cluster ${cluster.projectNameString}"))
       _ <- metrics.incrementCounter("welder/deploy")
       now <- IO(Instant.now)
-      welderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
+      welderImage = ClusterImage(Welder, imageConfig.welderDockerImage, now)
       _ <- dbRef.inTransactionIO {
-        _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, now), now)
+        _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, imageConfig.welderDockerImage, now), now)
       }
       newCluster = cluster.copy(welderEnabled = true,
                                 clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
