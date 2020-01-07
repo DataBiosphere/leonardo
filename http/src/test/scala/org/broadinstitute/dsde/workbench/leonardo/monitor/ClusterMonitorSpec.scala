@@ -171,6 +171,7 @@ class ClusterMonitorSpec
                                           clusterResourcesConfig,
                                           clusterFilesConfig,
                                           monitorConfig,
+                                          welderConfig,
                                           bucketHelper,
                                           gdDAO,
                                           computeDAO,

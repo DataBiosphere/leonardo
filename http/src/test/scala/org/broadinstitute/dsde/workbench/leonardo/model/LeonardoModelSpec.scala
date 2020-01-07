@@ -200,6 +200,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       Some(stagingBucketName),
       Some(serviceAccountKey),
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,

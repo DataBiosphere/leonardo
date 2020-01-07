@@ -124,6 +124,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val proxyConfig: ProxyConfig,
                       protected val swaggerConfig: SwaggerConfig,
                       protected val autoFreezeConfig: AutoFreezeConfig,
+                      protected val welderConfig: WelderConfig,
                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
                       protected val dbRef: DbReference,
                       protected val authProvider: LeoAuthProvider[IO],
@@ -837,7 +838,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def getWelderAction(cluster: Cluster): WelderAction =
     if (cluster.welderEnabled) {
       // Welder is already enabled; do we need to update it?
-      val labelFound = dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
+      val labelFound = welderConfig.updateWelderLabel.exists(cluster.labels.contains)
 
       val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
         case Some(welderImage) if welderImage.imageUrl != imageConfig.welderDockerImage => true
@@ -848,7 +849,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       else NoAction
     } else {
       // Welder is not enabled; do we need to deploy it?
-      val labelFound = dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
+      val labelFound = welderConfig.deployWelderLabel.exists(cluster.labels.contains)
       if (labelFound) {
         if (isClusterBeforeCutoffDate(cluster)) DisableDelocalization
         else DeployWelder
@@ -857,7 +858,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean =
     (for {
-      dateStr <- dataprocConfig.deployWelderCutoffDate
+      dateStr <- welderConfig.deployWelderCutoffDate
       date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
       isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false

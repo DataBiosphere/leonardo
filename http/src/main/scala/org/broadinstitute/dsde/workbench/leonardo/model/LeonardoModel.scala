@@ -378,6 +378,7 @@ object ClusterTemplateValues {
             stagingBucketName: Option[GcsBucketName],
             serviceAccountKey: Option[ServiceAccountKey],
             dataprocConfig: DataprocConfig,
+            welderConfig: WelderConfig,
             proxyConfig: ProxyConfig,
             clusterFilesConfig: ClusterFilesConfig,
             clusterResourcesConfig: ClusterResourcesConfig,
@@ -439,8 +440,8 @@ object ClusterTemplateValues {
         .getOrElse(""),
       cluster.defaultClientId.getOrElse(""),
       cluster.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (cluster.welderEnabled) dataprocConfig.welderEnabledNotebooksDir
-      else dataprocConfig.welderDisabledNotebooksDir,
+      if (cluster.welderEnabled) welderConfig.welderEnabledNotebooksDir
+      else welderConfig.welderDisabledNotebooksDir,
       initBucketName
         .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri)
         .getOrElse(""),

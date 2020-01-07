@@ -18,13 +18,9 @@ final case class DataprocConfig(
   vpcSubnet: Option[String],
   projectVPCNetworkLabel: Option[String],
   projectVPCSubnetLabel: Option[String],
-  welderEnabledNotebooksDir: String,
-  welderDisabledNotebooksDir: String, // TODO: remove once welder is rolled out to all clusters
   legacyCustomDataprocImage: CustomDataprocImage,
   customDataprocImage: CustomDataprocImage,
-  deployWelderLabel: Option[String],
-  updateWelderLabel: Option[String],
-  deployWelderCutoffDate: Option[String]
+  dataprocReservedMemory: Option[MemoryConfig]
 )
 
 final case class CustomDataprocImage(asString: String) extends AnyVal

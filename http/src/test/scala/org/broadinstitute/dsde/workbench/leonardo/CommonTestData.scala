@@ -71,6 +71,7 @@ trait CommonTestData { this: ScalaFutures =>
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val imageConfig = config.as[ImageConfig]("image")
+  val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")

@@ -52,13 +52,9 @@ object Config {
       config.getAs[String]("vpcSubnet"),
       config.getAs[String]("projectVPCNetworkLabel"),
       config.getAs[String]("projectVPCSubnetLabel"),
-      config.getString("welderEnabledNotebooksDir"),
-      config.getString("welderDisabledNotebooksDir"),
       CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
       CustomDataprocImage(config.getString("customDataprocImage")),
-      config.getAs[String]("deployWelderLabel"),
-      config.getAs[String]("updateWelderLabel"),
-      config.getAs[String]("deployWelderCutoffDate")
+      config.getAs[MemoryConfig]("dataprocReservedMemory")
     )
   }
 
@@ -69,6 +65,17 @@ object Config {
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),
       config.getString("dockerhubImageRegex")
+    )
+  }
+
+  implicit val welderConfigReader: ValueReader[WelderConfig] = ValueReader.relative { config =>
+    WelderConfig(
+      config.getString("welderEnabledNotebooksDir"),
+      config.getString("welderDisabledNotebooksDir"),
+      config.getAs[String]("deployWelderLabel"),
+      config.getAs[String]("updateWelderLabel"),
+      config.getAs[String]("deployWelderCutoffDate"),
+      config.getAs[MemoryConfig]("welderReservedMemory")
     )
   }
 
@@ -242,4 +249,5 @@ object Config {
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
+  val welderConfig = config.as[WelderConfig]("welder")
 }

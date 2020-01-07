@@ -56,6 +56,7 @@ class ClusterHelper(
   clusterResourcesConfig: ClusterResourcesConfig,
   clusterFilesConfig: ClusterFilesConfig,
   monitorConfig: MonitorConfig,
+  welderConfig: WelderConfig,
   bucketHelper: BucketHelper,
   gdDAO: GoogleDataprocDAO,
   googleComputeDAO: GoogleComputeDAO,
@@ -411,11 +412,12 @@ class ClusterHelper(
     } yield resolvedMachineType.getMemoryMb.toInt
 
     totalMemoryMb.value.flatMap {
-      case None           => IO.raiseError(ClusterResourceConstaintsException(cluster))
-      case Some(memoryMb) =>
-        // TODO make below numbers configurable
+      case None        => IO.raiseError(ClusterResourceConstaintsException(cluster))
+      case Some(total) =>
         // total - dataproc allocated - welder allocated - os allocated
-        val result = memoryMb - 3584 - 512 - 512
+        val result = total - dataprocConfig.dataprocReservedMemory
+          .map(_.mb.toInt)
+          .getOrElse(0) - welderConfig.welderReservedMemory.map(_.mb.toInt).getOrElse(0)
         IO.pure(ClusterResourceConstraints(result))
     }
   }
@@ -435,6 +437,7 @@ class ClusterHelper(
       Some(stagingBucketName),
       serviceAccountKey,
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
@@ -654,6 +657,7 @@ class ClusterHelper(
       cluster.dataprocInfo.map(_.stagingBucket),
       None,
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
@@ -681,6 +685,7 @@ class ClusterHelper(
       cluster.dataprocInfo.map(_.stagingBucket),
       None,
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
