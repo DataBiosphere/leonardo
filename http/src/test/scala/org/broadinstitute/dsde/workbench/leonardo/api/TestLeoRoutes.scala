@@ -2,13 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import java.io.ByteArrayInputStream
 
-import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.{Blocker, IO}
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton

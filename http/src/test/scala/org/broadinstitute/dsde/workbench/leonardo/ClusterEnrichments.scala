@@ -53,7 +53,11 @@ object ClusterEnrichments {
   }
 
   def stripFieldsForListCluster: Cluster => Cluster = { cluster =>
-    cluster.copy(errors = List.empty, instances = Set.empty, userJupyterExtensionConfig = None, clusterImages = Set.empty, scopes = Set.empty)
+    cluster.copy(errors = List.empty,
+                 instances = Set.empty,
+                 userJupyterExtensionConfig = None,
+                 clusterImages = Set.empty,
+                 scopes = Set.empty)
   }
 
   implicit val clusterRequestWriter: RootJsonWriter[ClusterRequest] = jsonFormat17(ClusterRequest)

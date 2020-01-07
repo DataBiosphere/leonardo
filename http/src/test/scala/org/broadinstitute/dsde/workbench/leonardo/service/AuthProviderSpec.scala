@@ -127,7 +127,7 @@ class AuthProviderSpec
                         bucketHelper,
                         clusterHelper,
                         new MockDockerDAO,
-      mockQueue)
+                        mockQueue)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider[IO]): ProxyService =

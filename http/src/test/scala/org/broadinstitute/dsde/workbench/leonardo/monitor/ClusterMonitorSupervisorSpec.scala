@@ -62,19 +62,19 @@ class ClusterMonitorSupervisorSpec
   }
 
   val clusterHelper = new ClusterHelper(DbSingleton.ref,
-    dataprocConfig,
-    googleGroupsConfig,
-    proxyConfig,
-    clusterResourcesConfig,
-    clusterFilesConfig,
-    bucketHelper,
-    gdDAO,
-    computeDAO,
-    mockGoogleDirectoryDAO,
-    iamDAO,
-    projectDAO,
-    contentSecurityPolicy,
-    blocker)
+                                        dataprocConfig,
+                                        googleGroupsConfig,
+                                        proxyConfig,
+                                        clusterResourcesConfig,
+                                        clusterFilesConfig,
+                                        bucketHelper,
+                                        gdDAO,
+                                        computeDAO,
+                                        mockGoogleDirectoryDAO,
+                                        iamDAO,
+                                        projectDAO,
+                                        contentSecurityPolicy,
+                                        blocker)
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -83,11 +83,12 @@ class ClusterMonitorSupervisorSpec
 
   "ClusterMonitorSupervisor" should "auto freeze the cluster" in isolatedDbTest {
     val runningCluster = makeCluster(1)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)), autopauseThreshold = 1)
+      .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)),
+            autopauseThreshold = 1)
       .save()
 
     system.actorOf(
-     getClusterMonitorSupervisor(MockJupyterDAO)
+      getClusterMonitorSupervisor(MockJupyterDAO)
     )
 
     eventually(timeout(Span(30, Seconds))) {
@@ -98,7 +99,9 @@ class ClusterMonitorSupervisorSpec
 
   it should "not auto freeze the cluster if jupyter kernel is still running" in isolatedDbTest {
     val runningCluster = makeCluster(2)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)), status = ClusterStatus.Running, autopauseThreshold = 1)
+      .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)),
+            status = ClusterStatus.Running,
+            autopauseThreshold = 1)
       .save()
 
     system.actorOf(
@@ -113,7 +116,9 @@ class ClusterMonitorSupervisorSpec
 
   it should "auto freeze the cluster if we fail to get jupyter kernel status" in isolatedDbTest {
     val runningCluster = makeCluster(2)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)), status = ClusterStatus.Running, autopauseThreshold = 1)
+      .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)),
+            status = ClusterStatus.Running,
+            autopauseThreshold = 1)
       .save()
 
     val jupyterProxyDAO = new JupyterDAO {
@@ -135,8 +140,11 @@ class ClusterMonitorSupervisorSpec
 
   it should "auto freeze the cluster if the max kernel busy time is exceeded" in isolatedDbTest {
     val runningCluster = makeCluster(2)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(25, ChronoUnit.HOURS),
-                                       kernelFoundBusyDate = Some(Instant.now().minus(25, ChronoUnit.HOURS))), status = ClusterStatus.Running)
+      .copy(
+        auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(25, ChronoUnit.HOURS),
+                                   kernelFoundBusyDate = Some(Instant.now().minus(25, ChronoUnit.HOURS))),
+        status = ClusterStatus.Running
+      )
       .save()
 
     system.actorOf(

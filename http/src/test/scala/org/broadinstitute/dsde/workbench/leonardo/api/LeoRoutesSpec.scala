@@ -43,7 +43,14 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, Map.empty, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"))))
+    val newCluster = ClusterRequest(Map.empty,
+                                    Some(jupyterExtensionUri),
+                                    Some(jupyterUserScriptUri),
+                                    None,
+                                    Map.empty,
+                                    None,
+                                    None,
+                                    Some(UserJupyterExtensionConfig(Map("abc" -> "def"))))
     Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
@@ -312,7 +319,11 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   Seq(true, false).foreach { stopAfterCreation =>
     it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
-      val request = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), properties = Map.empty, stopAfterCreation = Some(stopAfterCreation))
+      val request = ClusterRequest(Map.empty,
+                                   Some(jupyterExtensionUri),
+                                   Some(jupyterUserScriptUri),
+                                   properties = Map.empty,
+                                   stopAfterCreation = Some(stopAfterCreation))
       Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", request.toJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
         validateCookie {
@@ -324,7 +335,11 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should s"reject create a cluster if cluster name is invalid" in isolatedDbTest {
     val invalidClusterName = "MyCluster"
-    val request = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), properties = Map.empty, stopAfterCreation = None)
+    val request = ClusterRequest(Map.empty,
+                                 Some(jupyterExtensionUri),
+                                 Some(jupyterUserScriptUri),
+                                 properties = Map.empty,
+                                 stopAfterCreation = None)
     Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
       responseAs[String] shouldBe (s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
       status shouldEqual StatusCodes.BadRequest

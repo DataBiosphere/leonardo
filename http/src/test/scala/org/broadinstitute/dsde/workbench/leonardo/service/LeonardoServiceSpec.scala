@@ -22,7 +22,10 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
+  NegativeIntegerArgumentInClusterRequestException,
+  OneWorkerSpecifiedInClusterRequestException
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -130,7 +133,7 @@ class LeonardoServiceSpec
                               bucketHelper,
                               clusterHelper,
                               new MockDockerDAO,
-      mockQueue)
+                              mockQueue)
   }
 
   override def afterAll(): Unit = {
@@ -213,7 +216,9 @@ class LeonardoServiceSpec
 
   it should "create a cluster with the default welder image" in isolatedDbTest {
     // create the cluster
-    val clusterRequest = testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig), stopAfterCreation = Some(true), enableWelder = Some(true))
+    val clusterRequest = testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig),
+                                                 stopAfterCreation = Some(true),
+                                                 enableWelder = Some(true))
 
     val clusterResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -235,7 +240,10 @@ class LeonardoServiceSpec
     val customWelderImage = GCR("my-custom-welder-image-link")
 
     // create the cluster
-    val clusterRequest = testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig), stopAfterCreation = Some(true), welderDockerImage = Some(customWelderImage), enableWelder = Some(true))
+    val clusterRequest = testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig),
+                                                 stopAfterCreation = Some(true),
+                                                 welderDockerImage = Some(customWelderImage),
+                                                 enableWelder = Some(true))
 
     val clusterResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -269,7 +277,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO(RStudio),
-      mockQueue)
+                                         mockQueue)
 
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -525,7 +533,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      mockQueue)
+                                         mockQueue)
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -578,7 +586,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      mockQueue)
+                                         mockQueue)
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1111,7 +1119,10 @@ class LeonardoServiceSpec
   it should "allow changing the master machine type for a cluster in RUNNING state with flag set id2" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(defaultMachineConfig))).unsafeToFuture.futureValue
+      leo
+        .createCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(defaultMachineConfig)))
+        .unsafeToFuture
+        .futureValue
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"), Instant.now) }
@@ -1124,7 +1135,6 @@ class LeonardoServiceSpec
     }.get.allowStop shouldBe false
 
     dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
-
 
     // populate some instances for the cluster
     val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
@@ -1141,14 +1151,14 @@ class LeonardoServiceSpec
       )
       .unsafeRunSync
 
-      dbFutureValue {
-        _.clusterQuery.getClusterById(clusterCreateResponse.id)
-      }.get.allowStop shouldBe true
+    dbFutureValue {
+      _.clusterQuery.getClusterById(clusterCreateResponse.id)
+    }.get.allowStop shouldBe true
 
     //check that machine is properly updated
-     dbFutureValue {
-        _.clusterQuery.getClusterById(clusterCreateResponse.id)
-      }.get.updatedMachineConfig shouldBe newConfig
+    dbFutureValue {
+      _.clusterQuery.getClusterById(clusterCreateResponse.id)
+    }.get.updatedMachineConfig shouldBe newConfig
 
     eventually(timeout(30 seconds), interval(10 seconds)) {
       dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Stopping)
@@ -1340,7 +1350,9 @@ class LeonardoServiceSpec
         userInfo,
         project,
         name1,
-        testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize), numberOfPreemptibleWorkers = Some(0))))
+        testClusterRequest.copy(
+          machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize), numberOfPreemptibleWorkers = Some(0)))
+        )
       )
       .unsafeToFuture
       .futureValue

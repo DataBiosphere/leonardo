@@ -60,18 +60,44 @@ class ClusterMonitorSpec
     with GcsPathUtils
     with Eventually { testKit =>
 
-  val creatingCluster = makeCluster(1).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)), dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)), status = ClusterStatus.Creating, userJupyterExtensionConfig = Some(userExtConfig), stopAfterCreation = false)
+  val creatingCluster = makeCluster(1).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    status = ClusterStatus.Creating,
+    userJupyterExtensionConfig = Some(userExtConfig),
+    stopAfterCreation = false
+  )
 
-  val deletingCluster = makeCluster(2).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)), status = ClusterStatus.Deleting, instances = Set(masterInstance, workerInstance1, workerInstance2))
+  val deletingCluster = makeCluster(2).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    status = ClusterStatus.Deleting,
+    instances = Set(masterInstance, workerInstance1, workerInstance2)
+  )
 
-  val stoppingCluster = makeCluster(3).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)), dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)), status = ClusterStatus.Stopping)
+  val stoppingCluster = makeCluster(3).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    status = ClusterStatus.Stopping
+  )
 
-  val startingCluster = makeCluster(4).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)), status = ClusterStatus.Starting, clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()),
-                          ClusterImage(ClusterImageType.Jupyter, "jupyter_image", Instant.now())))
+  val startingCluster = makeCluster(4).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    status = ClusterStatus.Starting,
+    clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()),
+                        ClusterImage(ClusterImageType.Jupyter, "jupyter_image", Instant.now()))
+  )
 
-  val errorCluster = makeCluster(5).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)), status = ClusterStatus.Error)
+  val errorCluster = makeCluster(5).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    status = ClusterStatus.Error
+  )
 
-  val stoppedCluster = makeCluster(6).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)), dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)), status = ClusterStatus.Stopped, clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now())))
+  val stoppedCluster = makeCluster(6).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    status = ClusterStatus.Stopped,
+    clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()))
+  )
 
   val clusterInstances = Map(Master -> Set(masterInstance.key), Worker -> Set(workerInstance1.key, workerInstance2.key))
 
@@ -968,8 +994,11 @@ class ClusterMonitorSpec
     val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
-    val creatingCluster2 = creatingCluster.copy(clusterName = ClusterName(creatingCluster.clusterName.value + "_2"), dataprocInfo =
-            creatingCluster.dataprocInfo.map(_.copy(googleId = UUID.randomUUID(), hostIp = Some(IP("5.6.7.8")))))
+    val creatingCluster2 = creatingCluster.copy(
+      clusterName = ClusterName(creatingCluster.clusterName.value + "_2"),
+      dataprocInfo =
+        creatingCluster.dataprocInfo.map(_.copy(googleId = UUID.randomUUID(), hostIp = Some(IP("5.6.7.8"))))
+    )
     val savedCreatingCluster2 = creatingCluster2.save()
     creatingCluster2 shouldEqual savedCreatingCluster2
 
@@ -1310,11 +1339,11 @@ class ClusterMonitorSpec
   // - instances are populated in the DB
   // - monitor actor shuts down
   it should "update a cluster after stopping uniqueid1" in isolatedDbTest {
-    val newMachineType =  Some("n1-standard-8")
+    val newMachineType = Some("n1-standard-8")
     val stopBeforeUpdateCluster = stoppingCluster.copy(allowStop = true)
 
     stopBeforeUpdateCluster.save() shouldEqual stopBeforeUpdateCluster
-    stoppingCluster.machineConfig.masterMachineType should not equal(newMachineType)
+    stoppingCluster.machineConfig.masterMachineType should not equal (newMachineType)
 
     val projectDAO = mock[GoogleProjectDAO]
     val gdDAO = mock[GoogleDataprocDAO]
@@ -1375,31 +1404,27 @@ class ClusterMonitorSpec
 
     val authProvider = mock[LeoAuthProvider[IO]]
     withClusterSupervisor(gdDAO,
-      computeDAO,
-      iamDAO,
-      projectDAO,
-      storageDAO,
-      FakeGoogleStorageService,
-      authProvider,
-      MockJupyterDAO,
-      MockRStudioDAO,
-      MockWelderDAO,
-      false) { actor =>
-
+                          computeDAO,
+                          iamDAO,
+                          projectDAO,
+                          storageDAO,
+                          FakeGoogleStorageService,
+                          authProvider,
+                          MockJupyterDAO,
+                          MockRStudioDAO,
+                          MockWelderDAO,
+                          false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
           _.clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
 
-
         //TODO: fix
         updatedCluster.map(_.machineConfig.masterMachineType) shouldBe Some(newMachineType)
 //        updatedCluster.map(_.stopAndUpdate) shouldBe Some(false)
 
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Starting)
-
-
 
       }
 
