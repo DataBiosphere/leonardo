@@ -444,6 +444,7 @@ object ClusterTemplateValues {
       initBucketName
         .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri)
         .getOrElse(""),
+      // See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
       clusterResourceConstraints.map(_.memoryLimitMb.toString + "m").getOrElse("-1")
     )
 }
@@ -534,6 +535,8 @@ object WelderAction extends Enum[WelderAction] {
   case object DisableDelocalization extends WelderAction
 }
 
+// See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
+// for other types of resources we may want to add here.
 final case class ClusterResourceConstraints(memoryLimitMb: Int)
 
 object LeonardoJsonSupport extends DefaultJsonProtocol {
