@@ -44,9 +44,7 @@ class ClusterHelperSpec
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
 
   override val testCluster = makeCluster(1)
-    .copy(status = Creating,
-          dataprocInfo = None,
-          serviceAccountInfo = serviceAccountInfo.copy(notebookServiceAccount = None))
+      .copy(serviceAccountInfo = serviceAccountInfo.copy(notebookServiceAccount = None), dataprocInfo = None, status = Creating)
 
   val bucketHelper =
     new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, FakeGoogleStorageService, serviceAccountProvider)

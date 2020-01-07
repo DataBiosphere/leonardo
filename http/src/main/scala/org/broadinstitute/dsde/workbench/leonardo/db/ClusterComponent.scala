@@ -31,8 +31,9 @@ final case class ClusterRecord(id: Long,
                                operationName: Option[String],
                                status: String,
                                hostIp: Option[String],
-                               jupyterExtensionUri: Option[String],
-                               jupyterUserScriptUri: Option[String],
+                               jupyterExtensionUri: Option[GcsPath],
+                               jupyterUserScriptUri: Option[GcsPath],
+                               jupyterStartUserScriptUri: Option[GcsPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfoRecord,
                                machineConfig: MachineConfigRecord,
@@ -41,9 +42,9 @@ final case class ClusterRecord(id: Long,
                                stagingBucket: Option[String],
                                autopauseThreshold: Int,
                                defaultClientId: Option[String],
-                               updatedMachineConfig: MachineConfigRecord,
-                               customClusterEnvironmentVariables: Map[String, String],
-                               clusterFlags: ClusterFlagsRecord)
+                               stopAfterCreation: Boolean,
+                               welderEnabled: Boolean,
+                               customClusterEnvironmentVariables: Map[String, String])
 
 final case class MachineConfigRecord(numberOfWorkers: Int,
                                      masterMachineType: String,
@@ -63,8 +64,6 @@ final case class AuditInfoRecord(creator: String,
                                  dateAccessed: Timestamp,
                                  kernelFoundBusyDate: Option[Timestamp])
 
-final case class ClusterFlagsRecord(welderEnabled: Boolean, stopAfterCreation: Boolean, stopAndUpdate: Boolean)
-
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent
     with ClusterErrorComponent
@@ -79,6 +78,9 @@ trait ClusterComponent extends LeoComponent {
   implicit private val jsValueMappedColumnType: BaseColumnType[Json] =
     MappedColumnType
       .base[Json, String](_.printWith(Printer.noSpaces), s => io.circe.parser.parse(s).fold(e => throw e, identity))
+  implicit private val gsPathMappedColumnType: BaseColumnType[GcsPath] =
+    MappedColumnType
+      .base[GcsPath, String](_.toUri, s => parseGcsPath(s).fold(e => throw new Exception(e.toString()), identity))
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -101,8 +103,9 @@ trait ClusterComponent extends LeoComponent {
     def creator = column[String]("creator", O.Length(254))
     def createdDate = column[Timestamp]("createdDate", O.SqlType("TIMESTAMP(6)"))
     def destroyedDate = column[Timestamp]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
-    def jupyterExtensionUri = column[Option[String]]("jupyterExtensionUri", O.Length(1024))
-    def jupyterUserScriptUri = column[Option[String]]("jupyterUserScriptUri", O.Length(1024))
+    def jupyterExtensionUri = column[Option[GcsPath]]("jupyterExtensionUri", O.Length(1024))
+    def jupyterUserScriptUri = column[Option[GcsPath]]("jupyterUserScriptUri", O.Length(1024))
+    def jupyterStartUserScriptUri = column[Option[GcsPath]]("jupyterStartUserScriptUri", O.Length(1024))
     def initBucket = column[Option[String]]("initBucket", O.Length(1024))
     def serviceAccountKeyId = column[Option[String]]("serviceAccountKeyId", O.Length(254))
     def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
@@ -111,14 +114,6 @@ trait ClusterComponent extends LeoComponent {
     def kernelFoundBusyDate = column[Option[Timestamp]]("kernelFoundBusyDate", O.SqlType("TIMESTAMP(6)"))
     def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
-    def stopAndUpdate = column[Boolean]("stopAndUpdate")
-    def updatedNumberOfWorkers = column[Int]("updatedNumberOfWorkers")
-    def updatedMasterMachineType = column[String]("updatedMasterMachineType", O.Length(254))
-    def updatedMasterDiskSize = column[Int]("updatedMasterDiskSize")
-    def updatedWorkerMachineType = column[Option[String]]("updatedWorkerMachineType", O.Length(254))
-    def updatedWorkerDiskSize = column[Option[Int]]("updatedWorkerDiskSize")
-    def updatedNumberOfWorkerLocalSSDs = column[Option[Int]]("updatedNumberOfWorkerLocalSSDs")
-    def updatedNumberOfPreemptibleWorkers = column[Option[Int]]("updatedNumberOfPreemptibleWorkers")
     def welderEnabled = column[Boolean]("welderEnabled")
     def properties = column[Option[Json]]("properties")
     def customClusterEnvironmentVariables = column[Option[Json]]("customClusterEnvironmentVariables")
@@ -141,6 +136,7 @@ trait ClusterComponent extends LeoComponent {
         hostIp,
         jupyterExtensionUri,
         jupyterUserScriptUri,
+        jupyterStartUserScriptUri,
         initBucket,
         (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
         (numberOfWorkers,
@@ -154,16 +150,10 @@ trait ClusterComponent extends LeoComponent {
         stagingBucket,
         autopauseThreshold,
         defaultClientId,
-        (updatedNumberOfWorkers,
-         updatedMasterMachineType,
-         updatedMasterDiskSize,
-         updatedWorkerMachineType,
-         updatedWorkerDiskSize,
-         updatedNumberOfWorkerLocalSSDs,
-         updatedNumberOfPreemptibleWorkers),
+        stopAfterCreation,
+        welderEnabled,
         properties,
-        customClusterEnvironmentVariables,
-        (welderEnabled, stopAfterCreation, stopAndUpdate)
+        customClusterEnvironmentVariables
       ).shaped <> ({
         case (id,
               internalId,
@@ -175,6 +165,7 @@ trait ClusterComponent extends LeoComponent {
               hostIp,
               jupyterExtensionUri,
               jupyterUserScriptUri,
+              jupyterStartUserScriptUri,
               initBucket,
               auditInfo,
               machineConfig,
@@ -182,10 +173,10 @@ trait ClusterComponent extends LeoComponent {
               stagingBucket,
               autopauseThreshold,
               defaultClientId,
-              updatedMachineConfig,
+              stopAfterCreation,
+              welderEnabled,
               properties,
-              customClusterEnvironmentVariables,
-              clusterFlags) =>
+              customClusterEnvironmentVariables) =>
           ClusterRecord(
             id,
             internalId,
@@ -197,6 +188,7 @@ trait ClusterComponent extends LeoComponent {
             hostIp,
             jupyterExtensionUri,
             jupyterUserScriptUri,
+            jupyterStartUserScriptUri,
             initBucket,
             AuditInfoRecord.tupled.apply(auditInfo),
             MachineConfigRecord.tupled.apply(machineConfig),
@@ -212,7 +204,8 @@ trait ClusterComponent extends LeoComponent {
             stagingBucket,
             autopauseThreshold,
             defaultClientId,
-            MachineConfigRecord.tupled.apply(updatedMachineConfig),
+            stopAfterCreation,
+            welderEnabled,
             customClusterEnvironmentVariables
               .map(
                 x =>
@@ -223,15 +216,12 @@ trait ClusterComponent extends LeoComponent {
                             ),
                           identity)
               )
-              .getOrElse(Map.empty), //in theory, throw should never happen
-            ClusterFlagsRecord.tupled.apply(clusterFlags)
+              .getOrElse(Map.empty) //in theory, throw should never happen
           )
       }, { c: ClusterRecord =>
         def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
         def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
         def ai(_ai: AuditInfoRecord) = AuditInfoRecord.unapply(_ai).get
-        def cf(_cf: ClusterFlagsRecord) = ClusterFlagsRecord.unapply(_cf).get
-
         Some(
           (
             c.id,
@@ -244,6 +234,7 @@ trait ClusterComponent extends LeoComponent {
             c.hostIp,
             c.jupyterExtensionUri,
             c.jupyterUserScriptUri,
+            c.jupyterStartUserScriptUri,
             c.initBucket,
             ai(c.auditInfo),
             mc(c.machineConfig),
@@ -251,10 +242,10 @@ trait ClusterComponent extends LeoComponent {
             c.stagingBucket,
             c.autopauseThreshold,
             c.defaultClientId,
-            mc(c.updatedMachineConfig),
+            c.stopAfterCreation,
+            c.welderEnabled,
             if (c.properties.isEmpty) None else Some(c.properties.asJson),
-            if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables.asJson),
-            cf(c.clusterFlags)
+            if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables.asJson)
           )
         )
       })
@@ -448,19 +439,6 @@ trait ClusterComponent extends LeoComponent {
         .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
         .update((Timestamp.from(destroyedDate), ClusterStatus.Deleted.toString, None, Timestamp.from(destroyedDate)))
 
-    def updateClusterForStopTransition(id: Long, machineConfig: MachineConfig): DBIO[Int] =
-      machineConfig.masterMachineType match {
-        case Some(masterMachineType) =>
-          for {
-            _ <- findByIdQuery(id).map(_.updatedMasterMachineType).update(masterMachineType.value)
-            dbio <- findByIdQuery(id).map(_.stopAndUpdate).update(true)
-          } yield dbio
-        case _ => DBIO.successful(0)
-      }
-
-    def updateClusterForFinishedTransition(id: Long): DBIO[Int] =
-      findByIdQuery(id).map(_.stopAndUpdate).update(false)
-
     def updateClusterStatusAndHostIp(id: Long,
                                      status: ClusterStatus,
                                      hostIp: Option[IP],
@@ -629,8 +607,9 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.map(_.operationName.value),
         cluster.status.toString,
         cluster.dataprocInfo.flatMap(_.hostIp.map(_.value)),
-        cluster.jupyterExtensionUri map (_.toUri),
-        cluster.jupyterUserScriptUri map (_.toUri),
+        cluster.jupyterExtensionUri,
+        cluster.jupyterUserScriptUri,
+        cluster.jupyterStartUserScriptUri,
         initBucket,
         AuditInfoRecord(
           cluster.auditInfo.creator.value,
@@ -657,17 +636,9 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.map(_.stagingBucket.value),
         cluster.autopauseThreshold,
         cluster.defaultClientId,
-        MachineConfigRecord(
-          cluster.updatedMachineConfig.numberOfWorkers.get, //a cluster should always have numberOfWorkers defined
-          cluster.updatedMachineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined
-          cluster.updatedMachineConfig.masterDiskSize.get, //a cluster should always have masterDiskSize defined
-          cluster.updatedMachineConfig.workerMachineType,
-          cluster.updatedMachineConfig.workerDiskSize,
-          cluster.updatedMachineConfig.numberOfWorkerLocalSSDs,
-          cluster.updatedMachineConfig.numberOfPreemptibleWorkers
-        ),
-        cluster.customClusterEnvironmentVariables,
-        ClusterFlagsRecord(cluster.welderEnabled, cluster.stopAfterCreation, cluster.stopAndUpdate)
+        cluster.stopAfterCreation,
+        cluster.welderEnabled,
+        cluster.customClusterEnvironmentVariables
       )
 
     private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
@@ -766,15 +737,6 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.machineConfig.numberOfWorkerLocalSsds,
         clusterRecord.machineConfig.numberOfPreemptibleWorkers
       )
-      val updatedMachineConfig = MachineConfig(
-        Some(clusterRecord.updatedMachineConfig.numberOfWorkers),
-        Some(clusterRecord.updatedMachineConfig.masterMachineType),
-        Some(clusterRecord.updatedMachineConfig.masterDiskSize),
-        clusterRecord.updatedMachineConfig.workerMachineType,
-        clusterRecord.updatedMachineConfig.workerDiskSize,
-        clusterRecord.updatedMachineConfig.numberOfWorkerLocalSsds,
-        clusterRecord.updatedMachineConfig.numberOfPreemptibleWorkers
-      )
       val serviceAccountInfo = ServiceAccountInfo(
         clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
         clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
@@ -805,22 +767,21 @@ trait ClusterComponent extends LeoComponent {
         auditInfo,
         machineConfig,
         clusterRecord.properties,
-        Cluster.getClusterUrl(project, name, clusterImages),
+        Cluster.getClusterUrl(project, name, clusterImages, labels),
         ClusterStatus.withName(clusterRecord.status),
         labels,
-        clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
-        clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
+        clusterRecord.jupyterExtensionUri,
+        clusterRecord.jupyterUserScriptUri,
+        clusterRecord.jupyterStartUserScriptUri,
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
         clusterRecord.autopauseThreshold,
         clusterRecord.defaultClientId,
-        clusterRecord.clusterFlags.stopAfterCreation,
-        clusterRecord.clusterFlags.stopAndUpdate,
-        updatedMachineConfig,
-        clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,
+        clusterRecord.stopAfterCreation,
+        clusterImages,
         ClusterComponent.this.scopeQuery.unmarshallScopes(scopes),
-        clusterRecord.clusterFlags.welderEnabled,
+        clusterRecord.welderEnabled,
         clusterRecord.customClusterEnvironmentVariables
       )
     }

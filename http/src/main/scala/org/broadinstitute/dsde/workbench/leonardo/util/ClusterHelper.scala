@@ -295,8 +295,7 @@ class ClusterHelper(
       _ <- dbRef.inTransactionIO {
         _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, now), now)
       }
-      newCluster = cluster.copy(welderEnabled = true,
-                                clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
+      newCluster = cluster.copy(clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage, welderEnabled = true)
     } yield newCluster
 
   def resizeCluster(cluster: Cluster, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =

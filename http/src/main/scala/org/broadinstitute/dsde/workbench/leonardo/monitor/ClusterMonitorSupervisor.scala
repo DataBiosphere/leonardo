@@ -369,7 +369,7 @@ class ClusterMonitorSupervisor(
 
             case c if c.status == ClusterStatus.Deleting => self ! ClusterDeleted(c)
 
-            case c if c.status == ClusterStatus.Stopping => self ! ClusterStopped(c, c.stopAndUpdate)
+            case c if c.status == ClusterStatus.Stopping => self ! ClusterStopped(c, c.allowStop)
 
             case c if c.status == ClusterStatus.Starting => self ! ClusterStarted(c)
 

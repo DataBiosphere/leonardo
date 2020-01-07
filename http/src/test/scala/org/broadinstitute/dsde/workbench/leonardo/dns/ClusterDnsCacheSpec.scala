@@ -25,10 +25,10 @@ class ClusterDnsCacheSpec
     super.afterAll()
 
   val clusterBeingCreated: Cluster =
-    makeCluster(2).copy(status = ClusterStatus.Creating, dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)))
+    makeCluster(2).copy(dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)), status = ClusterStatus.Creating)
   val runningCluster: Cluster = makeCluster(1).copy(status = ClusterStatus.Running)
   val stoppedCluster: Cluster =
-    makeCluster(3).copy(status = ClusterStatus.Stopped, dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)))
+    makeCluster(3).copy(dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)), status = ClusterStatus.Stopped)
 
   val cacheKeyForClusterBeingCreated = DnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.clusterName)
   val cacheKeyForRunningCluster = DnsCacheKey(runningCluster.googleProject, runningCluster.clusterName)

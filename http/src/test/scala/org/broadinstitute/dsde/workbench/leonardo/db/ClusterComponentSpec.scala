@@ -28,29 +28,19 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = UUID.randomUUID()
-    val cluster1 = makeCluster(1).copy(
-      dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
-      instances = Set(masterInstance, workerInstance1, workerInstance2),
-      stopAfterCreation = true
-    )
+    val cluster1 = makeCluster(1).copy(dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)), instances = Set(masterInstance, workerInstance1, workerInstance2), stopAfterCreation = true)
 
-    val cluster1WithErr = makeCluster(1).copy(dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
-                                              errors = List(err1),
-                                              instances = Set(masterInstance, workerInstance1, workerInstance2))
+    val cluster1WithErr = makeCluster(1).copy(dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)), errors = List(err1), instances = Set(masterInstance, workerInstance1, workerInstance2))
 
     val cluster2 = makeCluster(2).copy(status = ClusterStatus.Creating)
 
-    val cluster3 = makeCluster(3).copy(
-      machineConfig = MachineConfig(Some(3),
-                                    Some("test-master-machine-type"),
-                                    Some(500),
-                                    Some("test-worker-machine-type"),
-                                    Some(200),
-                                    Some(2),
-                                    Some(1)),
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      status = ClusterStatus.Running
-    )
+    val cluster3 = makeCluster(3).copy(serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)), machineConfig = MachineConfig(Some(3),
+                                        Some("test-master-machine-type"),
+                                        Some(500),
+                                        Some("test-worker-machine-type"),
+                                        Some(200),
+                                        Some(2),
+                                        Some(1)), status = ClusterStatus.Running)
 
     val cluster4 = makeCluster(4).copy(clusterName = cluster1.clusterName, googleProject = cluster1.googleProject)
 
@@ -186,11 +176,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     // note: this does not update the instance records
     dbFutureValue { _.clusterQuery.setToStopping(initialCluster.id, Instant.now) } shouldEqual 1
     val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
-    val expectedStoppedCluster = initialCluster.copy(
-      dataprocInfo = initialCluster.dataprocInfo.map(_.copy(hostIp = None)),
-      auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed),
-      status = ClusterStatus.Stopping
-    )
+    val expectedStoppedCluster = initialCluster.copy(dataprocInfo = initialCluster.dataprocInfo.map(_.copy(hostIp = None)), auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed), status = ClusterStatus.Stopping)
     stoppedCluster.copy(auditInfo = stoppedCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedStoppedCluster
     stoppedCluster.auditInfo.dateAccessed should be > initialCluster.auditInfo.dateAccessed
 
@@ -198,9 +184,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       _.clusterQuery.setToRunning(initialCluster.id, initialCluster.dataprocInfo.flatMap(_.hostIp).get, Instant.now)
     } shouldEqual 1
     val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
-    val expectedRunningCluster = initialCluster.copy(id = initialCluster.id,
-                                                     auditInfo =
-                                                       initialCluster.auditInfo.copy(dateAccessed = dateAccessed))
+    val expectedRunningCluster = initialCluster.copy(id = initialCluster.id, auditInfo =
+                                                           initialCluster.auditInfo.copy(dateAccessed = dateAccessed))
     runningCluster.copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
     runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
   }
@@ -208,43 +193,34 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   it should "merge instances" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).copy(instances = Set(masterInstance)).save()
 
-    val updatedCluster1 = savedCluster1.copy(
-      id = savedCluster1.id,
-      instances = Set(
-        masterInstance.copy(status = InstanceStatus.Provisioning),
-        workerInstance1.copy(status = InstanceStatus.Provisioning),
-        workerInstance2.copy(status = InstanceStatus.Provisioning)
-      )
-    )
+    val updatedCluster1 = savedCluster1.copy(id = savedCluster1.id, instances = Set(
+            masterInstance.copy(status = InstanceStatus.Provisioning),
+            workerInstance1.copy(status = InstanceStatus.Provisioning),
+            workerInstance2.copy(status = InstanceStatus.Provisioning)
+          ))
 
     dbFutureValue { _.clusterQuery.mergeInstances(updatedCluster1) } shouldEqual updatedCluster1
     dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get shouldEqual updatedCluster1
 
-    val updatedCluster1Again = savedCluster1.copy(
-      instances = Set(masterInstance.copy(status = InstanceStatus.Terminated),
-                      workerInstance1.copy(status = InstanceStatus.Terminated))
-    )
+    val updatedCluster1Again = savedCluster1.copy(instances = Set(masterInstance.copy(status = InstanceStatus.Terminated),
+                          workerInstance1.copy(status = InstanceStatus.Terminated)))
 
     dbFutureValue { _.clusterQuery.mergeInstances(updatedCluster1Again) } shouldEqual updatedCluster1Again
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
     val runningCluster1 = makeCluster(1)
-      .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
-            status = ClusterStatus.Running)
+          .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)), status = ClusterStatus.Running)
       .save()
 
     val runningCluster2 = makeCluster(2)
-      .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
-            status = ClusterStatus.Stopped)
+          .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)), status = ClusterStatus.Stopped)
       .save()
 
     val stoppedCluster = makeCluster(3).copy(status = ClusterStatus.Stopped).save()
 
     val autopauseDisabledCluster = makeCluster(4)
-      .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
-            status = ClusterStatus.Running,
-            autopauseThreshold = 0)
+          .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)), status = ClusterStatus.Running, autopauseThreshold = 0)
       .save()
 
     val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
@@ -257,21 +233,15 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "list by labels and project" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
-      .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
+          .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
       .save(Some(serviceAccountKey.id))
 
     val savedCluster2 = makeCluster(2)
-      .copy(
-        status = ClusterStatus.Running,
-        clusterName = name2,
-        googleProject = project2,
-        clusterUrl = Cluster.getClusterUrl(project2, name2, Set(jupyterImage)),
-        labels = Map("bam" -> "yes")
-      )
+          .copy(clusterName = name2, googleProject = project2, clusterUrl = Cluster.getClusterUrl(project2, name2, Set(jupyterImage)), status = ClusterStatus.Running, labels = Map("bam" -> "yes"))
       .save(Some(serviceAccountKey.id))
 
     val savedCluster3 = makeCluster(3)
-      .copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes"))
+          .copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes"))
       .save()
 
     dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1)
@@ -298,8 +268,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "get for dns cache" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
-      .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-            instances = Set(masterInstance, workerInstance1, workerInstance2))
+          .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), instances = Set(masterInstance, workerInstance1, workerInstance2))
       .save(Some(serviceAccountKey.id))
 
     // Result should not include labels or instances
@@ -311,15 +280,13 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "update master machine type" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
-      .copy(
-        machineConfig = MachineConfig(Some(3),
-                                      Some("test-master-machine-type"),
-                                      Some(500),
-                                      Some("test-worker-machine-type"),
-                                      Some(200),
-                                      Some(2),
-                                      Some(1))
-      )
+          .copy(machineConfig = MachineConfig(Some(3),
+                                          Some("test-master-machine-type"),
+                                          Some(500),
+                                          Some("test-worker-machine-type"),
+                                          Some(200),
+                                          Some(2),
+                                          Some(1)))
       .save()
 
     val newMachineType = MachineType("this-is-a-new-machine-type")
@@ -332,15 +299,13 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "update master disk size" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
-      .copy(
-        machineConfig = MachineConfig(Some(3),
-                                      Some("test-master-machine-type"),
-                                      Some(500),
-                                      Some("test-worker-machine-type"),
-                                      Some(200),
-                                      Some(2),
-                                      Some(1))
-      )
+          .copy(machineConfig = MachineConfig(Some(3),
+                                          Some("test-master-machine-type"),
+                                          Some(500),
+                                          Some("test-worker-machine-type"),
+                                          Some(200),
+                                          Some(2),
+                                          Some(1)))
       .save()
 
     val newDiskSize = 1000

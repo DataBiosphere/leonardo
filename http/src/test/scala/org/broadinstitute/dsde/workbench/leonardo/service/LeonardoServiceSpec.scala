@@ -213,11 +213,7 @@ class LeonardoServiceSpec
 
   it should "create a cluster with the default welder image" in isolatedDbTest {
     // create the cluster
-    val clusterRequest = testClusterRequest.copy(
-      machineConfig = Some(singleNodeDefaultMachineConfig),
-      stopAfterCreation = Some(true),
-      enableWelder = Some(true)
-    )
+    val clusterRequest = testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig), stopAfterCreation = Some(true), enableWelder = Some(true))
 
     val clusterResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -239,12 +235,7 @@ class LeonardoServiceSpec
     val customWelderImage = GCR("my-custom-welder-image-link")
 
     // create the cluster
-    val clusterRequest = testClusterRequest.copy(
-      machineConfig = Some(singleNodeDefaultMachineConfig),
-      stopAfterCreation = Some(true),
-      welderDockerImage = Some(customWelderImage),
-      enableWelder = Some(true)
-    )
+    val clusterRequest = testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig), stopAfterCreation = Some(true), welderDockerImage = Some(customWelderImage), enableWelder = Some(true))
 
     val clusterResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -1130,7 +1121,7 @@ class LeonardoServiceSpec
 
     dbFutureValue {
       _.clusterQuery.getClusterById(clusterCreateResponse.id)
-    }.get.stopAndUpdate shouldBe false
+    }.get.allowStop shouldBe false
 
     dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
 
@@ -1146,13 +1137,13 @@ class LeonardoServiceSpec
         userInfo,
         project,
         name1,
-        testClusterRequest.copy(machineConfig = Some(newConfig), stopAndUpdate = Some(true))
+        testClusterRequest.copy(machineConfig = Some(newConfig), allowStop = Some(true))
       )
       .unsafeRunSync
 
       dbFutureValue {
         _.clusterQuery.getClusterById(clusterCreateResponse.id)
-      }.get.stopAndUpdate shouldBe true
+      }.get.allowStop shouldBe true
 
     //check that machine is properly updated
      dbFutureValue {
@@ -1349,9 +1340,7 @@ class LeonardoServiceSpec
         userInfo,
         project,
         name1,
-        testClusterRequest.copy(
-          machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize), numberOfPreemptibleWorkers = Some(0)))
-        )
+        testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize), numberOfPreemptibleWorkers = Some(0))))
       )
       .unsafeToFuture
       .futureValue

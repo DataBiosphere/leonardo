@@ -16,15 +16,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
-  val cluster = makeCluster(1).copy(
-    dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
-    auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
-    jupyterExtensionUri = Some(jupyterExtensionUri),
-    stopAfterCreation = true,
-    stopAndUpdate = false,
-    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
-    welderEnabled = true
-  )
+  val cluster = makeCluster(1).copy(dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))), auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime), jupyterExtensionUri = Some(jupyterExtensionUri), stopAfterCreation = true, allowStop = false, clusterImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)), welderEnabled = true)
 
   "ClusterRequestFormat" should "successfully decode json" in isolatedDbTest {
     val inputJson =
@@ -74,13 +66,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |}
       """.stripMargin.parseJson
 
-    val expectedClusterRequest = ClusterRequest(
-      labels = Map.empty,
-      properties = Map.empty,
-      scopes = Set.empty,
-      jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
-      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
-    )
+    val expectedClusterRequest = ClusterRequest(labels = Map.empty, jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))), jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))), properties = Map.empty, scopes = Set.empty)
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
     decodeResult shouldBe (expectedClusterRequest)

@@ -96,34 +96,8 @@ trait CommonTestData { this: ScalaFutures =>
     mockQueue.enqueue1(any[LeoPubsubMessage])
   } thenReturn(IO.unit)
 
-  val testClusterRequest = ClusterRequest(
-    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-    None,
-    None,
-    None,
-    Map.empty,
-    None,
-    None,
-    None,
-    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
-    Some(true),
-    Some(30),
-    Some("ThisIsADefaultClientID")
-  )
-  val testClusterRequestWithExtensionAndScript = ClusterRequest(
-    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-    Some(jupyterExtensionUri),
-    Some(jupyterUserScriptUri),
-    None,
-    Map.empty,
-    None,
-    None,
-    None,
-    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
-    Some(true),
-    Some(30),
-    Some("ThisIsADefaultClientID")
-  )
+  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, Map.empty, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
+  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, Map.empty, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
 
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
@@ -158,62 +132,10 @@ trait CommonTestData { this: ScalaFutures =>
 
   def makeCluster(index: Int): Cluster = {
     val clusterName = ClusterName("clustername" + index.toString)
-    Cluster(
-      clusterName = clusterName,
-      internalId = internalId,
-      googleProject = project,
-      serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = Some(makeDataprocInfo(index)),
-      auditInfo = auditInfo,
-      machineConfig = defaultMachineConfig,
-      properties = Map.empty,
-      clusterUrl = Cluster.getClusterUrl(project, clusterName, Set(jupyterImage)),
-      status = ClusterStatus.Unknown,
-      labels = Map(),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = 30,
-      defaultClientId = Some("defaultClientId"),
-      stopAfterCreation = false,
-      stopAndUpdate = false,
-      updatedMachineConfig = defaultMachineConfig,
-      clusterImages = Set(jupyterImage),
-      scopes = defaultScopes,
-      welderEnabled = false,
-      customClusterEnvironmentVariables = Map.empty
-    )
+    Cluster(internalId = internalId, clusterName = clusterName, googleProject = project, serviceAccountInfo = serviceAccountInfo, dataprocInfo = Some(makeDataprocInfo(index)), auditInfo = auditInfo, machineConfig = defaultMachineConfig, properties = Map.empty, clusterUrl = Cluster.getClusterUrl(project, clusterName, Set(jupyterImage)), status = ClusterStatus.Unknown, labels = Map(), jupyterExtensionUri = None, jupyterUserScriptUri = None, errors = List.empty, instances = Set.empty, userJupyterExtensionConfig = None, autopauseThreshold = 30, defaultClientId = Some("defaultClientId"), stopAfterCreation = false, allowStop = false, clusterImages = Set(jupyterImage), scopes = defaultScopes, welderEnabled = false, customClusterEnvironmentVariables = Map.empty)
   }
 
-  val testCluster = new Cluster(
-    clusterName = name1,
-    internalId = internalId,
-    googleProject = project,
-    serviceAccountInfo = serviceAccountInfo,
-    dataprocInfo = Some(DataprocInfo(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
-    machineConfig = defaultMachineConfig,
-    properties = Map.empty,
-    clusterUrl = Cluster.getClusterUrl(project, name1, Set(jupyterImage)),
-    status = ClusterStatus.Unknown,
-    labels = Map(),
-    jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-    jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = if (autopause) autopauseThreshold else 0,
-    defaultClientId = None,
-    stopAfterCreation = false,
-    clusterImages = Set(jupyterImage),
-    stopAndUpdate = false,
-    updatedMachineConfig = defaultMachineConfig,
-    scopes = defaultScopes,
-    welderEnabled = false,
-    customClusterEnvironmentVariables = Map.empty
-  )
+  val testCluster = new Cluster(internalId = internalId, clusterName = name1, googleProject = project, serviceAccountInfo = serviceAccountInfo, dataprocInfo = Some(DataprocInfo(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)), auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None), machineConfig = defaultMachineConfig, properties = Map.empty, clusterUrl = Cluster.getClusterUrl(project, name1, Set(jupyterImage)), status = ClusterStatus.Unknown, labels = Map(), jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))), jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))), errors = List.empty, instances = Set.empty, userJupyterExtensionConfig = None, autopauseThreshold = if (autopause) autopauseThreshold else 0, defaultClientId = None, stopAfterCreation = false, allowStop = false, clusterImages = Set(jupyterImage), scopes = defaultScopes, welderEnabled = false, customClusterEnvironmentVariables = Map.empty)
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

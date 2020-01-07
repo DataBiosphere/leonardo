@@ -460,7 +460,7 @@ class LeonardoService(
 
   def maybeChangeMasterMachineType(existingCluster: Cluster, clusterRequest: ClusterRequest): IO[UpdateResult] = {
     val machineConfigOpt: Option[MachineConfig] = clusterRequest.machineConfig
-    val stopAndUpdate: Boolean = clusterRequest.stopAndUpdate.getOrElse(false)
+    val stopAndUpdate: Boolean = clusterRequest.allowStop.getOrElse(false)
 
     val updatedMasterMachineTypeOpt = machineConfigOpt.flatMap { machineConfig =>
       getUpdatedValueIfChanged(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
@@ -788,13 +788,11 @@ class LeonardoService(
 
     // transform Some(empty, empty, empty, empty) to None
     // TODO: is this really necessary?
-    val updatedClusterRequest = clusterRequest.copy(
-      userJupyterExtensionConfig =
-        if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
-          None
-        else
-          Some(updatedUserJupyterExtensionConfig)
-    )
+    val updatedClusterRequest = clusterRequest.copy(userJupyterExtensionConfig =
+            if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
+              None
+            else
+              Some(updatedUserJupyterExtensionConfig))
 
     addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedClusterRequest)
   }
@@ -823,7 +821,7 @@ class LeonardoService(
       throw IllegalLabelKeyException(includeDeletedKey)
     else
       clusterRequest
-        .copy(labels = allLabels)
+              .copy(labels = allLabels)
   }
 
   private[service] def getClusterImages(

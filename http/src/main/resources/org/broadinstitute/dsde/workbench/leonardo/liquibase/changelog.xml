@@ -35,5 +35,4 @@
     <include file="changesets/20190715_add_internal_resource_id.xml" relativeToChangelogFile="true" />
     <include file="changesets/20191107_add_cluster_custom_environment_variables.xml" relativeToChangelogFile="true" />
     <include file="changesets/20191120_rename_cluster_image.xml" relativeToChangelogFile="true" />
-    <include file="changesets/20191125_stop_and_update.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
