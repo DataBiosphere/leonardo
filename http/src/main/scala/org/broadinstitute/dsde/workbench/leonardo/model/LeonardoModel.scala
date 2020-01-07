@@ -69,9 +69,12 @@ object ContainerImage {
 }
 
 // Create cluster API request
-final case class ClusterRequest(labels: LabelMap = Map.empty, jupyterExtensionUri: Option[GcsPath] = None,
-                                jupyterUserScriptUri: Option[GcsPath] = None, machineConfig: Option[MachineConfig] = None,
-                                properties: Map[String, String] = Map.empty, stopAfterCreation: Option[Boolean] = None,
+final case class ClusterRequest(labels: LabelMap = Map.empty,
+                                jupyterExtensionUri: Option[GcsPath] = None,
+                                jupyterUserScriptUri: Option[GcsPath] = None,
+                                machineConfig: Option[MachineConfig] = None,
+                                properties: Map[String, String] = Map.empty,
+                                stopAfterCreation: Option[Boolean] = None,
                                 allowStop: Option[Boolean] = None,
                                 userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                                 autopause: Option[Boolean] = None,
@@ -80,7 +83,8 @@ final case class ClusterRequest(labels: LabelMap = Map.empty, jupyterExtensionUr
                                 jupyterDockerImage: Option[ContainerImage] = None,
                                 toolDockerImage: Option[ContainerImage] = None,
                                 welderDockerImage: Option[ContainerImage] = None,
-                                scopes: Set[String] = Set.empty, enableWelder: Option[Boolean] = None,
+                                scopes: Set[String] = Set.empty,
+                                enableWelder: Option[Boolean] = None,
                                 customClusterEnvironmentVariables: Map[String, String] = Map.empty)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -203,7 +207,32 @@ object Cluster {
              autopauseThreshold: Int,
              clusterScopes: Set[String],
              clusterImages: Set[ClusterImage]): Cluster =
-    Cluster(internalId = internalId, clusterName = clusterName, googleProject = googleProject, serviceAccountInfo = serviceAccountInfo, dataprocInfo = None, auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None), machineConfig = machineConfig, properties = clusterRequest.properties, clusterUrl = getClusterUrl(googleProject, clusterName, clusterImages), status = ClusterStatus.Creating, labels = clusterRequest.labels, jupyterExtensionUri = clusterRequest.jupyterExtensionUri, jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri, errors = List.empty, instances = Set.empty, userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig, autopauseThreshold = autopauseThreshold, defaultClientId = clusterRequest.defaultClientId, stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false), allowStop = clusterRequest.allowStop.getOrElse(false), clusterImages = clusterImages, scopes = clusterScopes, welderEnabled = clusterRequest.enableWelder.getOrElse(false), customClusterEnvironmentVariables = clusterRequest.customClusterEnvironmentVariables)
+    Cluster(
+      internalId = internalId,
+      clusterName = clusterName,
+      googleProject = googleProject,
+      serviceAccountInfo = serviceAccountInfo,
+      dataprocInfo = None,
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
+      machineConfig = machineConfig,
+      properties = clusterRequest.properties,
+      clusterUrl = getClusterUrl(googleProject, clusterName, clusterImages),
+      status = ClusterStatus.Creating,
+      labels = clusterRequest.labels,
+      jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+      jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
+      autopauseThreshold = autopauseThreshold,
+      defaultClientId = clusterRequest.defaultClientId,
+      stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
+      allowStop = clusterRequest.allowStop.getOrElse(false),
+      clusterImages = clusterImages,
+      scopes = clusterScopes,
+      welderEnabled = clusterRequest.enableWelder.getOrElse(false),
+      customClusterEnvironmentVariables = clusterRequest.customClusterEnvironmentVariables
+    )
 
   def addDataprocFields(cluster: Cluster, operation: Operation, stagingBucket: GcsBucketName): Cluster =
     cluster.copy(dataprocInfo = Some(DataprocInfo(operation.uuid, operation.name, stagingBucket, None)))
@@ -520,10 +549,28 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
 
     val fieldsWithoutNull = fields.filterNot(x => x._2 == null || x._2 == JsNull)
 
-    ClusterRequest(fieldsWithoutNull.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty), fieldsWithoutNull.get("jupyterExtensionUri").map(_.convertTo[GcsPath]), fieldsWithoutNull.get("jupyterUserScriptUri").map(_.convertTo[GcsPath]), fieldsWithoutNull.get("machineConfig").map(_.convertTo[MachineConfig]), properties.getOrElse(Map.empty), fieldsWithoutNull.get("stopAfterCreation").map(_.convertTo[Boolean]), fieldsWithoutNull.get("stopAndUpdate").map(_.convertTo[Boolean]), fieldsWithoutNull.get("userJupyterExtensionConfig").map(_.convertTo[UserJupyterExtensionConfig]), fieldsWithoutNull.get("autopause").map(_.convertTo[Boolean]), fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]), fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]), fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[ContainerImage]), fieldsWithoutNull.get("toolDockerImage").map(_.convertTo[ContainerImage]), fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[ContainerImage]), fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty), fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean]), fieldsWithoutNull
-            .get("customClusterEnvironmentVariables")
-            .map(_.convertTo[Map[String, String]])
-            .getOrElse(Map.empty))
+    ClusterRequest(
+      fieldsWithoutNull.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),
+      fieldsWithoutNull.get("jupyterExtensionUri").map(_.convertTo[GcsPath]),
+      fieldsWithoutNull.get("jupyterUserScriptUri").map(_.convertTo[GcsPath]),
+      fieldsWithoutNull.get("machineConfig").map(_.convertTo[MachineConfig]),
+      properties.getOrElse(Map.empty),
+      fieldsWithoutNull.get("stopAfterCreation").map(_.convertTo[Boolean]),
+      fieldsWithoutNull.get("allowStop").map(_.convertTo[Boolean]),
+      fieldsWithoutNull.get("userJupyterExtensionConfig").map(_.convertTo[UserJupyterExtensionConfig]),
+      fieldsWithoutNull.get("autopause").map(_.convertTo[Boolean]),
+      fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
+      fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
+      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[ContainerImage]),
+      fieldsWithoutNull.get("toolDockerImage").map(_.convertTo[ContainerImage]),
+      fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[ContainerImage]),
+      fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
+      fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean]),
+      fieldsWithoutNull
+        .get("customClusterEnvironmentVariables")
+        .map(_.convertTo[Map[String, String]])
+        .getOrElse(Map.empty)
+    )
   }
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
@@ -569,8 +616,7 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
         "defaultClientId" -> obj.defaultClientId.toJson,
         "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-        "stopAndUpdate" -> obj.allowStop.toJson,
-        "updatedMachineConfig" -> obj.updatedMachineConfig.toJson,
+        "allowStop" -> obj.allowStop.toJson,
         "clusterImages" -> obj.clusterImages.toJson,
         "scopes" -> obj.scopes.toJson,
         "welderEnabled" -> obj.welderEnabled.toJson

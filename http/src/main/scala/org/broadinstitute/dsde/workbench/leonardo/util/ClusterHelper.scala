@@ -222,7 +222,7 @@ class ClusterHelper(
         s"ABout to start instances for cluster ${cluster.projectNameString}:\n\toverall instances present: ${cluster.instances.toList}\n\tnon-preemptible instances: ${cluster.nonPreemptibleInstances.toList}\n\t  current machine config: ${cluster.machineConfig}"
       )
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
-        // Install a startup script on the master noxde so Jupyter starts back up again once the instance is restarted
+        // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
         IO.fromFuture(IO(instance.dataprocRole.traverse {
           case Master =>
             googleComputeDAO.addInstanceMetadata(instance.key, metadata) >>
@@ -295,7 +295,8 @@ class ClusterHelper(
       _ <- dbRef.inTransactionIO {
         _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, now), now)
       }
-      newCluster = cluster.copy(clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage, welderEnabled = true)
+      newCluster = cluster.copy(clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage,
+                                welderEnabled = true)
     } yield newCluster
 
   def resizeCluster(cluster: Cluster, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =

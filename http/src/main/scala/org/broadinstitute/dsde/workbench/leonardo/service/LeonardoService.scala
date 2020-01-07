@@ -370,7 +370,7 @@ class LeonardoService(
       //we need to record the desired update and set a flag on the cluster so the monitor picks it up
       //TODO: we currently do not support this
       case DeleteCreateTransition(_) => IO.unit
-      case Noop(_)         => IO.unit
+      case Noop(_)                   => IO.unit
     }
 
   private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] =
@@ -788,11 +788,13 @@ class LeonardoService(
 
     // transform Some(empty, empty, empty, empty) to None
     // TODO: is this really necessary?
-    val updatedClusterRequest = clusterRequest.copy(userJupyterExtensionConfig =
-            if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
-              None
-            else
-              Some(updatedUserJupyterExtensionConfig))
+    val updatedClusterRequest = clusterRequest.copy(
+      userJupyterExtensionConfig =
+        if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
+          None
+        else
+          Some(updatedUserJupyterExtensionConfig)
+    )
 
     addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedClusterRequest)
   }
@@ -821,7 +823,7 @@ class LeonardoService(
       throw IllegalLabelKeyException(includeDeletedKey)
     else
       clusterRequest
-              .copy(labels = allLabels)
+        .copy(labels = allLabels)
   }
 
   private[service] def getClusterImages(

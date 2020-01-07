@@ -56,5 +56,5 @@ object ClusterEnrichments {
     cluster.copy(errors = List.empty, instances = Set.empty, userJupyterExtensionConfig = None, clusterImages = Set.empty, scopes = Set.empty)
   }
 
-  implicit val clusterRequestWriter: RootJsonWriter[ClusterRequest] = jsonFormat18(ClusterRequest)
+  implicit val clusterRequestWriter: RootJsonWriter[ClusterRequest] = jsonFormat17(ClusterRequest)
 }

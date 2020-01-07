@@ -64,19 +64,19 @@ object LeoPubsubCodec {
       messageType <- Decoder[String].prepare(_.downField("messageType"))
       value <- messageType match {
         case "stopUpdate" => Decoder[StopUpdateMessage]
-        case other => throw PubsubException(s"found a message with an unknown type when decoding: ${other}")
+        case other        => throw PubsubException(s"found a message with an unknown type when decoding: ${other}")
       }
     } yield value
   }
 
   implicit val machineConfigEncoder: Encoder[MachineConfig] =
     Encoder.forProduct7("numberOfWorkers",
-      "masterMachineType",
-      "masterDiskSize",
-      "workerMachineType",
-      "workerDiskSize",
-      "numberOfWorkerLocalSSDs",
-      "numberOfPreemptibleWorkers")(x => MachineConfig.unapply(x).get)
+                        "masterMachineType",
+                        "masterDiskSize",
+                        "workerMachineType",
+                        "workerDiskSize",
+                        "numberOfWorkerLocalSSDs",
+                        "numberOfPreemptibleWorkers")(x => MachineConfig.unapply(x).get)
 
   implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
     Encoder.forProduct2("messageType", "updatedMachineConfig")(x => (x.updatedMachineConfig, x.clusterId))
@@ -84,9 +84,7 @@ object LeoPubsubCodec {
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = (message: LeoPubsubMessage) => {
     message.messageType match {
       case "stopUpdate" => stopUpdateMessageEncoder(message.asInstanceOf[StopUpdateMessage])
-      case other =>throw PubsubException(s"found a message with an unknown type when encoding: ${other}")
+      case other        => throw PubsubException(s"found a message with an unknown type when encoding: ${other}")
     }
   }
 }
-
-
