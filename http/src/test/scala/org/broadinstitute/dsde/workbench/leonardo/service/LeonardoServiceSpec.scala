@@ -130,7 +130,7 @@ class LeonardoServiceSpec
                               bucketHelper,
                               clusterHelper,
                               new MockDockerDAO,
-      mockGooglePublisher)
+      mockQueue)
   }
 
   override def afterAll(): Unit = {
@@ -278,7 +278,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO(RStudio),
-      mockGooglePublisher)
+      mockQueue)
 
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -534,7 +534,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      mockGooglePublisher)
+      mockQueue)
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -587,7 +587,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      mockGooglePublisher)
+      mockQueue)
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue

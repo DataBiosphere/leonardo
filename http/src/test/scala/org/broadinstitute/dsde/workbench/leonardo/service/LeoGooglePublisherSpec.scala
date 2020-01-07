@@ -18,11 +18,11 @@ with CommonTestData
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
 
-  val googlePublisher = new LeoGooglePublisher[IO](pubsubConfig)
-  val dummyMessage = StopUpdateMessage(defaultMachineConfig)
-
-  "should publish" in {
-    googlePublisher.publish(dummyMessage)
-  }
+//  val googlePublisher = new LeoGooglePublisher[IO](pubsubConfig)
+//  val dummyMessage = StopUpdateMessage(defaultMachineConfig)
+//
+//  "should publish" in {
+//    googlePublisher.publish(dummyMessage)
+//  }
 
 }

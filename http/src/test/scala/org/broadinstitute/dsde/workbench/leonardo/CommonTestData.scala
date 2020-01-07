@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.typesafe.config.ConfigFactory
+import fs2.concurrent.InspectableQueue
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
@@ -19,11 +20,15 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDA
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.LeoGooglePublisher
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatestplus.mockito.MockitoSugar
+import org.scalatestplus.mockito._
+import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
+
+import scala.concurrent.ExecutionContext.global
 
 // values common to multiple tests, to reduce boilerplate
 
@@ -58,8 +63,6 @@ trait CommonTestData { this: ScalaFutures =>
     "https://www.googleapis.com/auth/source.read_only"
   )
 
-  val mockGooglePublisher = MockitoSugar.mock[LeoGooglePublisher[IO]]
-
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val dataprocImageProjectGroupName = config.getString("google.groups.dataprocImageProjectGroupName")
   val dataprocImageProjectGroupEmail = WorkbenchEmail(config.getString("google.groups.dataprocImageProjectGroupEmail"))
@@ -87,6 +90,11 @@ trait CommonTestData { this: ScalaFutures =>
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
 
+//  val mockQueue = InspectableQueue.bounded[IO, LeoPubsubMessage](1000).unsafeRunSync()
+  val mockQueue = MockitoSugar.mock[InspectableQueue[IO, LeoPubsubMessage]]
+  when {
+    mockQueue.enqueue1(any[LeoPubsubMessage])
+  } thenReturn(IO.unit)
 
   val testClusterRequest = ClusterRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
