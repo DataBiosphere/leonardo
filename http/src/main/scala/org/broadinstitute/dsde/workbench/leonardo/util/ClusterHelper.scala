@@ -393,20 +393,24 @@ class ClusterHelper(
     }
   }
 
-  private def getClusterResourceContraints(cluster: Cluster): IO[ClusterResourceConstraints] = {
+  private[leonardo] def getClusterResourceContraints(cluster: Cluster): IO[ClusterResourceConstraints] = {
     val totalMemoryMb = for {
       // Find a zone in which to query the machine type: either the configured zone or
       // the first zone in the configured region.
       zoneUri <- {
         val configuredZone = OptionT.fromOption[IO](dataprocConfig.dataprocZone.map(ZoneUri))
         val zoneList = for {
-          zones <- IO.fromFuture(IO(googleComputeDAO.getZones(cluster.googleProject, dataprocConfig.dataprocDefaultRegion)))
+          zones <- IO.fromFuture(
+            IO(googleComputeDAO.getZones(cluster.googleProject, dataprocConfig.dataprocDefaultRegion))
+          )
           _ <- log.debug(s"List of zones in project ${cluster.googleProject}: ${zones}")
         } yield zones
 
         configuredZone orElse OptionT(zoneList.map(_.headOption))
       }
       _ <- OptionT.liftF(log.debug(s"Using zone ${zoneUri} to resolve machine type"))
+
+      // Resolve the master machine type in Google to get the total memory.
       machineType <- OptionT.fromOption[IO](cluster.machineConfig.masterMachineType)
       resolvedMachineType <- OptionT(
         IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, MachineType(machineType))))
@@ -417,10 +421,10 @@ class ClusterHelper(
     totalMemoryMb.value.flatMap {
       case None        => IO.raiseError(ClusterResourceConstaintsException(cluster))
       case Some(total) =>
-        // total - dataproc allocated - welder allocated - os allocated
-        val result = total - dataprocConfig.dataprocReservedMemory
-          .map(_.mb.toInt)
-          .getOrElse(0) - welderConfig.welderReservedMemory.map(_.mb.toInt).getOrElse(0)
+        // total - dataproc allocated - welder allocated
+        val dataprocAllocated = dataprocConfig.dataprocReservedMemory.map(_.mb.toInt).getOrElse(0)
+        val welderAllocated = welderConfig.welderReservedMemory.map(_.mb.toInt).getOrElse(0)
+        val result = total - dataprocAllocated - welderAllocated
         IO.pure(ClusterResourceConstraints(result))
     }
   }

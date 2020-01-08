@@ -269,6 +269,13 @@ class ClusterHelperSpec
     erroredIamDAO.invocationCount should be > 2
   }
 
+  it should "calculate cluster resource constraints" in isolatedDbTest {
+    val resourceConstraints = clusterHelper.getClusterResourceContraints(testCluster).unsafeRunSync()
+
+    // 7680 (in mock compute dao) - 4608 (dataproc allocated) - 512 (welder allocated) = 2560
+    resourceConstraints.memoryLimitMb shouldBe 2560
+  }
+
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
     var invocationCount = 0
     override def createCluster(googleProject: GoogleProject,

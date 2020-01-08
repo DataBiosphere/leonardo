@@ -213,7 +213,8 @@ class HttpGoogleComputeDAO(
   }
 
   override def getZones(googleProject: GoogleProject, region: String): Future[List[ZoneUri]] = {
-    val request = compute.zones().list(googleProject.value).setFilter(s"region eq ${buildRegionUri(googleProject, region)}")
+    val request =
+      compute.zones().list(googleProject.value).setFilter(s"region eq ${buildRegionUri(googleProject, region)}")
 
     retry(retryPredicates: _*)(() => executeGoogleRequest(request)).handleGoogleException(googleProject).map {
       zoneList =>
