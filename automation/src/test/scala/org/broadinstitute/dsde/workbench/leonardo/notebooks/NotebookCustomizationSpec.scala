@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoConfig, MachineConfig}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -183,6 +183,37 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
               }
           }
 
+        }
+      }
+    }
+
+    "should recover from out-of-memory errors" in { billingProject =>
+      implicit val ronToken: AuthToken = ronAuthToken
+
+      // Create a cluster with smaller memory size
+      withNewCluster(
+        billingProject,
+        request = defaultClusterRequest.copy(
+          machineConfig = Some(
+            MachineConfig(masterMachineType = Some("n1-standard-2"))
+          ),
+          toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)
+        )
+      ) { cluster =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(cluster) { notebookPage =>
+            // try to allocate 6G of RAM, which should not be possible for this machine type
+            val cell =
+              """import numpy
+                |result = [numpy.random.bytes(1024*1024) for x in range(6*1024)]
+                |print(len(result))
+                |""".stripMargin
+            notebookPage.addCodeAndExecute(cell)
+
+            // Kernel should restart automatically and still be functional
+            notebookPage.dismissKernelDied()
+            notebookPage.executeCell("print('Still alive!')", cellNumberOpt = Some(1)).get shouldBe "Still alive!"
+          }
         }
       }
     }

@@ -24,7 +24,7 @@ trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
     }
 
     sys.props.get(gpallocProjectKey) match {
-      case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      case None                                                   => throw new RuntimeException("leonardo.billingProject system property is not set")
       case Some(msg) if msg.startsWith("Failed To Claim Project") => throw new RuntimeException(msg)
       case Some(billingProject) =>
         if (isRetryable(test))
@@ -45,7 +45,7 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
   override def beforeAll(): Unit = {
     super.beforeAll()
     Either.catchNonFatal(claimProject()) match {
-      case Left(e) => sys.props.put(gpallocProjectKey, "Failed To Claim Project: "+e.getMessage)
+      case Left(e)               => sys.props.put(gpallocProjectKey, "Failed To Claim Project: " + e.getMessage)
       case Right(billingProject) => sys.props.put(gpallocProjectKey, billingProject.value)
     }
   }
