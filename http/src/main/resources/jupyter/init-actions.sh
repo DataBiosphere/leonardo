@@ -363,11 +363,37 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
+
+      # Install NbExtensions
+      if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
+        for ext in ${JUPYTER_NB_EXTENSIONS}
+        do
+          log 'Installing Jupyter NB extension [$ext]...'
+          if [[ $ext == 'gs://'* ]]; then
+            gsutil cp $ext /etc
+            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+            JUPYTER_EXTENSION_FILE=`basename $ext`
+            curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
+            docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+          else
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
+          fi
+        done
+      fi
+
       # If a Jupyter user script was specified, copy it into the jupyter docker container and execute it.
       if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
         log 'Running Jupyter user script [$JUPYTER_USER_SCRIPT_URI]...'
-        gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
         JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
+        if [[ ${JUPYTER_USER_SCRIPT_URI} == 'gs://'* ]]; then
+          gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
+        else
+          curl $JUPYTER_USER_SCRIPT_URI -o /etc/${JUPYTER_USER_SCRIPT}
+        fi
         docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
@@ -375,6 +401,7 @@ END
         # can gain full access to the VM already, so using this flag is not a significant escalation.
         EXIT_CODE=0
         docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
+
         if [ $EXIT_CODE -ne 0 ]; then
             log "User script failed with exit code $EXIT_CODE. Output is saved to $JUPYTER_USER_SCRIPT_OUTPUT_URI."
             retry 3 gsutil -h "x-goog-meta-passed":"false" cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
@@ -387,8 +414,12 @@ END
       # If a Jupyter start user script was specified, copy it into the jupyter docker container for consumption by startup.sh.
       if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
         log 'Copying Jupyter start user script [$JUPYTER_START_USER_SCRIPT_URI]...'
-        gsutil cp ${JUPYTER_START_USER_SCRIPT_URI} /etc
         JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
+        if [[ ${JUPYTER_START_USER_SCRIPT_URI} == 'gs://'* ]]; then
+          gsutil cp ${JUPYTER_START_USER_SCRIPT_URI} /etc
+        else
+          curl $JUPYTER_START_USER_SCRIPT_URI -o /etc/${JUPYTER_START_USER_SCRIPT}
+        fi
         docker cp /etc/${JUPYTER_START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
 
