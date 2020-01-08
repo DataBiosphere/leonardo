@@ -398,17 +398,20 @@ class ClusterHelper(
       // Find a zone in which to query the machine type: either the configured zone or
       // the first zone in the configured region.
       zoneUri <- {
-        val lhs = OptionT.fromOption[IO](dataprocConfig.dataprocZone.map(ZoneUri))
-        val rhs = OptionT(
-          IO.fromFuture(IO(googleComputeDAO.getZones(cluster.googleProject, dataprocConfig.dataprocDefaultRegion)))
-            .map(_.headOption)
-        )
-        lhs orElse rhs
+        val configuredZone = OptionT.fromOption[IO](dataprocConfig.dataprocZone.map(ZoneUri))
+        val zoneList = for {
+          zones <- IO.fromFuture(IO(googleComputeDAO.getZones(cluster.googleProject, dataprocConfig.dataprocDefaultRegion)))
+          _ <- log.debug(s"List of zones in project ${cluster.googleProject}: ${zones}")
+        } yield zones
+
+        configuredZone orElse OptionT(zoneList.map(_.headOption))
       }
+      _ <- OptionT.liftF(log.debug(s"Using zone ${zoneUri} to resolve machine type"))
       machineType <- OptionT.fromOption[IO](cluster.machineConfig.masterMachineType)
       resolvedMachineType <- OptionT(
         IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, MachineType(machineType))))
       )
+      _ <- OptionT.liftF(log.debug(s"Resolved machine type: ${resolvedMachineType.toPrettyString}"))
     } yield resolvedMachineType.getMemoryMb.toInt
 
     totalMemoryMb.value.flatMap {

@@ -212,11 +212,8 @@ class HttpGoogleComputeDAO(
     retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
-  private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String =
-    s"zones/${instanceKey.zone.value}/machineTypes/$machineType"
-
   override def getZones(googleProject: GoogleProject, region: String): Future[List[ZoneUri]] = {
-    val request = compute.zones().list(googleProject.value).setFilter(s"region:$region")
+    val request = compute.zones().list(googleProject.value).setFilter(s"region eq ${buildRegionUri(googleProject, region)}")
 
     retry(retryPredicates: _*)(() => executeGoogleRequest(request)).handleGoogleException(googleProject).map {
       zoneList =>
@@ -236,6 +233,12 @@ class HttpGoogleComputeDAO(
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
     }.handleGoogleException(googleProject)
   }
+
+  private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String =
+    s"zones/${instanceKey.zone.value}/machineTypes/$machineType"
+
+  private def buildRegionUri(googleProject: GoogleProject, region: String): String =
+    s"https://www.googleapis.com/compute/v1/projects/${googleProject.value}/regions/$region"
 
   implicit private class GoogleExceptionSupport[A](future: Future[A]) {
     def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] =
