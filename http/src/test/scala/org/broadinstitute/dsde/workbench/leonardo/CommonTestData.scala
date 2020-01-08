@@ -19,18 +19,13 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDA
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.google.{
-  GoogleProject,
-  ServiceAccountKey,
-  ServiceAccountKeyId,
-  ServiceAccountPrivateKeyData,
-  _
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
 
-// values common to multiple tests, to reduce boilerplate
 
+// values common to multiple tests, to reduce boilerplate
 trait CommonTestData { this: ScalaFutures =>
   val name0 = ClusterName("clustername0")
   val name1 = ClusterName("clustername1")
@@ -88,6 +83,16 @@ trait CommonTestData { this: ScalaFutures =>
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers),
                                                      Some(clusterDefaultsConfig.masterMachineType),
                                                      Some(clusterDefaultsConfig.masterDiskSize))
+
+  val pubsubConfig = config.as[PubsubConfig]("pubsub")
+
+//    val mockQueue = InspectableQueue.bounded[IO, LeoPubsubMessage](1000).unsafeRunSync()
+//  val mockQueue = MockitoSugar.mock[InspectableQueue[IO, LeoPubsubMessage]]
+//  when {
+//    mockQueue.enqueue1(any[LeoPubsubMessage])
+//  } thenReturn (IO.unit)
+  val mockQueue = QueueFactory.mockQueue
+
   val testClusterRequest = ClusterRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
     None,
@@ -95,6 +100,7 @@ trait CommonTestData { this: ScalaFutures =>
     None,
     None,
     Map.empty,
+    None,
     None,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
@@ -108,6 +114,7 @@ trait CommonTestData { this: ScalaFutures =>
     Some(jupyterStartUserScriptUri),
     None,
     Map.empty,
+    None,
     None,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
@@ -135,6 +142,8 @@ trait CommonTestData { this: ScalaFutures =>
   val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
   val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = ClusterImage(Welder, "welder/welder:latest", Instant.now)
+
+  val defaultMachineConfig = MachineConfig(Some(0), Some(""), Some(500))
 
   def makeDataprocInfo(index: Int): DataprocInfo =
     DataprocInfo(
@@ -167,6 +176,7 @@ trait CommonTestData { this: ScalaFutures =>
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
+      allowStop = false,
       clusterImages = Set(jupyterImage),
       scopes = defaultScopes,
       welderEnabled = false,
@@ -195,6 +205,7 @@ trait CommonTestData { this: ScalaFutures =>
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
+    allowStop = false,
     clusterImages = Set(jupyterImage),
     scopes = defaultScopes,
     welderEnabled = false,

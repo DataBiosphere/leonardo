@@ -23,15 +23,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
-  NegativeIntegerArgumentInClusterRequestException,
-  OneWorkerSpecifiedInClusterRequestException
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{FakeGoogleStorageService, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, TemplateHelper}
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
@@ -131,7 +128,8 @@ class LeonardoServiceSpec
                               serviceAccountProvider,
                               bucketHelper,
                               clusterHelper,
-                              new MockDockerDAO)
+                              new MockDockerDAO,
+                              mockQueue)
   }
 
   override def afterAll(): Unit = {
@@ -282,7 +280,9 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          clusterHelper,
-                                         new MockDockerDAO(RStudio))
+                                         new MockDockerDAO(RStudio),
+                                         mockQueue)
+
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
     // check the cluster persisted to the database matches the create response
@@ -548,7 +548,8 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          clusterHelper,
-                                         new MockDockerDAO)
+                                         new MockDockerDAO,
+                                          mockQueue)
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -601,7 +602,8 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          clusterHelper,
-                                         new MockDockerDAO)
+                                         new MockDockerDAO,
+                                        mockQueue)
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1101,7 +1103,7 @@ class LeonardoServiceSpec
     )
   }
 
-  it should "not allow changing the master machine type for a cluster in RUNNING state" in isolatedDbTest {
+  it should "not allow changing the master machine type for a cluster in RUNNING state without the flag set" in isolatedDbTest {
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1129,6 +1131,61 @@ class LeonardoServiceSpec
     dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     failure shouldBe a[ClusterMachineTypeCannotBeChangedException]
+  }
+
+  it should "allow changing the master machine type for a cluster in RUNNING state with flag set id2" in isolatedDbTest {
+    // create the cluster
+    val clusterCreateResponse =
+      leo
+        .createCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(defaultMachineConfig)))
+        .unsafeToFuture
+        .futureValue
+
+    // set the cluster to Running
+    dbFutureValue {
+      _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"), Instant.now)
+    }
+
+    val newMachineType = "n1-micro-1"
+    val newConfig = defaultMachineConfig.copy(masterMachineType = Some(newMachineType))
+
+    dbFutureValue {
+      _.clusterQuery.getClusterById(clusterCreateResponse.id)
+    }.get.allowStop shouldBe false
+
+    dbFutureValue {
+      _.clusterQuery.getClusterStatus(clusterCreateResponse.id)
+    } shouldBe Some(ClusterStatus.Running)
+
+    // populate some instances for the cluster
+    val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
+    dbFutureValue {
+      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances)
+    }
+    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
+    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
+
+    val initialQueueSize = mockQueue.getSize.unsafeRunSync()
+
+    initialQueueSize shouldBe 0
+
+    leo
+      .updateCluster(
+        userInfo,
+        project,
+        name1,
+        testClusterRequest.copy(machineConfig = Some(newConfig), allowStop = Some(true))
+      )
+      .unsafeRunSync
+
+    val finalQueueSize = mockQueue.getSize.unsafeRunSync()
+
+    finalQueueSize shouldBe 1
+
+    val message = mockQueue.dequeue1.unsafeRunSync()
+    message.messageType shouldBe "stopUpdate"
+    message.updatedMachineConfig shouldBe newConfig
+    message.clusterId shouldBe clusterCreateResponse.id
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {

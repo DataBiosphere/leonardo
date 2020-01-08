@@ -779,6 +779,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.autopauseThreshold,
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
+        false,
         clusterImages,
         ClusterComponent.this.scopeQuery.unmarshallScopes(scopes),
         clusterRecord.welderEnabled,

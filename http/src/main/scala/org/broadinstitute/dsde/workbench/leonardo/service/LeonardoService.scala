@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
-import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
 
@@ -26,10 +25,10 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyte
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
-import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -39,7 +38,6 @@ import spray.json._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.util.Try
 import scala.util.control.NonFatal
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
@@ -89,7 +87,7 @@ case class ClusterCannotBeUpdatedException(cluster: Cluster)
 
 case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
     extends LeoException(
-      s"Cluster ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type",
+      s"Cluster ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type. Some updates require stopping the cluster or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
       StatusCodes.Conflict
     )
 
@@ -117,6 +115,13 @@ case class ImageAutoDetectionException(traceId: TraceId, image: ContainerImage)
     extends LeoException(s"${traceId} | Unable to auto-detect tool for ${image.registry} image ${image.imageUrl}",
                          StatusCodes.Conflict)
 
+case class UpdateResult(hasUpdateSucceded: Boolean, shouldFollowup: Boolean, followupAction: UpdateTransition)
+
+sealed trait UpdateTransition
+case class StopStartTransition(updateConfig: MachineConfig) extends UpdateTransition
+case class DeleteCreateTransition(updateConfig: MachineConfig) extends UpdateTransition
+case class Noop(updateConfig: Option[MachineConfig]) extends UpdateTransition
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val imageConfig: ImageConfig,
                       protected val welderDao: WelderDAO[IO],
@@ -130,7 +135,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val serviceAccountProvider: ServiceAccountProvider[IO],
                       protected val bucketHelper: BucketHelper,
                       protected val clusterHelper: ClusterHelper,
-                      protected val dockerDAO: DockerDAO[IO])(implicit val executionContext: ExecutionContext,
+                      protected val dockerDAO: DockerDAO[IO],
+                      protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage])(implicit val executionContext: ExecutionContext,
                                                               implicit override val system: ActorSystem,
                                                               log: Logger[IO],
                                                               cs: ContextShift[IO],
@@ -290,6 +296,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       def combine(a: Boolean, b: Boolean): Boolean = a || b
     }
 
+    //TODO: eventually, I will need to use this in a legit way, keeping this so compiler leaves me alone while im developing
+    metrics.incrementCounter("temp counter")
+    logger.info("in start of internalUpdateCluster")
+
     if (existingCluster.status.isUpdatable) {
       for {
         autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster,
@@ -298,14 +308,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         clusterResized <- maybeResizeCluster(existingCluster, clusterRequest.machineConfig).attempt
 
-        masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster, clusterRequest.machineConfig).attempt
+        masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster, clusterRequest).attempt
 
         masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster, clusterRequest.machineConfig).attempt
 
         // Note: only resizing a cluster triggers a status transition to Updating
         (errors, shouldUpdate) = List(
           autopauseChanged.map(_ => false),
-          clusterResized,
+          clusterResized.map(result => result.hasUpdateSucceded),
           masterMachineTypeChanged.map(_ => false),
           masterDiskSizeChanged.map(_ => false)
         ).separate
@@ -315,6 +325,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- if (shouldUpdate.combineAll) {
           dbRef.inTransactionIO { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating, now) }.void
         } else IO.unit
+
+        //maybeMasterMachineTypeChanged will throw an error if the appropriate flag hasn't been set to allow special update transitions
+        shouldFollowup = masterMachineTypeChanged.map(result => result.shouldFollowup).getOrElse(false)
+        _ <- if (shouldFollowup) {
+          val action = masterMachineTypeChanged.map(result => result.followupAction).getOrElse(Noop(None))
+          logger.info(s"detected follow-up action necessary: ${action}")
+          handleClusterTransition(existingCluster, action)
+        } else {
+          logger.info("detected no follow-up action necessary")
+          IO.unit
+        }
 
         cluster <- errors match {
           case Nil => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
@@ -326,6 +347,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
   }
 
+  private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] =
+    transition match {
+      case StopStartTransition(machineConfig) =>
+        publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
+
+      //we need to record the desired update and set a flag on the cluster so the monitor picks it up
+      //TODO: we currently do not support this
+      case DeleteCreateTransition(_) => IO.unit
+      case Noop(_)                   => IO.unit
+    }
+
   private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] =
     (existing, updated) match {
       case (None, Some(0)) =>
@@ -336,7 +368,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def maybeUpdateAutopauseThreshold(existingCluster: Cluster,
                                     autopause: Option[Boolean],
-                                    autopauseThreshold: Option[Int]): IO[Boolean] = {
+                                    autopauseThreshold: Option[Int]): IO[UpdateResult] = {
     val updatedAutopauseThresholdOpt = getUpdatedValueIfChanged(
       Option(existingCluster.autopauseThreshold),
       Option(calculateAutopauseThreshold(autopause, autopauseThreshold))
@@ -350,15 +382,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             .inTransactionIO { dataAccess =>
               dataAccess.clusterQuery.updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
             }
-            .as(true)
+            .as(UpdateResult(true, false, Noop(None)))
         } yield res
 
-      case None => IO.pure(false)
+      case None => IO.pure(UpdateResult(false, false, Noop(None)))
     }
   }
 
   //returns true if cluster was resized, otherwise returns false
-  def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): IO[Boolean] = {
+  def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): IO[UpdateResult] = {
     //machineConfig.numberOfPreemtible undefined, and a 0 is passed in
     //
     val updatedNumWorkersAndPreemptiblesOpt = machineConfigOpt.flatMap { machineConfig =>
@@ -405,43 +437,49 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                   )
             )
           }
-        } yield true
+        } yield UpdateResult(true, false, Noop(None))
 
-      case None => IO.pure(false)
+      case None => IO.pure(UpdateResult(false, false, Noop(None)))
     }
   }
 
-  def maybeChangeMasterMachineType(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): IO[Boolean] = {
+  def maybeChangeMasterMachineType(existingCluster: Cluster, clusterRequest: ClusterRequest): IO[UpdateResult] = {
+    val machineConfigOpt: Option[MachineConfig] = clusterRequest.machineConfig
+    val allowStop: Boolean = clusterRequest.allowStop.getOrElse(false)
+
     val updatedMasterMachineTypeOpt = machineConfigOpt.flatMap { machineConfig =>
       getUpdatedValueIfChanged(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
     }
 
     updatedMasterMachineTypeOpt match {
       // Note: instance must be stopped in order to change machine type
-      // TODO future enchancement: add capability to Leo to manage stop/update/restart transitions itself.
       case Some(updatedMasterMachineType) if existingCluster.status == Stopped =>
         for {
-          _ <- log.info(
-            s"New machine config present. Changing machine type to ${updatedMasterMachineType} for cluster ${existingCluster.projectNameString}..."
-          )
-          // Update the machine type in Google
-          _ <- clusterHelper.setMasterMachineType(existingCluster, MachineType(updatedMasterMachineType))
-          // Update the DB
-          now <- IO(Instant.now)
-          _ <- dbRef.inTransactionIO {
-            _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType), now)
-          }
-        } yield true
+          _ <- clusterHelper.updateMasterMachineType(existingCluster, MachineType(updatedMasterMachineType))
+        } yield UpdateResult(true, false, Noop(None))
 
-      case Some(_) =>
-        IO.raiseError(ClusterMachineTypeCannotBeChangedException(existingCluster))
+      case Some(updatedMasterMachineType) =>
+        logger.info("in stop and update case of maybeChangeMasterMachineType")
+        //        Future.failed(ClusterMachineTypeCannotBeChangedException(existingCluster))
+        val updatedConfig =
+          machineConfigOpt.map(config => config.copy(masterMachineType = Option(updatedMasterMachineType)))
+
+        if (allowStop) {
+          logger.info("detected stop and update transition specified in request of maybeChangeMasterMachineType")
+          val transition = if (updatedConfig.isEmpty) Noop(None) else StopStartTransition(updatedConfig.get)
+          logger.info(s"transition in maybeChangeMasterMachineType ${transition}")
+          IO.pure(UpdateResult(false, true, transition))
+        } else {
+          IO.raiseError(ClusterMachineTypeCannotBeChangedException(existingCluster))
+        }
 
       case None =>
-        IO.pure(false)
+        logger.info("detected no cluster in maybeChangeMasterMachineType")
+        IO.pure(UpdateResult(false, false, Noop(None)))
     }
   }
 
-  def maybeChangeMasterDiskSize(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): IO[Boolean] = {
+  def maybeChangeMasterDiskSize(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): IO[UpdateResult] = {
     val updatedMasterDiskSizeOpt = machineConfigOpt.flatMap { machineConfig =>
       getUpdatedValueIfChanged(existingCluster.machineConfig.masterDiskSize, machineConfig.masterDiskSize)
     }
@@ -462,13 +500,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           _ <- dbRef.inTransactionIO {
             _.clusterQuery.updateMasterDiskSize(existingCluster.id, updatedMasterDiskSize, now)
           }
-        } yield true
+        } yield UpdateResult(true, false, Noop(None))
 
       case Some(_) =>
         IO.raiseError(ClusterDiskSizeCannotBeDecreasedException(existingCluster))
 
       case None =>
-        IO.pure(false)
+        IO.pure(UpdateResult(false, false, Noop(None)))
     }
   }
 
@@ -568,32 +606,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
       _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
 
-      _ <- internalStartCluster(userInfo.userEmail, cluster)
+      _ <- clusterHelper.internalStartCluster(cluster)
     } yield ()
-
-  def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): IO[Unit] =
-    if (cluster.status.isStartable) {
-      val welderAction = getWelderAction(cluster)
-      for {
-        // Check if welder should be deployed or updated
-        updatedCluster <- welderAction match {
-          case DeployWelder | UpdateWelder      => updateWelder(cluster)
-          case NoAction | DisableDelocalization => IO.pure(cluster)
-          case ClusterOutOfDate                 => IO.raiseError(ClusterOutOfDateException())
-        }
-        _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
-          dbRef.inTransactionIO { _.labelQuery.save(cluster.id, "welderInstallFailed", "true") } else IO.unit
-
-        // Start the cluster in Google
-        _ <- clusterHelper.startCluster(updatedCluster, welderAction)
-
-        // Update the cluster status to Starting
-        now <- IO(Instant.now)
-        _ <- dbRef.inTransactionIO { dataAccess =>
-          dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting, now)
-        }
-      } yield ()
-    } else IO.raiseError(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ev: ApplicativeAsk[IO, TraceId]
@@ -833,46 +847,5 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         Some(ClusterImage(Welder, imageUrl, now))
       } else None
     } yield Set(Some(toolImage), welderImageOpt).flatten
-
-  private def getWelderAction(cluster: Cluster): WelderAction =
-    if (cluster.welderEnabled) {
-      // Welder is already enabled; do we need to update it?
-      val labelFound = dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
-
-      val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
-        case Some(welderImage) if welderImage.imageUrl != imageConfig.welderDockerImage => true
-        case _                                                                             => false
-      }
-
-      if (labelFound && imageChanged) UpdateWelder
-      else NoAction
-    } else {
-      // Welder is not enabled; do we need to deploy it?
-      val labelFound = dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
-      if (labelFound) {
-        if (isClusterBeforeCutoffDate(cluster)) DisableDelocalization
-        else DeployWelder
-      } else NoAction
-    }
-
-  private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean =
-    (for {
-      dateStr <- dataprocConfig.deployWelderCutoffDate
-      date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
-      isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
-    } yield isClusterBeforeCutoffDate) getOrElse false
-
-  private def updateWelder(cluster: Cluster): IO[Cluster] =
-    for {
-      _ <- IO(logger.info(s"Will deploy welder to cluster ${cluster.projectNameString}"))
-      _ <- metrics.incrementCounter("welder/deploy")
-      now <- IO(Instant.now)
-      welderImage = ClusterImage(Welder, imageConfig.welderDockerImage, now)
-      _ <- dbRef.inTransactionIO {
-        _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, imageConfig.welderDockerImage, now), now)
-      }
-      newCluster = cluster.copy(welderEnabled = true,
-                                clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
-    } yield newCluster
 
 }
