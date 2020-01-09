@@ -1,14 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import java.io.File
+import java.nio.file.Paths
 
 import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterResource, ServiceAccountProviderConfig}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterResource, MemorySize, ServiceAccountProviderConfig}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -54,7 +56,7 @@ object Config {
       config.getAs[String]("projectVPCSubnetLabel"),
       CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
       CustomDataprocImage(config.getString("customDataprocImage")),
-      config.getAs[MemoryConfig]("dataprocReservedMemory")
+      config.getAs[MemorySize]("dataprocReservedMemory")
     )
   }
 
@@ -64,18 +66,18 @@ object Config {
       config.getString("jupyterImage"),
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),
-      config.getString("dockerhubImageRegex")
+      config.getString("broadDockerhubImageRegex")
     )
   }
 
   implicit val welderConfigReader: ValueReader[WelderConfig] = ValueReader.relative { config =>
     WelderConfig(
-      config.getString("welderEnabledNotebooksDir"),
-      config.getString("welderDisabledNotebooksDir"),
+      Paths.get(config.getString("welderEnabledNotebooksDir")),
+      Paths.get(config.getString("welderDisabledNotebooksDir")),
       config.getAs[String]("deployWelderLabel"),
       config.getAs[String]("updateWelderLabel"),
       config.getAs[String]("deployWelderCutoffDate"),
-      config.getAs[MemoryConfig]("welderReservedMemory")
+      config.getAs[MemorySize]("welderReservedMemory")
     )
   }
 
@@ -225,6 +227,9 @@ object Config {
       serviceAccountProviderConfig
     )
   }
+
+  implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
+    MemorySize(config.getBytes(path))
 
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")

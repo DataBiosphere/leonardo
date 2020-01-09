@@ -724,7 +724,7 @@ class LeonardoServiceSpec
           |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"
-          |"${clusterResourceConstraints.memoryLimitMb}m"""".stripMargin
+          |"${clusterResourceConstraints.memoryLimit.bytes}b"""".stripMargin
 
     new String(result, StandardCharsets.UTF_8) shouldEqual expected
   }

@@ -1,10 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import java.nio.file.Path
+
+import org.broadinstitute.dsde.workbench.leonardo.model.MemorySize
+
 final case class WelderConfig(
-  welderEnabledNotebooksDir: String,
-  welderDisabledNotebooksDir: String, // TODO: remove once welder is rolled out to all clusters
+  welderEnabledNotebooksDir: Path,
+  welderDisabledNotebooksDir: Path, // TODO: remove once welder is rolled out to all clusters
   deployWelderLabel: Option[String],
   updateWelderLabel: Option[String],
   deployWelderCutoffDate: Option[String],
-  welderReservedMemory: Option[MemoryConfig]
+  welderReservedMemory: Option[MemorySize]
 )

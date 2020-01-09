@@ -215,7 +215,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
     clusterInitMap("welderEnabled") shouldBe "true"
-    clusterInitMap("memLimit") shouldBe clusterResourceConstraints.memoryLimitMb.toString + "m"
+    clusterInitMap("memLimit") shouldBe clusterResourceConstraints.memoryLimit.bytes.toString + "b"
 
     clusterInitMap.size shouldBe 36
   }

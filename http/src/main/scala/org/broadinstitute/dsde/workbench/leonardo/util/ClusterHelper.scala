@@ -394,7 +394,7 @@ class ClusterHelper(
   }
 
   private[leonardo] def getClusterResourceContraints(cluster: Cluster): IO[ClusterResourceConstraints] = {
-    val totalMemoryMb = for {
+    val totalMemory = for {
       // Find a zone in which to query the machine type: either the configured zone or
       // an arbitrary zone in the configured region.
       zoneUri <- {
@@ -416,15 +416,15 @@ class ClusterHelper(
         IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, MachineType(machineType))))
       )
       _ <- OptionT.liftF(log.debug(s"Resolved machine type: ${resolvedMachineType.toPrettyString}"))
-    } yield resolvedMachineType.getMemoryMb.toInt
+    } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
 
-    totalMemoryMb.value.flatMap {
+    totalMemory.value.flatMap {
       case None        => IO.raiseError(ClusterResourceConstaintsException(cluster))
       case Some(total) =>
         // total - dataproc allocated - welder allocated
-        val dataprocAllocated = dataprocConfig.dataprocReservedMemory.map(_.mb.toInt).getOrElse(0)
-        val welderAllocated = welderConfig.welderReservedMemory.map(_.mb.toInt).getOrElse(0)
-        val result = total - dataprocAllocated - welderAllocated
+        val dataprocAllocated = dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
+        val welderAllocated = welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
+        val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
         IO.pure(ClusterResourceConstraints(result))
     }
   }

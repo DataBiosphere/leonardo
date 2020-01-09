@@ -702,14 +702,14 @@ class ClusterMonitorActor(
   private def findToolImageInfo(images: Set[ClusterImage]): String = {
     val terraJupyterImage = imageConfig.jupyterImageRegex.r
     val anvilRStudioImage = imageConfig.rstudioImageRegex.r
-    val dockerhubImageRegex = imageConfig.dockerhubImageRegex.r
+    val broadDockerhubImageRegex = imageConfig.broadDockerhubImageRegex.r
     images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
       case Some(toolImage) =>
         toolImage.imageUrl match {
-          case terraJupyterImage(imageType, hash)   => s"GCR/${imageType}/${hash}"
-          case anvilRStudioImage(imageType, hash)   => s"GCR/${imageType}/${hash}"
-          case dockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
-          case _                                    => "custom_image"
+          case terraJupyterImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
+          case anvilRStudioImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
+          case broadDockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
+          case _                                         => "custom_image"
         }
       case None => "unknown"
     }

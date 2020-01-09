@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import org.broadinstitute.dsde.workbench.leonardo.model.MemorySize
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class DataprocConfig(
@@ -20,7 +21,7 @@ final case class DataprocConfig(
   projectVPCSubnetLabel: Option[String],
   legacyCustomDataprocImage: CustomDataprocImage,
   customDataprocImage: CustomDataprocImage,
-  dataprocReservedMemory: Option[MemoryConfig]
+  dataprocReservedMemory: Option[MemorySize]
 )
 
 final case class CustomDataprocImage(asString: String) extends AnyVal
