@@ -396,7 +396,7 @@ class ClusterHelper(
   private[leonardo] def getClusterResourceContraints(cluster: Cluster): IO[ClusterResourceConstraints] = {
     val totalMemoryMb = for {
       // Find a zone in which to query the machine type: either the configured zone or
-      // the first zone in the configured region.
+      // an arbitrary zone in the configured region.
       zoneUri <- {
         val configuredZone = OptionT.fromOption[IO](dataprocConfig.dataprocZone.map(ZoneUri))
         val zoneList = for {

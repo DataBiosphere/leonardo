@@ -445,7 +445,6 @@ object ClusterTemplateValues {
       initBucketName
         .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri)
         .getOrElse(""),
-      // See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
       clusterResourceConstraints.map(_.memoryLimitMb.toString + "m").getOrElse("")
     )
 }
