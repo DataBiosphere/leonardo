@@ -36,7 +36,8 @@ object TestClusterSupervisorActor {
             jupyterProxyDAO: JupyterDAO,
             rstudioProxyDAO: RStudioDAO,
             welderDAO: WelderDAO[IO],
-            clusterHelper: ClusterHelper)(implicit cs: ContextShift[IO]): Props =
+            clusterHelper: ClusterHelper,
+            publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO]): Props =
     Props(
       new TestClusterSupervisorActor(monitorConfig,
                                      dataprocConfig,
@@ -53,7 +54,8 @@ object TestClusterSupervisorActor {
                                      jupyterProxyDAO,
                                      rstudioProxyDAO,
                                      welderDAO,
-                                     clusterHelper)
+                                     clusterHelper,
+                                     publisherQueue)
     )
 }
 
@@ -77,7 +79,8 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  jupyterProxyDAO: JupyterDAO,
                                  rstudioProxyDAO: RStudioDAO,
                                  welderDAO: WelderDAO[IO],
-                                 clusterHelper: ClusterHelper)(implicit cs: ContextShift[IO])
+                                 clusterHelper: ClusterHelper,
+                                 publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO])
     extends ClusterMonitorSupervisor(
       monitorConfig,
       dataprocConfig,
@@ -93,7 +96,8 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       jupyterProxyDAO,
       rstudioProxyDAO,
       welderDAO,
-      clusterHelper
+      clusterHelper,
+      publisherQueue
     )(FakeNewRelicMetricsInterpreter, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO), cs) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped

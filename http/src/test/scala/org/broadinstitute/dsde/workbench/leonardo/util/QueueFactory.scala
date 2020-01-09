@@ -10,4 +10,7 @@ object QueueFactory {
   implicit val t = IO.timer(global)
   val mockQueue = InspectableQueue.bounded[IO, LeoPubsubMessage](1000).unsafeRunSync()
 
+  def makeQueue() = {
+    InspectableQueue.bounded[IO, LeoPubsubMessage](1000).unsafeRunSync()
+  }
 }

@@ -24,16 +24,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
+import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GcsEntity,
-  GcsObjectName,
-  GoogleProject,
-  ServiceAccountKeyId
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
@@ -85,6 +79,12 @@ class ClusterMonitorSpec
     status = ClusterStatus.Starting,
     clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()),
                         ClusterImage(ClusterImageType.Jupyter, "jupyter_image", Instant.now()))
+  )
+  val runningCluster = makeCluster(1).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    status = ClusterStatus.Running,
+    instances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val errorCluster = makeCluster(5).copy(
@@ -154,7 +154,8 @@ class ClusterMonitorSpec
                               authProvider: LeoAuthProvider[IO],
                               jupyterDAO: JupyterDAO,
                               rstudioDAO: RStudioDAO,
-                              welderDAO: WelderDAO[IO]): ActorRef = {
+                              welderDAO: WelderDAO[IO],
+                             queue: fs2.concurrent.Queue[IO, LeoPubsubMessage]): ActorRef = {
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
@@ -169,7 +170,7 @@ class ClusterMonitorSpec
                                           computeDAO,
                                           directoryDAO,
                                           iamDAO,
-                                          projectDAO,
+                                          projectDAO, MockWelderDAO,
                                           blocker)
     val supervisorActor = system.actorOf(
       TestClusterSupervisorActor.props(
@@ -188,7 +189,8 @@ class ClusterMonitorSpec
         jupyterDAO,
         rstudioDAO,
         welderDAO,
-        clusterHelper
+        clusterHelper,
+        queue
       )
     )
 
@@ -207,7 +209,8 @@ class ClusterMonitorSpec
     rstudioDAO: RStudioDAO = MockRStudioDAO,
     welderDAO: WelderDAO[IO] = MockWelderDAO,
     runningChild: Boolean = true,
-    directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO()
+    directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO(),
+                              queue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makeQueue()
   )(testCode: ActorRef => T): T = {
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     directoryDAO
@@ -225,7 +228,8 @@ class ClusterMonitorSpec
                                              authProvider,
                                              jupyterDAO,
                                              rstudioDAO,
-                                             welderDAO)
+                                             welderDAO,
+      queue)
     val testResult = Try(testCode(supervisor))
     testKit watch supervisor
     supervisor ! TearDown
@@ -1370,6 +1374,56 @@ class ClusterMonitorSpec
       }
       verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName])
     }
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Stopping
+  // Post:
+  // - cluster is not updated in the DB
+  // - monitor actor shuts down
+  // - dataproc DAO should not have been called
+  it should "put a message in the queue for a stopping cluster" in isolatedDbTest {
+    val savedStoppingCluster = stoppingCluster.save()
+    stoppingCluster shouldEqual savedStoppingCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Running)
+    when {
+      gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+    } thenReturn Future.successful(clusterInstances)
+
+    val computeDAO = stubComputeDAO(InstanceStatus.Stopped)
+    val storageDAO = mock[GoogleStorageDAO]
+    val projectDAO = mock[GoogleProjectDAO]
+    val iamDAO = mock[GoogleIamDAO]
+    val authProvider = mock[LeoAuthProvider[IO]]
+
+    val queue = QueueFactory.makeQueue()
+
+    queue.getSize.unsafeRunSync() shouldBe 0
+
+    withClusterSupervisor(gdDAO,
+      computeDAO,
+      iamDAO,
+      projectDAO,
+      storageDAO,
+      FakeGoogleStorageService,
+      authProvider,
+      MockJupyterDAO,
+      MockRStudioDAO,
+      MockWelderDAO,
+      false,
+        queue = queue
+    ) { actor =>
+      eventually {
+        val size = queue.getSize.unsafeRunSync()
+        size shouldBe 1
+      }
+    }
+
+
   }
 }
 
