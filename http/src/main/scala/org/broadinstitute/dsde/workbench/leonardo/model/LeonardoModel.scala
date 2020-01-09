@@ -13,7 +13,7 @@ import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType.JupyterService
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{CustomDataProc, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -245,7 +245,7 @@ object Cluster {
                     labels: Map[String, String]): URL = {
     val tool = clusterImages
       .map(_.imageType)
-      .filterNot(_ == Welder)
+      .filterNot(Set(Welder, CustomDataProc).contains)
       .headOption
       .orElse(labels.get("tool").flatMap(ClusterImageType.withNameInsensitiveOption))
       .flatMap(ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get)
