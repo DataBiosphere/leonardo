@@ -17,7 +17,12 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  ClusterBucketConfig,
+  DataprocConfig,
+  ImageConfig,
+  MonitorConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -26,12 +31,16 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
+  ClusterDeleted,
+  ClusterSupervisorMessage,
+  RemoveFromList
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
+import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -248,7 +257,9 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp, now) }
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Running).unsafeToFuture()
-      _ <- if (cluster.status == ClusterStatus.Creating) recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.clusterImages).unsafeToFuture() else Future.unit
+      _ <- if (cluster.status == ClusterStatus.Creating)
+        recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.clusterImages).unsafeToFuture()
+      else Future.unit
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -693,12 +704,13 @@ class ClusterMonitorActor(
     val anvilRStudioImage = imageConfig.rstudioImageRegex.r
     val dockerhubImageRegex = imageConfig.dockerhubImageRegex.r
     images.find(clusterImage => Set(ClusterImageType.Jupyter, ClusterImageType.RStudio) contains clusterImage.imageType) match {
-      case Some(toolImage) => toolImage.imageUrl match {
-        case terraJupyterImage(imageType, hash) => s"GCR/${imageType}/${hash}"
-        case anvilRStudioImage(imageType, hash) => s"GCR/${imageType}/${hash}"
-        case dockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
-        case _ => "custom_image"
-      }
+      case Some(toolImage) =>
+        toolImage.imageUrl match {
+          case terraJupyterImage(imageType, hash)   => s"GCR/${imageType}/${hash}"
+          case anvilRStudioImage(imageType, hash)   => s"GCR/${imageType}/${hash}"
+          case dockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
+          case _                                    => "custom_image"
+        }
       case None => "unknown"
     }
   }

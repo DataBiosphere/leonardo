@@ -92,7 +92,7 @@ class ProxyRoutesSpec
       }
       // should still 404 even if a cache entry is present
       proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
-        Future.successful(Some(internalId)))
+                                              Future.successful(Some(internalId)))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }

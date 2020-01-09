@@ -249,4 +249,38 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ))
     ContainerImage.stringToJupyterDockerImage("asd/asdf") shouldBe (Some(ContainerImage.DockerHub("asd/asdf")))
   }
+
+  "Cluster" should "generate a correct cluster URL" in {
+    val expectedBase = s"http://leonardo/proxy/$project/$name0/"
+
+    // No images or labels -> default to Jupyter
+    Cluster.getClusterUrl(project, name0, Set.empty, Map.empty).toString shouldBe expectedBase + "jupyter"
+
+    // images only
+    Cluster.getClusterUrl(project, name0, Set(jupyterImage), Map.empty).toString shouldBe expectedBase + "jupyter"
+    Cluster
+      .getClusterUrl(project, name0, Set(welderImage, customDataprocImage, jupyterImage), Map.empty)
+      .toString shouldBe expectedBase + "jupyter"
+    Cluster.getClusterUrl(project, name0, Set(rstudioImage), Map.empty).toString shouldBe expectedBase + "rstudio"
+    Cluster
+      .getClusterUrl(project, name0, Set(welderImage, customDataprocImage, rstudioImage), Map.empty)
+      .toString shouldBe expectedBase + "rstudio"
+
+    // labels only
+    Cluster
+      .getClusterUrl(project, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
+      .toString shouldBe expectedBase + "jupyter"
+    Cluster
+      .getClusterUrl(project, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
+      .toString shouldBe expectedBase + "rstudio"
+    Cluster.getClusterUrl(project, name0, Set.empty, Map("foo" -> "bar")).toString shouldBe expectedBase + "jupyter"
+
+    // images and labels -> images take precedence
+    Cluster
+      .getClusterUrl(project,
+                     name0,
+                     Set(welderImage, customDataprocImage, rstudioImage),
+                     Map("tool" -> "Jupyter", "foo" -> "bar"))
+      .toString shouldBe expectedBase + "rstudio"
+  }
 }

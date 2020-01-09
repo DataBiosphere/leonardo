@@ -7,4 +7,3 @@ final case class ImageConfig(
   rstudioImageRegex: String,
   dockerhubImageRegex: String
 )
-

@@ -841,7 +841,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
         case Some(welderImage) if welderImage.imageUrl != imageConfig.welderDockerImage => true
-        case _                                                                             => false
+        case _                                                                          => false
       }
 
       if (labelFound && imageChanged) UpdateWelder
