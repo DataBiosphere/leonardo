@@ -59,7 +59,8 @@ object ClusterMonitorActor {
     google2StorageDAO: GoogleStorageService[IO],
     dbRef: DbReference,
     authProvider: LeoAuthProvider[IO],
-    clusterHelper: ClusterHelper
+    clusterHelper: ClusterHelper,
+    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
     cs: ContextShift[IO]): Props =
@@ -75,7 +76,8 @@ object ClusterMonitorActor {
                               google2StorageDAO,
                               dbRef,
                               authProvider,
-                              clusterHelper)
+                              clusterHelper,
+                              publisherQueue)
     )
 
   // ClusterMonitorActor messages:
@@ -119,6 +121,7 @@ class ClusterMonitorActor(
   val dbRef: DbReference,
   val authProvider: LeoAuthProvider[IO],
   val clusterHelper: ClusterHelper,
+  val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
 )(implicit metrics: NewRelicMetrics[IO],
   clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
@@ -383,6 +386,7 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, now) }
       // reset the time at which the kernel was last found to be busy
       _ <- dbRef.inTransaction { _.clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
+      _ <- publisherQueue.enqueue1(ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped))).unsafeToFuture()
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Stopped).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))

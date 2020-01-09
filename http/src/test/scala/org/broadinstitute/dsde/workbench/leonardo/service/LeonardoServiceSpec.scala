@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{FakeGoogleStorageService, LeoPubsubMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{FakeGoogleStorageService, LeoPubsubMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, TemplateHelper}
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
@@ -1183,9 +1183,12 @@ class LeonardoServiceSpec
     finalQueueSize shouldBe 1
 
     val message = mockQueue.dequeue1.unsafeRunSync()
-    message.messageType shouldBe "stopUpdate"
-    message.updatedMachineConfig shouldBe newConfig
-    message.clusterId shouldBe clusterCreateResponse.id
+    message.isInstanceOf[StopUpdateMessage] shouldBe true
+
+    val castMessage = message.asInstanceOf[StopUpdateMessage]
+    castMessage.messageType shouldBe "stopUpdate"
+    castMessage.updatedMachineConfig shouldBe newConfig
+    castMessage.clusterId shouldBe clusterCreateResponse.id
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {

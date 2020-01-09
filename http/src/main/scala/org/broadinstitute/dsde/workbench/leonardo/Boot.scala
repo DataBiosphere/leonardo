@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, LeoPubsubMessage, MessageReader, ZombieClusterMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, LeoPubsubMessage, LeoPubsubMessageSubscriber, ZombieClusterMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -79,6 +79,7 @@ object Boot extends IOApp with LazyLogging {
                                             appDependencies.googleDirectoryDAO,
                                             appDependencies.googleIamDAO,
                                             appDependencies.googleProjectDAO,
+                                            appDependencies.welderDAO,
                                             appDependencies.blocker)
 
       val leonardoService = new LeonardoService(dataprocConfig,
@@ -118,7 +119,8 @@ object Boot extends IOApp with LazyLogging {
             jupyterDAO,
             rstudioDAO,
             appDependencies.welderDAO,
-            clusterHelper
+            clusterHelper,
+            appDependencies.publisherQueue
           )
         )
         system.actorOf(
@@ -150,11 +152,11 @@ object Boot extends IOApp with LazyLogging {
       val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
       with StandardUserInfoDirectives
 
-      val publisherStream =
-        if (leoExecutionModeConfig.backLeo) Stream.eval_(IO.unit) else appDependencies.publisherStream
-
       val subscriberStream =
-        if (leoExecutionModeConfig.backLeo) appDependencies.subscriberStream else Stream.eval_(IO.unit)
+        if (leoExecutionModeConfig.backLeo) {
+          val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] = new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
+          pubsubSubscriber.process
+        } else Stream.eval_(IO.unit)
 
       val httpServer = for {
         _ <- if (leoExecutionModeConfig.backLeo) {
@@ -172,7 +174,7 @@ object Boot extends IOApp with LazyLogging {
         }
       } yield ()
 
-      val app = Stream(Stream.eval(httpServer), publisherStream, subscriberStream).parJoin(3)
+      val app = Stream(Stream.eval(httpServer), appDependencies.publisherStream, subscriberStream).parJoin(3)
 
       app
         .handleErrorWith { error =>
@@ -234,9 +236,9 @@ object Boot extends IOApp with LazyLogging {
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](1000))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
-      pubsubReader = new MessageReader(subscriber)
-      subscriberStream = pubsubReader.process
 
+//      pubsubReader = new MessageReader(subscriber, clusterHelper, dbRef)
+//      subscriberStream = pubsubReader.process
     } yield AppDependencies(
       storage,
       dbRef,
@@ -256,7 +258,7 @@ object Boot extends IOApp with LazyLogging {
       blocker,
       publisherStream,
       publisherQueue,
-      subscriberStream
+      subscriber
     )
   }
 
@@ -291,4 +293,4 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        blocker: Blocker,
                                        publisherStream: Stream[F, Unit],
                                        publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage],
-                                       subscriberStream: Stream[F, Unit])
+                                       subscriber: GoogleSubscriber[F, LeoPubsubMessage])

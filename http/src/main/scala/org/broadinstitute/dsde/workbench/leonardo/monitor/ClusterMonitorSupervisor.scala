@@ -48,7 +48,8 @@ object ClusterMonitorSupervisor {
     jupyterProxyDAO: JupyterDAO,
     rstudioProxyDAO: RStudioDAO,
     welderDAO: WelderDAO[IO],
-    clusterHelper: ClusterHelper
+    clusterHelper: ClusterHelper,
+    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
     cs: ContextShift[IO]): Props =
@@ -67,7 +68,8 @@ object ClusterMonitorSupervisor {
                                    jupyterProxyDAO,
                                    rstudioProxyDAO,
                                    welderDAO,
-                                   clusterHelper)
+                                   clusterHelper,
+                                     publisherQueue)
     )
 
   sealed trait ClusterSupervisorMessage
@@ -111,7 +113,8 @@ class ClusterMonitorSupervisor(
   jupyterProxyDAO: JupyterDAO,
   rstudioProxyDAO: RStudioDAO,
   welderProxyDAO: WelderDAO[IO],
-  clusterHelper: ClusterHelper
+  clusterHelper: ClusterHelper,
+  publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
 )(implicit metrics: NewRelicMetrics[IO],
   clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
   cs: ContextShift[IO])
@@ -225,7 +228,8 @@ class ClusterMonitorSupervisor(
         google2StorageDAO,
         dbRef,
         authProvider,
-        clusterHelper
+        clusterHelper,
+        publisherQueue
       )
     )
 

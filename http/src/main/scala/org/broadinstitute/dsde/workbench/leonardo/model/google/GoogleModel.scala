@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 import enumeratum._
+import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.config.CustomDataprocImage
 import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
@@ -94,6 +95,9 @@ object ClusterStatus extends Enum[ClusterStatus] {
     def isStartable: Boolean = startableStatuses contains status
     def isUpdatable: Boolean = updatableStatuses contains status
   }
+
+  implicit val clusterStatusDecoder: Decoder[ClusterStatus] = Decoder.decodeString.emap(s => ClusterStatus.withNameOption(s).toRight(s"Invalid cluster status ${s}"))
+  implicit val clusterStatusEncoder: Encoder[ClusterStatus] = Encoder.encodeString.contramap(s => s.entryName)
 }
 
 // VPC networking

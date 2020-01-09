@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates.
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
@@ -27,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.{ClusterCannotBeStartedException, ClusterOutOfDateException}
+import org.broadinstitute.dsde.workbench.leonardo.service.{ClusterCannotBeStartedException, ClusterCannotBeStoppedException, ClusterOutOfDateException}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -61,6 +62,7 @@ class ClusterHelper(
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
   googleProjectDAO: GoogleProjectDAO,
+  welderDao: WelderDAO[IO],
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   val system: ActorSystem,
@@ -183,6 +185,26 @@ class ClusterHelper(
     IO.fromFuture(IO(gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)))
 
   def stopCluster(cluster: Cluster): IO[Unit] =
+    if (cluster.status.isStoppable) {
+      for {
+        // Flush the welder cache to disk
+        _ <- if (cluster.welderEnabled) {
+          welderDao
+            .flushCache(cluster.googleProject, cluster.clusterName)
+            .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
+        } else IO.unit
+
+        // Stop the cluster in Google
+        _ <- stopGoogleCluster(cluster)
+
+        // Update the cluster status to Stopping
+        now <- IO(Instant.now)
+        _ <- dbRef.inTransactionIO { _.clusterQuery.setToStopping(cluster.id, now) }
+      } yield ()
+
+    } else IO.raiseError(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
+
+  private def stopGoogleCluster(cluster: Cluster): IO[Unit] =
     for {
       metadata <- getMasterInstanceShutdownScript(cluster)
 

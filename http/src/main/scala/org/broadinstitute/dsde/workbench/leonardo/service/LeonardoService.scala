@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
@@ -296,7 +297,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       def combine(a: Boolean, b: Boolean): Boolean = a || b
     }
 
-    //TODO: eventually, I will need to use this in a legit way, keeping this so compiler leaves me alone while im developing
+    //TODO: before pr
     metrics.incrementCounter("temp counter")
     logger.info("in start of internalUpdateCluster")
 
@@ -573,28 +574,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
       _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
 
-      _ <- internalStopCluster(cluster)
+      _ <- clusterHelper.stopCluster(cluster)
     } yield ()
-
-  def internalStopCluster(cluster: Cluster): IO[Unit] =
-    if (cluster.status.isStoppable) {
-      for {
-        // Flush the welder cache to disk
-        _ <- if (cluster.welderEnabled) {
-          welderDao
-            .flushCache(cluster.googleProject, cluster.clusterName)
-            .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
-        } else IO.unit
-
-        // Stop the cluster in Google
-        _ <- clusterHelper.stopCluster(cluster)
-
-        // Update the cluster status to Stopping
-        now <- IO(Instant.now)
-        _ <- dbRef.inTransactionIO { _.clusterQuery.setToStopping(cluster.id, now) }
-      } yield ()
-
-    } else IO.raiseError(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
