@@ -208,7 +208,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                 |result = [numpy.random.bytes(1024*1024) for x in range(6*1024)]
                 |print(len(result))
                 |""".stripMargin
-            notebookPage.addCodeAndExecute(cell)
+            notebookPage.addCodeAndExecute(cell, 5.minutes)
 
             // Kernel should restart automatically and still be functional
             notebookPage.dismissKernelDied()
