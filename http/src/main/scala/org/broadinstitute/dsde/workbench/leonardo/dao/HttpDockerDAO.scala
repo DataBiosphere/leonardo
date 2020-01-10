@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   ContainerRegistry,
   LeoException
 }
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
@@ -44,16 +44,18 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
 
-  override def detectTool(image: ContainerImage,
-                          userInfo: UserInfo)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[ClusterImageType]] =
+  override def detectTool(image: ContainerImage, tokenOpt: Option[String])(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Option[ClusterImageType]] =
     for {
       parsed <- parseImage(image)
-      tokenOpt <- getToken(parsed, userInfo)
+      token <- tokenOpt.fold(getToken(parsed))(t => Concurrent[F].pure(Some(Token(t))))
+      _ <- Concurrent[F].delay(println("XXX token is " + token))
       digest <- parsed.imageVersion match {
-        case Tag(_)      => getManifestConfig(parsed, tokenOpt).map(_.digest)
+        case Tag(_)      => getManifestConfig(parsed, token).map(_.digest)
         case Sha(digest) => Concurrent[F].pure(digest)
       }
-      containerConfig <- getContainerConfig(parsed, digest, tokenOpt)
+      containerConfig <- getContainerConfig(parsed, digest, token)
       envSet = containerConfig.env.toSet
       tool = clusterToolEnv
         .find {
@@ -88,12 +90,9 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
     )(onError)
 
   //curl --silent "https://auth.docker.io/token?scope=repository%3Alibrary/nginx%3Apull&service=registry.docker.io" | jq '.token'
-  private[dao] def getToken(parsedImage: ParsedImage,
-                            userInfo: UserInfo)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Token]] =
+  private[dao] def getToken(parsedImage: ParsedImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Token]] =
     parsedImage.registry match {
-      // For GCR, the token is the user's Google access token
-      case GCR => Concurrent[F].pure(Some(Token(userInfo.accessToken.token)))
-      // For Dockerhub, we need to request a Dockerhub token
+      case GCR => Concurrent[F].pure(None)
       case DockerHub =>
         httpClient.expectOptionOr[Token](
           Request[F](
