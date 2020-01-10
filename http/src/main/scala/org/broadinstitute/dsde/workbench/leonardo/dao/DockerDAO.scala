@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 
 trait DockerDAO[F[_]] {
 
-  def detectTool(image: ContainerImage, tokenOpt: Option[String] = None)(
+  def detectTool(image: ContainerImage, petTokenOpt: Option[String] = None)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[ClusterImageType]]
 
