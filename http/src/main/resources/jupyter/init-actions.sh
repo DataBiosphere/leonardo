@@ -114,6 +114,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
     export WELDER_ENABLED=$(welderEnabled)
     export NOTEBOOKS_DIR=$(notebooksDir)
+    export MEM_LIMIT=$(memLimit)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)

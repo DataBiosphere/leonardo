@@ -362,7 +362,8 @@ final case class ClusterTemplateValues private (googleProject: String,
                                                 googleClientId: String,
                                                 welderEnabled: String,
                                                 notebooksDir: String,
-                                                customEnvVarsConfigUri: String) {
+                                                customEnvVarsConfigUri: String,
+                                                memLimit: String) {
 
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
@@ -377,9 +378,11 @@ object ClusterTemplateValues {
             stagingBucketName: Option[GcsBucketName],
             serviceAccountKey: Option[ServiceAccountKey],
             dataprocConfig: DataprocConfig,
+            welderConfig: WelderConfig,
             proxyConfig: ProxyConfig,
             clusterFilesConfig: ClusterFilesConfig,
-            clusterResourcesConfig: ClusterResourcesConfig): ClusterTemplateValues =
+            clusterResourcesConfig: ClusterResourcesConfig,
+            clusterResourceConstraints: Option[ClusterResourceConstraints]): ClusterTemplateValues =
     ClusterTemplateValues(
       cluster.googleProject.value,
       cluster.clusterName.value,
@@ -437,11 +440,12 @@ object ClusterTemplateValues {
         .getOrElse(""),
       cluster.defaultClientId.getOrElse(""),
       cluster.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (cluster.welderEnabled) dataprocConfig.welderEnabledNotebooksDir
-      else dataprocConfig.welderDisabledNotebooksDir,
+      if (cluster.welderEnabled) welderConfig.welderEnabledNotebooksDir.toString
+      else welderConfig.welderDisabledNotebooksDir.toString,
       initBucketName
         .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri)
-        .getOrElse("")
+        .getOrElse(""),
+      clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse("")
     )
 }
 
@@ -530,6 +534,19 @@ object WelderAction extends Enum[WelderAction] {
   case object ClusterOutOfDate extends WelderAction
   case object DisableDelocalization extends WelderAction
 }
+
+final case class MemorySize(bytes: Long) extends AnyVal {
+  override def toString: String = bytes.toString + "b"
+}
+object MemorySize {
+  def fromKb(kb: Double): MemorySize = MemorySize((kb * 1024).toLong)
+  def fromMb(mb: Double): MemorySize = MemorySize((mb * 1048576).toLong)
+  def fromGb(gb: Double): MemorySize = MemorySize((gb * 1073741824).toLong)
+}
+
+// See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
+// for other types of resources we may want to add here.
+final case class ClusterResourceConstraints(memoryLimit: MemorySize)
 
 object LeonardoJsonSupport extends DefaultJsonProtocol {
   implicit object URLFormat extends JsonFormat[URL] {

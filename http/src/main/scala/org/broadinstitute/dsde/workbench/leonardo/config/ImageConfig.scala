@@ -5,5 +5,5 @@ final case class ImageConfig(
   jupyterImage: String,
   jupyterImageRegex: String,
   rstudioImageRegex: String,
-  dockerhubImageRegex: String
+  broadDockerhubImageRegex: String
 )

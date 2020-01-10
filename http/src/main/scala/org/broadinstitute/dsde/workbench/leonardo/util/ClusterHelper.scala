@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
+import cats.data.OptionT
 import cats.effect._
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
@@ -41,6 +42,11 @@ final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: 
 final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
 
+final case class ClusterResourceConstaintsException(cluster: Cluster)
+    extends LeoException(
+      s"Unable to calculate memory constraints for cluster ${cluster.projectNameString} with master machine type ${cluster.machineConfig.masterMachineType}"
+    )
+
 class ClusterHelper(
   dbRef: DbReference,
   dataprocConfig: DataprocConfig,
@@ -50,6 +56,7 @@ class ClusterHelper(
   clusterResourcesConfig: ClusterResourcesConfig,
   clusterFilesConfig: ClusterFilesConfig,
   monitorConfig: MonitorConfig,
+  welderConfig: WelderConfig,
   bucketHelper: BucketHelper,
   gdDAO: GoogleDataprocDAO,
   googleComputeDAO: GoogleComputeDAO,
@@ -83,6 +90,8 @@ class ClusterHelper(
           } else IO.pure(Map.empty[String, String])
           clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
+          resourceConstraints <- getClusterResourceContraints(cluster)
+
           // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
           _ <- IO.fromFuture(
             IO(googleComputeDAO.updateFirewallRule(cluster.googleProject, getFirewallRule(clusterVPCSettings)))
@@ -110,7 +119,11 @@ class ClusterHelper(
             .compile
             .drain
 
-          _ <- initializeBucketObjects(cluster, initBucketName, stagingBucketName, serviceAccountKeyOpt).compile.drain
+          _ <- initializeBucketObjects(cluster,
+                                       initBucketName,
+                                       stagingBucketName,
+                                       serviceAccountKeyOpt,
+                                       resourceConstraints).compile.drain
 
           // build cluster configuration
           machineConfig = cluster.machineConfig
@@ -380,12 +393,49 @@ class ClusterHelper(
     }
   }
 
+  private[leonardo] def getClusterResourceContraints(cluster: Cluster): IO[ClusterResourceConstraints] = {
+    val totalMemory = for {
+      // Find a zone in which to query the machine type: either the configured zone or
+      // an arbitrary zone in the configured region.
+      zoneUri <- {
+        val configuredZone = OptionT.fromOption[IO](dataprocConfig.dataprocZone.map(ZoneUri))
+        val zoneList = for {
+          zones <- IO.fromFuture(
+            IO(googleComputeDAO.getZones(cluster.googleProject, dataprocConfig.dataprocDefaultRegion))
+          )
+          _ <- log.debug(s"List of zones in project ${cluster.googleProject}: ${zones}")
+        } yield zones
+
+        configuredZone orElse OptionT(zoneList.map(_.headOption))
+      }
+      _ <- OptionT.liftF(log.debug(s"Using zone ${zoneUri} to resolve machine type"))
+
+      // Resolve the master machine type in Google to get the total memory.
+      machineType <- OptionT.fromOption[IO](cluster.machineConfig.masterMachineType)
+      resolvedMachineType <- OptionT(
+        IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, MachineType(machineType))))
+      )
+      _ <- OptionT.liftF(log.debug(s"Resolved machine type: ${resolvedMachineType.toPrettyString}"))
+    } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
+
+    totalMemory.value.flatMap {
+      case None        => IO.raiseError(ClusterResourceConstaintsException(cluster))
+      case Some(total) =>
+        // total - dataproc allocated - welder allocated
+        val dataprocAllocated = dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
+        val welderAllocated = welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
+        val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
+        IO.pure(ClusterResourceConstraints(result))
+    }
+  }
+
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[leonardo] def initializeBucketObjects(
     cluster: Cluster,
     initBucketName: GcsBucketName,
     stagingBucketName: GcsBucketName,
-    serviceAccountKey: Option[ServiceAccountKey]
+    serviceAccountKey: Option[ServiceAccountKey],
+    clusterResourceConstraints: ClusterResourceConstraints
   ): Stream[IO, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = ClusterTemplateValues(
@@ -394,9 +444,11 @@ class ClusterHelper(
       Some(stagingBucketName),
       serviceAccountKey,
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig
+      clusterResourcesConfig,
+      Some(clusterResourceConstraints)
     ).toMap
 
     // Jupyter allows setting of arbitrary environment variables on cluster creation if they are passed in to
@@ -612,9 +664,11 @@ class ClusterHelper(
       cluster.dataprocInfo.map(_.stagingBucket),
       None,
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig
+      clusterResourcesConfig,
+      None
     )
     val replacements: Map[String, String] = clusterInit.toMap ++
       Map(
@@ -638,9 +692,11 @@ class ClusterHelper(
       cluster.dataprocInfo.map(_.stagingBucket),
       None,
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig
+      clusterResourcesConfig,
+      None
     ).toMap
 
     TemplateHelper

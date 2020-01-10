@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeoLenses}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterImageType}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterImageType, MemorySize}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, CreateClusterConfig, Operation}
@@ -59,6 +59,7 @@ class ClusterHelperSpec
                                         clusterResourcesConfig,
                                         clusterFilesConfig,
                                         monitorConfig,
+                                        welderConfig,
                                         bucketHelper,
                                         mockGoogleDataprocDAO,
                                         mockGoogleComputeDAO,
@@ -142,6 +143,7 @@ class ClusterHelperSpec
                                                  clusterResourcesConfig,
                                                  clusterFilesConfig,
                                                  monitorConfig,
+                                                 welderConfig,
                                                  bucketHelper,
                                                  erroredDataprocDAO,
                                                  mockGoogleComputeDAO,
@@ -172,6 +174,7 @@ class ClusterHelperSpec
                                                  clusterResourcesConfig,
                                                  clusterFilesConfig,
                                                  monitorConfig,
+                                                 welderConfig,
                                                  bucketHelper,
                                                  erroredDataprocDAO,
                                                  mockGoogleComputeDAO,
@@ -203,6 +206,7 @@ class ClusterHelperSpec
                                                     clusterResourcesConfig,
                                                     clusterFilesConfig,
                                                     monitorConfig,
+                                                    welderConfig,
                                                     bucketHelper,
                                                     mockGoogleDataprocDAO,
                                                     mockGoogleComputeDAO,
@@ -228,6 +232,7 @@ class ClusterHelperSpec
                                                       clusterResourcesConfig,
                                                       clusterFilesConfig,
                                                       monitorConfig,
+                                                      welderConfig,
                                                       bucketHelper,
                                                       mockGoogleDataprocDAO,
                                                       mockGoogleComputeDAO,
@@ -249,6 +254,7 @@ class ClusterHelperSpec
                                                  clusterResourcesConfig,
                                                  clusterFilesConfig,
                                                  monitorConfig,
+                                                 welderConfig,
                                                  bucketHelper,
                                                  mockGoogleDataprocDAO,
                                                  mockGoogleComputeDAO,
@@ -261,6 +267,13 @@ class ClusterHelperSpec
     exception shouldBe a[GoogleJsonResponseException]
 
     erroredIamDAO.invocationCount should be > 2
+  }
+
+  it should "calculate cluster resource constraints" in isolatedDbTest {
+    val resourceConstraints = clusterHelper.getClusterResourceContraints(testCluster).unsafeRunSync()
+
+    // 7680 (in mock compute dao) - 4608 (dataproc allocated) - 512 (welder allocated) = 2560
+    resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(2560)
   }
 
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {

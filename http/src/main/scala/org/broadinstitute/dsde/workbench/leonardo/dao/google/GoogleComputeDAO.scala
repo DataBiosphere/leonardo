@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.google
 
+import com.google.api.services.compute.model
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -28,4 +29,10 @@ trait GoogleComputeDAO {
   def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit]
 
   def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit]
+
+  def getZones(googleProject: GoogleProject, region: String): Future[List[ZoneUri]]
+
+  def getMachineType(googleProject: GoogleProject,
+                     zoneUri: ZoneUri,
+                     machineType: MachineType): Future[Option[model.MachineType]]
 }

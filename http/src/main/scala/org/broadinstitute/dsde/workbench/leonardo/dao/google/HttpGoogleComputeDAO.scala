@@ -18,7 +18,7 @@ import com.google.api.services.compute.model.{
   Metadata,
   Instance => GoogleInstance
 }
-import com.google.api.services.compute.{Compute, ComputeScopes}
+import com.google.api.services.compute.{model, Compute, ComputeScopes}
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -212,8 +212,34 @@ class HttpGoogleComputeDAO(
     retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
+  override def getZones(googleProject: GoogleProject, region: String): Future[List[ZoneUri]] = {
+    val request =
+      compute.zones().list(googleProject.value).setFilter(s"region eq ${buildRegionUri(googleProject, region)}")
+
+    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).handleGoogleException(googleProject).map {
+      zoneList =>
+        val items = Option(zoneList.getItems).map(_.asScala.toList).getOrElse(List.empty)
+        items.map(z => ZoneUri(z.getName))
+    }
+  }
+
+  override def getMachineType(googleProject: GoogleProject,
+                              zoneUri: ZoneUri,
+                              machineType: MachineType): Future[Option[model.MachineType]] = {
+    val request = compute.machineTypes().get(googleProject.value, zoneUri.value, machineType.value)
+
+    retryWithRecover(retryPredicates: _*) { () =>
+      Option(executeGoogleRequest(request))
+    } {
+      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
+    }.handleGoogleException(googleProject)
+  }
+
   private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String =
     s"zones/${instanceKey.zone.value}/machineTypes/$machineType"
+
+  private def buildRegionUri(googleProject: GoogleProject, region: String): String =
+    s"https://www.googleapis.com/compute/v1/projects/${googleProject.value}/regions/$region"
 
   implicit private class GoogleExceptionSupport[A](future: Future[A]) {
     def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] =

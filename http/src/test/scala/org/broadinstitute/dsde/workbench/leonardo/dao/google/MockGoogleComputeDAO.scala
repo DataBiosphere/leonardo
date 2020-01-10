@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.google
+import com.google.api.services.compute.model
 import org.broadinstitute.dsde.workbench.leonardo.model.google.InstanceStatus.{Running, Stopped}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -61,4 +62,12 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
 
   def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit] =
     Future.successful(())
+
+  override def getZones(googleProject: GoogleProject, region: String): Future[List[ZoneUri]] =
+    Future.successful(List(ZoneUri("us-central1-a")))
+
+  override def getMachineType(googleProject: GoogleProject,
+                              zoneUri: ZoneUri,
+                              machineType: MachineType): Future[Option[model.MachineType]] =
+    Future.successful(Some(new model.MachineType().setMemoryMb(7680)))
 }

@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import org.broadinstitute.dsde.workbench.leonardo.model.MemorySize
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class DataprocConfig(
@@ -18,13 +19,9 @@ final case class DataprocConfig(
   vpcSubnet: Option[String],
   projectVPCNetworkLabel: Option[String],
   projectVPCSubnetLabel: Option[String],
-  welderEnabledNotebooksDir: String,
-  welderDisabledNotebooksDir: String, // TODO: remove once welder is rolled out to all clusters
   legacyCustomDataprocImage: CustomDataprocImage,
   customDataprocImage: CustomDataprocImage,
-  deployWelderLabel: Option[String],
-  updateWelderLabel: Option[String],
-  deployWelderCutoffDate: Option[String]
+  dataprocReservedMemory: Option[MemorySize]
 )
 
 final case class CustomDataprocImage(asString: String) extends AnyVal

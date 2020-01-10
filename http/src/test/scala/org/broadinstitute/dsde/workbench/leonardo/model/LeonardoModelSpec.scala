@@ -200,9 +200,11 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       Some(stagingBucketName),
       Some(serviceAccountKey),
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig
+      clusterResourcesConfig,
+      Some(clusterResourceConstraints)
     )
     val clusterInitMap = clusterInit.toMap
 
@@ -213,8 +215,9 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
     clusterInitMap("welderEnabled") shouldBe "true"
+    clusterInitMap("memLimit") shouldBe clusterResourceConstraints.memoryLimit.bytes.toString + "b"
 
-    clusterInitMap.size shouldBe 35
+    clusterInitMap.size shouldBe 36
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
