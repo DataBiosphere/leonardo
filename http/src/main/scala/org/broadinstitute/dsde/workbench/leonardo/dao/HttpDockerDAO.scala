@@ -50,7 +50,6 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
     for {
       parsed <- parseImage(image)
       token <- tokenOpt.fold(getToken(parsed))(t => Concurrent[F].pure(Some(Token(t))))
-      _ <- Concurrent[F].delay(println("XXX token is " + token))
       digest <- parsed.imageVersion match {
         case Tag(_)      => getManifestConfig(parsed, token).map(_.digest)
         case Sha(digest) => Concurrent[F].pure(digest)
