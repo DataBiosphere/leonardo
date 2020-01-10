@@ -1,23 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import java.util.UUID
-
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.{DockerHub, GCR}
-import org.broadinstitute.dsde.workbench.model.TraceId
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.ExecutionContext.global
 
-class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
+class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalaFutures with CommonTestData {
   implicit val cs = IO.contextShift(global)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   val jupyterImages = List(
     // dockerhub no tag
@@ -83,7 +80,7 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     case (tool, images) =>
       images.foreach { image =>
         it should s"detect tool=$tool for image $image" in withDockerDAO { dockerDAO =>
-          val response = dockerDAO.detectTool(image).attempt.unsafeRunSync().toOption.flatten
+          val response = dockerDAO.detectTool(image, userInfo).attempt.unsafeRunSync().toOption.flatten
           response shouldBe tool
         }
       }

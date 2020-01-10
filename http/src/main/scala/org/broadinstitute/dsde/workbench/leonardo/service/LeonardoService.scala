@@ -201,13 +201,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterOpt <- dbRef.inTransactionIO { _.clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) }
 
       cluster <- clusterOpt.fold(
-        internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+        internalCreateCluster(userInfo, serviceAccountInfo, googleProject, clusterName, clusterRequest)
       )(c => IO.raiseError(ClusterAlreadyExistsException(googleProject, clusterName, c.status)))
 
     } yield cluster
 
   private def internalCreateCluster(
-    userEmail: WorkbenchEmail,
+    userInfo: UserInfo,
     serviceAccountInfo: ServiceAccountInfo,
     googleProject: GoogleProject,
     clusterName: ClusterName,
@@ -218,11 +218,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       traceId <- ev.ask
       internalId <- IO(ClusterInternalId(UUID.randomUUID().toString))
-      clusterImages <- getClusterImages(clusterRequest)
+      clusterImages <- getClusterImages(clusterRequest, userInfo)
       augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo,
                                                       googleProject,
                                                       clusterName,
-                                                      userEmail,
+                                                      userInfo.userEmail,
                                                       clusterRequest,
                                                       clusterImages)
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
@@ -231,7 +231,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       initialClusterToSave = Cluster.create(
         augmentedClusterRequest,
         internalId,
-        userEmail,
+        userInfo.userEmail,
         clusterName,
         googleProject,
         serviceAccountInfo,
@@ -244,15 +244,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- log.info(
         s"[$traceId] will deploy the following images to cluster ${initialClusterToSave.projectNameString}: ${clusterImages}"
       )
-      _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
+      _ <- validateClusterRequestBucketObjectUri(userInfo.userEmail, googleProject, augmentedClusterRequest)
       _ <- log.info(
         s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
       )
-      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith { t =>
-        log.info(
-          s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
-        ) >> IO.raiseError(t)
-      }
+      _ <- authProvider
+        .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, clusterName)
+        .handleErrorWith { t =>
+          log.info(
+            s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
+          ) >> IO.raiseError(t)
+        }
       cluster <- dbRef.inTransactionIO { _.clusterQuery.save(initialClusterToSave) }
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
@@ -807,14 +809,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def getClusterImages(
-    clusterRequest: ClusterRequest
+    clusterRequest: ClusterRequest,
+    userInfo: UserInfo
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[ClusterImage]] =
     for {
       now <- IO(Instant.now)
       traceId <- ev.ask
       // Try to autodetect the image
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
-        dockerDAO.detectTool(image).flatMap {
+        dockerDAO.detectTool(image, userInfo).flatMap {
           case None       => IO.raiseError(ImageAutoDetectionException(traceId, image))
           case Some(tool) => IO.pure(ClusterImage(tool, image.imageUrl, now))
         }
