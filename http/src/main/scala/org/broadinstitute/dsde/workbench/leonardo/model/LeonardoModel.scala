@@ -68,11 +68,30 @@ object ContainerImage {
       }
 }
 
+sealed trait UserScriptPath extends Product with Serializable {
+  def asString: String
+}
+object UserScriptPath {
+  final case class Http(url: URL) extends UserScriptPath {
+    val asString: String = url.toString
+  }
+  final case class Gcs(gcsPath: GcsPath) extends UserScriptPath {
+    val asString: String = gcsPath.toUri
+  }
+
+  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] = {
+    parseGcsPath(string) match {
+      case Right(value) => Right(Gcs(value))
+      case Left(_) => Either.catchNonFatal(new URL(string)).map(url => Http(url))
+    }
+  }
+}
+
 // Create cluster API request
 final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 jupyterExtensionUri: Option[GcsPath] = None,
-                                jupyterUserScriptUri: Option[GcsPath] = None,
-                                jupyterStartUserScriptUri: Option[GcsPath] = None,
+                                jupyterUserScriptUri: Option[UserScriptPath] = None,
+                                jupyterStartUserScriptUri: Option[UserScriptPath] = None,
                                 machineConfig: Option[MachineConfig] = None,
                                 properties: Map[String, String] = Map.empty,
                                 stopAfterCreation: Option[Boolean] = None,
@@ -156,8 +175,8 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                          status: ClusterStatus,
                          labels: LabelMap,
                          jupyterExtensionUri: Option[GcsPath],
-                         jupyterUserScriptUri: Option[GcsPath],
-                         jupyterStartUserScriptUri: Option[GcsPath],
+                         jupyterUserScriptUri: Option[UserScriptPath],
+                         jupyterStartUserScriptUri: Option[UserScriptPath],
                          errors: List[ClusterError],
                          instances: Set[Instance],
                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
@@ -264,8 +283,8 @@ case class DefaultLabels(clusterName: ClusterName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookUserScript: Option[GcsPath],
-                         notebookStartUserScript: Option[GcsPath],
+                         notebookUserScript: Option[UserScriptPath],
+                         notebookStartUserScript: Option[UserScriptPath],
                          tool: Option[ClusterImageType])
 
 // Provides ways of combining MachineConfigs with Leo defaults
@@ -416,9 +435,9 @@ object ClusterTemplateValues {
       dataprocConfig.rstudioServerName,
       dataprocConfig.welderServerName,
       proxyConfig.proxyServerName,
-      cluster.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
+      cluster.jupyterUserScriptUri.map(_.asString).getOrElse(""),
       stagingBucketName.map(n => GcsPath(n, GcsObjectName("userscript_output.txt")).toUri).getOrElse(""),
-      cluster.jupyterStartUserScriptUri.map(_.toUri).getOrElse(""),
+      cluster.jupyterStartUserScriptUri.map(_.asString).getOrElse(""),
       stagingBucketName.map(n => GcsPath(n, GcsObjectName("startscript_output.txt")).toUri).getOrElse(""),
       (for {
         _ <- serviceAccountKey
@@ -567,6 +586,17 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
     override def write(obj: ContainerImage): JsValue = JsString(obj.imageUrl)
   }
 
+  implicit object UserScriptPathJsonFormat extends JsonFormat[UserScriptPath] {
+    def read(json: JsValue): UserScriptPath = json match {
+      case JsString(path) =>
+        UserScriptPath
+        .stringToUserScriptPath(path)
+        .fold(e => throw DeserializationException(s"Invalid userscript path: ${e}"), identity)
+      case other => throw DeserializationException(s"Expected userscript path, got: $other")
+    }
+    def write(obj: UserScriptPath): JsValue = JsString(obj.asString)
+  }
+
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
   implicit val clusterRequestFormat: RootJsonReader[ClusterRequest] = (json: JsValue) => {
@@ -587,8 +617,8 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
     ClusterRequest(
       fieldsWithoutNull.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),
       fieldsWithoutNull.get("jupyterExtensionUri").map(_.convertTo[GcsPath]),
-      fieldsWithoutNull.get("jupyterUserScriptUri").map(_.convertTo[GcsPath]),
-      fieldsWithoutNull.get("jupyterStartUserScriptUri").map(_.convertTo[GcsPath]),
+      fieldsWithoutNull.get("jupyterUserScriptUri").map(_.convertTo[UserScriptPath]),
+      fieldsWithoutNull.get("jupyterStartUserScriptUri").map(_.convertTo[UserScriptPath]),
       fieldsWithoutNull.get("machineConfig").map(_.convertTo[MachineConfig]),
       properties.getOrElse(Map.empty),
       fieldsWithoutNull.get("stopAfterCreation").map(_.convertTo[Boolean]),

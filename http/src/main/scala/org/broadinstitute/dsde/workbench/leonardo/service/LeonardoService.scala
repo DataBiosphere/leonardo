@@ -649,12 +649,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Validate the user script URIs
       _ <- clusterRequest.jupyterUserScriptUri match {
         case Some(userScriptUri) =>
-          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, userScriptUri.toUri))
+          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, userScriptUri.asString))
         case None => OptionT.pure[IO](())
       }
       _ <- clusterRequest.jupyterStartUserScriptUri match {
         case Some(startScriptUri) =>
-          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, startScriptUri.toUri))
+          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, startScriptUri.asString))
         case None => OptionT.pure[IO](())
       }
 

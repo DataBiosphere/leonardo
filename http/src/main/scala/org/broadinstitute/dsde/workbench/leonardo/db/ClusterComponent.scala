@@ -32,8 +32,8 @@ final case class ClusterRecord(id: Long,
                                status: String,
                                hostIp: Option[String],
                                jupyterExtensionUri: Option[GcsPath],
-                               jupyterUserScriptUri: Option[GcsPath],
-                               jupyterStartUserScriptUri: Option[GcsPath],
+                               jupyterUserScriptUri: Option[UserScriptPath],
+                               jupyterStartUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfoRecord,
                                machineConfig: MachineConfigRecord,
@@ -78,6 +78,9 @@ trait ClusterComponent extends LeoComponent {
   implicit private val jsValueMappedColumnType: BaseColumnType[Json] =
     MappedColumnType
       .base[Json, String](_.printWith(Printer.noSpaces), s => io.circe.parser.parse(s).fold(e => throw e, identity))
+  implicit private val userScriptPathMappedColumnType: BaseColumnType[UserScriptPath] =
+    MappedColumnType
+      .base[UserScriptPath, String](_.asString, s => UserScriptPath.stringToUserScriptPath(s).fold(e => throw e, identity))
   implicit private val gsPathMappedColumnType: BaseColumnType[GcsPath] =
     MappedColumnType
       .base[GcsPath, String](_.toUri, s => parseGcsPath(s).fold(e => throw new Exception(e.toString()), identity))
@@ -104,8 +107,8 @@ trait ClusterComponent extends LeoComponent {
     def createdDate = column[Timestamp]("createdDate", O.SqlType("TIMESTAMP(6)"))
     def destroyedDate = column[Timestamp]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri = column[Option[GcsPath]]("jupyterExtensionUri", O.Length(1024))
-    def jupyterUserScriptUri = column[Option[GcsPath]]("jupyterUserScriptUri", O.Length(1024))
-    def jupyterStartUserScriptUri = column[Option[GcsPath]]("jupyterStartUserScriptUri", O.Length(1024))
+    def jupyterUserScriptUri = column[Option[UserScriptPath]]("jupyterUserScriptUri", O.Length(1024))
+    def jupyterStartUserScriptUri = column[Option[UserScriptPath]]("jupyterStartUserScriptUri", O.Length(1024))
     def initBucket = column[Option[String]]("initBucket", O.Length(1024))
     def serviceAccountKeyId = column[Option[String]]("serviceAccountKeyId", O.Length(254))
     def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))

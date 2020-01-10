@@ -46,8 +46,12 @@ trait CommonTestData { this: ScalaFutures =>
   val unauthorizedUserInfo =
     UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("somecreep"), unauthorizedEmail, 0)
   val jupyterExtensionUri = GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))
-  val jupyterUserScriptUri = GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))
-  val jupyterStartUserScriptUri = GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))
+  val jupyterUserScriptBucketName = GcsBucketName("userscript_bucket")
+  val jupyterUserScriptObjectName = GcsObjectName("userscript.sh")
+  val jupyterUserScriptUri = UserScriptPath.Gcs(GcsPath(jupyterUserScriptBucketName, jupyterUserScriptObjectName))
+  val jupyterStartUserScriptBucketName = GcsBucketName("startscript_bucket")
+  val jupyterStartUserScriptObjectName = GcsObjectName("startscript.sh")
+  val jupyterStartUserScriptUri = UserScriptPath.Gcs(GcsPath(jupyterStartUserScriptBucketName, jupyterStartUserScriptObjectName))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"),
                                             ServiceAccountPrivateKeyData("abcdefg"),
                                             Some(Instant.now),
@@ -187,8 +191,8 @@ trait CommonTestData { this: ScalaFutures =>
     status = ClusterStatus.Unknown,
     labels = Map(),
     jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-    jupyterUserScriptUri = Some(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
-    jupyterStartUserScriptUri = Some(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript"))),
+    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript")))),
+    jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript")))),
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,

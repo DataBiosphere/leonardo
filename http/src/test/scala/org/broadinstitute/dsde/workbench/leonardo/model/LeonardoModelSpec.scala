@@ -80,8 +80,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       properties = Map.empty,
       scopes = Set.empty,
       jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
-      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))),
-      jupyterStartUserScriptUri = Some(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh")))
+      jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))),
+      jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))))
     )
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
