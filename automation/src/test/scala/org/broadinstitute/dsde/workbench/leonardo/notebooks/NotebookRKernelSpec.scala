@@ -98,9 +98,10 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
           // it may take a little while to install
           val installTimeout = 5.minutes
 
-          val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
+          val installOutput = notebookPage.executeCell("""install.packages('mlr')""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include("Downloading GitHub repo mlr-org/mlr@master")
+          installOutput.get should include("Installing package into")
+          installOutput.get should include("/home/jupyter-user/.rpackages")
           installOutput.get should not include ("Installation failed")
 
           // Make sure it was installed correctly; if not, this will return an error
