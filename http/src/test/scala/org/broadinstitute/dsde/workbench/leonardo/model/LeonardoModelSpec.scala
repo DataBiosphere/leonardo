@@ -217,6 +217,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
     clusterInitMap.size shouldBe 35
   }
+  import org.mockito.ArgumentMatchers.any
+
 
   it should "create UserScriptPath objects according to provided path" in isolatedDbTest {
     val gcsPath = "gs://userscript_bucket/userscript.sh"
@@ -225,7 +227,13 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
     UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))))
     UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
-    UserScriptPath.stringToUserScriptPath(invalidPath) shouldBe Left(new MalformedURLException("no protocol: invalid_userscript_path"))
+//    assertThrows[MalformedURLException] {
+//      UserScriptPath.stringToUserScriptPath(invalidPath)
+//    }
+//    clusterCreateExc shouldBe a[RuntimeException]
+
+//    UserScriptPath.stringToUserScriptPath(invalidPath).leftSideValue shouldBe Left(a[MalformedURLException])
+    UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
