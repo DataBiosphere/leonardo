@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
+import java.net.{MalformedURLException, URL}
 import java.time.Instant
 import java.util.UUID._
 
@@ -217,6 +218,16 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap.size shouldBe 35
   }
 
+  it should "create UserScriptPath objects according to provided path" in isolatedDbTest {
+    val gcsPath = "gs://userscript_bucket/userscript.sh"
+    val httpPath = "https://userscript_path"
+    val invalidPath = "invalid_userscript_path"
+
+    UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))))
+    UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
+    UserScriptPath.stringToUserScriptPath(invalidPath) shouldBe Left(new MalformedURLException("no protocol: invalid_userscript_path"))
+  }
+
   "DockerRegistry regex" should "match expected image url format" in {
     ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe (true)
     ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
@@ -249,4 +260,5 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ))
     ContainerImage.stringToJupyterDockerImage("asd/asdf") shouldBe (Some(ContainerImage.DockerHub("asd/asdf")))
   }
+
 }
