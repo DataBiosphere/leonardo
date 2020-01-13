@@ -130,16 +130,15 @@ pipeline {
           description: "The bucket where the image will be stored")
     string(name: "dataproc_versions", defaultValue: "1.2.79-debian9 1.4.15-debian9",
           description: "A custom image will be build for each of these dataproc versions")
-    string(name: "terra_jupyter_base", defaultValue: "0.0.1")
-    string(name: "terra_jupyter_hail", defaultValue: "0.0.1",
-          description: "Is not currently baked into the image, but is here for future functionality")
-    string(name: "terra_jupyter_r", defaultValue: "0.0.3")
-    string(name: "terra_jupyter_python", defaultValue: "0.0.1")
-    string(name: "terra_jupyter_bioconductor", defaultValue: "0.0.2",
-          description: "Is not currently baked into the image, but is here for future functionality")
+    string(name: "terra_jupyter_base", defaultValue: "0.0.6")
+    string(name: "terra_jupyter_hail", defaultValue: "0.0.5")
+    string(name: "terra_jupyter_r", defaultValue: "0.0.7")
+    string(name: "terra_jupyter_python", defaultValue: "0.0.6")
+    string(name: "terra_jupyter_bioconductor", defaultValue: "0.0.9")
+    string(name: "terra_jupyter_gatk", defaultValue: "0.0.8")
     string(name: "leonardo_jupyter", defaultValue: "5c51ce6935da",
           description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
-    string(name: "welder_server", defaultValue: "6a783a5",
+    string(name: "welder_server", defaultValue: "60e28bc",
           description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
     string(name: "openidc_proxy", defaultValue: "2.3.1_2",
           description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
@@ -162,6 +161,8 @@ pipeline {
           images.add('leonardo-jupyter')
           images.add('welder-server')
           images.add('openidc-proxy')
+          images.add('anvil-rstudio-base')
+          images.add('anvil-rstudio-bioconductor')
 
           println("Images to include in custom image found in image scan: $images")
         }
