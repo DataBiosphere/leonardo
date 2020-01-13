@@ -147,7 +147,7 @@ pipeline {
   stages {
     stage('Terra docker image scan') {
       steps {
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'rt-update-dataproc'
 
         script {
           def temp = sh( 
@@ -171,7 +171,7 @@ pipeline {
 
     stage('Leonardo Git') {
       steps {
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'rt-ia-1610'
       }
     }
 
