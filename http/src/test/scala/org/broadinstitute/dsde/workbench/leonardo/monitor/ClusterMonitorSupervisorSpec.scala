@@ -187,7 +187,7 @@ class ClusterMonitorSupervisorSpec
       MockRStudioDAO,
       MockWelderDAO,
       clusterHelper,
-      QueueFactory.makeQueue()
+      QueueFactory.makePublisherQueue()
     )
   }
 }

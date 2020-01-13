@@ -210,7 +210,7 @@ class ClusterMonitorSpec
     welderDAO: WelderDAO[IO] = MockWelderDAO,
     runningChild: Boolean = true,
     directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO(),
-                              queue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makeQueue()
+                              queue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
   )(testCode: ActorRef => T): T = {
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     directoryDAO
@@ -244,7 +244,7 @@ class ClusterMonitorSpec
   // - compute DAO returns status RUNNING
   // Post:
   // - cluster is updated in the DB with status Running and the host IP
-  // - instances are populated in the DB
+  // - instances are populated in the DBx
   // - monitor actor shuts down
   "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
@@ -1400,7 +1400,7 @@ class ClusterMonitorSpec
     val iamDAO = mock[GoogleIamDAO]
     val authProvider = mock[LeoAuthProvider[IO]]
 
-    val queue = QueueFactory.makeQueue()
+    val queue = QueueFactory.makePublisherQueue()
 
     queue.getSize.unsafeRunSync() shouldBe 0
 

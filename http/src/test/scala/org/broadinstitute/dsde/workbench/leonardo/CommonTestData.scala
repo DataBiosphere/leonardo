@@ -86,13 +86,6 @@ trait CommonTestData { this: ScalaFutures =>
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
 
-//    val mockQueue = InspectableQueue.bounded[IO, LeoPubsubMessage](1000).unsafeRunSync()
-//  val mockQueue = MockitoSugar.mock[InspectableQueue[IO, LeoPubsubMessage]]
-//  when {
-//    mockQueue.enqueue1(any[LeoPubsubMessage])
-//  } thenReturn (IO.unit)
-  val mockQueue = QueueFactory.mockQueue
-
   val testClusterRequest = ClusterRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
     None,

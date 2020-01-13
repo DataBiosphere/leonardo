@@ -180,7 +180,7 @@ object Boot extends IOApp with LazyLogging {
         .handleErrorWith { error =>
           Stream.eval(Logger[IO].error(error)("Failed to start server"))
         }
-        //        .evalMap(_ => IO.never) //I don't know what this does I just want it to compile :)
+        .evalMap(_ => IO.never) //I don't know what this does I just want it to compile :)
         .compile
         .drain
     }

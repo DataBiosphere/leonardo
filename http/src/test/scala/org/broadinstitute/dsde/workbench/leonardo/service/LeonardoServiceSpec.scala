@@ -130,7 +130,7 @@ class LeonardoServiceSpec
                               bucketHelper,
                               clusterHelper,
                               new MockDockerDAO,
-                              QueueFactory.makeQueue())
+                              QueueFactory.makePublisherQueue())
   }
 
   override def afterAll(): Unit = {
@@ -282,7 +282,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO(RStudio),
-      QueueFactory.makeQueue())
+      QueueFactory.makePublisherQueue())
 
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -550,7 +550,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      QueueFactory.makeQueue())
+      QueueFactory.makePublisherQueue())
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -604,7 +604,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      QueueFactory.makeQueue())
+      QueueFactory.makePublisherQueue())
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1137,7 +1137,7 @@ class LeonardoServiceSpec
   it should "allow changing the master machine type for a cluster in RUNNING state with flag set id2" in isolatedDbTest {
     // create the cluster
 
-    val queue =  QueueFactory.makeQueue()
+    val queue =  QueueFactory.makePublisherQueue()
     val leo = new LeonardoService(dataprocConfig,
       imageConfig,
       MockWelderDAO,
