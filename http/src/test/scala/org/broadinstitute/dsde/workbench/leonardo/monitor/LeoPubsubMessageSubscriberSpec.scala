@@ -7,9 +7,9 @@ import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
+import org.broadinstitute.dsde.workbench.google2.{Event, GooglePublisher, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, MachineConfig, ServiceAccountInfo}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.subscriberConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{publisherConfig, subscriberConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, MockGoogleComputeDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -21,6 +21,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.concurrent._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 
 class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")) with TestComponent with FlatSpecLike with Matchers with CommonTestData with MockitoSugar with Eventually {
   implicit val cs = IO.contextShift(system.dispatcher)
@@ -105,5 +106,14 @@ class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")
 
   //gracefully handle transition finished with no follow-up action saved
 
+  //set-up  dev  subscriptionb
+  "Boot" should "successfully initialize the publisher" in isolatedDbTest {
+    val publisher = GooglePublisher.resource[IO, LeoPubsubMessage](publisherConfig)
+    val queue = QueueFactory.makePublisherQueue()
+
+    publisher.use {  publisher =>
+      IO.pure(queue.dequeue through publisher.publish)
+    }.unsafeRunSync()
+  }
 
 }
