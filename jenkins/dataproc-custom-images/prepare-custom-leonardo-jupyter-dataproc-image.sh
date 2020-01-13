@@ -16,22 +16,20 @@ set -e -x
 # the image tags are set via jenkins automation
 #
 
-#filled out by jenkins job
+# The versions below don't matter; they are replaced by the Jenkins job
 terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.6"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.6"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.7"
-
-#bioconductor and hail currently are not baked into the custom image
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.9"
 terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.5"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.8"
-anvil_rstudio_base="us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.2"
-anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.3"
 
 #leonardo_jupyter will be discontinued soon
 leonardo_jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:60e28bc"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
+anvil_rstudio_base="us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.2"
+anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.3"
 
 # this array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
