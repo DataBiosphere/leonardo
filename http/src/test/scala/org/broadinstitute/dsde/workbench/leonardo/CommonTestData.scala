@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{CustomDataProc, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{
@@ -75,6 +75,7 @@ trait CommonTestData { this: ScalaFutures =>
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val imageConfig = config.as[ImageConfig]("image")
+  val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
@@ -139,6 +140,9 @@ trait CommonTestData { this: ScalaFutures =>
   val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
   val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = ClusterImage(Welder, "welder/welder:latest", Instant.now)
+  val customDataprocImage = ClusterImage(CustomDataProc, "custom_dataproc", Instant.now)
+
+  val clusterResourceConstraints = ClusterResourceConstraints(MemorySize.fromMb(3584))
 
   def makeDataprocInfo(index: Int): DataprocInfo =
     DataprocInfo(

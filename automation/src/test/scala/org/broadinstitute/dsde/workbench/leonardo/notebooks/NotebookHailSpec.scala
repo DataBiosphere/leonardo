@@ -106,7 +106,7 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
               // Import the TSV into a Hail table
               val importResult = notebookPage.executeCell(s"table = hl.import_table('${tsvUri}', impute=True)")
               importResult shouldBe 'defined
-              importResult.get should include ("Finished type imputation")
+              importResult.get should include("Finished type imputation")
 
               // Verify the Hail table
               val tableResult = notebookPage.executeCell("table.count()")

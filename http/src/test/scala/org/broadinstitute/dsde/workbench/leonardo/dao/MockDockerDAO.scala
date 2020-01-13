@@ -8,7 +8,8 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 
 class MockDockerDAO(tool: ClusterImageType = Jupyter) extends DockerDAO[IO] {
   override def detectTool(
-    image: ContainerImage
+    image: ContainerImage,
+    petTokenOpt: Option[String]
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[ClusterImageType]] =
     IO.pure(Some(tool))
 }

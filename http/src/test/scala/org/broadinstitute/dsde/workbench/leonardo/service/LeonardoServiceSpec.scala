@@ -110,6 +110,7 @@ class LeonardoServiceSpec
                                       clusterResourcesConfig,
                                       clusterFilesConfig,
                                       monitorConfig,
+                                      welderConfig,
                                       bucketHelper,
                                       gdDAO,
                                       computeDAO,
@@ -125,6 +126,7 @@ class LeonardoServiceSpec
                               proxyConfig,
                               swaggerConfig,
                               autoFreezeConfig,
+                              welderConfig,
                               mockPetGoogleDAO,
                               DbSingleton.ref,
                               authProvider,
@@ -276,6 +278,7 @@ class LeonardoServiceSpec
                                          proxyConfig,
                                          swaggerConfig,
                                          autoFreezeConfig,
+                                         welderConfig,
                                          mockPetGoogleDAO,
                                          DbSingleton.ref,
                                          authProvider,
@@ -494,6 +497,7 @@ class LeonardoServiceSpec
                                                     clusterResourcesConfig,
                                                     clusterFilesConfig,
                                                     monitorConfig,
+                                                    welderConfig,
                                                     bucketHelper,
                                                     gdDAO,
                                                     computeDAO,
@@ -519,6 +523,7 @@ class LeonardoServiceSpec
                                                       clusterResourcesConfig,
                                                       clusterFilesConfig,
                                                       monitorConfig,
+                                                      welderConfig,
                                                       bucketHelper,
                                                       gdDAO,
                                                       computeDAO,
@@ -542,6 +547,7 @@ class LeonardoServiceSpec
                                          proxyConfig,
                                          swaggerConfig,
                                          autoFreezeConfig,
+                                         welderConfig,
                                          mockPetGoogleStorageDAO,
                                          DbSingleton.ref,
                                          spyProvider,
@@ -595,6 +601,7 @@ class LeonardoServiceSpec
                                          proxyConfig,
                                          swaggerConfig,
                                          autoFreezeConfig,
+                                         welderConfig,
                                          mockPetGoogleStorageDAO,
                                          DbSingleton.ref,
                                          spyProvider,
@@ -682,9 +689,11 @@ class LeonardoServiceSpec
       Some(stagingBucketName),
       Some(serviceAccountKey),
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig
+      clusterResourcesConfig,
+      Some(clusterResourceConstraints)
     )
     val replacements: Map[String, String] = clusterInit.toMap
 
@@ -714,7 +723,8 @@ class LeonardoServiceSpec
           |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
-          |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"""".stripMargin
+          |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"
+          |"${clusterResourceConstraints.memoryLimit.bytes}b"""".stripMargin
 
     new String(result, StandardCharsets.UTF_8) shouldEqual expected
   }

@@ -44,10 +44,12 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
 
-  override def detectTool(image: ContainerImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[ClusterImageType]] =
+  override def detectTool(image: ContainerImage, petTokenOpt: Option[String])(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Option[ClusterImageType]] =
     for {
       parsed <- parseImage(image)
-      tokenOpt <- getToken(parsed)
+      tokenOpt <- getToken(parsed, petTokenOpt)
       digest <- parsed.imageVersion match {
         case Tag(_)      => getManifestConfig(parsed, tokenOpt).map(_.digest)
         case Sha(digest) => Concurrent[F].pure(digest)
@@ -87,9 +89,12 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
     )(onError)
 
   //curl --silent "https://auth.docker.io/token?scope=repository%3Alibrary/nginx%3Apull&service=registry.docker.io" | jq '.token'
-  private[dao] def getToken(parsedImage: ParsedImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Token]] =
+  private[dao] def getToken(parsedImage: ParsedImage,
+                            petTokenOpt: Option[String])(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Token]] =
     parsedImage.registry match {
-      case GCR => Concurrent[F].pure(None)
+      // If it's a GCR repo, use the pet token
+      case GCR => Concurrent[F].pure(petTokenOpt.map(Token))
+      // If it's a Dockerhub repo, need to request a token from Dockerhub
       case DockerHub =>
         httpClient.expectOptionOr[Token](
           Request[F](

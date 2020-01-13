@@ -122,10 +122,14 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
 
   lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
 
-  lazy val modalNotebookChanged: Query = cssSelector("[class='modal-title']")
+  lazy val jupyterModal: Query = cssSelector("[class='modal-title']")
 
   lazy val confirmNotebookSaveButton: Query = cssSelector(
     "[class='btn btn-default btn-sm btn-danger save-confirm-btn']"
+  )
+
+  lazy val confirmKernelDiedButton: Query = cssSelector(
+    "[class='btn btn-default btn-sm btn-primary']"
   )
 
   //intentionally misspelled
@@ -394,9 +398,15 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
    * See https://broadworkbench.atlassian.net/browse/IA-1228
    */
   def dismissNotebookChanged(): Unit =
-    if (find(modalNotebookChanged).exists(_.text == "Notebook changed")) {
+    if (find(jupyterModal).exists(_.text == "Notebook changed")) {
       click on confirmNotebookSaveButton
-      await notVisible modalNotebookChanged
+      await notVisible jupyterModal
+    }
+
+  def dismissKernelDied(): Unit =
+    if (find(jupyterModal).exists(_.text == "Kernel Restarting")) {
+      click on confirmKernelDiedButton
+      await notVisible jupyterModal
     }
 
 }

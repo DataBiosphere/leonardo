@@ -201,9 +201,11 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       Some(stagingBucketName),
       Some(serviceAccountKey),
       dataprocConfig,
+      welderConfig,
       proxyConfig,
       clusterFilesConfig,
-      clusterResourcesConfig
+      clusterResourcesConfig,
+      Some(clusterResourceConstraints)
     )
     val clusterInitMap = clusterInit.toMap
 
@@ -214,8 +216,9 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
     clusterInitMap("welderEnabled") shouldBe "true"
+    clusterInitMap("memLimit") shouldBe clusterResourceConstraints.memoryLimit.bytes.toString + "b"
 
-    clusterInitMap.size shouldBe 35
+    clusterInitMap.size shouldBe 36
   }
   import org.mockito.ArgumentMatchers.any
 
@@ -227,12 +230,6 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
     UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))))
     UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
-//    assertThrows[MalformedURLException] {
-//      UserScriptPath.stringToUserScriptPath(invalidPath)
-//    }
-//    clusterCreateExc shouldBe a[RuntimeException]
-
-//    UserScriptPath.stringToUserScriptPath(invalidPath).leftSideValue shouldBe Left(a[MalformedURLException])
     UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
   }
 
@@ -269,4 +266,37 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ContainerImage.stringToJupyterDockerImage("asd/asdf") shouldBe (Some(ContainerImage.DockerHub("asd/asdf")))
   }
 
+  "Cluster" should "generate a correct cluster URL" in {
+    val expectedBase = s"http://leonardo/proxy/$project/$name0/"
+
+    // No images or labels -> default to Jupyter
+    Cluster.getClusterUrl(project, name0, Set.empty, Map.empty).toString shouldBe expectedBase + "jupyter"
+
+    // images only
+    Cluster.getClusterUrl(project, name0, Set(jupyterImage), Map.empty).toString shouldBe expectedBase + "jupyter"
+    Cluster
+      .getClusterUrl(project, name0, Set(welderImage, customDataprocImage, jupyterImage), Map.empty)
+      .toString shouldBe expectedBase + "jupyter"
+    Cluster.getClusterUrl(project, name0, Set(rstudioImage), Map.empty).toString shouldBe expectedBase + "rstudio"
+    Cluster
+      .getClusterUrl(project, name0, Set(welderImage, customDataprocImage, rstudioImage), Map.empty)
+      .toString shouldBe expectedBase + "rstudio"
+
+    // labels only
+    Cluster
+      .getClusterUrl(project, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
+      .toString shouldBe expectedBase + "jupyter"
+    Cluster
+      .getClusterUrl(project, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
+      .toString shouldBe expectedBase + "rstudio"
+    Cluster.getClusterUrl(project, name0, Set.empty, Map("foo" -> "bar")).toString shouldBe expectedBase + "jupyter"
+
+    // images and labels -> images take precedence
+    Cluster
+      .getClusterUrl(project,
+                     name0,
+                     Set(welderImage, customDataprocImage, rstudioImage),
+                     Map("tool" -> "Jupyter", "foo" -> "bar"))
+      .toString shouldBe expectedBase + "rstudio"
+  }
 }

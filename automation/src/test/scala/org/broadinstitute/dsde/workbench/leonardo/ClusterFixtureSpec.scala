@@ -63,7 +63,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       ronCluster = mockedCluster
     }
 
-    if(clusterCreationFailureMsg.nonEmpty)
+    if (clusterCreationFailureMsg.nonEmpty)
       throw new Exception(clusterCreationFailureMsg)
 
     def runTestAndCheckOutcome() = {
@@ -119,10 +119,9 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) =>
-          Either.catchNonFatal(createRonCluster(GoogleProject(billingProject))).handleError {
-            e =>
-              clusterCreationFailureMsg = e.getMessage
-              ronCluster = null
+          Either.catchNonFatal(createRonCluster(GoogleProject(billingProject))).handleError { e =>
+            clusterCreationFailureMsg = e.getMessage
+            ronCluster = null
           }
         case None => clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
       }

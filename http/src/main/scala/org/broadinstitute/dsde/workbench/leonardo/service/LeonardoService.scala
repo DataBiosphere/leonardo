@@ -124,6 +124,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val proxyConfig: ProxyConfig,
                       protected val swaggerConfig: SwaggerConfig,
                       protected val autoFreezeConfig: AutoFreezeConfig,
+                      protected val welderConfig: WelderConfig,
                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
                       protected val dbRef: DbReference,
                       protected val authProvider: LeoAuthProvider[IO],
@@ -217,7 +218,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       traceId <- ev.ask
       internalId <- IO(ClusterInternalId(UUID.randomUUID().toString))
-      clusterImages <- getClusterImages(clusterRequest)
+      clusterImages <- getClusterImages(userEmail, googleProject, clusterRequest)
       augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo,
                                                       googleProject,
                                                       clusterName,
@@ -247,11 +248,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- log.info(
         s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
       )
-      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith { t =>
-        log.info(
-          s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
-        ) >> IO.raiseError(t)
-      }
+      _ <- authProvider
+        .notifyClusterCreated(internalId, userEmail, googleProject, clusterName)
+        .handleErrorWith { t =>
+          log.info(
+            s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
+          ) >> IO.raiseError(t)
+        }
       cluster <- dbRef.inTransactionIO { _.clusterQuery.save(initialClusterToSave) }
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
@@ -806,14 +809,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def getClusterImages(
+    userEmail: WorkbenchEmail,
+    googleProject: GoogleProject,
     clusterRequest: ClusterRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[ClusterImage]] =
     for {
       now <- IO(Instant.now)
       traceId <- ev.ask
+      petTokenOpt <- serviceAccountProvider.getAccessToken(userEmail, googleProject)
       // Try to autodetect the image
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
-        dockerDAO.detectTool(image).flatMap {
+        dockerDAO.detectTool(image, petTokenOpt).flatMap {
           case None       => IO.raiseError(ImageAutoDetectionException(traceId, image))
           case Some(tool) => IO.pure(ClusterImage(tool, image.imageUrl, now))
         }
@@ -837,18 +843,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def getWelderAction(cluster: Cluster): WelderAction =
     if (cluster.welderEnabled) {
       // Welder is already enabled; do we need to update it?
-      val labelFound = dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
+      val labelFound = welderConfig.updateWelderLabel.exists(cluster.labels.contains)
 
       val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
         case Some(welderImage) if welderImage.imageUrl != imageConfig.welderDockerImage => true
-        case _                                                                             => false
+        case _                                                                          => false
       }
 
       if (labelFound && imageChanged) UpdateWelder
       else NoAction
     } else {
       // Welder is not enabled; do we need to deploy it?
-      val labelFound = dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
+      val labelFound = welderConfig.deployWelderLabel.exists(cluster.labels.contains)
       if (labelFound) {
         if (isClusterBeforeCutoffDate(cluster)) DisableDelocalization
         else DeployWelder
@@ -857,7 +863,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean =
     (for {
-      dateStr <- dataprocConfig.deployWelderCutoffDate
+      dateStr <- welderConfig.deployWelderCutoffDate
       date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
       isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
