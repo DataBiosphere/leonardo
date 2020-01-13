@@ -289,7 +289,7 @@ pipeline {
                     --zone us-central1-a \
                     --gcs-bucket $BUCKET_NAME \
                     --project-id=$GOOGLE_PROJECT \
-                    --disk-size=30
+                    --disk-size=50
                 """
               )
             }
