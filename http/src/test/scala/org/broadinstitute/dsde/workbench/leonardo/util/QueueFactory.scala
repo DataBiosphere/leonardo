@@ -10,11 +10,11 @@ import scala.concurrent.ExecutionContext.Implicits.global
 object QueueFactory {
   implicit val cs = IO.contextShift(global)
   implicit val t = IO.timer(global)
-  val mockQueue = InspectableQueue.bounded[IO, LeoPubsubMessage](1000).unsafeRunSync()
+  val queueSize = 1000
 
   def makePublisherQueue() =
-    InspectableQueue.bounded[IO, LeoPubsubMessage](1000).unsafeRunSync()
+    InspectableQueue.bounded[IO, LeoPubsubMessage](queueSize).unsafeRunSync()
 
   def makeSubscriberQueue() =
-    InspectableQueue.bounded[IO, Event[LeoPubsubMessage]](1000).unsafeRunSync()
+    InspectableQueue.bounded[IO, Event[LeoPubsubMessage]](queueSize).unsafeRunSync()
 }

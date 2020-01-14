@@ -4,5 +4,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class PubsubConfig(
                                pubsubGoogleProject: GoogleProject,
-                               topicName: String
+                               topicName: String,
+                               queueSize: Int
                              )

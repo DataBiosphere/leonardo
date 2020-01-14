@@ -225,7 +225,8 @@ object Config {
   implicit val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
     PubsubConfig(
       GoogleProject(config.getString("pubsubGoogleProject")),
-      config.getString("topicName")
+      config.getString("topicName"),
+      config.getInt("queueSize")
     )
   }
 

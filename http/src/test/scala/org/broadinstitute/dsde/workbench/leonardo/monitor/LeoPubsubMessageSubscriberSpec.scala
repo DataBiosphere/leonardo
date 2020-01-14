@@ -71,7 +71,7 @@ class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")
     status = ClusterStatus.Stopped
   )
 
-  "LeoPubsubMessageSubscriber" should "handle StopUpdateMessage and stop cluster id4" in isolatedDbTest {
+  "LeoPubsubMessageSubscriber" should "handle StopUpdateMessage and stop cluster" in isolatedDbTest {
 
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)

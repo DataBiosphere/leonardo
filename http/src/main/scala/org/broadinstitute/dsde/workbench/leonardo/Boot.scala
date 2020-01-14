@@ -175,7 +175,6 @@ object Boot extends IOApp with LazyLogging {
       } yield ()
 
       val app = Stream(Stream.eval(httpServer), appDependencies.publisherStream, subscriberStream).parJoin(3)
-//val app = Stream(Stream.eval(httpServer), appDependencies.publisherStream, subscriberStream).parJoin(1)
 
       app
         .handleErrorWith { error =>
@@ -232,10 +231,10 @@ object Boot extends IOApp with LazyLogging {
 
       googlePublisher <- GooglePublisher.resource[F, LeoPubsubMessage](publisherConfig)
 
-      publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](1000))
+      publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
       publisherStream = publisherQueue.dequeue through googlePublisher.publish
 
-      subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](1000))
+      subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
 //      pubsubReader = new MessageReader(subscriber, clusterHelper, dbRef)
