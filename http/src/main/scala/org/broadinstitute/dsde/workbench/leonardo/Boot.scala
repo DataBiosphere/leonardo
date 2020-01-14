@@ -47,6 +47,8 @@ object Boot extends IOApp with LazyLogging {
     implicit val materializer = ActorMaterializer()
     import system.dispatcher
 
+    logger.info("beginning startUp function")
+
     val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
     }
@@ -154,6 +156,7 @@ object Boot extends IOApp with LazyLogging {
 
       val subscriberStream =
         if (leoExecutionModeConfig.backLeo) {
+          logger.info("starting subscriber in boot")
           val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] = new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
           pubsubSubscriber.process
         } else Stream.eval_(IO.unit)
@@ -180,7 +183,7 @@ object Boot extends IOApp with LazyLogging {
         .handleErrorWith { error =>
           Stream.eval(Logger[IO].error(error)("Failed to start server"))
         }
-        .evalMap(_ => IO.never) //I don't know what this does I just want it to compile :)
+        .evalMap(_ => IO.never)
         .compile
         .drain
     }

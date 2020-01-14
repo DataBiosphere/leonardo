@@ -17,26 +17,6 @@ class LeoPubsubSpec extends ClusterFixtureSpec with BeforeAndAfterAll with Leona
     }
   }
 
-  "Should perform end to end pub/sub flow" taggedAs Tags.SmokeTest in { clusterFixture =>
-    val publisher = GooglePublisher.resource[IO, String](LeonardoConfig.Leonardo.publisherConfig)
-    publisher.use {
-      _ => IO.unit
-    }
-    for {
-      googlePublisher <- GooglePublisher.resource[F, LeoPubsubMessage](LeonardoConfig.Leonardo.publisherConfig)
-
-      publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](100))
-      publisherStream = publisherQueue.dequeue through googlePublisher.publish
-
-      subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](100))
-      subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
-
-      pubsubReader = new LeoPubsubMessageSubscriber()
-    } yield ()
-    //      pubsubReader = new MessageReader(subscriber, clusterHelper, dbRef)
-    //      subscriberStream = pubsubReader.process
-  }
-
 
 
 }
