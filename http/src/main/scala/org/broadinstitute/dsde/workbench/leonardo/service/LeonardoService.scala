@@ -351,6 +351,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] =
     transition match {
       case StopStartTransition(machineConfig) =>
+        publisherQueue.
+        logger.info(s"current queue size before enqueue: ${publisherQueue.size}")
         publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
 
       //we need to record the desired update and set a flag on the cluster so the monitor picks it up
