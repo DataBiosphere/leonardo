@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
+import java.net.{MalformedURLException, URL}
 import java.time.Instant
 import java.util.UUID._
 
@@ -80,8 +81,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       properties = Map.empty,
       scopes = Set.empty,
       jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
-      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))),
-      jupyterStartUserScriptUri = Some(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh")))
+      jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))),
+      jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))))
     )
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
@@ -218,6 +219,18 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("memLimit") shouldBe clusterResourceConstraints.memoryLimit.bytes.toString + "b"
 
     clusterInitMap.size shouldBe 36
+  }
+  import org.mockito.ArgumentMatchers.any
+
+
+  it should "create UserScriptPath objects according to provided path" in isolatedDbTest {
+    val gcsPath = "gs://userscript_bucket/userscript.sh"
+    val httpPath = "https://userscript_path"
+    val invalidPath = "invalid_userscript_path"
+
+    UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))))
+    UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
+    UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
   }
 
   "DockerRegistry regex" should "match expected image url format" in {

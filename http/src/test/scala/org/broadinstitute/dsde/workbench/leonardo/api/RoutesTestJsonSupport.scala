@@ -11,7 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   ClusterImage,
   ClusterInternalId,
   DataprocInfo,
-  UserJupyterExtensionConfig
+  UserJupyterExtensionConfig,
+  UserScriptPath
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, IP, Instance, OperationName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -57,8 +58,8 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
           fields.getOrElse("status", JsNull).convertTo[ClusterStatus],
           fields.getOrElse("labels", JsNull).convertTo[LabelMap],
           fields.getOrElse("jupyterExtensionUri", JsNull).convertTo[Option[GcsPath]],
-          fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[GcsPath]],
-          fields.getOrElse("jupyterStartUserScriptUri", JsNull).convertTo[Option[GcsPath]],
+          fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[UserScriptPath]],
+          fields.getOrElse("jupyterStartUserScriptUri", JsNull).convertTo[Option[UserScriptPath]],
           fields.getOrElse("errors", JsNull).convertTo[List[ClusterError]],
           fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
           fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
@@ -106,7 +107,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
           fields.getOrElse("status", JsNull).convertTo[ClusterStatus],
           fields.getOrElse("labels", JsNull).convertTo[LabelMap],
           fields.getOrElse("jupyterExtensionUri", JsNull).convertTo[Option[GcsPath]],
-          fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[GcsPath]],
+          fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[UserScriptPath]],
           fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
           fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
           fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],

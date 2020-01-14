@@ -649,16 +649,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           ) as None
       })
 
-      // Validate the user script URIs
+      // Validate GCS user script URIs. Http user scripts are validated when reading from json in LeoModel
       _ <- clusterRequest.jupyterUserScriptUri match {
-        case Some(userScriptUri) =>
-          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, userScriptUri.toUri))
-        case None => OptionT.pure[IO](())
+        case Some(UserScriptPath.Gcs(gcsPath)) =>
+          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, gcsPath.toUri))
+        case _ => OptionT.pure[IO](())
       }
       _ <- clusterRequest.jupyterStartUserScriptUri match {
-        case Some(startScriptUri) =>
-          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, startScriptUri.toUri))
-        case None => OptionT.pure[IO](())
+        case Some(UserScriptPath.Gcs(gcsPath)) =>
+          OptionT.liftF[IO, Unit](validateBucketObjectUri(userEmail, petToken, gcsPath.toUri))
+        case _ => OptionT.pure[IO](())
       }
 
       // Validate the extension URIs
