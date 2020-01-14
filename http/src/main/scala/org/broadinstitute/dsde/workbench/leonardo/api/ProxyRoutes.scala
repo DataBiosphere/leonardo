@@ -87,7 +87,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                     // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
                     // in that scenario, the requests appear to pile up, causing apache to hog CPU.
                     proxyService
-                      .proxyRequest(userInfo, googleProject, clusterName, request)
+                      .proxyLocalize(userInfo, googleProject, clusterName, request)
                       .onError { case _ => IO.fromFuture(IO(request.entity.discardBytes().future)).void }
                   }
                 }
