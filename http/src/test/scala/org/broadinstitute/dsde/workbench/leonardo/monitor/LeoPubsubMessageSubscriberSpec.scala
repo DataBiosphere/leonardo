@@ -2,26 +2,23 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import cats.effect.{Blocker, IO, Resource}
+import cats.effect.{Blocker, IO}
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.{Event, GooglePublisher, GoogleSubscriber}
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, MachineConfig, ServiceAccountInfo}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{publisherConfig, subscriberConfig}
+import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, MockGoogleComputeDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
-import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
-import org.mockito.Mockito._
 import org.scalatest.concurrent._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
+import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
 class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")) with TestComponent with FlatSpecLike with Matchers with CommonTestData with MockitoSugar with Eventually {
   implicit val cs = IO.contextShift(system.dispatcher)
@@ -67,11 +64,17 @@ class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")
     status = ClusterStatus.Running,
     instances = Set(masterInstance, workerInstance1, workerInstance2)
   )
+
+  val stoppedCluster = makeCluster(2).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    status = ClusterStatus.Stopped
+  )
+
   "LeoPubsubMessageSubscriber" should "handle StopUpdateMessage and stop cluster id4" in isolatedDbTest {
 
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
-    //    leoSubscriber.messageResponder()
 
     val savedRunningCluster = runningCluster.save()
     println(savedRunningCluster.id)
@@ -94,26 +97,172 @@ class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")
 
   }
 
+  "LeoPubsubMessageSubscriber" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
+
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val savedRunningCluster = runningCluster.save()
+
+    val clusterId = savedRunningCluster.id
+    val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
+    val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
+    val message = ClusterTransitionFinishedMessage(followupKey)
+
+    leoSubscriber.followupMap.size shouldBe 0
+
+    leoSubscriber.followupMap.put(followupKey, newMachineConfig)
+
+    val caught = the[WorkbenchException] thrownBy {
+      leoSubscriber.messageResponder(message).unsafeRunSync()
+    }
+
+    leoSubscriber.followupMap.size shouldBe 1
+    leoSubscriber.followupMap.get(followupKey) shouldBe Some(newMachineConfig)
+    caught.getMessage should include("it is not stopped")
+
+    dbFutureValue { _.clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Running
+
+  }
+
+  "LeoPubsubMessageSubscriber" should "throw an exception if it receives an incorrect StopUpdate message and the database does not reflect the state in message" in isolatedDbTest {
+
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val savedStoppedCluster = stoppedCluster.save()
+
+    val clusterId = savedStoppedCluster.id
+    val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
+    val message = StopUpdateMessage(newMachineConfig, clusterId)
+
+    leoSubscriber.followupMap.size shouldBe 0
+
+    val caught = the[WorkbenchException] thrownBy {
+      leoSubscriber.messageResponder(message).unsafeRunSync()
+    }
+
+    leoSubscriber.followupMap.size shouldBe 0
+
+    caught.getMessage should include("Failed to process StopUpdateMessage")
+
+    dbFutureValue { _.clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Stopped
+
+  }
+
+  "LeoPubsubMessageSubscriber" should "perform a noop when it recieves an irrelevant transition for a cluster in the follow-up map" in isolatedDbTest {
+    val savedRunningCluster = runningCluster.save()
+    val clusterId = savedRunningCluster.id
+    val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
+
+    leoSubscriber.followupMap.put(followupKey, newMachineConfig)
+
+    val transitionFinishedMessage = ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Creating))
+
+    leoSubscriber.followupMap.size shouldBe 1
+
+    leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
+
+    leoSubscriber.followupMap.size shouldBe 1
+
+    val cluster = dbFutureValue { _.clusterQuery.getClusterById(clusterId) }.get
+    cluster.status shouldBe ClusterStatus.Running
+    cluster.machineConfig shouldBe defaultMachineConfig
+  }
+
+  "LeoPubsubMessageSubscriber" should "perform a noop recieves a transition for a cluster in the follow-up map which is not in the db" in isolatedDbTest {
+//    val savedRunningCluster = runningCluster.save()
+//    val clusterId = savedRunningCluster.id
+    val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val fakeClusterId = Integer.MAX_VALUE
+    val followupKey = ClusterFollowupDetails(fakeClusterId, ClusterStatus.Stopped)
+
+    leoSubscriber.followupMap.put(followupKey, newMachineConfig)
+
+    val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupKey)
+
+    leoSubscriber.followupMap.size shouldBe 1
+
+    val caught = the[ClusterNotFoundException] thrownBy {
+      leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
+    }
+
+    leoSubscriber.followupMap.size shouldBe 1
+
+    val cluster = dbFutureValue { _.clusterQuery.getClusterById(fakeClusterId) }
+    cluster shouldBe None
+    caught.clusterId shouldBe fakeClusterId
+  }
+
+  //gracefully handle transition finished with no follow-up action saved
+  "LeoPubsubMessageSubscriber" should "throw an exception when no follow-up action is present for a transition" in isolatedDbTest {
+    val savedStoppedCluster = stoppedCluster.save()
+    val clusterId = savedStoppedCluster.id
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
+    val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupKey)
+
+    leoSubscriber.followupMap.size shouldBe 0
+
+    leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
+
+    val cluster = dbFutureValue { _.clusterQuery.getClusterById(clusterId) }.get
+    cluster.status shouldBe ClusterStatus.Stopped
+    cluster.machineConfig shouldBe defaultMachineConfig
+  }
+
+  //handle transition finished message with follow-up action saved
+  "LeoPubsubMessageSubscriber" should "handle perform an update and stop the cluster when a follow-up action is present" in isolatedDbTest {
+    val savedStoppedCluster = stoppedCluster.save()
+    val clusterId = savedStoppedCluster.id
+    val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
+
+    leoSubscriber.followupMap.put(followupKey, newMachineConfig)
+
+    val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupKey)
+
+    leoSubscriber.followupMap.size shouldBe 1
+    println(s"Cluster followup map: ${leoSubscriber.followupMap}")
+
+    leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
+
+    leoSubscriber.followupMap.size shouldBe 0
+
+    eventually {
+      dbFutureValue { _.clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Starting
+      dbFutureValue { _.clusterQuery.getClusterById(clusterId) }.get.machineConfig shouldBe newMachineConfig
+    }
+  }
+
+  //set-up  dev  subscription
+  //TODO: make an automation test
+//  "Boot" should "successfully initialize the publisher" in isolatedDbTest {
+//    val publisher = GooglePublisher.resource[IO, LeoPubsubMessage](publisherConfig).use {
+//      publisher =>
+//        val publish = Stream.emit("t2") through publisher.publish[String]
+//        publish.compile.drain
+//    }
+//
+//    publisher.unsafeRunSync()
+//  }
+
   def makeLeoSubscriber(queue: InspectableQueue[IO, Event[LeoPubsubMessage]]) = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
     new LeoPubsubMessageSubscriber[IO](googleSubscriber, clusterHelper, DbSingleton.ref)
-  }
-
-
-
-  //gracefully handle a no-op transition finished message
-
-  //gracefully handle transition finished with no follow-up action saved
-
-  //set-up  dev  subscriptionb
-  "Boot" should "successfully initialize the publisher" in isolatedDbTest {
-    val publisher = GooglePublisher.resource[IO, LeoPubsubMessage](publisherConfig)
-    val queue = QueueFactory.makePublisherQueue()
-
-    publisher.use {  publisher =>
-      IO.pure(queue.dequeue through publisher.publish)
-    }.unsafeRunSync()
   }
 
 }

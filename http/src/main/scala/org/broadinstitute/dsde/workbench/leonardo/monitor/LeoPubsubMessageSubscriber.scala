@@ -11,11 +11,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, M
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.Logger
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext
+
+case class ClusterNotFoundException(clusterId: Long, override val message: String = "Could not process ClusterTransitionFinishedMessage because it was not found in the database") extends LeoException
 
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concurrent](
                                                                            subscriber: GoogleSubscriber[IO, LeoPubsubMessage],
@@ -29,15 +32,16 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
   //ackDeadline
   //credentials?
 
-  def messageResponder(message: LeoPubsubMessage): IO[Unit] =
-
+  def messageResponder(message: LeoPubsubMessage): IO[Unit] = {
+    logger.info("here in messageResponder")
     message match {
-        case msg@StopUpdateMessage(_,_) =>
-          handleStopUpdateMessage(msg)
-        case msg@ClusterTransitionFinishedMessage(_) =>
-          handleClusterTransitionFinished(msg)
-        case _ => IO.unit
-      }
+      case msg@StopUpdateMessage(_, _) =>
+        handleStopUpdateMessage(msg)
+      case msg@ClusterTransitionFinishedMessage(_) =>
+        handleClusterTransitionFinished(msg)
+      case _ => IO.unit
+    }
+  }
 
   def messageHandler: Pipe[IO, Event[LeoPubsubMessage], Unit] = in => {
     in.flatMap { event =>
@@ -68,7 +72,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
           }
         case Some(resolvedCluster) =>
           IO.raiseError(
-            new WorkbenchException( s"Failed to process StopUpdateMessage for Cluster ${resolvedCluster.projectNameString}. Cluster details: ${resolvedCluster}")
+            new WorkbenchException( s"Failed to process StopUpdateMessage for Cluster ${resolvedCluster.projectNameString}. This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${resolvedCluster}")
           )
         case None =>
           IO.raiseError(new WorkbenchException(s"Could process StopUpdateMessage for cluster with id ${message.clusterId} because it was not found in the database"))
@@ -76,43 +80,47 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
   }
 
   def handleClusterTransitionFinished(message: ClusterTransitionFinishedMessage) = {
+    logger.info("in start of handleClusterTransitionFinished")
     val resolution = message.followupDetails.clusterStatus match {
       case Stopped => {
-        dbRef
-          .inTransactionIO { dataAccess =>
-            dataAccess.clusterQuery.getClusterById(message.followupDetails.clusterId)
+        for {
+          clusterOpt <- dbRef.inTransactionIO {
+            _.clusterQuery.getClusterById(message.followupDetails.clusterId)
           }
-          .flatMap {
+          work <- clusterOpt match {
             case Some(resolvedCluster) if resolvedCluster.status != ClusterStatus.Stopped =>
               IO.raiseError(new WorkbenchException(s"Unable to process message ${message} for cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString}, when the monitor signalled it stopped as it is not stopped."))
 
+            case Some(resolvedCluster) if !followupMap.contains(message.followupDetails) =>
+              logger.info(s"Received stop transition notification when no update is needed. This is a noop. cluster id: ${resolvedCluster.id}")
+              IO.unit
+
             case Some(resolvedCluster) if followupMap.contains(message.followupDetails) => {
               // do update
-              logger.info("In update of UpdateClusterAfterStop")
+              logger.info(s"In update of handleClusterTransitionFinished, cluster id: ${resolvedCluster.id} followup map: ${followupMap}")
               //we always want to delete the follow-up record if there is one saved
               val followupMachineConfig = followupMap.remove(message.followupDetails)
-               //if there is a record of a follow-up being needed, perform the follow-up
+              logger.info(s"in update of handleClusterTransitionFinished, followup machine config: ${followupMachineConfig}, follow-up masterMachineType: ${followupMachineConfig.get.masterMachineType} followup map: ${followupMap}")
+              //if there is a record of a follow-up being needed, perform the follow-up
               if (!followupMachineConfig.isEmpty && !followupMachineConfig.get.masterMachineType.isEmpty) {
                 for {
                   // perform gddao and db updates for new resources
                   _ <- clusterHelper.updateMasterMachineType(resolvedCluster, MachineType(followupMachineConfig.get.masterMachineType.get))
+                  x = logger.info("in for comprehension for handleClusterTransitionFinished")
                   // start cluster
                   _ <- clusterHelper.internalStartCluster(resolvedCluster)
                 } yield ()
-              } else IO.raiseError(new WorkbenchException(s"Recieved message ${message} that a cluster finished stopping and wishes to update, " +
-                s"but proper followup details (aka machineConfig) were not saved in the subscriber at the time of the initial action. Saved config: ${followupMachineConfig}"))
+              } else {
+                IO.raiseError(new WorkbenchException(s"Recieved message ${message} that a cluster finished stopping and wishes to update, " +
+                  s"but proper followup details (aka machineConfig) were not saved in the subscriber at the time of the initial action. Saved config: ${followupMachineConfig}"))
+              }
             }
-
-            case Some(resolvedCluster) =>
-             IO.raiseError(
-                new WorkbenchException(s"Unable to process message ${message} for Cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status} after the monitor signalled it stopped, as no follow-up details were found. ")
-              )
-
-            case None => IO.raiseError(new WorkbenchException(s"Could not process ClusterTransitionFinishedMessage because it was not found in the database"))
+            case None => IO.raiseError(ClusterNotFoundException(message.followupDetails.clusterId))
           }
+        } yield (work)
       }
 
-      //No actions for other statuses yet. There is some logic that will be needed for all other cases (i.e. the 'None' case where no cluster is found in the db and possible the case that checks for a key in the followupMap.
+      //No actions for other statuses yet. There is some logic that will be needed for all other cases (i.e. the 'None' case where no cluster is found in the db and possibly the case that checks for a key in the followupMap.
       // TODO: Refactor once there is more than one case
       case _ => {
         logger.info(s"received a message notifying that cluster ${message.followupDetails.clusterId} has transitioned to status ${message.followupDetails.clusterStatus}. This is a Noop.")
