@@ -155,7 +155,7 @@ class ClusterMonitorSpec
                               jupyterDAO: JupyterDAO,
                               rstudioDAO: RStudioDAO,
                               welderDAO: WelderDAO[IO],
-                             queue: fs2.concurrent.Queue[IO, String]): ActorRef = {
+                             queue: fs2.concurrent.Queue[IO, LeoPubsubMessage]): ActorRef = {
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
     val clusterHelper = new ClusterHelper(DbSingleton.ref,
                                           dataprocConfig,
@@ -210,7 +210,7 @@ class ClusterMonitorSpec
     welderDAO: WelderDAO[IO] = MockWelderDAO,
     runningChild: Boolean = true,
     directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO(),
-                              queue: fs2.concurrent.Queue[IO, String] = QueueFactory.makePublisherQueue()
+                              queue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
   )(testCode: ActorRef => T): T = {
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     directoryDAO

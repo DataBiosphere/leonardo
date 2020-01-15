@@ -13,7 +13,7 @@ object QueueFactory {
   val queueSize = 1000
 
   def makePublisherQueue() =
-    InspectableQueue.bounded[IO, String](queueSize).unsafeRunSync()
+    InspectableQueue.bounded[IO, LeoPubsubMessage](queueSize).unsafeRunSync()
 
   def makeSubscriberQueue() =
     InspectableQueue.bounded[IO, Event[LeoPubsubMessage]](queueSize).unsafeRunSync()

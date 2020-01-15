@@ -37,7 +37,7 @@ object TestClusterSupervisorActor {
             rstudioProxyDAO: RStudioDAO,
             welderDAO: WelderDAO[IO],
             clusterHelper: ClusterHelper,
-            publisherQueue: fs2.concurrent.Queue[IO, String])(implicit cs: ContextShift[IO]): Props =
+            publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO]): Props =
     Props(
       new TestClusterSupervisorActor(monitorConfig,
                                      dataprocConfig,
@@ -80,7 +80,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  rstudioProxyDAO: RStudioDAO,
                                  welderDAO: WelderDAO[IO],
                                  clusterHelper: ClusterHelper,
-                                 publisherQueue: fs2.concurrent.Queue[IO, String])(implicit cs: ContextShift[IO])
+                                 publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO])
     extends ClusterMonitorSupervisor(
       monitorConfig,
       dataprocConfig,

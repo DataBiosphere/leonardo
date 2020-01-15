@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-//import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, StopUpdateMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -137,7 +137,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val bucketHelper: BucketHelper,
                       protected val clusterHelper: ClusterHelper,
                       protected val dockerDAO: DockerDAO[IO],
-                      protected val publisherQueue: fs2.concurrent.Queue[IO, String])(implicit val executionContext: ExecutionContext,
+                      protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage])(implicit val executionContext: ExecutionContext,
                                                               implicit override val system: ActorSystem,
                                                               log: Logger[IO],
                                                               cs: ContextShift[IO],
@@ -350,10 +350,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] =
     transition match {
-      case StopStartTransition(_) =>
-//      case StopStartTransition(machineConfig) =>
-//        publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
-        publisherQueue.enqueue1("test")
+      case StopStartTransition(machineConfig) =>
+        publisherQueue.
+        logger.info(s"current queue size before enqueue: ${publisherQueue.size}")
+        publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
 
       //we need to record the desired update and set a flag on the cluster so the monitor picks it up
       //TODO: we currently do not support this
