@@ -177,7 +177,7 @@ object Boot extends IOApp with LazyLogging {
         }
       } yield ()
 
-      val app = Stream(Stream.eval(httpServer), appDependencies.publisherStream, subscriberStream).parJoin(3)
+      val app = Stream(Stream.eval(httpServer), appDependencies.publisherStream, subscriberStream).parJoin(5)
 
       app
         .handleErrorWith { error =>

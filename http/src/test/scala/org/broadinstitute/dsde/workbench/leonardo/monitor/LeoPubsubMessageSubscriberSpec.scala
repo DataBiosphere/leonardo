@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.{Blocker, IO}
+import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -19,8 +20,11 @@ import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.concurrent._
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
+import io.circe.parser.decode
+import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 
-class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")) with TestComponent with FlatSpecLike with Matchers with CommonTestData with MockitoSugar with Eventually {
+class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")) with TestComponent with FlatSpecLike with Matchers with CommonTestData with MockitoSugar with Eventually with LazyLogging {
   implicit val cs = IO.contextShift(system.dispatcher)
   implicit val timer = IO.timer(system.dispatcher)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
@@ -247,17 +251,58 @@ class LeoPubsubMessageSubscriberSpec extends TestKit(ActorSystem("leonardotest")
     }
   }
 
-  //set-up  dev  subscription
-  //TODO: make an automation test
-//  "Boot" should "successfully initialize the publisher" in isolatedDbTest {
-//    val publisher = GooglePublisher.resource[IO, LeoPubsubMessage](publisherConfig).use {
-//      publisher =>
-//        val publish = Stream.emit("t2") through publisher.publish[String]
-//        publish.compile.drain
-//    }
-//
-//    publisher.unsafeRunSync()
-//  }
+  "LeoPubsubCodec" should "encode/decode a StopUpdate message" in isolatedDbTest {
+    val originalMessage = StopUpdateMessage(defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8")), 1)
+    val json = originalMessage.asJson
+    val actualJson = json.toString
+
+    val expectedJson =
+      s"""
+        |{
+        |  "messageType": "stopUpdate",
+        |  "updatedMachineConfig": {
+        |    "numberOfWorkers": 0,
+        |    "masterMachineType": "n1-standard-8",
+        |    "masterDiskSize": 500,
+        |    "workerMachineType": null,
+        |    "workerDiskSize": null,
+        |    "numberOfWorkerLocalSSDs": null,
+        |    "numberOfPreemptibleWorkers": null
+        |  },
+        |  "clusterId": 1
+        |}
+        |""".stripMargin
+
+    actualJson.filterNot(_.isWhitespace) shouldBe expectedJson.filterNot(_.isWhitespace)
+
+    val decodedMessage = decode[StopUpdateMessage](expectedJson)
+    logger.info(s"decodedMessage: ${decodedMessage}")
+    decodedMessage.right.get shouldBe originalMessage
+  }
+
+  "LeoPubsubCodec" should "encode/decode a ClusterTransitionFinished message" in isolatedDbTest {
+    val clusterFollowupDetails = ClusterFollowupDetails(1, ClusterStatus.Stopping)
+    val originalMessage = ClusterTransitionFinishedMessage(clusterFollowupDetails)
+    val json = originalMessage.asJson
+    val actualJson = json.toString
+
+    val expectedJson =
+      s"""
+         |{
+         |  "messageType": "transitionFinished",
+         |  "clusterFollowupDetails": {
+         |    "clusterId": 1,
+         |    "clusterStatus": "Stopping"
+         |  }
+         |}
+         |""".stripMargin
+
+    actualJson.filterNot(_.isWhitespace) shouldBe expectedJson.filterNot(_.isWhitespace)
+
+    val decodedMessage = decode[ClusterTransitionFinishedMessage](expectedJson)
+    logger.info(s"decodedMessage: ${decodedMessage}")
+    decodedMessage.right.get shouldBe originalMessage
+  }
 
   def makeLeoSubscriber(queue: InspectableQueue[IO, Event[LeoPubsubMessage]]) = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]

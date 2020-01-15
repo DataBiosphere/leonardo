@@ -81,25 +81,25 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
 
   def handleClusterTransitionFinished(message: ClusterTransitionFinishedMessage) = {
     logger.info("in start of handleClusterTransitionFinished")
-    val resolution = message.followupDetails.clusterStatus match {
+    val resolution = message.clusterFollowupDetails.clusterStatus match {
       case Stopped => {
         for {
           clusterOpt <- dbRef.inTransactionIO {
-            _.clusterQuery.getClusterById(message.followupDetails.clusterId)
+            _.clusterQuery.getClusterById(message.clusterFollowupDetails.clusterId)
           }
           work <- clusterOpt match {
             case Some(resolvedCluster) if resolvedCluster.status != ClusterStatus.Stopped =>
               IO.raiseError(new WorkbenchException(s"Unable to process message ${message} for cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString}, when the monitor signalled it stopped as it is not stopped."))
 
-            case Some(resolvedCluster) if !followupMap.contains(message.followupDetails) =>
+            case Some(resolvedCluster) if !followupMap.contains(message.clusterFollowupDetails) =>
               logger.info(s"Received stop transition notification when no update is needed. This is a noop. cluster id: ${resolvedCluster.id}")
               IO.unit
 
-            case Some(resolvedCluster) if followupMap.contains(message.followupDetails) => {
+            case Some(resolvedCluster) if followupMap.contains(message.clusterFollowupDetails) => {
               // do update
               logger.info(s"In update of handleClusterTransitionFinished, cluster id: ${resolvedCluster.id} followup map: ${followupMap}")
               //we always want to delete the follow-up record if there is one saved
-              val followupMachineConfig = followupMap.remove(message.followupDetails)
+              val followupMachineConfig = followupMap.remove(message.clusterFollowupDetails)
               logger.info(s"in update of handleClusterTransitionFinished, followup machine config: ${followupMachineConfig}, follow-up masterMachineType: ${followupMachineConfig.get.masterMachineType} followup map: ${followupMap}")
               //if there is a record of a follow-up being needed, perform the follow-up
               if (!followupMachineConfig.isEmpty && !followupMachineConfig.get.masterMachineType.isEmpty) {
@@ -115,7 +115,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
                   s"but proper followup details (aka machineConfig) were not saved in the subscriber at the time of the initial action. Saved config: ${followupMachineConfig}"))
               }
             }
-            case None => IO.raiseError(ClusterNotFoundException(message.followupDetails.clusterId))
+            case None => IO.raiseError(ClusterNotFoundException(message.clusterFollowupDetails.clusterId))
           }
         } yield (work)
       }
@@ -123,14 +123,14 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
       //No actions for other statuses yet. There is some logic that will be needed for all other cases (i.e. the 'None' case where no cluster is found in the db and possibly the case that checks for a key in the followupMap.
       // TODO: Refactor once there is more than one case
       case _ => {
-        logger.info(s"received a message notifying that cluster ${message.followupDetails.clusterId} has transitioned to status ${message.followupDetails.clusterStatus}. This is a Noop.")
+        logger.info(s"received a message notifying that cluster ${message.clusterFollowupDetails.clusterId} has transitioned to status ${message.clusterFollowupDetails.clusterStatus}. This is a Noop.")
         IO.unit
       }
     }
 
     resolution.unsafeToFuture().failed
       .foreach { e =>
-        logger.error(s"Error occurred updating cluster with id ${message.followupDetails.clusterId} after stopping", e)
+        logger.error(s"Error occurred updating cluster with id ${message.clusterFollowupDetails.clusterId} after stopping", e)
       }
 
     resolution
@@ -150,7 +150,7 @@ final case class StopUpdateMessage(updatedMachineConfig: MachineConfig, clusterI
   val messageType = "stopUpdate"
 }
 
-case class ClusterTransitionFinishedMessage(followupDetails: ClusterFollowupDetails) extends LeoPubsubMessage {
+case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails) extends LeoPubsubMessage {
   val messageType = "transitionFinished"
 }
 
@@ -164,7 +164,7 @@ object LeoPubsubCodec {
     Decoder.forProduct2("clusterId", "clusterStatus")(ClusterFollowupDetails.apply)
 
   implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransitionFinishedMessage] =
-    Decoder.forProduct1("followupDetails")(ClusterTransitionFinishedMessage.apply)
+    Decoder.forProduct1("clusterFollowupDetails")(ClusterTransitionFinishedMessage.apply)
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = {
     for {
@@ -187,13 +187,13 @@ object LeoPubsubCodec {
       "numberOfPreemptibleWorkers")(x => MachineConfig.unapply(x).get)
 
   implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
-    Encoder.forProduct2("messageType", "updatedMachineConfig")(x => (x.updatedMachineConfig, x.clusterId))
+    Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(x => (x.messageType, x.updatedMachineConfig, x.clusterId))
 
   implicit val clusterFollowupDetailsEncoder: Encoder[ClusterFollowupDetails] =
     Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.clusterId, x.clusterStatus))
 
   implicit val clusterTransitionFinishedEncoder: Encoder[ClusterTransitionFinishedMessage] =
-    Encoder.forProduct1("followupDetails")(x => x.followupDetails)
+    Encoder.forProduct2("messageType","clusterFollowupDetails")(x => (x.messageType, x.clusterFollowupDetails))
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = (message: LeoPubsubMessage) => {
     message.messageType match {
