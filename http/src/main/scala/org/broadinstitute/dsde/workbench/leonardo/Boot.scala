@@ -98,7 +98,8 @@ object Boot extends IOApp with LazyLogging {
                                                 bucketHelper,
                                                 clusterHelper,
                                                 appDependencies.dockerDAO,
-                                                appDependencies.publisherQueue)
+//                                                appDependencies.publisherQueue)
+        InspectableQueue.bounded[IO, String](100).unsafeRunSync())
 
       if (leoExecutionModeConfig.backLeo) {
         val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
@@ -122,7 +123,8 @@ object Boot extends IOApp with LazyLogging {
             rstudioDAO,
             appDependencies.welderDAO,
             clusterHelper,
-            appDependencies.publisherQueue
+//            appDependencies.publisherQueue
+                        InspectableQueue.bounded[IO, String](100).unsafeRunSync()
           )
         )
         system.actorOf(

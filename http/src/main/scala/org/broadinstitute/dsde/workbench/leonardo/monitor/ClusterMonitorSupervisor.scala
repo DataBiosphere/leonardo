@@ -49,7 +49,7 @@ object ClusterMonitorSupervisor {
     rstudioProxyDAO: RStudioDAO,
     welderDAO: WelderDAO[IO],
     clusterHelper: ClusterHelper,
-    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
+    publisherQueue: fs2.concurrent.Queue[IO, String]
   )(implicit metrics: NewRelicMetrics[IO],
     clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
     cs: ContextShift[IO]): Props =
@@ -114,7 +114,7 @@ class ClusterMonitorSupervisor(
   rstudioProxyDAO: RStudioDAO,
   welderProxyDAO: WelderDAO[IO],
   clusterHelper: ClusterHelper,
-  publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
+  publisherQueue: fs2.concurrent.Queue[IO, String]
 )(implicit metrics: NewRelicMetrics[IO],
   clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
   cs: ContextShift[IO])

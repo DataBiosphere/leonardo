@@ -60,7 +60,7 @@ object ClusterMonitorActor {
     dbRef: DbReference,
     authProvider: LeoAuthProvider[IO],
     clusterHelper: ClusterHelper,
-    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
+    publisherQueue: fs2.concurrent.Queue[IO, String]
   )(implicit metrics: NewRelicMetrics[IO],
     clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
     cs: ContextShift[IO]): Props =
@@ -121,7 +121,7 @@ class ClusterMonitorActor(
   val dbRef: DbReference,
   val authProvider: LeoAuthProvider[IO],
   val clusterHelper: ClusterHelper,
-  val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage],
+  val publisherQueue: fs2.concurrent.Queue[IO, String],
   val startTime: Long = System.currentTimeMillis()
 )(implicit metrics: NewRelicMetrics[IO],
   clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
@@ -386,7 +386,8 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, now) }
       // reset the time at which the kernel was last found to be busy
       _ <- dbRef.inTransaction { _.clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
-      _ <- publisherQueue.enqueue1(ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped))).unsafeToFuture()
+//      _ <- publisherQueue.enqueue1(ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped))).unsafeToFuture()
+      _ <-publisherQueue.enqueue1("monitor message").unsafeToFuture()
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Stopped).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
