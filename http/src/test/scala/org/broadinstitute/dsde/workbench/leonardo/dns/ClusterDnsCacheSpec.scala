@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * Created by rtitle on 9/1/17.

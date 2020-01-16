@@ -6,6 +6,7 @@ import java.time.temporal.ChronoUnit
 
 import org.scalatest.FlatSpecLike
 import CommonTestData._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils {
 
@@ -15,8 +16,9 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Gcs
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)
 
-    dbFutureValue { dbRef.dataAccess.clusterErrorQuery.get(savedCluster1.id) } shouldEqual List.empty
-    dbFutureValue { dbRef.dataAccess.clusterErrorQuery.save(savedCluster1.id, clusterError) }
-    dbFutureValue { dbRef.dataAccess.clusterErrorQuery.get(savedCluster1.id) } shouldEqual List(clusterError)
+    dbFutureValue { clusterErrorQuery.get(savedCluster1.id) } shouldEqual List.empty
+    dbFutureValue { clusterErrorQuery.save(savedCluster1.id, clusterError) }
+    val res = dbFutureValue { clusterErrorQuery.get(savedCluster1.id) }
+    res shouldEqual List(clusterError)
   }
 }

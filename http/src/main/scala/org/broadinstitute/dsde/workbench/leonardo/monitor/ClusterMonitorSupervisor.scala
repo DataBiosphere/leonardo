@@ -12,22 +12,18 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  AutoFreezeConfig,
-  ClusterBucketConfig,
-  DataprocConfig,
-  ImageConfig,
-  MonitorConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterContainerServiceType, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+
+import scala.concurrent.ExecutionContext
 
 object ClusterMonitorSupervisor {
   def props(
@@ -47,6 +43,7 @@ object ClusterMonitorSupervisor {
     clusterHelper: ClusterHelper
   )(implicit metrics: NewRelicMetrics[IO],
     dbRef: DbReference[IO],
+    ec: ExecutionContext,
     clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
     cs: ContextShift[IO]): Props =
     Props(
@@ -108,6 +105,7 @@ class ClusterMonitorSupervisor(
   welderProxyDAO: WelderDAO[IO],
   clusterHelper: ClusterHelper
 )(implicit metrics: NewRelicMetrics[IO],
+  ec: ExecutionContext,
   dbRef: DbReference[IO],
   clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
   cs: ContextShift[IO])
@@ -152,8 +150,8 @@ class ClusterMonitorSupervisor(
         removeFromMonitoredClusters(cluster)
         for {
           now <- IO(Instant.now)
-          _ <- (dbRef.dataAccess.clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
-            dbRef.dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating, now)).transaction
+          _ <- (clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
+            clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating, now)).transaction
         } yield ()
       } else {
         IO(
@@ -167,7 +165,7 @@ class ClusterMonitorSupervisor(
 
     case StopClusterAfterCreation(cluster) =>
       logger.info(s"Stopping cluster ${cluster.projectNameString} after creation...")
-      val res = dbRef.dataAccess.clusterQuery
+      val res = clusterQuery
         .getClusterById(cluster.id)
         .transaction
         .flatMap {
@@ -239,10 +237,10 @@ class ClusterMonitorSupervisor(
 
   def autoFreezeClusters(): IO[Unit] =
     for {
-      clusters <- dbRef.dataAccess.clusterQuery.getClustersReadyToAutoFreeze().transaction
+      clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
       now <- IO(Instant.now)
       pauseableClusters <- clusters.toList.filterA { cluster =>
-        jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.flatMap {
+        jupyterProxyDAO.isAllKernelsIdle(cluster.googleProject, cluster.clusterName).attempt.flatMap {
           case Left(t) =>
             IO(logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t"))
               .as(true)
@@ -252,7 +250,7 @@ class ClusterMonitorSupervisor(
               val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
                 case Some(attemptedDate) => IO(Duration.between(attemptedDate, now).compareTo(idleLimit) == 1)
                 case None =>
-                  dbRef.dataAccess.clusterQuery.updateKernelFoundBusyDate(cluster.id, now, now).transaction
+                  clusterQuery.updateKernelFoundBusyDate(cluster.id, now, now).transaction
                     .as(false) // max kernel active time has not been exceeded
               }
 
@@ -294,12 +292,12 @@ class ClusterMonitorSupervisor(
       _ <- clusterHelper.stopCluster(cluster)
 
       // Update the cluster status to Stopping
-      _ <- dbRef.inTransaction { dbRef.dataAccess.clusterQuery.setToStopping(cluster.id, now) }
+      _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
     } yield ()
 
   private def createClusterMonitors(): IO[Unit] =
     dbRef
-      .inTransaction { dbRef.dataAccess.clusterQuery.listMonitoredClusterOnly() }
+      .inTransaction { clusterQuery.listMonitoredClusterOnly }
       .attempt
       .flatMap {
         case Right(clusters) =>

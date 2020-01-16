@@ -7,7 +7,7 @@ class MockJupyterDAO(isUp: Boolean = true) extends JupyterDAO[IO] {
   override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
     IO.pure(isUp)
 
-  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+  override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
     IO.pure(isUp)
 }
 

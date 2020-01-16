@@ -3,12 +3,12 @@ package api
 
 import java.time.Instant
 
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, OAuth2BearerToken}
+import akka.http.scaladsl.model.headers.{OAuth2BearerToken, `Set-Cookie`}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -94,8 +94,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with LeonardoTestSu
 
     // simulate the cluster transitioning to Running
     dbFutureValue {
-      dbRef.dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dbRef.dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+      clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
+        case Some(cluster) => clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -123,8 +123,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with LeonardoTestSu
 
     // simulate the cluster transitioning to Running
     dbFutureValue {
-      dbRef.dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
-        case Some(cluster) => dbRef.dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+      clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
+        case Some(cluster) => clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -298,8 +298,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with LeonardoTestSu
 
     // simulate the cluster transitioning to Running
     dbFutureValue {
-      dbRef.dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dbRef.dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+      clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
+        case Some(cluster) => clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }

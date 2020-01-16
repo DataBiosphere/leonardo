@@ -22,6 +22,7 @@ import org.scalatest.mockito.MockitoSugar
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.mockito.ArgumentMatchers
 import org.scalatest.concurrent.Eventually.eventually
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.concurrent.duration._
 import scala.util.Try

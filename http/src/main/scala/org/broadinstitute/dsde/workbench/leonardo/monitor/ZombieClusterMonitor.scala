@@ -10,7 +10,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterErrorQuery, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor._
@@ -91,7 +91,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
 
   private def getActiveClustersFromDatabase: IO[Map[GoogleProject, Seq[Cluster]]] =
     dbRef.inTransaction {
-      dbRef.dataAccess.clusterQuery.listActiveWithLabels.map { clusters =>
+      clusterQuery.listActiveWithLabels.map { clusters =>
         clusters.groupBy(_.googleProject)
       }
     }
@@ -127,11 +127,11 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction {
         for {
-          _ <- dbRef.dataAccess.clusterQuery.completeDeletion(cluster.id, now)
+          _ <- clusterQuery.completeDeletion(cluster.id, now)
           error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
                                -1,
                                now)
-          _ <- dbRef.dataAccess.clusterErrorQuery.save(cluster.id, error)
+          _ <- clusterErrorQuery.save(cluster.id, error)
         } yield ()
       }
     } yield ()

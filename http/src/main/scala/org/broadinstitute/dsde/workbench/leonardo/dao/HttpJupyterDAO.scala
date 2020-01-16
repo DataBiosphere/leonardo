@@ -31,7 +31,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache:
       case _ => Concurrent[F].pure(false)
     }
 
-  def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean] =
+  def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean] =
     for {
       hostStatus <- Proxy.getTargetHost[F](clusterDnsCache, googleProject, clusterName)
       resp <- hostStatus match {
@@ -59,7 +59,7 @@ object HttpJupyterDAO {
 }
 
 trait JupyterDAO[F[_]] {
-  def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean]
+  def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean]
   def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean]
 }
 

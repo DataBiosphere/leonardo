@@ -20,7 +20,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
@@ -110,7 +110,7 @@ class ProxyService(
       new CacheLoader[(GoogleProject, ClusterName), Option[ClusterInternalId]] {
         def load(key: (GoogleProject, ClusterName)): Option[ClusterInternalId] = {
           val (googleProject, clusterName) = key
-          dbRef.dataAccess.clusterQuery
+          clusterQuery
             .getActiveClusterInternalIdByName(googleProject, clusterName)
             .transaction
             .unsafeRunSync()
@@ -160,7 +160,7 @@ class ProxyService(
     for {
       _ <- authCheck(userInfo, googleProject, clusterName, SyncDataToCluster)
       now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      r <- proxyInternal(userInfo, googleProject, clusterName, request, Instant.ofEpochMilli(now))
+      r <- proxyInternal(googleProject, clusterName, request, Instant.ofEpochMilli(now))
     } yield r
 
   def invalidateAccessToken(token: String): IO[Unit] =
@@ -183,18 +183,14 @@ class ProxyService(
     for {
       _ <- authCheck(userInfo, googleProject, clusterName, ConnectToCluster)
       now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      r <- proxyInternal(userInfo, googleProject, clusterName, request, Instant.ofEpochMilli(now))
+      r <- proxyInternal(googleProject, clusterName, request, Instant.ofEpochMilli(now))
     } yield r
 
   def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): IO[HostStatus] =
     Proxy.getTargetHost[IO](clusterDnsCache, googleProject, clusterName)
 
-  private def proxyInternal(userInfo: UserInfo,
-                            googleProject: GoogleProject,
-                            clusterName: ClusterName,
-                            request: HttpRequest,
-                            now: Instant): IO[HttpResponse] = {
-    logger.debug(s"Received proxy request for user $userInfo: ${clusterDnsCache.stats} / ${clusterDnsCache.size}")
+  private def proxyInternal(googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, now: Instant) = {
+    logger.debug(s"Received proxy request for ${googleProject}/${clusterName}: ${clusterDnsCache.stats} / ${clusterDnsCache.size}")
     getTargetHost(googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
         clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, now)

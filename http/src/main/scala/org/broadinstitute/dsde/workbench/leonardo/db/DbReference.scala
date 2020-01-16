@@ -11,10 +11,9 @@ import liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
 import liquibase.{Contexts, Liquibase}
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import slick.basic.DatabaseConfig
-import slick.dbio.DBIO
 import slick.jdbc.{JdbcBackend, JdbcProfile, TransactionIsolation}
 import sun.security.provider.certpath.SunCertPathBuilderException
-
+import LeoProfile.api._
 import scala.concurrent.Future
 
 object DbReference extends LazyLogging {
@@ -74,13 +73,14 @@ private class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProf
                                                concurrentDbAccessPermits: Semaphore[F],
                                                blocker: Blocker)
     extends DbReference[F] {
-  val dataAccess = new DataAccess(dbConfig.profile, blocker)
+  import LeoProfile.api._
+
+  val dataAccess = new DataAccess(blocker)
 
   private def inTransactionFuture[T](
     dbio: DBIO[T],
     isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
   ): Future[T] = {
-    import dataAccess.profile.api._
     database.run(dbio.transactionally.withTransactionIsolation(isolationLevel))
   }
 
@@ -93,12 +93,10 @@ private class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProf
     )
 }
 
-final class DataAccess(val profile: JdbcProfile, blocker: Blocker) extends AllComponents {
+final class DataAccess(blocker: Blocker) {
   implicit val executionContext = blocker.blockingContext
 
   def truncateAll(): DBIO[Int] = {
-    import profile.api._
-
     // important to keep the right order for referential integrity !
     // if table X has a Foreign Key to table Y, delete table X first
     TableQuery[LabelTable].delete andThen
@@ -111,8 +109,6 @@ final class DataAccess(val profile: JdbcProfile, blocker: Blocker) extends AllCo
   }
 
   def sqlDBStatus() = {
-    import profile.api._
-
     sql"select version()".as[String]
   }
 }

@@ -20,20 +20,14 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataRespon
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GcsEntity,
-  GcsObjectName,
-  GoogleProject,
-  ServiceAccountKeyId
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
@@ -309,7 +303,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -377,7 +371,7 @@ class ClusterMonitorSpec
         )
       ) {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
@@ -430,7 +424,7 @@ class ClusterMonitorSpec
                             true) { actor =>
         eventually {
           val updatedCluster = dbFutureValue {
-            dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+            clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
           }
           updatedCluster shouldBe 'defined
           updatedCluster shouldBe Some(
@@ -493,7 +487,7 @@ class ClusterMonitorSpec
                           true) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster shouldBe Some(
@@ -568,7 +562,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
@@ -641,7 +635,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
@@ -720,7 +714,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getClusterById(savedDeletingCluster.id)
+          clusterQuery.getClusterById(savedDeletingCluster.id)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
@@ -899,10 +893,10 @@ class ClusterMonitorSpec
                           false) { _ =>
       eventually {
         val newCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getClusterById(savedCreatingCluster.id)
+          clusterQuery.getClusterById(savedCreatingCluster.id)
         }
         val newClusterBucket = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         newCluster shouldBe 'defined
         newClusterBucket shouldBe 'defined
@@ -983,7 +977,7 @@ class ClusterMonitorSpec
                           true) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getDeletingClusterByName(deletingCluster.googleProject, deletingCluster.clusterName)
+          clusterQuery.getDeletingClusterByName(deletingCluster.googleProject, deletingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster shouldBe Some(savedDeletingCluster)
@@ -1073,7 +1067,7 @@ class ClusterMonitorSpec
                                            false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -1087,7 +1081,7 @@ class ClusterMonitorSpec
 
       eventually {
         val updatedCluster2 = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster2.googleProject, creatingCluster2.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster2.googleProject, creatingCluster2.clusterName)
         }
         updatedCluster2 shouldBe 'defined
         updatedCluster2.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -1139,7 +1133,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
@@ -1229,7 +1223,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -1322,7 +1316,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
 
@@ -1366,7 +1360,7 @@ class ClusterMonitorSpec
                           false) { _ =>
       eventually {
         val dbCluster = dbFutureValue {
-          dbRef.dataAccess.clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName)
+          clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName)
         }
         dbCluster shouldBe 'defined
         dbCluster.get shouldEqual errorCluster

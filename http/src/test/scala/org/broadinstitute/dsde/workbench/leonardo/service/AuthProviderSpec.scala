@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, Mo
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
@@ -158,14 +158,14 @@ class AuthProviderSpec
 
       // change cluster status to Running so that it can be deleted
       dbFutureValue {
-        dbRef.dataAccess.clusterQuery.updateAsyncClusterCreationFields(
+        clusterQuery.updateAsyncClusterCreationFields(
           Some(GcsPath(initBucketPath, GcsObjectName(""))),
           Some(serviceAccountKey),
           cluster1.copy(dataprocInfo = Some(makeDataprocInfo(1))),
           Instant.now
         )
       }
-      dbFutureValue { dbRef.dataAccess.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now) }
+      dbFutureValue { clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now) }
 
       //delete
       leo.deleteCluster(userInfo, project, cluster1Name).unsafeToFuture.futureValue
@@ -313,7 +313,7 @@ class AuthProviderSpec
       clusterCreateExc shouldBe a[RuntimeException]
 
       // no cluster should have been made
-      val clusterLookup = dbFutureValue { dbRef.dataAccess.clusterQuery.getActiveClusterByName(project, cluster1Name) }
+      val clusterLookup = dbFutureValue { clusterQuery.getActiveClusterByName(project, cluster1Name) }
       clusterLookup shouldBe 'empty
 
       // check that the cluster does not exist

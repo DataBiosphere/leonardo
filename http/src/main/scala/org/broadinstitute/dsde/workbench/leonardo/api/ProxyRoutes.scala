@@ -67,13 +67,11 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                   // we are discarding the request entity here. we have noticed that PUT requests caused by
                   // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
                   // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                  for {
-                    res <- proxyService.proxyRequest(userInfo, googleProject, clusterName, request).onError {
-                      case e =>
-                        IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
-                          .fromFuture(IO(request.entity.discardBytes().future))
-                    }
-                  } yield res
+                  proxyService.proxyRequest(userInfo, googleProject, clusterName, request).onError {
+                    case e =>
+                      IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
+                        .fromFuture(IO(request.entity.discardBytes().future))
+                  }
                 }
               }
             } ~

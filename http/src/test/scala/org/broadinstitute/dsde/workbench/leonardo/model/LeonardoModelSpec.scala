@@ -221,8 +221,6 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
     clusterInitMap.size shouldBe 36
   }
-  import org.mockito.ArgumentMatchers.any
-
 
   it should "create UserScriptPath objects according to provided path" in isolatedDbTest {
     val gcsPath = "gs://userscript_bucket/userscript.sh"

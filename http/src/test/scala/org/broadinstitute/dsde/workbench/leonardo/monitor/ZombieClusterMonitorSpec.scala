@@ -7,12 +7,13 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, Moc
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -52,8 +53,8 @@ class ZombieClusterMonitorSpec
     // zombie actor should flag both clusters as inactive
     withZombieActor(googleProjectDAO = googleProjectDAO) { _ =>
       eventually(timeout(Span(10, Seconds))) {
-        val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster1.id) }.get
-        val c2 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
+        val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         List(c1, c2).foreach { c =>
           c.status shouldBe ClusterStatus.Deleted
@@ -84,8 +85,8 @@ class ZombieClusterMonitorSpec
     // zombie actor should flag both clusters as inactive
     withZombieActor(googleProjectDAO = googleProjectDAO) { _ =>
       eventually(timeout(Span(10, Seconds))) {
-        val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster1.id) }.get
-        val c2 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
+        val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         List(c1, c2).foreach { c =>
           c.status shouldBe ClusterStatus.Deleted
@@ -123,8 +124,8 @@ class ZombieClusterMonitorSpec
     // c2 should be flagged as a zombie but not c1
     withZombieActor(gdDAO = gdDAO) { _ =>
       eventually(timeout(Span(10, Seconds))) {
-        val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster1.id) }.get
-        val c2 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
+        val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         c2.status shouldBe ClusterStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
@@ -160,7 +161,7 @@ class ZombieClusterMonitorSpec
     // cluster2 should be active when it's still within hang tolerance
     withZombieActor(gdDAO = gdDAO) { _ =>
       eventually(timeout(3 seconds)) { //This timeout can be anything smaller than hang tolerance
-        val c2 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+        val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         c2.status shouldBe ClusterStatus.Creating
         c2.auditInfo.destroyedDate shouldBe None
@@ -169,8 +170,8 @@ class ZombieClusterMonitorSpec
     // the Running cluster should be a zombie but the Creating one shouldn't
     withZombieActor(gdDAO = gdDAO) { _ =>
       eventually(timeout(shouldHangAfter)) {
-        val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster1.id) }.get
-        val c2 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
+        val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         c1.status shouldBe ClusterStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
@@ -205,7 +206,7 @@ class ZombieClusterMonitorSpec
     withZombieActor(gdDAO = gdDAO) { _ =>
       Thread.sleep(shouldNotHangBefore.toSeconds)
 
-      val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+      val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
       c1.status shouldBe ClusterStatus.Creating
       c1.errors.size shouldBe 0
     }
@@ -252,9 +253,9 @@ class ZombieClusterMonitorSpec
     // only the "good" cluster should be zombified
     withZombieActor(gdDAO = gdDAO) { _ =>
       eventually(timeout(Span(10, Seconds))) {
-        val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedClusterBadProject.id) }.get
-        val c2 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedBadCluster.id) }.get
-        val c3 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(savedGoodCluster.id) }.get
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedClusterBadProject.id) }.get
+        val c2 = dbFutureValue { clusterQuery.getClusterById(savedBadCluster.id) }.get
+        val c3 = dbFutureValue { clusterQuery.getClusterById(savedGoodCluster.id) }.get
 
         c1.status shouldBe ClusterStatus.Running
         c1.errors shouldBe 'empty

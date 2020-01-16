@@ -9,13 +9,15 @@ import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterContainerServiceType, ClusterImageType}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterToolMonitor._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+
+import scala.concurrent.ExecutionContext
 
 object ClusterToolMonitor {
 
@@ -26,6 +28,7 @@ object ClusterToolMonitor {
     dbRef: DbReference[IO],
     newRelic: NewRelicMetrics[IO]
   )(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+    ec: ExecutionContext,
     cs: ContextShift[IO]): Props =
     Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, newRelic))
 
@@ -46,6 +49,7 @@ class ClusterToolMonitor(
   dbRef: DbReference[IO],
   newRelic: NewRelicMetrics[IO]
 )(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+  ec: ExecutionContext,
   cs: ContextShift[IO])
     extends Actor
     with Timers
@@ -65,6 +69,7 @@ class ClusterToolMonitor(
         _ <- statuses.parTraverse(handleClusterStatus)
       } yield ()
       res.unsafeToFuture()
+    case e => logger.warn(s"Unexpected message ${e}")
   }
 
   private def handleClusterStatus(status: ToolStatus): IO[Unit] =
@@ -79,7 +84,7 @@ class ClusterToolMonitor(
 
   private def getActiveClustersFromDatabase: IO[Seq[RunningCluster]] =
     dbRef.inTransaction(
-      dbRef.dataAccess.clusterQuery.listRunningOnly
+      clusterQuery.listRunningOnly
     )
 
   def checkClusterStatus(cluster: RunningCluster): IO[List[ToolStatus]] =

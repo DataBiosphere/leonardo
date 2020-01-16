@@ -86,7 +86,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                                             serviceAccountProvider,
                                             bucketHelper,
                                             clusterHelper,
-                                            new MockDockerDAO)(executor, system, loggerIO, cs, metrics, DbSingleton.dbRef)
+                                            new MockDockerDAO)(executor, system, loggerIO, cs, metrics, DbSingleton.dbRef, timer)
 
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
   val proxyService =

@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, Mo
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
@@ -98,7 +98,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe Some(ClusterStatus.Stopping)
     }
   }
@@ -125,7 +125,7 @@ class ClusterMonitorSupervisorSpec
     val jupyterProxyDAO = new JupyterDAO[IO] {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
         IO.pure(true)
-      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+      override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
         IO.pure(false)
     }
 
@@ -173,7 +173,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe (Some(ClusterStatus.Running))
     }
   }
@@ -195,7 +195,7 @@ class ClusterMonitorSupervisorSpec
     val jupyterProxyDAO = new JupyterDAO[IO] {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
         IO.pure(true)
-      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+      override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
         IO.raiseError(new Exception)
     }
 
@@ -239,7 +239,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe (Some(ClusterStatus.Stopping))
     }
   }
@@ -263,7 +263,7 @@ class ClusterMonitorSupervisorSpec
     val jupyterProxyDAO = new JupyterDAO[IO] {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
         IO.pure(true)
-      override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
+      override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean] =
         IO.pure(false)
     }
 
@@ -312,7 +312,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { DbSingleton.dbRef.dataAccess.clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
       c1.map(_.status) shouldBe (Some(ClusterStatus.Stopping))
     }
   }

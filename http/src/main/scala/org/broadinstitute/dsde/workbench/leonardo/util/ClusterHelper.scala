@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{DeployWelder, DisableDelocalization, UpdateWelder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
@@ -309,7 +309,7 @@ class ClusterHelper(
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): IO[Unit] =
     parseImageProject(dataprocConfig.customDataprocImage).traverse_ { imageProject =>
       for {
-        count <- inTransaction { dataAccess.clusterQuery.countActiveByProject(googleProject) }
+        count <- inTransaction { clusterQuery.countActiveByProject(googleProject) }
         // Note: Don't remove the account if there are existing active clusters in the same project,
         // because it could potentially break other clusters. We only check this for the 'remove' case.
         _ <- if (count > 0 && !createCluster) {
@@ -553,7 +553,7 @@ class ClusterHelper(
       // Note: don't remove the role if there are existing active clusters owned by the same user,
       // because it could potentially break other clusters. We only check this for the 'remove' case,
       // it's ok to re-add the roles.
-      dbRef.inTransaction { dbRef.dataAccess.clusterQuery.countActiveByClusterServiceAccount(email) }.flatMap { count =>
+      dbRef.inTransaction { clusterQuery.countActiveByClusterServiceAccount(email) }.flatMap { count =>
         if (count > 0 && !createCluster) {
           IO.unit
         } else {

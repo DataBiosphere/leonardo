@@ -8,12 +8,14 @@ import cats.effect.{Blocker, ContextShift, Effect}
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, IP}
 import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
+import scala.concurrent.ExecutionContext
 
 object ClusterDnsCache {
   // This is stored as volatile in the object instead of inside the actor because it needs to be
@@ -46,7 +48,7 @@ case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
 class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
                                                   dbRef: DbReference[F],
                                                   dnsCacheConfig: ClusterDnsCacheConfig,
-                                                  blocker: Blocker)
+                                                  blocker: Blocker)(implicit ec: ExecutionContext)
     extends LazyLogging {
 
   def getHostStatus(key: DnsCacheKey): F[HostStatus] =
@@ -65,7 +67,7 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
           logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.clusterName}...loading from DB...")
           val res = dbRef
             .inTransaction {
-              dbRef.dataAccess.clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.clusterName)
+              clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.clusterName)
             }
             .toIO
             .unsafeRunSync()

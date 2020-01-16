@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
+import scala.concurrent.ExecutionContext.global
 
 object TestClusterSupervisorActor {
   def props(monitorConfig: MonitorConfig,
@@ -93,7 +94,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       rstudioProxyDAO,
       welderDAO,
       clusterHelper
-    )(FakeNewRelicMetricsInterpreter, dbRef, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO), cs) {
+    )(FakeNewRelicMetricsInterpreter, global, dbRef, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO), cs) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty

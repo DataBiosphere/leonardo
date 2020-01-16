@@ -17,30 +17,21 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  ClusterBucketConfig,
-  DataprocConfig,
-  ImageConfig,
-  MonitorConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterErrorQuery, clusterImageQuery, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
-  ClusterDeleted,
-  ClusterSupervisorMessage,
-  RemoveFromList
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -213,7 +204,7 @@ class ClusterMonitorActor(
             _ <- persistInstances(cluster, googleInstances)
             _ <- clusterHelper.stopCluster(cluster)
             now <- IO(Instant.now)
-            _ <- dbRef.inTransaction { dbRef.dataAccess.clusterQuery.setToStopping(cluster.id, now) }
+            _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
           } yield ScheduleMonitorPass
         } else {
           handleFailedCluster(
@@ -256,7 +247,7 @@ class ClusterMonitorActor(
       _ <- persistInstances(cluster, googleInstances)
       // update DB after auth futures finish
       now <- IO(Instant.now)
-      _ <- dbRef.inTransaction { dbRef.dataAccess.clusterQuery.setToRunning(cluster.id, publicIp, now) }
+      _ <- dbRef.inTransaction { clusterQuery.setToRunning(cluster.id, publicIp, now) }
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Running)
       _ <- if (cluster.status == ClusterStatus.Creating)
@@ -305,7 +296,7 @@ class ClusterMonitorActor(
         ) >>
           dbRef
             .inTransaction {
-              dbRef.dataAccess.clusterQuery.markPendingDeletion(cluster.id, now)
+              clusterQuery.markPendingDeletion(cluster.id, now)
             }
             .as(ShutdownActor(ClusterDeleted(cluster, recreate = true)))
       } else {
@@ -318,7 +309,7 @@ class ClusterMonitorActor(
           )
           // update the cluster status to Error
           _ <- dbRef.inTransaction {
-            dbRef.dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error, now)
+            clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error, now)
           }
           _ <- metrics.incrementCounter(s"AsyncClusterCreationFailure/${errorDetails.code}")
 
@@ -358,7 +349,7 @@ class ClusterMonitorActor(
       now <- IO(Instant.now)
 
       _ <- dbRef.inTransaction {
-        dbRef.dataAccess.clusterQuery.completeDeletion(cluster.id, now)
+        clusterQuery.completeDeletion(cluster.id, now)
       }
       _ <- authProvider
         .notifyClusterDeleted(cluster.internalId,
@@ -395,10 +386,10 @@ class ClusterMonitorActor(
       now <- IO(Instant.now)
       // this sets the cluster status to stopped and clears the cluster IP
       _ <- dbRef.inTransaction {
-        dbRef.dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, now)
+        clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, now)
       }
       // reset the time at which the kernel was last found to be busy
-      _ <- dbRef.inTransaction { dbRef.dataAccess.clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
+      _ <- dbRef.inTransaction { clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Stopped)
     } yield ShutdownActor(RemoveFromList(cluster))
@@ -412,7 +403,7 @@ class ClusterMonitorActor(
       clusterResult <- clusterHelper.createCluster(cluster)
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction {
-        dbRef.dataAccess.clusterQuery.updateAsyncClusterCreationFields(
+        clusterQuery.updateAsyncClusterCreationFields(
           Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
           clusterResult.serviceAccountKey,
           clusterResult.cluster,
@@ -421,10 +412,7 @@ class ClusterMonitorActor(
       }
       clusterImage = ClusterImage(ClusterImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
       // Save dataproc image in the database
-      _ <- dbRef
-        .inTransaction(
-          dbRef.dataAccess.clusterImageQuery.save(cluster.id, clusterImage)
-        )
+      _ <- dbRef.inTransaction(clusterImageQuery.save(cluster.id, clusterImage))
       _ <- IO(
         logger.info(
           s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process."
@@ -516,8 +504,8 @@ class ClusterMonitorActor(
       now <- IO(Instant.now)
       images <- dbRef.inTransaction {
         for {
-          _ <- dbRef.dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip), now)
-          images <- dbRef.dataAccess.clusterImageQuery.getAllForCluster(cluster.id)
+          _ <- clusterQuery.updateClusterHostIp(cluster.id, Some(ip), now)
+          images <- clusterImageQuery.getAllForCluster(cluster.id)
         } yield images.toList
       }
       availableTools <- images.traverseFilter { image =>
@@ -542,16 +530,16 @@ class ClusterMonitorActor(
   private def persistInstances(cluster: Cluster, googleInstances: Set[Instance]): IO[Unit] = {
     logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $googleInstances")
     dbRef.inTransaction {
-      dbRef.dataAccess.clusterQuery.mergeInstances(cluster.copy(instances = googleInstances))
+      clusterQuery.mergeInstances(cluster.copy(instances = googleInstances))
     }.void
   }
 
   private def saveClusterError(cluster: Cluster, errorMessage: String, errorCode: Int): IO[Unit] =
     dbRef
       .inTransaction {
-        val clusterId = dbRef.dataAccess.clusterQuery.getIdByUniqueKey(cluster)
+        val clusterId = clusterQuery.getIdByUniqueKey(cluster)
         clusterId flatMap {
-          case Some(a) => dbRef.dataAccess.clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
+          case Some(a) => clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
           case None => {
             logger.warn(
               s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo
@@ -624,7 +612,7 @@ class ClusterMonitorActor(
     // Delete the notebook service account key in Google, if present
     for {
       keyOpt <- dbRef.inTransaction {
-        dbRef.dataAccess.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
+        clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
       }
       _ <- clusterHelper
         .removeServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount, keyOpt)
@@ -633,7 +621,7 @@ class ClusterMonitorActor(
   private def deleteInitBucket(cluster: Cluster): IO[Unit] =
     // Get the init bucket path for this cluster, then delete the bucket in Google.
     dbRef.inTransaction {
-      dbRef.dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
+      clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
     } flatMap {
       case None =>
         IO(logger.warn(s"Could not lookup init bucket for cluster ${cluster.projectNameString}: cluster not in db"))
@@ -647,7 +635,7 @@ class ClusterMonitorActor(
   private def setStagingBucketLifecycle(cluster: Cluster): IO[Unit] =
     // Get the staging bucket path for this cluster, then set the age for it to be deleted the specified number of days after the deletion of the cluster.
     dbRef.inTransaction {
-      dbRef.dataAccess.clusterQuery.getStagingBucket(cluster.googleProject, cluster.clusterName)
+      clusterQuery.getStagingBucket(cluster.googleProject, cluster.clusterName)
     } flatMap {
       case None =>
         IO(
@@ -686,7 +674,7 @@ class ClusterMonitorActor(
 
   private def getDbCluster: IO[Cluster] =
     for {
-      clusterOpt <- dbRef.inTransaction { dbRef.dataAccess.clusterQuery.getClusterById(clusterId) }
+      clusterOpt <- dbRef.inTransaction { clusterQuery.getClusterById(clusterId) }
       cluster <- IO.fromEither(
         clusterOpt.toRight(new Exception(s"Cluster with id ${clusterId} not found in the database"))
       )
