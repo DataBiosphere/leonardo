@@ -12,10 +12,16 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AutoFreezeConfig,
+  ClusterBucketConfig,
+  DataprocConfig,
+  ImageConfig,
+  MonitorConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterContainerServiceType, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
@@ -250,7 +256,9 @@ class ClusterMonitorSupervisor(
               val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
                 case Some(attemptedDate) => IO(Duration.between(attemptedDate, now).compareTo(idleLimit) == 1)
                 case None =>
-                  clusterQuery.updateKernelFoundBusyDate(cluster.id, now, now).transaction
+                  clusterQuery
+                    .updateKernelFoundBusyDate(cluster.id, now, now)
+                    .transaction
                     .as(false) // max kernel active time has not been exceeded
               }
 

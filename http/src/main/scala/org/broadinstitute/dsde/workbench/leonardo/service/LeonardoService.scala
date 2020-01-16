@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -347,7 +347,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         for {
           _ <- log.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
           now <- IO(Instant.now)
-          res <- clusterQuery.updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
+          res <- clusterQuery
+            .updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
             .transaction
             .as(true)
         } yield res
@@ -400,8 +401,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                 clusterQuery
                   .updateNumberOfWorkers(existingCluster.id, a, now)
                   .flatMap(
-                    _ =>
-                      clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(b), now)
+                    _ => clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(b), now)
                   )
             )
           }
@@ -429,7 +429,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Update the DB
           now <- IO(Instant.now)
           _ <- clusterQuery
-              .updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType), now).transaction
+            .updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType), now)
+            .transaction
         } yield true
 
       case Some(_) =>
@@ -504,7 +505,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Note this also changes the instance status to Deleting
         now <- IO(Instant.now)
         _ <- if (hasDataprocInfo) clusterQuery.markPendingDeletion(cluster.id, now).transaction
-          else clusterQuery.completeDeletion(cluster.id, now).transaction
+        else clusterQuery.completeDeletion(cluster.id, now).transaction
         _ <- if (hasDataprocInfo) IO.unit
         else
           authProvider
@@ -598,12 +599,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield {
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-      clusterList
-          .collect {
-            case c if (c.auditInfo.creator == userInfo.userEmail) || samVisibleClusters.contains((c.googleProject, c.internalId)) =>
-              // Either user is the creator of the cluster, or sam thinks the cluster is visible to the user
-            c.toListClusterResp
-          }.toVector
+      clusterList.collect {
+        case c
+            if (c.auditInfo.creator == userInfo.userEmail) || samVisibleClusters.contains(
+              (c.googleProject, c.internalId)
+            ) =>
+          // Either user is the creator of the cluster, or sam thinks the cluster is visible to the user
+          c.toListClusterResp
+      }.toVector
     }
 
   private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int =
@@ -696,11 +699,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def processListClustersParameters(params: LabelMap): Either[ParseLabelsException, (LabelMap, Boolean)] =
+  private[service] def processListClustersParameters(
+    params: LabelMap
+  ): Either[ParseLabelsException, (LabelMap, Boolean)] =
     params.get(includeDeletedKey) match {
       case Some(includeDeletedValue) =>
         processLabelMap(params - includeDeletedKey).map(lm => (lm, includeDeletedValue.toBoolean))
-      case None                      =>
+      case None =>
         processLabelMap(params).map(lm => (lm, false))
     }
 
@@ -839,30 +844,34 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 }
 
 object LeonardoService {
+
   /**
-    * There are 2 styles of passing labels to the list clusters endpoint:
-    *
-    * 1. As top-level query string parameters: GET /api/clusters?foo=bar&baz=biz
-    * 2. Using the _labels query string parameter: GET /api/clusters?_labels=foo%3Dbar,baz%3Dbiz
-    *
-    * The latter style exists because Swagger doesn't provide a way to specify free-form query string
-    * params. This method handles both styles, and returns a Map[String, String] representing the labels.
-    *
-    * Note that style 2 takes precedence: if _labels is present on the query string, any additional
-    * parameters are ignored.
-    *
-    * @param params raw query string params
-    * @return a Map[String, String] representing the labels
-    */
+   * There are 2 styles of passing labels to the list clusters endpoint:
+   *
+   * 1. As top-level query string parameters: GET /api/clusters?foo=bar&baz=biz
+   * 2. Using the _labels query string parameter: GET /api/clusters?_labels=foo%3Dbar,baz%3Dbiz
+   *
+   * The latter style exists because Swagger doesn't provide a way to specify free-form query string
+   * params. This method handles both styles, and returns a Map[String, String] representing the labels.
+   *
+   * Note that style 2 takes precedence: if _labels is present on the query string, any additional
+   * parameters are ignored.
+   *
+   * @param params raw query string params
+   * @return a Map[String, String] representing the labels
+   */
   private[service] def processLabelMap(params: LabelMap): Either[ParseLabelsException, LabelMap] =
     params.get("_labels") match {
       case Some(extraLabels) =>
-        val labels: List[Either[ParseLabelsException, LabelMap]] = extraLabels.split(',').map { c =>
-          c.split('=') match {
-            case Array(key, value) => Map(key -> value).asRight[ParseLabelsException]
-            case _                 => (ParseLabelsException(extraLabels)).asLeft[LabelMap]
+        val labels: List[Either[ParseLabelsException, LabelMap]] = extraLabels
+          .split(',')
+          .map { c =>
+            c.split('=') match {
+              case Array(key, value) => Map(key -> value).asRight[ParseLabelsException]
+              case _                 => (ParseLabelsException(extraLabels)).asLeft[LabelMap]
+            }
           }
-        }.toList
+          .toList
 
         implicit val mapAdd: Monoid[Map[String, String]] = Monoid.instance(Map.empty, (mp1, mp2) => mp1 ++ mp2)
         labels.combineAll

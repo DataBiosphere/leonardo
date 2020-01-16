@@ -79,12 +79,11 @@ object UserScriptPath {
     val asString: String = gcsPath.toUri
   }
 
-  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] = {
+  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
     parseGcsPath(string) match {
       case Right(value) => Right(Gcs(value))
-      case Left(_) => Either.catchNonFatal(new URL(string)).map(url => Http(url))
+      case Left(_)      => Either.catchNonFatal(new URL(string)).map(url => Http(url))
     }
-  }
 }
 
 // Create cluster API request
@@ -607,8 +606,8 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
     def read(json: JsValue): UserScriptPath = json match {
       case JsString(path) =>
         UserScriptPath
-        .stringToUserScriptPath(path)
-        .fold(e => throw DeserializationException(s"Invalid userscript path: ${e}"), identity)
+          .stringToUserScriptPath(path)
+          .fold(e => throw DeserializationException(s"Invalid userscript path: ${e}"), identity)
       case other => throw DeserializationException(s"Expected userscript path, got: $other")
     }
     def write(obj: UserScriptPath): JsValue = JsString(obj.asString)

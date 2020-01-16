@@ -80,9 +80,8 @@ private class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProf
   private def inTransactionFuture[T](
     dbio: DBIO[T],
     isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
-  ): Future[T] = {
+  ): Future[T] =
     database.run(dbio.transactionally.withTransactionIsolation(isolationLevel))
-  }
 
   def inTransaction[T](
     dbio: DBIO[T],
@@ -96,7 +95,7 @@ private class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProf
 final class DataAccess(blocker: Blocker) {
   implicit val executionContext = blocker.blockingContext
 
-  def truncateAll(): DBIO[Int] = {
+  def truncateAll(): DBIO[Int] =
     // important to keep the right order for referential integrity !
     // if table X has a Foreign Key to table Y, delete table X first
     TableQuery[LabelTable].delete andThen
@@ -106,11 +105,9 @@ final class DataAccess(blocker: Blocker) {
       TableQuery[ClusterImageTable].delete andThen
       TableQuery[ScopeTable].delete andThen
       TableQuery[ClusterTable].delete
-  }
 
-  def sqlDBStatus() = {
+  def sqlDBStatus() =
     sql"select version()".as[String]
-  }
 }
 
 final class DBIOOps[A](private val dbio: DBIO[A]) extends AnyVal {

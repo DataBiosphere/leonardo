@@ -7,7 +7,6 @@ import scala.concurrent.ExecutionContext
 
 case class ScopeRecord(clusterId: Long, scope: String)
 
-
 class ScopeTable(tag: Tag) extends Table[ScopeRecord](tag, "CLUSTER_SCOPES") {
   def clusterId = column[Long]("clusterId")
 

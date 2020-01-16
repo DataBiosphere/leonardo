@@ -8,7 +8,7 @@ import cats.effect.{Blocker, ContextShift, Effect}
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, IP}
