@@ -33,7 +33,7 @@ import org.broadinstitute.dsde.workbench.model.{
   WorkbenchExceptionWithErrorReport
 }
 import LeoRoutes._
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.mtl.ApplicativeAsk
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -48,7 +48,10 @@ abstract class LeoRoutes(
   val statusService: StatusService,
   val swaggerConfig: SwaggerConfig,
   val contentSecurityPolicy: String
-)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext)
+)(implicit val system: ActorSystem,
+  val materializer: Materializer,
+  val executionContext: ExecutionContext,
+  val cs: ContextShift[IO])
     extends LazyLogging
     with CookieHelper
     with ProxyRoutes

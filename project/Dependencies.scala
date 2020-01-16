@@ -11,8 +11,8 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.0"
   val scalaTestV = "3.0.8"
-  val slickV = "3.2.3"
-  val http4sVersion = "0.21.0-M5" //remove http4s related dependencies once workbench-libs are upgraded
+  val slickV = "3.3.2"
+  val http4sVersion = "0.21.0-M6" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.0-jre"
   val monocleV = "2.0.0"
 
@@ -103,9 +103,12 @@ object Dependencies {
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
   val coreDependencies = List(
+    scalaTest,
     workbenchModel,
     workbenchGoogle2,
-    workbenchGoogle2Test
+    workbenchGoogle2Test,
+    workbenchNewRelic,
+    workbenchNewRelicTest
   )
 
   val rootDependencies = Seq(
@@ -137,7 +140,6 @@ object Dependencies {
     googleRpc,
     googleOAuth2,
     googleSourceRepositories,
-    scalaTest,
     mockito,
     slick,
     hikariCP,
@@ -147,8 +149,6 @@ object Dependencies {
     workbenchGoogle,
     workbenchGoogleTest,
     workbenchMetrics,
-    workbenchNewRelic,
-    workbenchNewRelicTest,
     sealerate,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0

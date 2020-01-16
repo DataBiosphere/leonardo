@@ -67,6 +67,7 @@ object Boot extends IOApp with LazyLogging {
 
     createDependencies(leoServiceAccountJsonFile, pem, pemWithServiceAccountUser).use { appDependencies =>
       implicit val metrics = appDependencies.metrics
+      implicit val dbRef = appDependencies.dbReference
 
       val bucketHelper = new BucketHelper(appDependencies.googleComputeDAO,
                                           appDependencies.googleStorageDAO,
@@ -99,17 +100,16 @@ object Boot extends IOApp with LazyLogging {
                                                 autoFreezeConfig,
                                                 welderConfig,
                                                 petGoogleStorageDAO,
-                                                appDependencies.dbReference,
                                                 appDependencies.authProvider,
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
                                                 clusterHelper,
                                                 appDependencies.dockerDAO)
       if (leoExecutionModeConfig.backLeo) {
-        val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
-        val rstudioDAO = new HttpRStudioDAO(appDependencies.clusterDnsCache)
         implicit def clusterToolToToolDao =
-          ToolDAO.clusterToolToToolDao(jupyterDAO, appDependencies.welderDAO, rstudioDAO)
+          ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
+                                       appDependencies.welderDAO,
+                                       appDependencies.rStudioDAO)
         system.actorOf(
           ClusterMonitorSupervisor.props(
             monitorConfig,
@@ -120,11 +120,10 @@ object Boot extends IOApp with LazyLogging {
             appDependencies.googleComputeDAO,
             appDependencies.googleStorageDAO,
             appDependencies.google2StorageDao,
-            appDependencies.dbReference,
             appDependencies.authProvider,
             autoFreezeConfig,
-            jupyterDAO,
-            rstudioDAO,
+            appDependencies.jupyterDAO,
+            appDependencies.rStudioDAO,
             appDependencies.welderDAO,
             clusterHelper
           )
@@ -147,10 +146,10 @@ object Boot extends IOApp with LazyLogging {
         system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
       val proxyService = new ProxyService(proxyConfig,
                                           appDependencies.googleDataprocDAO,
-                                          appDependencies.dbReference,
                                           appDependencies.clusterDnsCache,
                                           appDependencies.authProvider,
-                                          clusterDateAccessedActor)
+                                          clusterDateAccessedActor,
+                                          appDependencies.blocker)
       val statusService = new StatusService(appDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
                                             appDependencies.dbReference,
@@ -192,14 +191,20 @@ object Boot extends IOApp with LazyLogging {
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
+      clientWithNoRetryNoHeaderLogging = Http4sLogger[F](logHeaders = false, logBody = false)(httpClientWithCustomSSL)
+      // TODO: Use this client without retry for RStudioDAO because `checkClusterStatus` in `ClusterToolMonitor` will check
+      // all tools, and so far, clusters will not have RStudio running yet we'll be checking its status.
+      // Hence use a client without retry for RStudio so that we won't retry when RStudio is down.
+      // We should improve `checkClusterStatus` in the future so that it only checks tool that a cluster actually runs.
 
       samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
-      dbRef <- Resource.make(ConcurrentEffect[F].delay(DbReference.init(liquibaseConfig)))(
-        db => ConcurrentEffect[F].delay(db.database.close)
-      )
-      clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
+      concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
+      dbRef <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
+      clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig, blocker)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
       dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
+      jupyterDao = new HttpJupyterDAO[F](clusterDnsCache, clientWithRetryAndLogging)
+      rstudioDAO = new HttpRStudioDAO(clusterDnsCache, clientWithNoRetryNoHeaderLogging)
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
@@ -229,6 +234,8 @@ object Boot extends IOApp with LazyLogging {
       samDao,
       welderDao,
       dockerDao,
+      jupyterDao,
+      rstudioDAO,
       serviceAccountProvider,
       authProvider,
       metrics,
@@ -250,8 +257,8 @@ object Boot extends IOApp with LazyLogging {
 }
 
 final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F],
-                                       dbReference: DbReference,
-                                       clusterDnsCache: ClusterDnsCache,
+                                       dbReference: DbReference[F],
+                                       clusterDnsCache: ClusterDnsCache[F],
                                        googleStorageDAO: HttpGoogleStorageDAO,
                                        googleComputeDAO: HttpGoogleComputeDAO,
                                        googleProjectDAO: HttpGoogleProjectDAO,
@@ -261,6 +268,8 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        samDAO: HttpSamDAO[F],
                                        welderDAO: HttpWelderDAO[F],
                                        dockerDAO: HttpDockerDAO[F],
+                                       jupyterDAO: HttpJupyterDAO[F],
+                                       rStudioDAO: RStudioDAO[F],
                                        serviceAccountProvider: ServiceAccountProvider[F],
                                        authProvider: LeoAuthProvider[F],
                                        metrics: NewRelicMetrics[F],

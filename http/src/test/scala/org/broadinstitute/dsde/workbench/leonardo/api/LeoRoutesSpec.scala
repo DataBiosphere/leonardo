@@ -3,12 +3,12 @@ package api
 
 import java.time.Instant
 
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, OAuth2BearerToken}
+import akka.http.scaladsl.model.headers.{OAuth2BearerToken, `Set-Cookie`}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -21,8 +21,9 @@ import spray.json._
 import scala.concurrent.duration._
 import RoutesTestJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
+import CommonTestData._
 
-class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData with TestLeoRoutes with TestComponent {
+class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with LeonardoTestSuite with TestLeoRoutes with TestComponent {
   // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
   implicit val timeout = RouteTestTimeout(5.seconds dilated)
 
@@ -92,9 +93,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
 
     // simulate the cluster transitioning to Running
-    dbFutureValue { dataAccess =>
-      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+    dbFutureValue {
+      clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
+        case Some(cluster) => clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -121,9 +122,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
 
     // simulate the cluster transitioning to Running
-    dbFutureValue { dataAccess =>
-      dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+    dbFutureValue {
+      clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
+        case Some(cluster) => clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -179,8 +180,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       responseClusters should have size 10
       responseClusters foreach { cluster =>
         cluster.googleProject shouldEqual googleProject
-        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
-        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
+        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
         cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
                                        "creator" -> "user1@example.com",
                                        "googleProject" -> googleProject.value,
@@ -210,8 +211,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-6")
-      cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
-      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
+      cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
+      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
       cluster.labels shouldEqual Map("clusterName" -> "test-cluster-6",
                                      "creator" -> "user1@example.com",
                                      "googleProject" -> googleProject.value,
@@ -230,8 +231,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
-      cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
-      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
+      cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
+      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
       cluster.labels shouldEqual Map("clusterName" -> "test-cluster-4",
                                      "creator" -> "user1@example.com",
                                      "googleProject" -> googleProject.value,
@@ -269,8 +270,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       responseClusters should have size 10
       responseClusters foreach { cluster =>
         cluster.googleProject shouldEqual googleProject
-        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
-        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
+        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
         cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
                                        "creator" -> "user1@example.com",
                                        "googleProject" -> googleProject.value,
@@ -296,9 +297,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
 
     // simulate the cluster transitioning to Running
-    dbFutureValue { dataAccess =>
-      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
+    dbFutureValue {
+      clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
+        case Some(cluster) => clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
         case None          => DBIO.successful(0)
       }
     }
@@ -359,11 +360,11 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   private def serviceAccountLabels: Map[String, String] =
     (
-      clusterServiceAccount(googleProject).map { sa =>
+      clusterServiceAccountFromProject(googleProject).map { sa =>
         Map("clusterServiceAccount" -> sa.value)
       } getOrElse Map.empty
     ) ++ (
-      notebookServiceAccount(googleProject).map { sa =>
+      notebookServiceAccountFromProject(googleProject).map { sa =>
         Map("notebookServiceAccount" -> sa.value)
       } getOrElse Map.empty
     )

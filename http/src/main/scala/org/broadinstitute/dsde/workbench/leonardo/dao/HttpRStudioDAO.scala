@@ -1,34 +1,33 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
+import cats.effect.{Concurrent, ContextShift, Timer}
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.http4s.client.Client
+import org.http4s.{Method, Request, Uri}
 
-import scala.concurrent.{ExecutionContext, Future}
-
-class HttpRStudioDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: ActorSystem,
-                                                           executionContext: ExecutionContext)
-    extends RStudioDAO
+class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache: ClusterDnsCache[F], client: Client[F])
+    extends RStudioDAO[F]
     with LazyLogging {
-
-  val http = Http(system)
-
-  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =
-    Proxy.getTargetHost(clusterDnsCache, googleProject, clusterName) flatMap {
+  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean] =
+    Proxy.getTargetHost[F](clusterDnsCache, googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
-        val statusUri = Uri(s"https://${targetHost.toString}/proxy/$googleProject/$clusterName/rstudio/")
-        http.singleRequest(HttpRequest(uri = statusUri)) map { response =>
-          response.status.isSuccess
-        }
-      case _ => Future.successful(false)
+        client.successful(
+          Request[F](
+            method = Method.GET,
+            uri = Uri.unsafeFromString(
+              s"https://${targetHost.toString}/proxy/$googleProject/$clusterName/rstudio/"
+            )
+          )
+        )
+      case _ => Concurrent[F].pure(false)
     }
 }
 
-trait RStudioDAO {
-  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
+trait RStudioDAO[F[_]] {
+  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean]
 }

@@ -6,7 +6,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
@@ -23,6 +23,7 @@ import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
+import CommonTestData._
 
 /**
  * Created by rtitle on 10/26/17.
@@ -31,9 +32,9 @@ class StatusRoutesSpec
     extends FlatSpec
     with Matchers
     with ScalatestRouteTest
-    with CommonTestData
-    with TestComponent
-    with TestLeoRoutes {
+    with LeonardoTestSuite
+    with TestLeoRoutes
+    with TestComponent {
   implicit override val patienceConfig = PatienceConfig(timeout = 1.second)
 
   "GET /version" should "give 200 for ok" in {
@@ -100,7 +101,7 @@ class StatusRoutesSpec
       ): IO[Option[String]] = ???
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
-    val statusService = new StatusService(badDataproc, badSam, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
+    val statusService = new StatusService(badDataproc, badSam, DbSingleton.dbRef, dataprocConfig, pollInterval = 1.second)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
     with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo

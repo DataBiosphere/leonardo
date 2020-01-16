@@ -12,8 +12,9 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectN
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FlatSpecLike, Matchers}
 import spray.json._
+import CommonTestData._
 
-class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers with CommonTestData with ScalaFutures {
+class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers with ScalaFutures {
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
@@ -220,8 +221,6 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
     clusterInitMap.size shouldBe 36
   }
-  import org.mockito.ArgumentMatchers.any
-
 
   it should "create UserScriptPath objects according to provided path" in isolatedDbTest {
     val gcsPath = "gs://userscript_bucket/userscript.sh"

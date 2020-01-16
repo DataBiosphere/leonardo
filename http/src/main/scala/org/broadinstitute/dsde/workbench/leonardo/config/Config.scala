@@ -255,4 +255,5 @@ object Config {
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
   val welderConfig = config.as[WelderConfig]("welder")
+  val dbConcurrency = config.as[Long]("mysql.concurrency")
 }

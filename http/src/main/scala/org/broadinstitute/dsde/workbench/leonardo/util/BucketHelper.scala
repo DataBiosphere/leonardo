@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import akka.actor.ActorSystem
 import cats.data.{NonEmptyList, OptionT}
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
@@ -16,18 +15,14 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.util.Retry
-
-import scala.concurrent.ExecutionContext
 
 class BucketHelper(
   googleComputeDAO: GoogleComputeDAO,
   googleStorageDAO: GoogleStorageDAO,
   google2StorageDAO: GoogleStorageService[IO],
   serviceAccountProvider: ServiceAccountProvider[IO]
-)(implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO])
-    extends LazyLogging
-    with Retry {
+)(implicit val contextShift: ContextShift[IO])
+    extends LazyLogging {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccount)
 

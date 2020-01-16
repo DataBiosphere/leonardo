@@ -6,17 +6,15 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceT
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.Future
-
 trait ToolDAO[A] {
-  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean]
 }
 
 object ToolDAO {
   def clusterToolToToolDao(
-    jupyterDAO: JupyterDAO,
+    jupyterDAO: JupyterDAO[IO],
     welderDAO: WelderDAO[IO],
-    rstudioDAO: RStudioDAO
+    rstudioDAO: RStudioDAO[IO]
   ): ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType] =
     clusterTool =>
       clusterTool match {
@@ -25,7 +23,7 @@ object ToolDAO {
             jupyterDAO.isProxyAvailable(googleProject, clusterName)
         case WelderService =>
           (googleProject: GoogleProject, clusterName: ClusterName) =>
-            welderDAO.isProxyAvailable(googleProject, clusterName).unsafeToFuture()
+            welderDAO.isProxyAvailable(googleProject, clusterName)
         case RStudioService =>
           (googleProject: GoogleProject, clusterName: ClusterName) =>
             rstudioDAO.isProxyAvailable(googleProject, clusterName)

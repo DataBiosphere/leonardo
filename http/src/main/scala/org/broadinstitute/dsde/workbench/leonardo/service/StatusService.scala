@@ -28,12 +28,13 @@ import scala.concurrent.{ExecutionContext, Future}
 class StatusService(
   gdDAO: GoogleDataprocDAO,
   samDAO: SamDAO[IO],
-  dbRef: DbReference,
+  dbRef: DbReference[IO],
   dataprocConfig: DataprocConfig,
   initialDelay: FiniteDuration = Duration.Zero,
   pollInterval: FiniteDuration = 1 minute
 )(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO], cs: ContextShift[IO]) {
   implicit val askTimeout = Timeout(5.seconds)
+  import dbRef._
 
   private val healthMonitor =
     system.actorOf(HealthMonitor.props(Set(GoogleDataproc, Sam, Database))(() => checkStatus()))
@@ -41,18 +42,6 @@ class StatusService(
 
   def getStatus(): Future[StatusCheckResponse] =
     (healthMonitor ? GetCurrentStatus).asInstanceOf[Future[StatusCheckResponse]]
-
-//  {
-//    val res = for {
-//      subSystems <- checkStatus.values.toList.parTraverse {
-//        action =>
-//          action.handleErrorWith(t => IO.pure(SubsystemStatus(false, Some(List(t.getMessage)))))
-//      }
-//      overall = subSystems.forall(_.ok)
-//      systems = checkStatus.keys.zip(subSystems).toMap
-//    } yield StatusCheckResponse(overall, systems)
-//    res.unsafeToFuture()
-//  }
 
   private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] =
     Map(
@@ -86,7 +75,7 @@ class StatusService(
 
   private def checkDatabase: Future[SubsystemStatus] = {
     logger.debug("Checking database connection").unsafeToFuture()
-    dbRef.inTransaction(_.sqlDBStatus()).map(_ => HealthMonitor.OkStatus)
+    inTransaction(dataAccess.sqlDBStatus()).map(_ => HealthMonitor.OkStatus).unsafeToFuture()
   }
 
   private def checkSam: IO[SubsystemStatus] = {

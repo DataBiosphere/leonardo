@@ -4,7 +4,7 @@ package auth.sam
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
-import cats.effect.{Blocker, IO}
+import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -18,6 +18,7 @@ import org.http4s.HttpApp
 import org.http4s.client.Client
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+import CommonTestData._
 
 import scala.concurrent.duration._
 
@@ -26,7 +27,6 @@ class SamAuthProviderSpec
     with FreeSpecLike
     with Matchers
     with TestComponent
-    with CommonTestData
     with ScalaFutures
     with BeforeAndAfterAll
     with LazyLogging {
@@ -35,8 +35,6 @@ class SamAuthProviderSpec
     super.afterAll()
   }
 
-  implicit val cs = IO.contextShift(system.dispatcher)
-  val blocker = Blocker.liftExecutionContext(system.dispatcher)
   val gdDAO = new MockGoogleDataprocDAO
   val iamDAO = new MockGoogleIamDAO
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig = SamAuthProviderConfig(

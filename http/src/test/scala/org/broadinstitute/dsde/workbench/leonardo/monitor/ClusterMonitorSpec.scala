@@ -7,10 +7,9 @@ import java.util.UUID
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
-import cats.effect.{Blocker, IO}
+import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.api.services.compute.model
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
@@ -21,20 +20,14 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataRespon
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GcsEntity,
-  GcsObjectName,
-  GoogleProject,
-  ServiceAccountKeyId
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
@@ -46,6 +39,8 @@ import org.scalatestplus.mockito.MockitoSugar
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Random, Try}
+import scala.concurrent.ExecutionContext.Implicits.global
+import CommonTestData._
 
 /**
  * Created by rtitle on 9/6/17.
@@ -57,12 +52,11 @@ class ClusterMonitorSpec
     with MockitoSugar
     with BeforeAndAfterAll
     with TestComponent
-    with CommonTestData
     with GcsPathUtils
     with Eventually { testKit =>
 
   val creatingCluster = makeCluster(1).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Creating,
     userJupyterExtensionConfig = Some(userExtConfig),
@@ -70,31 +64,31 @@ class ClusterMonitorSpec
   )
 
   val deletingCluster = makeCluster(2).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     status = ClusterStatus.Deleting,
     instances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val stoppingCluster = makeCluster(3).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Stopping
   )
 
   val startingCluster = makeCluster(4).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     status = ClusterStatus.Starting,
     clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()),
                         ClusterImage(ClusterImageType.Jupyter, "jupyter_image", Instant.now()))
   )
 
   val errorCluster = makeCluster(5).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     status = ClusterStatus.Error
   )
 
   val stoppedCluster = makeCluster(6).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Stopped,
     clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()))
@@ -107,11 +101,6 @@ class ClusterMonitorSpec
   val clusterMonitorPatience = 10 seconds
 
   implicit val monitorPat = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(2, Seconds)))
-
-  implicit val cs = IO.contextShift(system.dispatcher)
-  implicit val timer = IO.timer(system.dispatcher)
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val blocker = Blocker.liftExecutionContext(system.dispatcher)
 
   def stubComputeDAO(status: InstanceStatus): GoogleComputeDAO = {
     val dao = mock[GoogleComputeDAO]
@@ -159,11 +148,11 @@ class ClusterMonitorSpec
                               storageDAO: GoogleStorageDAO,
                               storage2DAO: GoogleStorageService[IO],
                               authProvider: LeoAuthProvider[IO],
-                              jupyterDAO: JupyterDAO,
-                              rstudioDAO: RStudioDAO,
+                              jupyterDAO: JupyterDAO[IO],
+                              rstudioDAO: RStudioDAO[IO],
                               welderDAO: WelderDAO[IO]): ActorRef = {
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
-    val clusterHelper = new ClusterHelper(DbSingleton.ref,
+    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                           dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
@@ -189,7 +178,7 @@ class ClusterMonitorSpec
         computeDAO,
         storageDAO,
         storage2DAO,
-        DbSingleton.ref,
+        DbSingleton.dbRef,
         testKit,
         authProvider,
         autoFreezeConfig,
@@ -211,8 +200,8 @@ class ClusterMonitorSpec
     storageDAO: GoogleStorageDAO,
     storage2DAO: GoogleStorageService[IO],
     authProvider: LeoAuthProvider[IO],
-    jupyterDAO: JupyterDAO = MockJupyterDAO,
-    rstudioDAO: RStudioDAO = MockRStudioDAO,
+    jupyterDAO: JupyterDAO[IO] = MockJupyterDAO,
+    rstudioDAO: RStudioDAO[IO] = MockRStudioDAO,
     welderDAO: WelderDAO[IO] = MockWelderDAO,
     runningChild: Boolean = true,
     directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO()
@@ -296,10 +285,10 @@ class ClusterMonitorSpec
 
     val authProvider = mock[LeoAuthProvider[IO]]
 
-    val jupyterDAO = mock[JupyterDAO]
+    val jupyterDAO = mock[JupyterDAO[IO]]
     when {
       jupyterDAO.isProxyAvailable(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-    } thenReturn Future.successful(true)
+    } thenReturn IO.pure(true)
 
     withClusterSupervisor(gdDAO,
                           computeDAO,
@@ -314,7 +303,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -382,7 +371,7 @@ class ClusterMonitorSpec
         )
       ) {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
@@ -435,7 +424,7 @@ class ClusterMonitorSpec
                             true) { actor =>
         eventually {
           val updatedCluster = dbFutureValue {
-            _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+            clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
           }
           updatedCluster shouldBe 'defined
           updatedCluster shouldBe Some(
@@ -498,7 +487,7 @@ class ClusterMonitorSpec
                           true) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster shouldBe Some(
@@ -573,7 +562,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
@@ -582,7 +571,7 @@ class ClusterMonitorSpec
       }
 
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never())
+      verify(iamDAO, if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
         .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -646,7 +635,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
@@ -654,7 +643,7 @@ class ClusterMonitorSpec
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never())
+      verify(iamDAO, if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
         .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -725,7 +714,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getClusterById(savedDeletingCluster.id)
+          clusterQuery.getClusterById(savedDeletingCluster.id)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
@@ -904,10 +893,10 @@ class ClusterMonitorSpec
                           false) { _ =>
       eventually {
         val newCluster = dbFutureValue {
-          _.clusterQuery.getClusterById(savedCreatingCluster.id)
+          clusterQuery.getClusterById(savedCreatingCluster.id)
         }
         val newClusterBucket = dbFutureValue {
-          _.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         newCluster shouldBe 'defined
         newClusterBucket shouldBe 'defined
@@ -920,7 +909,7 @@ class ClusterMonitorSpec
         verify(storageDAO, never).deleteBucket(mockitoEq(newClusterBucket.get.bucketName), any[Boolean])
       }
       // should only add/remove the dataproc.worker role 1 time
-      val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
+      val dpWorkerTimes = if (clusterServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never()
       verify(iamDAO, dpWorkerTimes).addIamRoles(any[GoogleProject],
                                                 any[WorkbenchEmail],
                                                 mockitoEq(MemberType.ServiceAccount),
@@ -938,7 +927,7 @@ class ClusterMonitorSpec
                                              any[WorkbenchEmail],
                                              mockitoEq(MemberType.User),
                                              any[Set[String]])
-      verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never())
+      verify(iamDAO, if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
         .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(
         mockitoEq(creatingCluster.internalId),
@@ -988,7 +977,7 @@ class ClusterMonitorSpec
                           true) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getDeletingClusterByName(deletingCluster.googleProject, deletingCluster.clusterName)
+          clusterQuery.getDeletingClusterByName(deletingCluster.googleProject, deletingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster shouldBe Some(savedDeletingCluster)
@@ -1078,7 +1067,7 @@ class ClusterMonitorSpec
                                            false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -1092,7 +1081,7 @@ class ClusterMonitorSpec
 
       eventually {
         val updatedCluster2 = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster2.googleProject, creatingCluster2.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster2.googleProject, creatingCluster2.clusterName)
         }
         updatedCluster2 shouldBe 'defined
         updatedCluster2.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -1144,7 +1133,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
@@ -1209,15 +1198,15 @@ class ClusterMonitorSpec
 
     val authProvider = mock[LeoAuthProvider[IO]]
 
-    val jupyterDAO = mock[JupyterDAO]
+    val jupyterDAO = mock[JupyterDAO[IO]]
     when {
       jupyterDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(true)
+    } thenReturn IO.pure(true)
 
-    val rstudioDAO = mock[RStudioDAO]
+    val rstudioDAO = mock[RStudioDAO[IO]]
     when {
       rstudioDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(true)
+    } thenReturn IO.pure(true)
 
     val projectDAO = mock[GoogleProjectDAO]
 
@@ -1234,7 +1223,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -1327,7 +1316,7 @@ class ClusterMonitorSpec
                           false) { actor =>
       eventually {
         val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
         updatedCluster shouldBe 'defined
 
@@ -1371,7 +1360,7 @@ class ClusterMonitorSpec
                           false) { _ =>
       eventually {
         val dbCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName)
+          clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName)
         }
         dbCluster shouldBe 'defined
         dbCluster.get shouldEqual errorCluster

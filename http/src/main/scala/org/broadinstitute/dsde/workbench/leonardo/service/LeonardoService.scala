@@ -4,13 +4,14 @@ package service
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
 import cats.data.{Ior, OptionT}
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
@@ -20,7 +21,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, labelQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -36,6 +37,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
+import LeonardoService._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -126,7 +128,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val autoFreezeConfig: AutoFreezeConfig,
                       protected val welderConfig: WelderConfig,
                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
-                      protected val dbRef: DbReference,
                       protected val authProvider: LeoAuthProvider[IO],
                       protected val serviceAccountProvider: ServiceAccountProvider[IO],
                       protected val bucketHelper: BucketHelper,
@@ -135,7 +136,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                                               implicit override val system: ActorSystem,
                                                               log: Logger[IO],
                                                               cs: ContextShift[IO],
-                                                              metrics: NewRelicMetrics[IO])
+                                                              metrics: NewRelicMetrics[IO],
+                                                              dbRef: DbReference[IO],
+                                                              timer: Timer[IO])
     extends LazyLogging
     with Retry {
 
@@ -198,7 +201,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         .getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      clusterOpt <- dbRef.inTransactionIO { _.clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) }
+      clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName).transaction
 
       cluster <- clusterOpt.fold(
         internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
@@ -244,18 +247,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- log.info(
         s"[$traceId] will deploy the following images to cluster ${initialClusterToSave.projectNameString}: ${clusterImages}"
       )
-      _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
-      _ <- log.info(
+      _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest) >> log.info(
         s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
       )
-      _ <- authProvider
-        .notifyClusterCreated(internalId, userEmail, googleProject, clusterName)
-        .handleErrorWith { t =>
-          log.info(
-            s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
-          ) >> IO.raiseError(t)
-        }
-      cluster <- dbRef.inTransactionIO { _.clusterQuery.save(initialClusterToSave) }
+      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith { t =>
+        log.info(
+          s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
+        ) >> IO.raiseError(t)
+      }
+      cluster <- clusterQuery.save(initialClusterToSave).transaction
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
@@ -271,9 +271,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield cluster
 
   private def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): IO[Cluster] =
-    dbRef.inTransactionIO { dataAccess =>
-      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
-    } flatMap {
+    clusterQuery.getActiveClusterByName(googleProject, clusterName).transaction.flatMap {
       case None          => IO.raiseError(ClusterNotFoundException(googleProject, clusterName))
       case Some(cluster) => IO.pure(cluster)
     }
@@ -316,7 +314,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Set the cluster status to Updating if the cluster was resized
         now <- IO(Instant.now)
         _ <- if (shouldUpdate.combineAll) {
-          dbRef.inTransactionIO { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating, now) }.void
+          clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating, now).transaction.void
         } else IO.unit
 
         cluster <- errors match {
@@ -349,10 +347,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         for {
           _ <- log.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
           now <- IO(Instant.now)
-          res <- dbRef
-            .inTransactionIO { dataAccess =>
-              dataAccess.clusterQuery.updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
-            }
+          res <- clusterQuery.updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
+            .transaction
             .as(true)
         } yield res
 
@@ -396,15 +392,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
           // Update the DB
           now <- IO(Instant.now)
-          _ <- dbRef.inTransactionIO { dataAccess =>
+          _ <- dbRef.inTransaction {
             updatedNumWorkersAndPreemptibles.fold(
-              a => dataAccess.clusterQuery.updateNumberOfWorkers(existingCluster.id, a, now),
-              a => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(a), now),
+              a => clusterQuery.updateNumberOfWorkers(existingCluster.id, a, now),
+              a => clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(a), now),
               (a, b) =>
-                dataAccess.clusterQuery
+                clusterQuery
                   .updateNumberOfWorkers(existingCluster.id, a, now)
                   .flatMap(
-                    _ => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(b), now)
+                    _ =>
+                      clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(b), now)
                   )
             )
           }
@@ -431,9 +428,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           _ <- clusterHelper.setMasterMachineType(existingCluster, MachineType(updatedMasterMachineType))
           // Update the DB
           now <- IO(Instant.now)
-          _ <- dbRef.inTransactionIO {
-            _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType), now)
-          }
+          _ <- clusterQuery
+              .updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType), now).transaction
         } yield true
 
       case Some(_) =>
@@ -462,9 +458,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           _ <- clusterHelper.updateMasterDiskSize(existingCluster, updatedMasterDiskSize)
           // Update the DB
           now <- IO(Instant.now)
-          _ <- dbRef.inTransactionIO {
-            _.clusterQuery.updateMasterDiskSize(existingCluster.id, updatedMasterDiskSize, now)
-          }
+          _ <- clusterQuery.updateMasterDiskSize(existingCluster.id, updatedMasterDiskSize, now).transaction
         } yield true
 
       case Some(_) =>
@@ -494,9 +488,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
-        keyIdOpt <- dbRef.inTransactionIO {
-          _.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
-        }
+        keyIdOpt <- clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName).transaction
         _ <- clusterHelper
           .removeServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount, keyIdOpt)
           .recoverWith {
@@ -511,10 +503,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
         now <- IO(Instant.now)
-        _ <- dbRef.inTransactionIO { dataAccess =>
-          if (hasDataprocInfo) dataAccess.clusterQuery.markPendingDeletion(cluster.id, now)
-          else dataAccess.clusterQuery.completeDeletion(cluster.id, now)
-        }
+        _ <- if (hasDataprocInfo) clusterQuery.markPendingDeletion(cluster.id, now).transaction
+          else clusterQuery.completeDeletion(cluster.id, now).transaction
         _ <- if (hasDataprocInfo) IO.unit
         else
           authProvider
@@ -556,7 +546,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Update the cluster status to Stopping
         now <- IO(Instant.now)
-        _ <- dbRef.inTransactionIO { _.clusterQuery.setToStopping(cluster.id, now) }
+        _ <- clusterQuery.setToStopping(cluster.id, now).transaction
       } yield ()
 
     } else IO.raiseError(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
@@ -571,30 +561,29 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
       _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
 
-      _ <- internalStartCluster(userInfo.userEmail, cluster)
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+      _ <- internalStartCluster(userInfo.userEmail, cluster, Instant.ofEpochMilli(now))
     } yield ()
 
-  def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): IO[Unit] =
+  def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster, now: Instant): IO[Unit] =
     if (cluster.status.isStartable) {
       val welderAction = getWelderAction(cluster)
       for {
         // Check if welder should be deployed or updated
         updatedCluster <- welderAction match {
-          case DeployWelder | UpdateWelder      => updateWelder(cluster)
+          case DeployWelder | UpdateWelder      => updateWelder(cluster, now)
           case NoAction | DisableDelocalization => IO.pure(cluster)
           case ClusterOutOfDate                 => IO.raiseError(ClusterOutOfDateException())
         }
         _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
-          dbRef.inTransactionIO { _.labelQuery.save(cluster.id, "welderInstallFailed", "true") } else IO.unit
+          dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") } else
+          IO.unit
 
         // Start the cluster in Google
         _ <- clusterHelper.startCluster(updatedCluster, welderAction)
 
         // Update the cluster status to Starting
-        now <- IO(Instant.now)
-        _ <- dbRef.inTransactionIO { dataAccess =>
-          dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting, now)
-        }
+        _ <- clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting, now).transaction
       } yield ()
     } else IO.raiseError(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
 
@@ -602,25 +591,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Vector[ListClusterResponse]] =
     for {
-      paramMap <- processListClustersParameters(params)
-      clusterList <- dbRef.inTransactionIO { da =>
-        da.clusterQuery.listByLabels(paramMap._1, paramMap._2, googleProjectOpt)
-      }
+      paramMap <- IO.fromEither(processListClustersParameters(params))
+      clusterList <- clusterQuery.listByLabels(paramMap._1, paramMap._2, googleProjectOpt).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.internalId)).toList)
     } yield {
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-      val userCreatedClusters: List[(GoogleProject, ClusterInternalId)] = clusterList
-        .filter(_.auditInfo.creator == userInfo.userEmail)
-        .map(c => (c.googleProject, c.internalId))
-        .toList
-
-      val visibleClustersSet = (samVisibleClusters ::: userCreatedClusters).toSet
-      clusterList.collect {
-        case c if visibleClustersSet.contains((c.googleProject, c.internalId)) =>
-          c.toListClusterResp
-      }.toVector
+      clusterList
+          .collect {
+            case c if (c.auditInfo.creator == userInfo.userEmail) || samVisibleClusters.contains((c.googleProject, c.internalId)) =>
+              // Either user is the creator of the cluster, or sam thinks the cluster is visible to the user
+            c.toListClusterResp
+          }.toVector
     }
 
   private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int =
@@ -713,39 +696,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def processListClustersParameters(params: LabelMap): IO[(LabelMap, Boolean)] =
-    IO {
-      params.get(includeDeletedKey) match {
-        case Some(includeDeletedValue) => (processLabelMap(params - includeDeletedKey), includeDeletedValue.toBoolean)
-        case None                      => (processLabelMap(params), false)
-      }
-    }
-
-  /**
-   * There are 2 styles of passing labels to the list clusters endpoint:
-   *
-   * 1. As top-level query string parameters: GET /api/clusters?foo=bar&baz=biz
-   * 2. Using the _labels query string parameter: GET /api/clusters?_labels=foo%3Dbar,baz%3Dbiz
-   *
-   * The latter style exists because Swagger doesn't provide a way to specify free-form query string
-   * params. This method handles both styles, and returns a Map[String, String] representing the labels.
-   *
-   * Note that style 2 takes precedence: if _labels is present on the query string, any additional
-   * parameters are ignored.
-   *
-   * @param params raw query string params
-   * @return a Map[String, String] representing the labels
-   */
-  private[service] def processLabelMap(params: LabelMap): LabelMap =
-    params.get("_labels") match {
-      case Some(extraLabels) =>
-        extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
-          c.split('=') match {
-            case Array(key, value) => r + (key -> value)
-            case _                 => throw ParseLabelsException(extraLabels)
-          }
-        }
-      case None => params
+  private[service] def processListClustersParameters(params: LabelMap): Either[ParseLabelsException, (LabelMap, Boolean)] =
+    params.get(includeDeletedKey) match {
+      case Some(includeDeletedValue) =>
+        processLabelMap(params - includeDeletedKey).map(lm => (lm, includeDeletedValue.toBoolean))
+      case None                      =>
+        processLabelMap(params).map(lm => (lm, false))
     }
 
   private[service] def augmentClusterRequest(serviceAccountInfo: ServiceAccountInfo,
@@ -755,8 +711,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                              clusterRequest: ClusterRequest,
                                              clusterImages: Set[ClusterImage]): ClusterRequest = {
     val userJupyterExt = clusterRequest.jupyterExtensionUri match {
-      case Some(ext) => Map[String, String]("notebookExtension" -> ext.toUri)
-      case None      => Map[String, String]()
+      case Some(ext) => Map("notebookExtension" -> ext.toUri)
+      case None      => Map.empty[String, String]
     }
 
     // add the userJupyterExt to the nbExtensions
@@ -766,7 +722,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
 
     // transform Some(empty, empty, empty, empty) to None
-    // TODO: is this really necessary?
     val updatedClusterRequest = clusterRequest.copy(
       userJupyterExtensionConfig =
         if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
@@ -868,17 +823,49 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(cluster: Cluster): IO[Cluster] =
+  private def updateWelder(cluster: Cluster, now: Instant): IO[Cluster] =
     for {
-      _ <- IO(logger.info(s"Will deploy welder to cluster ${cluster.projectNameString}"))
+      _ <- log.info(s"Will deploy welder to cluster ${cluster.projectNameString}")
       _ <- metrics.incrementCounter("welder/deploy")
       now <- IO(Instant.now)
       welderImage = ClusterImage(Welder, imageConfig.welderDockerImage, now)
-      _ <- dbRef.inTransactionIO {
-        _.clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, imageConfig.welderDockerImage, now), now)
-      }
+      _ <- clusterQuery
+        .updateWelder(cluster.id, ClusterImage(Welder, imageConfig.welderDockerImage, now), now)
+        .transaction
       newCluster = cluster.copy(welderEnabled = true,
                                 clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newCluster
 
+}
+
+object LeonardoService {
+  /**
+    * There are 2 styles of passing labels to the list clusters endpoint:
+    *
+    * 1. As top-level query string parameters: GET /api/clusters?foo=bar&baz=biz
+    * 2. Using the _labels query string parameter: GET /api/clusters?_labels=foo%3Dbar,baz%3Dbiz
+    *
+    * The latter style exists because Swagger doesn't provide a way to specify free-form query string
+    * params. This method handles both styles, and returns a Map[String, String] representing the labels.
+    *
+    * Note that style 2 takes precedence: if _labels is present on the query string, any additional
+    * parameters are ignored.
+    *
+    * @param params raw query string params
+    * @return a Map[String, String] representing the labels
+    */
+  private[service] def processLabelMap(params: LabelMap): Either[ParseLabelsException, LabelMap] =
+    params.get("_labels") match {
+      case Some(extraLabels) =>
+        val labels: List[Either[ParseLabelsException, LabelMap]] = extraLabels.split(',').map { c =>
+          c.split('=') match {
+            case Array(key, value) => Map(key -> value).asRight[ParseLabelsException]
+            case _                 => (ParseLabelsException(extraLabels)).asLeft[LabelMap]
+          }
+        }.toList
+
+        implicit val mapAdd: Monoid[Map[String, String]] = Monoid.instance(Map.empty, (mp1, mp2) => mp1 ++ mp2)
+        labels.combineAll
+      case None => Right(params)
+    }
 }

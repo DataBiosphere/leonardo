@@ -15,11 +15,12 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.stream.Materializer
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import cats.implicits._
 
 import scala.concurrent.ExecutionContext
 
@@ -27,6 +28,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
   val proxyService: ProxyService
   implicit val system: ActorSystem
   implicit val materializer: Materializer
+  implicit val cs: ContextShift[IO]
   implicit val executionContext: ExecutionContext
 
   protected val proxyRoutes: Route =
@@ -44,7 +46,9 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
             extractUserInfo { userInfo =>
               get {
                 // Check the user for ConnectToCluster privileges and set a cookie in the response
-                onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
+                onSuccess(
+                  proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster).unsafeToFuture()
+                ) {
                   setTokenCookie(userInfo, tokenCookieName) {
                     complete {
                       logger.debug(s"Successfully set cookie for user $userInfo")
@@ -60,14 +64,14 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                 // Proxy logic handled by the ProxyService class
                 // Note ProxyService calls the LeoAuthProvider internally
                 complete {
-                  val proxyFuture = proxyService.proxyRequest(userInfo, googleProject, clusterName, request)
                   // we are discarding the request entity here. we have noticed that PUT requests caused by
                   // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
                   // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                  proxyFuture.failed.foreach { _ =>
-                    request.entity.discardBytes().future
+                  proxyService.proxyRequest(userInfo, googleProject, clusterName, request).onError {
+                    case e =>
+                      IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
+                        .fromFuture(IO(request.entity.discardBytes().future))
                   }
-                  proxyFuture
                 }
               }
             } ~
@@ -77,14 +81,12 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                 // Note ProxyService calls the LeoAuthProvider internally
                 path("api" / "localize") { // route for custom Jupyter server extension
                   complete {
-                    val proxyFuture = proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
                     // we are discarding the request entity here. we have noticed that PUT requests caused by
                     // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
                     // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                    proxyFuture.failed.foreach { _ =>
-                      request.entity.discardBytes().future
-                    }
-                    proxyFuture
+                    proxyService
+                      .proxyLocalize(userInfo, googleProject, clusterName, request)
+                      .onError { case _ => IO.fromFuture(IO(request.entity.discardBytes().future)).void }
                   }
                 }
               }
@@ -133,7 +135,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
    */
   private def extractUserInfo: Directive1[UserInfo] =
     extractToken.flatMap { token =>
-      onSuccess(proxyService.getCachedUserInfoFromToken(token))
+      onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture())
     }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests

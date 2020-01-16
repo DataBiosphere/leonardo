@@ -3,17 +3,19 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.Uri.Host
+import cats.effect.implicits._
+import cats.effect.{Blocker, ContextShift, Effect}
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, IP}
 import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 object ClusterDnsCache {
   // This is stored as volatile in the object instead of inside the actor because it needs to be
@@ -43,11 +45,14 @@ case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
  * @param proxyConfig the proxy configuration
  * @param dbRef provides access to the database
  */
-class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)(
-  implicit executionContext: ExecutionContext
-) extends LazyLogging {
+class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
+                                                  dbRef: DbReference[F],
+                                                  dnsCacheConfig: ClusterDnsCacheConfig,
+                                                  blocker: Blocker)(implicit ec: ExecutionContext)
+    extends LazyLogging {
 
-  def getHostStatus(key: DnsCacheKey): Future[HostStatus] = projectClusterToHostStatus.get(key)
+  def getHostStatus(key: DnsCacheKey): F[HostStatus] =
+    blocker.blockOn(Effect[F].delay(projectClusterToHostStatus.get(key)))
   def size: Long = projectClusterToHostStatus.size
   def stats: CacheStats = projectClusterToHostStatus.stats
 
@@ -57,15 +62,22 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
     .maximumSize(dnsCacheConfig.cacheMaxSize)
     .recordStats
     .build(
-      new CacheLoader[DnsCacheKey, Future[HostStatus]] {
-        def load(key: DnsCacheKey) = {
-          logger.debug(s"DNS Cache miss for ${key.clusterName} / ${key.clusterName}...loading from DB...")
-          dbRef
-            .inTransaction { _.clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.clusterName) }
-            .map {
-              case Some(cluster) => getHostStatusAndUpdateHostToIpIfHostReady(cluster)
-              case None          => HostNotFound
+      new CacheLoader[DnsCacheKey, HostStatus] {
+        def load(key: DnsCacheKey): HostStatus = {
+          logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.clusterName}...loading from DB...")
+          val res = dbRef
+            .inTransaction {
+              clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.clusterName)
             }
+            .toIO
+            .unsafeRunSync()
+
+          res match {
+            case Some(cluster) =>
+              getHostStatusAndUpdateHostToIpIfHostReady(cluster)
+            case None =>
+              HostNotFound
+          }
         }
       }
     )
