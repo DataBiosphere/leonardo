@@ -7,7 +7,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.RetryConfig
-import org.broadinstitute.dsde.workbench.google2.{PublisherConfig, SubscriberConfig}
+import org.broadinstitute.dsde.workbench.google2.{GoogleTopicAdminInterpreter, PublisherConfig, SubscriberConfig}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
@@ -257,11 +257,9 @@ object Config {
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
 
   val topicName = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
-  //TODO: fix
-  //  val subscriptionName = ProjectSubscriptionName.of(pubsubConfig.pubsubGoogleProject.value, "manualTest")
   val subscriberConfig: SubscriberConfig = SubscriberConfig(leoServiceAccountJsonFile, topicName, 1 minute, None)
 
   private val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
-  private val retryConfig = RetryConfig(1 minute, _ => 1 minute, 5) //TODO ?_?
+  private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
   val publisherConfig: PublisherConfig = PublisherConfig(leoServiceAccountJsonFile, topic, retryConfig)
 }

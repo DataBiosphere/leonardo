@@ -239,9 +239,6 @@ object Boot extends IOApp with LazyLogging {
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
-
-//      pubsubReader = new MessageReader(subscriber, clusterHelper, dbRef)
-//      subscriberStream = pubsubReader.process
     } yield AppDependencies(
       storage,
       dbRef,

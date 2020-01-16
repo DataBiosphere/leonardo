@@ -27,22 +27,7 @@ case class Cluster(clusterName: ClusterName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
-case class ClusterRequest(labels: LabelMap = Map(),
-                          jupyterExtensionUri: Option[String] = None,
-                          jupyterUserScriptUri: Option[String] = None,
-                          jupyterStartUserScriptUri: Option[String] = None,
-                          machineConfig: Option[MachineConfig] = None,
-                          properties: Map[String, String] = Map(),
-                          stopAfterCreation: Option[Boolean] = None,
-                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
-                          autopause: Option[Boolean] = None,
-                          autopauseThreshold: Option[Int] = None,
-                          defaultClientId: Option[String] = None,
-                          toolDockerImage: Option[String] = None,
-                          welderDockerImage: Option[String] = None,
-                          scopes: Set[String] = Set.empty,
-                          enableWelder: Option[Boolean] = None,
-                          customClusterEnvironmentVariables: Map[String, String] = Map.empty)
+case class ClusterRequest(labels: LabelMap = Map(), jupyterExtensionUri: Option[String] = None, jupyterUserScriptUri: Option[String] = None, jupyterStartUserScriptUri: Option[String] = None, machineConfig: Option[MachineConfig] = None, properties: Map[String, String] = Map(), stopAfterCreation: Option[Boolean] = None, userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None, autopause: Option[Boolean] = None, autopauseThreshold: Option[Int] = None, defaultClientId: Option[String] = None, toolDockerImage: Option[String] = None, welderDockerImage: Option[String] = None, scopes: Set[String] = Set.empty, enableWelder: Option[Boolean] = None, customClusterEnvironmentVariables: Map[String, String] = Map.empty, allowStop: Option[Boolean] = Some(false))
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),

@@ -297,10 +297,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       def combine(a: Boolean, b: Boolean): Boolean = a || b
     }
 
-    //TODO: before pr
-    metrics.incrementCounter("temp counter")
-    logger.info("in start of internalUpdateCluster")
-
     if (existingCluster.status.isUpdatable) {
       for {
         autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster,
@@ -332,6 +328,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- if (shouldFollowup) {
           val action = masterMachineTypeChanged.map(result => result.followupAction).getOrElse(Noop(None))
           logger.info(s"detected follow-up action necessary: ${action}")
+          logger.info("in start of internalUpdateCluster")
           handleClusterTransition(existingCluster, action)
         } else {
           logger.info("detected no follow-up action necessary")
@@ -348,18 +345,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
   }
 
-  private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] =
+  private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] = {
+
     transition match {
       case StopStartTransition(machineConfig) =>
-        logger.info("in stopstarttransition")
-        publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
+        for {
+           _ <- metrics.incrementCounter(s"queuePublish/LeonardoService/StopStartTransition ")
+           //sends a message with the config to google pub/sub queue for processing by back leo
+           _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
+        } yield ()
 
-
-      //we need to record the desired update and set a flag on the cluster so the monitor picks it up
       //TODO: we currently do not support this
       case DeleteCreateTransition(_) => IO.unit
-      case Noop(_)                   => IO.unit
+      case Noop(_) => IO.unit
     }
+  }
 
   private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] =
     (existing, updated) match {

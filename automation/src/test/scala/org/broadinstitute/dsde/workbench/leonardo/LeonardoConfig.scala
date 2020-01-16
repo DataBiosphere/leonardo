@@ -3,7 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 import com.google.pubsub.v1.ProjectTopicName
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.config.CommonConfig
-import org.broadinstitute.dsde.workbench.google2.PublisherConfig
+import org.broadinstitute.dsde.workbench.google2.{GoogleDataproc, PublisherConfig}
+import org.broadinstitute.dsde.workbench.google2.GoogleTopicAdminInterpreter
 import scala.concurrent.duration._
 
 object LeonardoConfig extends CommonConfig {
@@ -24,7 +25,8 @@ object LeonardoConfig extends CommonConfig {
     val rstudioBaseImageUrl: String = leonardo.getString("rstudioBaseImageUrl")
 
     private val topic = ProjectTopicName.of(leonardo.getString("pubsubGoogleProject"), leonardo.getString("topicName"))
-    private val retryConfig = RetryConfig(1 minute, _ => 1 minute, 5) //TODO ?_?
+
+    private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
     val publisherConfig: PublisherConfig = PublisherConfig(GCS.pathToQAJson, topic, retryConfig)
   }
 

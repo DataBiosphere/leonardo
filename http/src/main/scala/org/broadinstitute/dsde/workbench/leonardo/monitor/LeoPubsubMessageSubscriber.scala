@@ -29,11 +29,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
   //TODO: This may eventually hold things other than MachineConfigs, but for now that is out of scope
   //mutable thread-safe map
   val followupMap: TrieMap[ClusterFollowupDetails, MachineConfig] = new TrieMap[ClusterFollowupDetails, MachineConfig]()
-  //ackDeadline
-  //credentials?
+
 
   def messageResponder(message: LeoPubsubMessage): IO[Unit] = {
-    logger.info("here in messageResponder")
     message match {
       case msg@StopUpdateMessage(_, _) =>
         handleStopUpdateMessage(msg)
@@ -47,13 +45,12 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
     in.flatMap { event =>
       for {
         _ <- Stream.eval(messageResponder(event.msg))
-//        _ <- Stream.eval(Sync[F].delay(event.consumer.ack()))
         _ <- Stream.eval(IO.pure(event.consumer.ack()))
       } yield ()
     }
   }
 
-  def process(): Stream[IO, Unit] = subscriber.messages through messageHandler
+  val process: Stream[IO, Unit] = subscriber.messages through messageHandler
 
 
   def handleStopUpdateMessage(message: StopUpdateMessage) = {
@@ -87,7 +84,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
           clusterOpt <- dbRef.inTransactionIO {
             _.clusterQuery.getClusterById(message.clusterFollowupDetails.clusterId)
           }
-          work <- clusterOpt match {
+          result <- clusterOpt match {
             case Some(resolvedCluster) if resolvedCluster.status != ClusterStatus.Stopped =>
               IO.raiseError(new WorkbenchException(s"Unable to process message ${message} for cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString}, when the monitor signalled it stopped as it is not stopped."))
 
@@ -117,7 +114,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
             }
             case None => IO.raiseError(ClusterNotFoundException(message.clusterFollowupDetails.clusterId))
           }
-        } yield (work)
+        } yield result
       }
 
       //No actions for other statuses yet. There is some logic that will be needed for all other cases (i.e. the 'None' case where no cluster is found in the db and possibly the case that checks for a key in the followupMap.
