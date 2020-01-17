@@ -101,7 +101,8 @@ class StatusRoutesSpec
       ): IO[Option[String]] = ???
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
-    val statusService = new StatusService(badDataproc, badSam, DbSingleton.dbRef, dataprocConfig, pollInterval = 1.second)
+    val statusService =
+      new StatusService(badDataproc, badSam, DbSingleton.dbRef, dataprocConfig, pollInterval = 1.second)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
     with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo

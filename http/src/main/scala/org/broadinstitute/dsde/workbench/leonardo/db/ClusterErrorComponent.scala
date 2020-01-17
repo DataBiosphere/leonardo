@@ -26,15 +26,14 @@ class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTE
     (id, clusterId, errorMessage, errorCode, timestamp) <> (ClusterErrorRecord.tupled, ClusterErrorRecord.unapply)
 }
 
-
 object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
 
   def save(clusterId: Long, clusterError: ClusterError): DBIO[Int] =
     clusterErrorQuery += ClusterErrorRecord(0,
-      clusterId,
-      clusterError.errorMessage,
-      clusterError.errorCode,
-      Timestamp.from(clusterError.timestamp))
+                                            clusterId,
+                                            clusterError.errorMessage,
+                                            clusterError.errorCode,
+                                            Timestamp.from(clusterError.timestamp))
 
   def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[ClusterError]] =
     clusterErrorQuery.filter(_.clusterId === clusterId).result map { recs =>
@@ -45,8 +44,6 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
     }
 
   def unmarshallClusterErrorRecord(clusterErrorRecord: ClusterErrorRecord): ClusterError =
-    ClusterError(clusterErrorRecord.errorMessage,
-      clusterErrorRecord.errorCode,
-      clusterErrorRecord.timestamp.toInstant)
+    ClusterError(clusterErrorRecord.errorMessage, clusterErrorRecord.errorCode, clusterErrorRecord.timestamp.toInstant)
 
 }

@@ -4,7 +4,7 @@ import java.time.Instant
 
 import akka.actor.{Actor, Props}
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.typesafe.scalalogging.LazyLogging
@@ -59,8 +59,7 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
       clusterQuery
         .clearKernelFoundBusyDateByProjectAndName(googleProject, clusterName, dateAccessed)
         .flatMap(
-          _ =>
-            clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
+          _ => clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
         )
     }
   }

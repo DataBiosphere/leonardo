@@ -21,7 +21,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   implicit val dbRef = DbSingleton.dbRef
 
   def dbFutureValue[T](f: DBIO[T]): T = dbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()
-  def dbFailure[T](f: DBIO[T]): Throwable = dbRef.inTransaction(f).attempt.timeout(30 seconds).unsafeRunSync().swap.toOption.get
+  def dbFailure[T](f: DBIO[T]): Throwable =
+    dbRef.inTransaction(f).attempt.timeout(30 seconds).unsafeRunSync().swap.toOption.get
 
   // clean up after tests
   def isolatedDbTest[T](testCode: => T): T =
@@ -46,8 +47,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Cluster =
       dbFutureValue {
         clusterQuery.save(cluster,
-                            Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
-                            serviceAccountKeyId)
+                          Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
+                          serviceAccountKeyId)
       }
   }
 }

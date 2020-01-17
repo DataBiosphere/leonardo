@@ -16,7 +16,8 @@ object DbSingleton extends LeonardoTestSuite {
 
   private val db = dbConfig.db //TODO: this should be initlized and closed on each test suite ideally
 
-  private val liquidBaseConfig = LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
+  private val liquidBaseConfig =
+    LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
 
   val conn = db.source.createConnection()
   initWithLiquibase(conn, liquidBaseConfig)

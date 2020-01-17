@@ -20,14 +20,20 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataRespon
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GcsBucketName,
+  GcsEntity,
+  GcsObjectName,
+  GoogleProject,
+  ServiceAccountKeyId
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
@@ -56,7 +62,8 @@ class ClusterMonitorSpec
     with Eventually { testKit =>
 
   val creatingCluster = makeCluster(1).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo =
+      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Creating,
     userJupyterExtensionConfig = Some(userExtConfig),
@@ -64,31 +71,36 @@ class ClusterMonitorSpec
   )
 
   val deletingCluster = makeCluster(2).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo =
+      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     status = ClusterStatus.Deleting,
     instances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val stoppingCluster = makeCluster(3).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo =
+      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Stopping
   )
 
   val startingCluster = makeCluster(4).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo =
+      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     status = ClusterStatus.Starting,
     clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()),
                         ClusterImage(ClusterImageType.Jupyter, "jupyter_image", Instant.now()))
   )
 
   val errorCluster = makeCluster(5).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo =
+      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     status = ClusterStatus.Error
   )
 
   val stoppedCluster = makeCluster(6).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo =
+      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
     dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
     status = ClusterStatus.Stopped,
     clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()))
@@ -571,7 +583,8 @@ class ClusterMonitorSpec
       }
 
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
+      verify(iamDAO,
+             if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
         .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -643,7 +656,8 @@ class ClusterMonitorSpec
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
+      verify(iamDAO,
+             if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
         .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -909,7 +923,8 @@ class ClusterMonitorSpec
         verify(storageDAO, never).deleteBucket(mockitoEq(newClusterBucket.get.bucketName), any[Boolean])
       }
       // should only add/remove the dataproc.worker role 1 time
-      val dpWorkerTimes = if (clusterServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never()
+      val dpWorkerTimes =
+        if (clusterServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never()
       verify(iamDAO, dpWorkerTimes).addIamRoles(any[GoogleProject],
                                                 any[WorkbenchEmail],
                                                 mockitoEq(MemberType.ServiceAccount),
@@ -927,7 +942,8 @@ class ClusterMonitorSpec
                                              any[WorkbenchEmail],
                                              mockitoEq(MemberType.User),
                                              any[Set[String]])
-      verify(iamDAO, if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
+      verify(iamDAO,
+             if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
         .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(
         mockitoEq(creatingCluster.internalId),

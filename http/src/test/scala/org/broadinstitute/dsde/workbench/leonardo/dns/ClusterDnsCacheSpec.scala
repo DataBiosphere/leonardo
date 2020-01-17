@@ -51,7 +51,9 @@ class ClusterDnsCacheSpec
     // We test the projectClusterToHostStatus cache before the hostToIp map.
     // This replicates how the proxy accesses these maps as well.
     // projectClusterToHostStatus read updates the HostToIP map.
-    eventually { clusterDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).unsafeRunSync() shouldEqual HostNotReady }
+    eventually {
+      clusterDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).unsafeRunSync() shouldEqual HostNotReady
+    }
     eventually {
       clusterDnsCache.getHostStatus(cacheKeyForRunningCluster).unsafeRunSync() shouldEqual HostReady(runningClusterHost)
     }

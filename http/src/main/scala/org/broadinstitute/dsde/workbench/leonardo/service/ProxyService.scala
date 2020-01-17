@@ -20,7 +20,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
@@ -189,8 +189,13 @@ class ProxyService(
   def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): IO[HostStatus] =
     Proxy.getTargetHost[IO](clusterDnsCache, googleProject, clusterName)
 
-  private def proxyInternal(googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, now: Instant) = {
-    logger.debug(s"Received proxy request for ${googleProject}/${clusterName}: ${clusterDnsCache.stats} / ${clusterDnsCache.size}")
+  private def proxyInternal(googleProject: GoogleProject,
+                            clusterName: ClusterName,
+                            request: HttpRequest,
+                            now: Instant) = {
+    logger.debug(
+      s"Received proxy request for ${googleProject}/${clusterName}: ${clusterDnsCache.stats} / ${clusterDnsCache.size}"
+    )
     getTargetHost(googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
         clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, now)

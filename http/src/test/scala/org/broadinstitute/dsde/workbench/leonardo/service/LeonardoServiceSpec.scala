@@ -19,10 +19,13 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery, instanceQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, instanceQuery, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
+  NegativeIntegerArgumentInClusterRequestException,
+  OneWorkerSpecifiedInClusterRequestException
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -161,7 +164,9 @@ class LeonardoServiceSpec
     clusterCreateResponse.clusterName shouldBe name0
     clusterCreateResponse.googleProject shouldBe project
     clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(project)
-    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(project)
+    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(
+      project
+    )
     clusterCreateResponse.dataprocInfo shouldBe None
     clusterCreateResponse.auditInfo.creator shouldBe userInfo.userEmail
     clusterCreateResponse.auditInfo.destroyedDate shouldBe None
@@ -1272,7 +1277,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, Instant.now) }
     dbFutureValue {
       clusterQuery.updateClusterCreatedDate(cluster.id,
-                                              new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant)
+                                            new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant)
     }
 
     // start the cluster
@@ -1320,12 +1325,12 @@ class LeonardoServiceSpec
 
   it should "extract labels properly" in {
     val input1 = Map("_labels" -> "foo=bar,baz=biz")
-    LeonardoService.processLabelMap(input1) shouldBe(Right(Map("foo" -> "bar", "baz" -> "biz")))
+    LeonardoService.processLabelMap(input1) shouldBe (Right(Map("foo" -> "bar", "baz" -> "biz")))
 
     val failureInput = Map("_labels" -> "foo=bar,,baz=biz")
-    LeonardoService.processLabelMap(failureInput).isLeft shouldBe(true)
+    LeonardoService.processLabelMap(failureInput).isLeft shouldBe (true)
 
     val duplicateLabel = Map("_labels" -> "foo=bar,foo=biz")
-    LeonardoService.processLabelMap(duplicateLabel) shouldBe(Right(Map("foo" -> "biz")))
+    LeonardoService.processLabelMap(duplicateLabel) shouldBe (Right(Map("foo" -> "biz")))
   }
 }

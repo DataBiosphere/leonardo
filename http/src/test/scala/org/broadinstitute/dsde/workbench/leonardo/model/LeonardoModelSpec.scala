@@ -82,8 +82,10 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
       properties = Map.empty,
       scopes = Set.empty,
       jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
-      jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))),
-      jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))))
+      jupyterUserScriptUri =
+        Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))),
+      jupyterStartUserScriptUri =
+        Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))))
     )
 
     val decodeResult = inputJson.convertTo[ClusterRequest]
@@ -227,7 +229,9 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     val httpPath = "https://userscript_path"
     val invalidPath = "invalid_userscript_path"
 
-    UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))))
+    UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(
+      UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
+    )
     UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
     UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
   }

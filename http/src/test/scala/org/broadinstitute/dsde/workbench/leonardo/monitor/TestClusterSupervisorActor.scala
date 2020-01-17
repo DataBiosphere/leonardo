@@ -94,7 +94,11 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       rstudioProxyDAO,
       welderDAO,
       clusterHelper
-    )(FakeNewRelicMetricsInterpreter, global, dbRef, ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO), cs) {
+    )(FakeNewRelicMetricsInterpreter,
+      global,
+      dbRef,
+      ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO),
+      cs) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
