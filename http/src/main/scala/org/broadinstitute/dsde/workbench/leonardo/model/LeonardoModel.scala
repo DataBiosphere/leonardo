@@ -160,6 +160,10 @@ case class ClusterImage(imageType: ClusterImageType, imageUrl: String, timestamp
 
 case class ClusterInternalId(value: String) extends ValueObject
 
+final case class RunningCluster(googleProject: GoogleProject,
+                                clusterName: ClusterName,
+                                containers: List[ClusterContainerServiceType])
+
 // The cluster itself
 final case class Cluster(id: Long = 0, // DB AutoInc
                          internalId: ClusterInternalId,

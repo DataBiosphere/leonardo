@@ -9,7 +9,6 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RunningCluster
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -236,6 +235,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, label)
   }
 
+  // select * from cluster c
+  // join cluster_image ci on c.id = ce.cluster_id
+  val clusterJoinClusterImageQuery
+    : Query[(ClusterTable, ClusterImageTable), (ClusterRecord, ClusterImageRecord), Seq] = {
+    for {
+      (cluster, image) <- clusterQuery join clusterImageQuery on (_.id === _.clusterId)
+    } yield (cluster, image)
+  }
+
   def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
                                   clusterName: ClusterName,
                                   destroyedDateOpt: Option[Instant]) = {
@@ -323,8 +331,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
 
   def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningCluster]] =
-    clusterQuery.filter { _.status === ClusterStatus.Running.toString }.result map { recs =>
-      recs.map(rec => RunningCluster(rec.googleProject, rec.clusterName, rec.welderEnabled))
+    clusterJoinClusterImageQuery.filter { _._1.status === ClusterStatus.Running.toString }.result map {
+      unmarshalRunningCluster
     }
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
@@ -700,6 +708,20 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                          List.empty,
                          List.empty)
     }.toSeq
+  }
+
+  private def unmarshalRunningCluster(clusterImages: Seq[(ClusterRecord, ClusterImageRecord)]): Seq[RunningCluster] = {
+    val clusterContainerMap: Map[RunningCluster, Chain[ClusterContainerServiceType]] = clusterImages.toList.foldMap {
+      case (clusterRec, clusterImageRec) =>
+        val containers = Chain.fromSeq(
+          ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(clusterImageRec.imageType).toSeq
+        )
+        Map(RunningCluster(clusterRec.googleProject, clusterRec.clusterName, List.empty) -> containers)
+    }
+
+    clusterContainerMap.toSeq.map {
+      case (runningCluster, containers) => runningCluster.copy(containers = containers.toList)
+    }
   }
 
   private def unmarshalFullCluster(

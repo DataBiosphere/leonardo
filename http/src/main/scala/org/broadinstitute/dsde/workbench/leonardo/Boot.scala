@@ -191,11 +191,6 @@ object Boot extends IOApp with LazyLogging {
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
-      clientWithNoRetryNoHeaderLogging = Http4sLogger[F](logHeaders = false, logBody = false)(httpClientWithCustomSSL)
-      // TODO: Use this client without retry for RStudioDAO because `checkClusterStatus` in `ClusterToolMonitor` will check
-      // all tools, and so far, clusters will not have RStudio running yet we'll be checking its status.
-      // Hence use a client without retry for RStudio so that we won't retry when RStudio is down.
-      // We should improve `checkClusterStatus` in the future so that it only checks tool that a cluster actually runs.
 
       samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
       concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
@@ -204,7 +199,7 @@ object Boot extends IOApp with LazyLogging {
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
       dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
       jupyterDao = new HttpJupyterDAO[F](clusterDnsCache, clientWithRetryAndLogging)
-      rstudioDAO = new HttpRStudioDAO(clusterDnsCache, clientWithNoRetryNoHeaderLogging)
+      rstudioDAO = new HttpRStudioDAO(clusterDnsCache, clientWithRetryAndLogging)
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
