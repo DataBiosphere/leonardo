@@ -3,12 +3,12 @@ package api
 
 import java.time.Instant
 
-import akka.http.scaladsl.model.headers.{OAuth2BearerToken, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, OAuth2BearerToken}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -23,7 +23,12 @@ import RoutesTestJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
 import CommonTestData._
 
-class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with LeonardoTestSuite with TestLeoRoutes with TestComponent {
+class LeoRoutesSpec
+    extends FlatSpec
+    with ScalatestRouteTest
+    with LeonardoTestSuite
+    with TestLeoRoutes
+    with TestComponent {
   // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
   implicit val timeout = RouteTestTimeout(5.seconds dilated)
 

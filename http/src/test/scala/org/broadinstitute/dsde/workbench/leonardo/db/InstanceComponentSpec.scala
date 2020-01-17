@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.scalatest.FlatSpecLike
 import CommonTestData._
 import scala.concurrent.ExecutionContext.Implicits.global
+
 /**
  * Created by rtitle on 2/19/18.
  */

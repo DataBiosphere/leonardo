@@ -23,14 +23,18 @@ class MockProxyService(
   gdDAO: GoogleDataprocDAO,
   authProvider: LeoAuthProvider[IO],
   clusterDnsCache: ClusterDnsCache[IO]
-)(implicit system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext, timer: Timer[IO], cs: ContextShift[IO], dbRef: DbReference[IO])
+)(implicit system: ActorSystem,
+  materializer: ActorMaterializer,
+  executionContext: ExecutionContext,
+  timer: Timer[IO],
+  cs: ContextShift[IO],
+  dbRef: DbReference[IO])
     extends ProxyService(proxyConfig: ProxyConfig,
                          gdDAO: GoogleDataprocDAO,
                          clusterDnsCache,
                          authProvider,
                          system.deadLetters,
-                         Blocker.liftExecutionContext(ExecutionContext.global)
-    ) {
+                         Blocker.liftExecutionContext(ExecutionContext.global)) {
 
   override def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost")))

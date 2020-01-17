@@ -2,10 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import java.io.ByteArrayInputStream
 
-import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
@@ -21,7 +26,7 @@ import org.scalatest.time.{Seconds, Span}
 import CommonTestData._
 import scala.concurrent.duration._
 
-trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite  =>
+trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite =>
   implicit val db = DbSingleton.dbRef
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
   // to pull the custom dataproc image
@@ -55,7 +60,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
   }
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
-  val bucketHelper = new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, mockGoogle2StorageDAO, serviceAccountProvider)(cs)
+  val bucketHelper =
+    new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, mockGoogle2StorageDAO, serviceAccountProvider)(cs)
   val clusterHelper =
     new ClusterHelper(DbSingleton.dbRef,
                       dataprocConfig,
@@ -73,20 +79,22 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                       mockGoogleIamDAO,
                       mockGoogleProjectDAO,
                       blocker)
-  val leonardoService = new LeonardoService(dataprocConfig,
-                                            imageConfig,
-                                            MockWelderDAO,
-                                            clusterDefaultsConfig,
-                                            proxyConfig,
-                                            swaggerConfig,
-                                            autoFreezeConfig,
-                                            welderConfig,
-                                            mockPetGoogleStorageDAO,
-                                            whitelistAuthProvider,
-                                            serviceAccountProvider,
-                                            bucketHelper,
-                                            clusterHelper,
-                                            new MockDockerDAO)(executor, system, loggerIO, cs, metrics, DbSingleton.dbRef, timer)
+  val leonardoService = new LeonardoService(
+    dataprocConfig,
+    imageConfig,
+    MockWelderDAO,
+    clusterDefaultsConfig,
+    proxyConfig,
+    swaggerConfig,
+    autoFreezeConfig,
+    welderConfig,
+    mockPetGoogleStorageDAO,
+    whitelistAuthProvider,
+    serviceAccountProvider,
+    bucketHelper,
+    clusterHelper,
+    new MockDockerDAO
+  )(executor, system, loggerIO, cs, metrics, DbSingleton.dbRef, timer)
 
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
   val proxyService =

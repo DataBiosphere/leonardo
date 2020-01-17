@@ -50,7 +50,8 @@ object CommonTestData {
   val jupyterUserScriptUri = UserScriptPath.Gcs(GcsPath(jupyterUserScriptBucketName, jupyterUserScriptObjectName))
   val jupyterStartUserScriptBucketName = GcsBucketName("startscript_bucket")
   val jupyterStartUserScriptObjectName = GcsObjectName("startscript.sh")
-  val jupyterStartUserScriptUri = UserScriptPath.Gcs(GcsPath(jupyterStartUserScriptBucketName, jupyterStartUserScriptObjectName))
+  val jupyterStartUserScriptUri =
+    UserScriptPath.Gcs(GcsPath(jupyterStartUserScriptBucketName, jupyterStartUserScriptObjectName))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"),
                                             ServiceAccountPrivateKeyData("abcdefg"),
                                             Some(Instant.now),
@@ -195,7 +196,8 @@ object CommonTestData {
     labels = Map(),
     jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
     jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript")))),
-    jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript")))),
+    jupyterStartUserScriptUri =
+      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript")))),
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,

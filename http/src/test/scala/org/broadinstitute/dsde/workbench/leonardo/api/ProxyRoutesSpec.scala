@@ -60,8 +60,7 @@ class ProxyRoutesSpec
 
   before {
     proxyService.googleTokenCache.invalidateAll()
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)),
-                                            Some(internalId))
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Some(internalId))
   }
 
   val pathPrefixes = Set("notebooks", "proxy")
@@ -79,8 +78,7 @@ class ProxyRoutesSpec
         validateCors()
       }
       val newName = "aDifferentClusterName"
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
-                                              Some(internalId))
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Some(internalId))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.NotFound
@@ -102,8 +100,7 @@ class ProxyRoutesSpec
         status shouldEqual StatusCodes.NotFound
       }
       // should still 404 even if a cache entry is present
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
-        Some(internalId))
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Some(internalId))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
@@ -230,7 +227,7 @@ class ProxyRoutesSpec
       Get(s"/$prefix/$googleProject/$clusterName/setCookie")
         .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
         .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
-      validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
+        validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
         status shouldEqual StatusCodes.NoContent
         validateCors(origin = Some("http://example.com"))
       }

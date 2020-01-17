@@ -67,9 +67,9 @@ class ClusterToolMonitorSpec
           //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
           //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
           verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterDown"),
-                                                                ArgumentMatchers.anyInt())
+                                                          ArgumentMatchers.anyInt())
           verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("WelderDown"),
-                                                                ArgumentMatchers.anyInt())
+                                                          ArgumentMatchers.anyInt())
         }
     }
   }
@@ -81,12 +81,12 @@ class ClusterToolMonitorSpec
       (_, mockNewRelic) =>
         eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
           verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterDown"),
-                                                                ArgumentMatchers.anyInt())
+                                                          ArgumentMatchers.anyInt())
         }
 
         Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
         verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("WelderDown"),
-                                                             ArgumentMatchers.anyInt())
+                                                       ArgumentMatchers.anyInt())
     }
   }
 
