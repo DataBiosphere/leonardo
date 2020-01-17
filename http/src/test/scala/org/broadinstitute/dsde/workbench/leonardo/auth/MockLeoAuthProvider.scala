@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.auth
+package org.broadinstitute.dsde.workbench.leonardo
+package auth
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
@@ -60,8 +61,9 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
   override def notifyClusterCreated(internalId: ClusterInternalId,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
-                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = {
     notifyInternal
+  }
 
   override def notifyClusterDeleted(internalId: ClusterInternalId,
                                     userEmail: WorkbenchEmail,

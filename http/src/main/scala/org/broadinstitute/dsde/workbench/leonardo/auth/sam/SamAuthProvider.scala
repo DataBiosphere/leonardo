@@ -169,7 +169,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
       actionString <- Effect[F].fromEither(getProjectActionString(action))
-      res <- samDao.hasResourcePermission(googleProject, actionString, ResourceTypeName.BillingProject, authHeader)
+      res <- samDao.hasResourcePermission(googleProject.value, actionString, ResourceTypeName.BillingProject, authHeader)
     } yield res
 
   private def hasNotebookClusterPermissionInternal(
@@ -179,7 +179,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
       actionString <- Effect[F].fromEither(getNotebookActionString(action))
-      res <- samDao.hasResourcePermission(clusterInternalId, actionString, ResourceTypeName.NotebookCluster, authHeader)
+      res <- samDao.hasResourcePermission(clusterInternalId.asString, actionString, ResourceTypeName.NotebookCluster, authHeader)
     } yield res
 
   /**

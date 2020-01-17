@@ -1,25 +1,25 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package api
 
 import java.time.Instant
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.RoutesTestJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.FlatSpec
 import slick.dbio.DBIO
-import spray.json._
+import io.circe.syntax._
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 
 import scala.concurrent.duration._
 
@@ -58,10 +58,11 @@ class LeoRoutesSpec
       None,
       Map.empty,
       None,
-      None,
-      Some(UserJupyterExtensionConfig(Map("abc" -> "def")))
+      false,
+      Some(UserJupyterExtensionConfig(Map("abc" -> "def"))),
+      None
     )
-    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
       //validateCookie { header[`Set-Cookie`] }
@@ -72,7 +73,7 @@ class LeoRoutesSpec
     Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
-      val responseCluster = responseAs[Cluster]
+      val responseCluster = responseAs[GetClusterResponseTest]
       responseCluster.clusterName.value shouldEqual clusterName.value
       responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider
         .getClusterServiceAccount(defaultUserInfo, googleProject)
@@ -96,7 +97,7 @@ class LeoRoutesSpec
   it should "202 when deleting a cluster" in isolatedDbTest {
     val newCluster = defaultClusterRequest
 
-    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
 
@@ -126,7 +127,7 @@ class LeoRoutesSpec
     val newCluster = defaultClusterRequest
     val clusterName = "my-cluster"
 
-    Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+    Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
 
@@ -138,7 +139,7 @@ class LeoRoutesSpec
       }
     }
 
-    Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+    Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
   }
@@ -147,13 +148,13 @@ class LeoRoutesSpec
     val newCluster = defaultClusterRequest
     val clusterName = "my-cluster"
 
-    Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+    Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
 
     //make sure to leave the cluster in Creating status for this next part
 
-    Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+    Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Conflict
     }
   }
@@ -161,7 +162,7 @@ class LeoRoutesSpec
   it should "200 when listing no clusters" in isolatedDbTest {
     Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[List[Cluster]] shouldBe 'empty
+      responseAs[List[ListClusterResponse]] shouldBe 'empty
 
       //validateCookie { header[`Set-Cookie`] }
       validateRawCookie(header("Set-Cookie"))
@@ -172,20 +173,19 @@ class LeoRoutesSpec
     val newCluster = defaultClusterRequest
 
     for (i <- 1 to 5) {
-      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.asJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
       }
     }
 
     for (i <- 6 to 10) {
-      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", newCluster.asJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
     }
 
     Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
-
       val responseClusters = responseAs[List[ListClusterResponse]]
       responseClusters should have size 10
       responseClusters foreach { cluster =>
@@ -208,7 +208,7 @@ class LeoRoutesSpec
     def clusterWithLabels(i: Int) = newCluster.copy(labels = Map(s"label$i" -> s"value$i"))
 
     for (i <- 1 to 10) {
-      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", clusterWithLabels(i).toJson) ~> leoRoutes.route ~> check {
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", clusterWithLabels(i).asJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
     }
@@ -271,7 +271,7 @@ class LeoRoutesSpec
     }
 
     for (i <- 1 to 10) {
-      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", newCluster.asJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
     }
@@ -299,7 +299,7 @@ class LeoRoutesSpec
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = defaultClusterRequest
 
-    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
       //validateCookie { header[`Set-Cookie`] }
@@ -352,7 +352,7 @@ class LeoRoutesSpec
         stopAfterCreation = Some(stopAfterCreation),
         properties = Map.empty
       )
-      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", request.toJson) ~> timedLeoRoutes.route ~> check {
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", request.asJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
         //validateCookie { header[`Set-Cookie`] }
         validateRawCookie(header("Set-Cookie"))
@@ -368,8 +368,10 @@ class LeoRoutesSpec
                                  Some(jupyterStartUserScriptUri),
                                  stopAfterCreation = None,
                                  properties = Map.empty)
-    Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
-      responseAs[String] shouldBe (s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
+    Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.asJson) ~> timedLeoRoutes.route ~> check {
+      val expectedResponse =
+        """invalid cluster name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name"""
+      responseAs[String] shouldBe expectedResponse
       status shouldEqual StatusCodes.BadRequest
     }
   }
@@ -385,3 +387,10 @@ class LeoRoutesSpec
       } getOrElse Map.empty
     )
 }
+
+final case class GetClusterResponseTest(
+  id: Long,
+  clusterName: ClusterName,
+  serviceAccountInfo: ServiceAccountInfo,
+  jupyterExtensionUri: Option[GcsPath]
+)

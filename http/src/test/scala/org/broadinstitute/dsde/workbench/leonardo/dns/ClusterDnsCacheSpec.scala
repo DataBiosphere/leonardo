@@ -3,12 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import akka.http.scaladsl.model.Uri.Host
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, RuntimeConfigId, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
@@ -44,9 +45,9 @@ class ClusterDnsCacheSpec
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db
-    clusterBeingCreated.save() shouldEqual clusterBeingCreated
-    runningCluster.save() shouldEqual runningCluster
-    stoppedCluster.save() shouldEqual stoppedCluster
+    clusterBeingCreated.save().copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual clusterBeingCreated
+    runningCluster.save().copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual runningCluster
+    stoppedCluster.save().copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual stoppedCluster
 
     // We test the projectClusterToHostStatus cache before the hostToIp map.
     // This replicates how the proxy accesses these maps as well.

@@ -11,16 +11,11 @@ import com.google.api.client.http.HttpResponseException
 import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.Metadata.Items
-import com.google.api.services.compute.model.{
-  DisksResizeRequest,
-  Firewall,
-  InstancesSetMachineTypeRequest,
-  Metadata,
-  Instance => GoogleInstance
-}
-import com.google.api.services.compute.{model, Compute, ComputeScopes}
+import com.google.api.services.compute.model.{DisksResizeRequest, Firewall, InstancesSetMachineTypeRequest, Metadata, Instance => GoogleInstance}
+import com.google.api.services.compute.{Compute, ComputeScopes, model}
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
+import org.broadinstitute.dsde.workbench.leonardo.MachineType
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService

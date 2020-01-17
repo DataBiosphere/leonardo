@@ -8,14 +8,9 @@ import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio}
-import org.broadinstitute.dsde.workbench.leonardo.model.ContainerRegistry.{DockerHub, GCR}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  ClusterImageType,
-  ContainerImage,
-  ContainerRegistry,
-  LeoException
-}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, RStudio}
+
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
@@ -23,6 +18,7 @@ import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.client.middleware.FollowRedirect
 import org.http4s.headers.Authorization
+import ContainerRegistry._
 
 /**
  * Talks to Docker remote APIs to retrieve manifest information in order to try and figure out
@@ -93,9 +89,9 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
                             petTokenOpt: Option[String])(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Token]] =
     parsedImage.registry match {
       // If it's a GCR repo, use the pet token
-      case GCR => Concurrent[F].pure(petTokenOpt.map(Token))
+      case ContainerRegistry.GCR => Concurrent[F].pure(petTokenOpt.map(Token))
       // If it's a Dockerhub repo, need to request a token from Dockerhub
-      case DockerHub =>
+      case ContainerRegistry.DockerHub =>
         httpClient.expectOptionOr[Token](
           Request[F](
             method = Method.GET,

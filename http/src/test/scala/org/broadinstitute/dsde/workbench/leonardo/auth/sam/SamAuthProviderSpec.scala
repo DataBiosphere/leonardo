@@ -9,7 +9,6 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -63,7 +62,7 @@ class SamAuthProviderSpec
     val defaultPermittedActions = List("status", "connect", "sync", "delete")
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(internalId, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
+        .hasResourcePermission(internalId.asString, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
         .unsafeRunSync() shouldBe false
     }
 
@@ -73,7 +72,7 @@ class SamAuthProviderSpec
     // check the resource exists for the user and actions
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(internalId, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
+        .hasResourcePermission(internalId.asString, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
         .unsafeRunSync() shouldBe true
     }
     // deleting a cluster would call notify
@@ -84,7 +83,7 @@ class SamAuthProviderSpec
     mockSam.notebookClusters shouldBe empty
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(internalId, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
+        .hasResourcePermission(internalId.asString, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
         .unsafeRunSync() shouldBe false
     }
 

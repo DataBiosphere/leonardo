@@ -1,18 +1,14 @@
-package org.broadinstitute.dsde.workbench.leonardo.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import java.net.URL
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
-import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, Instance}
-import org.broadinstitute.dsde.workbench.leonardo.{MachineConfig, ServiceAccountInfo}
-import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
-import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _, _}
+import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
-import spray.json.{JsObject, _}
 
 final case class ListClusterResponse(id: Long,
                                      internalId: ClusterInternalId,
@@ -21,7 +17,7 @@ final case class ListClusterResponse(id: Long,
                                      serviceAccountInfo: ServiceAccountInfo,
                                      dataprocInfo: Option[DataprocInfo],
                                      auditInfo: AuditInfo,
-                                     machineConfig: MachineConfig,
+                                     machineConfig: RuntimeConfig,
                                      clusterUrl: URL,
                                      status: ClusterStatus,
                                      labels: LabelMap,
@@ -36,41 +32,178 @@ final case class ListClusterResponse(id: Long,
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
 
-object LeonardoServiceJsonCodec extends DefaultJsonProtocol {
-  implicit val listClusterResponseWriter: RootJsonWriter[ListClusterResponse] = (obj: ListClusterResponse) => {
-    val allFields = Map(
-      "id" -> obj.id.toJson,
-      "internalId" -> obj.internalId.value.toJson,
-      "clusterName" -> obj.clusterName.toJson,
-      "googleId" -> obj.dataprocInfo.map(_.googleId.toJson).getOrElse(JsNull),
-      "googleProject" -> obj.googleProject.toJson,
-      "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
-      "machineConfig" -> obj.machineConfig.toJson,
-      "clusterUrl" -> obj.clusterUrl.toJson,
-      "operationName" -> obj.dataprocInfo.map(_.operationName.toJson).getOrElse(JsNull),
-      "status" -> obj.status.toJson,
-      "hostIp" -> obj.dataprocInfo.map(_.hostIp.toJson).getOrElse(JsNull),
-      "creator" -> obj.auditInfo.creator.toJson,
-      "createdDate" -> obj.auditInfo.createdDate.toJson,
-      "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-      "kernelFoundBusyDate" -> obj.auditInfo.kernelFoundBusyDate.toJson,
-      "labels" -> obj.labels.toJson,
-      "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
-      "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-      "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket.toJson).getOrElse(JsNull),
-      "instances" -> obj.instances.toJson,
-      "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-      "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-      "defaultClientId" -> obj.defaultClientId.toJson,
-      "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-      "welderEnabled" -> obj.welderEnabled.toJson,
-      "scopes" -> List
-        .empty[String]
-        .toJson //TODO: stubbing this out temporarily until AOU move to new swagger generated client
-    )
 
-    val presentFields = allFields.filter(_._2 != JsNull)
+final case class GetClusterResponse(id: Long,
+                                    internalId: ClusterInternalId,
+                                    clusterName: ClusterName,
+                                    googleProject: GoogleProject,
+                                    serviceAccountInfo: ServiceAccountInfo,
+                                    dataprocInfo: Option[DataprocInfo],
+                                    auditInfo: AuditInfo,
+                                    properties: Map[String, String],
+                                    runtimeConfig: RuntimeConfig,
+                                    clusterUrl: URL,
+                                    status: ClusterStatus,
+                                    labels: LabelMap,
+                                    jupyterExtensionUri: Option[GcsPath],
+                                    jupyterUserScriptUri: Option[UserScriptPath],
+                                    jupyterStartUserScriptUri: Option[UserScriptPath],
+                                    errors: List[ClusterError],
+                                    instances: Set[Instance],
+                                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                    autopauseThreshold: Int,
+                                    defaultClientId: Option[String],
+                                    stopAfterCreation: Boolean,
+                                    clusterImages: Set[ClusterImage],
+                                    scopes: Set[String],
+                                    welderEnabled: Boolean,
+                                    customClusterEnvironmentVariables: Map[String, String]
+                                   )
 
-    JsObject(presentFields)
-  }
+object GetClusterResponse {
+  def fromCluster(cluster: Cluster, runtimeConfig: RuntimeConfig) = GetClusterResponse(
+    cluster.id,
+    cluster.internalId,
+    cluster.clusterName,
+    cluster.googleProject,
+    cluster.serviceAccountInfo,
+    cluster.dataprocInfo,
+    cluster.auditInfo,
+    cluster.properties,
+    runtimeConfig,
+    cluster.clusterUrl,
+    cluster.status,
+    cluster.labels,
+    cluster.jupyterExtensionUri,
+    cluster.jupyterUserScriptUri,
+    cluster.jupyterStartUserScriptUri,
+    cluster.errors,
+    cluster.instances,
+    cluster.userJupyterExtensionConfig,
+    cluster.autopauseThreshold,
+    cluster.defaultClientId,
+    cluster.stopAfterCreation,
+    cluster.clusterImages,
+    cluster.scopes,
+    cluster.welderEnabled,
+    cluster.customClusterEnvironmentVariables
+  )
+}
+
+// Currently, CreateClusterResponse has exactly the same fields as GetClusterResponse, but going forward, when we can,
+// we should deprecate and remove some of fields for createCluster request
+final case class CreateClusterAPIResponse(id: Long,
+                                          internalId: ClusterInternalId,
+                                          clusterName: ClusterName,
+                                          googleProject: GoogleProject,
+                                          serviceAccountInfo: ServiceAccountInfo,
+                                          dataprocInfo: Option[DataprocInfo],
+                                          auditInfo: AuditInfo,
+                                          properties: Map[String, String],
+                                          runtimeConfig: RuntimeConfig,
+                                          clusterUrl: URL,
+                                          status: ClusterStatus,
+                                          labels: LabelMap,
+                                          jupyterExtensionUri: Option[GcsPath],
+                                          jupyterUserScriptUri: Option[UserScriptPath],
+                                          jupyterStartUserScriptUri: Option[UserScriptPath],
+                                          errors: List[ClusterError],
+                                          instances: Set[Instance],
+                                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                          autopauseThreshold: Int,
+                                          defaultClientId: Option[String],
+                                          stopAfterCreation: Boolean,
+                                          clusterImages: Set[ClusterImage],
+                                          scopes: Set[String],
+                                          welderEnabled: Boolean,
+                                          customClusterEnvironmentVariables: Map[String, String]
+                                         )
+
+object CreateClusterAPIResponse {
+  def fromCluster(cluster: Cluster, runtimeConfig: RuntimeConfig) = CreateClusterAPIResponse(
+    cluster.id,
+    cluster.internalId,
+    cluster.clusterName,
+    cluster.googleProject,
+    cluster.serviceAccountInfo,
+    cluster.dataprocInfo,
+    cluster.auditInfo,
+    cluster.properties,
+    runtimeConfig,
+    cluster.clusterUrl,
+    cluster.status,
+    cluster.labels,
+    cluster.jupyterExtensionUri,
+    cluster.jupyterUserScriptUri,
+    cluster.jupyterStartUserScriptUri,
+    cluster.errors,
+    cluster.instances,
+    cluster.userJupyterExtensionConfig,
+    cluster.autopauseThreshold,
+    cluster.defaultClientId,
+    cluster.stopAfterCreation,
+    cluster.clusterImages,
+    cluster.scopes,
+    cluster.welderEnabled,
+    cluster.customClusterEnvironmentVariables
+  )
+}
+
+// Currently, CreateClusterResponse has exactly the same fields as GetClusterResponse, but going forward, when we can,
+// we should deprecate and remove some of fields for createCluster request
+final case class UpdateClusterResponse(id: Long,
+                                          internalId: ClusterInternalId,
+                                          clusterName: ClusterName,
+                                          googleProject: GoogleProject,
+                                          serviceAccountInfo: ServiceAccountInfo,
+                                          dataprocInfo: Option[DataprocInfo],
+                                          auditInfo: AuditInfo,
+                                          properties: Map[String, String],
+                                          runtimeConfig: RuntimeConfig,
+                                          clusterUrl: URL,
+                                          status: ClusterStatus,
+                                          labels: LabelMap,
+                                          jupyterExtensionUri: Option[GcsPath],
+                                          jupyterUserScriptUri: Option[UserScriptPath],
+                                          jupyterStartUserScriptUri: Option[UserScriptPath],
+                                          errors: List[ClusterError],
+                                          instances: Set[Instance],
+                                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                          autopauseThreshold: Int,
+                                          defaultClientId: Option[String],
+                                          stopAfterCreation: Boolean,
+                                          clusterImages: Set[ClusterImage],
+                                          scopes: Set[String],
+                                          welderEnabled: Boolean,
+                                          customClusterEnvironmentVariables: Map[String, String]
+                                         )
+
+object UpdateClusterResponse {
+  def fromCluster(cluster: Cluster, runtimeConfig: RuntimeConfig) = UpdateClusterResponse(
+    cluster.id,
+    cluster.internalId,
+    cluster.clusterName,
+    cluster.googleProject,
+    cluster.serviceAccountInfo,
+    cluster.dataprocInfo,
+    cluster.auditInfo,
+    cluster.properties,
+    runtimeConfig,
+    cluster.clusterUrl,
+    cluster.status,
+    cluster.labels,
+    cluster.jupyterExtensionUri,
+    cluster.jupyterUserScriptUri,
+    cluster.jupyterStartUserScriptUri,
+    cluster.errors,
+    cluster.instances,
+    cluster.userJupyterExtensionConfig,
+    cluster.autopauseThreshold,
+    cluster.defaultClientId,
+    cluster.stopAfterCreation,
+    cluster.clusterImages,
+    cluster.scopes,
+    cluster.welderEnabled,
+    cluster.customClusterEnvironmentVariables
+  )
 }

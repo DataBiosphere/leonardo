@@ -7,94 +7,76 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import ca.mrvisser.sealerate
-import cats.Semigroup
-import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigId
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType.JupyterService
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{CustomDataProc, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _, _}
 import org.broadinstitute.dsde.workbench.model.google._
-import spray.json.{RootJsonReader, _}
+import spray.json._
 
-import scala.util.matching.Regex
-
-sealed trait ContainerRegistry extends Product with Serializable {
-  def regex: Regex
+sealed trait RuntimeConfigRequest extends Product with Serializable {
+  def cloudService: CloudService
 }
-object ContainerRegistry {
-  final case object GCR extends ContainerRegistry {
-    val regex: Regex =
-      """^((?:us\.|eu\.|asia\.)?gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
-    override def toString: String = "gcr"
+object RuntimeConfigRequest {
+  final case class GceConfig(
+                              machineType: Option[MachineType],
+                              diskSize: Option[Int]
+                            ) extends RuntimeConfigRequest {
+    val cloudService: CloudService = CloudService.GCE
   }
 
-  // Repo format: https://docs.docker.com/docker-hub/repos/
-  final case object DockerHub extends ContainerRegistry {
-    val regex: Regex = """^([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
-    override def toString: String = "docker hub"
-  }
+  final case class DataprocConfig(numberOfWorkers: Option[Int],
+                                  masterMachineType: Option[String],
+                                  masterDiskSize: Option[Int], //min 10
+                                  // worker settings are None when numberOfWorkers is 0
+                                  workerMachineType: Option[String] = None,
+                                  workerDiskSize: Option[Int] = None, //min 10
+                                  numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                                  numberOfPreemptibleWorkers: Option[Int] = None) extends RuntimeConfigRequest {
+    val cloudService: CloudService = CloudService.Dataproc
 
-  val allRegistries: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
-}
-
-sealed trait ContainerImage extends Product with Serializable {
-  def imageUrl: String
-  def registry: ContainerRegistry
-}
-object ContainerImage {
-  final case class GCR(imageUrl: String) extends ContainerImage {
-    val registry: ContainerRegistry = ContainerRegistry.GCR
-  }
-  final case class DockerHub(imageUrl: String) extends ContainerImage {
-    val registry: ContainerRegistry = ContainerRegistry.DockerHub
-  }
-
-  def stringToJupyterDockerImage(imageUrl: String): Option[ContainerImage] =
-    List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
-      .find(image => image.regex.pattern.asPredicate().test(imageUrl))
-      .map { dockerRegistry =>
-        dockerRegistry match {
-          case ContainerRegistry.GCR       => ContainerImage.GCR(imageUrl)
-          case ContainerRegistry.DockerHub => ContainerImage.DockerHub(imageUrl)
-        }
+    def toRuntimeConfigDataprocConfig(default: RuntimeConfig.DataprocConfig): RuntimeConfig.DataprocConfig = {
+      val minimumDiskSize = 10
+      val masterDiskSizeFinal = math.max(minimumDiskSize, masterDiskSize.getOrElse(default.masterDiskSize))
+      numberOfWorkers match {
+        case None | Some(0) =>
+          RuntimeConfig.DataprocConfig(
+            0,
+            masterMachineType.getOrElse(default.masterMachineType),
+            masterDiskSizeFinal
+          )
+        case Some(numWorkers) =>
+          val wds = workerDiskSize.orElse(default.workerDiskSize)
+          RuntimeConfig.DataprocConfig(
+            numWorkers,
+            masterMachineType.getOrElse(default.masterMachineType),
+            masterDiskSizeFinal,
+            workerMachineType.orElse(default.workerMachineType),
+            wds.map(s => math.max(minimumDiskSize, s)),
+            numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
+            numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers)
+          )
       }
-}
-
-sealed trait UserScriptPath extends Product with Serializable {
-  def asString: String
-}
-object UserScriptPath {
-  final case class Http(url: URL) extends UserScriptPath {
-    val asString: String = url.toString
-  }
-  final case class Gcs(gcsPath: GcsPath) extends UserScriptPath {
-    val asString: String = gcsPath.toUri
-  }
-
-  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
-    parseGcsPath(string) match {
-      case Right(value) => Right(Gcs(value))
-      case Left(_)      => Either.catchNonFatal(new URL(string)).map(url => Http(url))
     }
+  }
 }
-
 // Create cluster API request
 final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 jupyterExtensionUri: Option[GcsPath] = None,
                                 jupyterUserScriptUri: Option[UserScriptPath] = None,
                                 jupyterStartUserScriptUri: Option[UserScriptPath] = None,
-                                machineConfig: Option[MachineConfig] = None,
+                                runtimeConfig: Option[RuntimeConfigRequest] = None,
                                 properties: Map[String, String] = Map.empty,
                                 stopAfterCreation: Option[Boolean] = None,
-                                allowStop: Option[Boolean] = None,
+                                allowStop: Boolean = false,
                                 userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                                 autopause: Option[Boolean] = None,
                                 autopauseThreshold: Option[Int] = None,
@@ -105,15 +87,6 @@ final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 scopes: Set[String] = Set.empty,
                                 enableWelder: Option[Boolean] = None,
                                 customClusterEnvironmentVariables: Map[String, String] = Map.empty)
-
-case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
-                                      serverExtensions: Map[String, String] = Map(),
-                                      combinedExtensions: Map[String, String] = Map(),
-                                      labExtensions: Map[String, String] = Map()) {
-
-  def asLabels: LabelMap =
-    nbExtensions ++ serverExtensions ++ combinedExtensions ++ labExtensions
-}
 
 // A resource that is required by a cluster
 case class ClusterResource(value: String) extends ValueObject
@@ -178,8 +151,6 @@ object ClusterImageType extends Enum[ClusterImageType] {
 }
 case class ClusterImage(imageType: ClusterImageType, imageUrl: String, timestamp: Instant)
 
-case class ClusterInternalId(value: String) extends ValueObject
-
 final case class RunningCluster(googleProject: GoogleProject,
                                 clusterName: ClusterName,
                                 containers: List[ClusterContainerServiceType])
@@ -192,7 +163,6 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                          serviceAccountInfo: ServiceAccountInfo,
                          dataprocInfo: Option[DataprocInfo],
                          auditInfo: AuditInfo,
-                         machineConfig: MachineConfig,
                          properties: Map[String, String],
                          clusterUrl: URL,
                          status: ClusterStatus,
@@ -210,10 +180,12 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                          clusterImages: Set[ClusterImage],
                          scopes: Set[String],
                          welderEnabled: Boolean,
-                         customClusterEnvironmentVariables: Map[String, String]) {
+                         customClusterEnvironmentVariables: Map[String, String],
+                         runtimeConfigId: RuntimeConfigId = RuntimeConfigId(-1) //TODO: remove default value once we migrate data
+                        ) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
-  def toListClusterResp: ListClusterResponse =
+  def toListClusterResp(runtimeConfig: RuntimeConfig): ListClusterResponse =
     ListClusterResponse(
       id,
       internalId,
@@ -222,7 +194,7 @@ final case class Cluster(id: Long = 0, // DB AutoInc
       serviceAccountInfo,
       dataprocInfo,
       auditInfo,
-      machineConfig,
+      runtimeConfig,
       clusterUrl,
       status,
       labels,
@@ -237,15 +209,13 @@ final case class Cluster(id: Long = 0, // DB AutoInc
 }
 
 object Cluster {
-  type LabelMap = Map[String, String]
-
   def create(clusterRequest: ClusterRequest,
              internalId: ClusterInternalId,
              userEmail: WorkbenchEmail,
              clusterName: ClusterName,
              googleProject: GoogleProject,
              serviceAccountInfo: ServiceAccountInfo,
-             machineConfig: MachineConfig,
+             machineConfig: RuntimeConfig.DataprocConfig,
              clusterUrlBase: String,
              autopauseThreshold: Int,
              clusterScopes: Set[String],
@@ -257,7 +227,6 @@ object Cluster {
       serviceAccountInfo = serviceAccountInfo,
       dataprocInfo = None,
       auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
-      machineConfig = machineConfig,
       properties = clusterRequest.properties,
       clusterUrl = getClusterUrl(googleProject, clusterName, clusterImages, clusterRequest.labels),
       status = ClusterStatus.Creating,
@@ -271,7 +240,7 @@ object Cluster {
       autopauseThreshold = autopauseThreshold,
       defaultClientId = clusterRequest.defaultClientId,
       stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
-      allowStop = clusterRequest.allowStop.getOrElse(false),
+      allowStop = clusterRequest.allowStop,
       clusterImages = clusterImages,
       scopes = clusterScopes,
       welderEnabled = clusterRequest.enableWelder.getOrElse(false),
@@ -314,55 +283,16 @@ case class DefaultLabels(clusterName: ClusterName,
 
 // Provides ways of combining MachineConfigs with Leo defaults
 object MachineConfigOps {
-  case class NegativeIntegerArgumentInClusterRequestException()
+  case object NegativeIntegerArgumentInClusterRequestException
       extends LeoException(
         s"Your cluster request should not have negative integer values. Please revise your request and submit again.",
         StatusCodes.BadRequest
       )
 
-  case class OneWorkerSpecifiedInClusterRequestException()
-      extends LeoException(
-        "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more."
-      )
-
-  implicit private val machineConfigSemigroup = new Semigroup[MachineConfig] {
-    def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
-      val minimumDiskSize = 10
-      defined.numberOfWorkers match {
-        case None | Some(0) =>
-          MachineConfig(
-            Some(0),
-            defined.masterMachineType.orElse(default.masterMachineType),
-            checkNegativeValue(defined.masterDiskSize.orElse(default.masterDiskSize))
-              .map(s => math.max(minimumDiskSize, s))
-          )
-        case Some(numWorkers) if numWorkers == 1 => throw OneWorkerSpecifiedInClusterRequestException()
-        case numWorkers =>
-          MachineConfig(
-            checkNegativeValue(numWorkers),
-            defined.masterMachineType.orElse(default.masterMachineType),
-            checkNegativeValue(defined.masterDiskSize.orElse(default.masterDiskSize))
-              .map(s => math.max(minimumDiskSize, s)),
-            defined.workerMachineType.orElse(default.workerMachineType),
-            checkNegativeValue(defined.workerDiskSize.orElse(default.workerDiskSize))
-              .map(s => math.max(minimumDiskSize, s)),
-            checkNegativeValue(defined.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs)),
-            checkNegativeValue(defined.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers))
-          )
-      }
-    }
-  }
-
-  private def checkNegativeValue(value: Option[Int]): Option[Int] =
-    value.map(v => if (v < 0) throw NegativeIntegerArgumentInClusterRequestException() else v)
-
-  def create(definedMachineConfig: Option[MachineConfig], defaultMachineConfig: ClusterDefaultsConfig): MachineConfig =
-    definedMachineConfig.getOrElse(MachineConfig()) |+| MachineConfigOps.createFromDefaults(defaultMachineConfig)
-
-  def createFromDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = MachineConfig(
-    Some(clusterDefaultsConfig.numberOfWorkers),
-    Some(clusterDefaultsConfig.masterMachineType),
-    Some(clusterDefaultsConfig.masterDiskSize),
+  def createFromDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): RuntimeConfig.DataprocConfig = RuntimeConfig.DataprocConfig(
+    clusterDefaultsConfig.numberOfWorkers,
+    clusterDefaultsConfig.masterMachineType,
+    clusterDefaultsConfig.masterDiskSize,
     Some(clusterDefaultsConfig.workerMachineType),
     Some(clusterDefaultsConfig.workerDiskSize),
     Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
@@ -641,46 +571,6 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
-  implicit val clusterRequestFormat: RootJsonReader[ClusterRequest] = (json: JsValue) => {
-    val fields = json.asJsObject.fields
-    val properties = for {
-      props <- fields.get("properties").map(_.convertTo[Map[String, String]])
-    } yield {
-      // validating user's properties input has valid prefix
-      props.keys.toList.map { s =>
-        val prefix = s.split(":")(0)
-        PropertyFilePrefix.stringToObject.get(prefix).getOrElse(throw new RuntimeException(s"invalid properties $s"))
-      }
-      props
-    }
-
-    val fieldsWithoutNull = fields.filterNot(x => x._2 == null || x._2 == JsNull)
-
-    ClusterRequest(
-      fieldsWithoutNull.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),
-      fieldsWithoutNull.get("jupyterExtensionUri").map(_.convertTo[GcsPath]),
-      fieldsWithoutNull.get("jupyterUserScriptUri").map(_.convertTo[UserScriptPath]),
-      fieldsWithoutNull.get("jupyterStartUserScriptUri").map(_.convertTo[UserScriptPath]),
-      fieldsWithoutNull.get("machineConfig").map(_.convertTo[MachineConfig]),
-      properties.getOrElse(Map.empty),
-      fieldsWithoutNull.get("stopAfterCreation").map(_.convertTo[Boolean]),
-      fieldsWithoutNull.get("allowStop").map(_.convertTo[Boolean]),
-      fieldsWithoutNull.get("userJupyterExtensionConfig").map(_.convertTo[UserJupyterExtensionConfig]),
-      fieldsWithoutNull.get("autopause").map(_.convertTo[Boolean]),
-      fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
-      fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
-      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[ContainerImage]),
-      fieldsWithoutNull.get("toolDockerImage").map(_.convertTo[ContainerImage]),
-      fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[ContainerImage]),
-      fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
-      fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean]),
-      fieldsWithoutNull
-        .get("customClusterEnvironmentVariables")
-        .map(_.convertTo[Map[String, String]])
-        .getOrElse(Map.empty)
-    )
-  }
-
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
   implicit val ServiceAccountInfoFormat = jsonFormat2(ServiceAccountInfo)
@@ -692,48 +582,4 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
   implicit val DefaultLabelsFormat = jsonFormat8(DefaultLabels.apply)
 
   implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
-
-  implicit val ClusterInternalIdFormat = ValueObjectFormat(ClusterInternalId)
-
-  implicit object ClusterFormat extends RootJsonWriter[Cluster] {
-    override def write(obj: Cluster): JsValue = {
-      val allFields = List(
-        "id" -> obj.id.toJson,
-        "internalId" -> obj.internalId.toJson,
-        "clusterName" -> obj.clusterName.toJson,
-        "googleId" -> obj.dataprocInfo.map(_.googleId).toJson,
-        "googleProject" -> obj.googleProject.toJson,
-        "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
-        "machineConfig" -> obj.machineConfig.toJson,
-        "clusterUrl" -> obj.clusterUrl.toJson,
-        "operationName" -> obj.dataprocInfo.map(_.operationName).toJson,
-        "status" -> obj.status.toJson,
-        "hostIp" -> obj.dataprocInfo.map(_.hostIp).toJson,
-        "creator" -> obj.auditInfo.creator.toJson,
-        "createdDate" -> obj.auditInfo.createdDate.toJson,
-        "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-        "kernelFoundBusyDate" -> obj.auditInfo.kernelFoundBusyDate.toJson,
-        "labels" -> obj.labels.toJson,
-        "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
-        "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-        "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.toJson,
-        "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket).toJson,
-        "errors" -> obj.errors.toJson,
-        "instances" -> obj.instances.toJson,
-        "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
-        "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-        "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-        "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-        "allowStop" -> obj.allowStop.toJson,
-        "clusterImages" -> obj.clusterImages.toJson,
-        "scopes" -> obj.scopes.toJson,
-        "welderEnabled" -> obj.welderEnabled.toJson
-      )
-
-      val presentFields = allFields.filter(_._2 != JsNull)
-
-      JsObject(presentFields: _*)
-    }
-  }
 }

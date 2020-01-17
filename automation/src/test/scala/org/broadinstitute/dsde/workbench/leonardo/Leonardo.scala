@@ -8,7 +8,6 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.AutomationTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
@@ -119,7 +118,7 @@ object AutomationTestJsonCodec {
                                                                        ClusterName,
                                                                        GoogleProject,
                                                                        ServiceAccountInfo,
-                                                                       MachineConfig,
+                                                                       RuntimeConfig.DataprocConfig,
                                                                        ClusterStatus,
                                                                        WorkbenchEmail,
                                                                        LabelMap,

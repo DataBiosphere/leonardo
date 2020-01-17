@@ -1,10 +1,10 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, ValueObject, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.EntityDecoder
 import org.http4s.headers.Authorization
@@ -12,7 +12,7 @@ import org.http4s.headers.Authorization
 trait SamDAO[F[_]] {
   def getStatus(implicit ev: ApplicativeAsk[F, TraceId]): F[StatusCheckResponse]
 
-  def hasResourcePermission(resourceId: ValueObject,
+  def hasResourcePermission(resourceId: String,
                             action: String,
                             resourceTypeName: ResourceTypeName,
                             authHeader: Authorization)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]

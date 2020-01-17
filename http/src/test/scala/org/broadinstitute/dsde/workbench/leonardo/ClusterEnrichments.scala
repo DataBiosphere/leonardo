@@ -1,12 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport.MachineConfigFormat
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateClusterAPIResponse
+import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.scalactic.Equality
-import spray.json.RootJsonWriter
+import org.scalatest.{Assertion, Matchers}
 
-object ClusterEnrichments {
+object ClusterEnrichments extends Matchers {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
   // while comparing clusters as we typically don't care about the database assigned id field
   // http://www.scalactic.org/user_guide/CustomEquality
@@ -60,5 +59,30 @@ object ClusterEnrichments {
                  userJupyterExtensionConfig = None)
   }
 
-  implicit val clusterRequestWriter: RootJsonWriter[ClusterRequest] = jsonFormat18(ClusterRequest)
+  def compareClusterAndCreateClusterAPIResponse(c: Cluster, createCluster: CreateClusterAPIResponse): Assertion = {
+    c.id shouldBe createCluster.id
+    c.internalId shouldBe createCluster.internalId
+    c.clusterName shouldBe createCluster.clusterName
+    c.googleProject shouldBe createCluster.googleProject
+    c.serviceAccountInfo shouldBe createCluster.serviceAccountInfo
+    c.dataprocInfo shouldBe createCluster.dataprocInfo
+    c.auditInfo shouldBe createCluster.auditInfo
+    c.properties shouldBe createCluster.properties
+    c.clusterUrl shouldBe createCluster.clusterUrl
+    c.status shouldBe createCluster.status
+    c.labels shouldBe createCluster.labels
+    c.jupyterExtensionUri shouldBe createCluster.jupyterExtensionUri
+    c.jupyterUserScriptUri shouldBe createCluster.jupyterUserScriptUri
+    c.jupyterStartUserScriptUri shouldBe createCluster.jupyterStartUserScriptUri
+    c.errors shouldBe createCluster.errors
+    c.instances shouldBe createCluster.instances
+    c.userJupyterExtensionConfig shouldBe createCluster.userJupyterExtensionConfig
+    c.autopauseThreshold shouldBe createCluster.autopauseThreshold
+    c.defaultClientId shouldBe createCluster.defaultClientId
+    c.stopAfterCreation shouldBe createCluster.stopAfterCreation
+    c.clusterImages shouldBe createCluster.clusterImages
+    c.scopes shouldBe createCluster.scopes
+    c.welderEnabled shouldBe createCluster.welderEnabled
+    c.customClusterEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
+  }
 }

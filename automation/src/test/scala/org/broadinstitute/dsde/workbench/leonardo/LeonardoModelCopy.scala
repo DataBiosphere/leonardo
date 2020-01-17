@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
@@ -16,7 +15,7 @@ case class GoogleServiceAccount(string: String) extends AnyVal with StringValueC
 case class Cluster(clusterName: ClusterName,
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
-                   machineConfig: MachineConfig,
+                   machineConfig: RuntimeConfig.DataprocConfig,
                    status: ClusterStatus,
                    creator: WorkbenchEmail,
                    labels: LabelMap,
@@ -31,7 +30,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           jupyterStartUserScriptUri: Option[String] = None,
-                          machineConfig: Option[MachineConfig] = None,
+                          machineConfig: Option[RuntimeConfig.DataprocConfig] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
@@ -85,10 +84,6 @@ case class DefaultLabels(clusterName: ClusterName,
       "tool" -> tool
     ) ++ ext ++ userScr ++ startScr ++ clusterSa ++ notebookSa
   }
-}
-
-object StringValueClass {
-  type LabelMap = Map[String, String]
 }
 
 object ClusterStatus extends Enumeration {

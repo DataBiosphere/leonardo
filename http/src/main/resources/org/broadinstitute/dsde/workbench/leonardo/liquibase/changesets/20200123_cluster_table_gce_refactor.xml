@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="qi" id="cluster_table_gce_refactor">
+        <dropNotNullConstraint columnName="masterMachineType" tableName="CLUSTER" columnDataType="varchar(256)"/>
+        <dropNotNullConstraint columnName="masterDiskSize" tableName="CLUSTER" columnDataType="INT"/>
+        <dropNotNullConstraint columnName="numberOfWorkers" tableName="CLUSTER" columnDataType="INT"/>
+
+        <!--  Create RUNTIME_CONFIG table   -->
+        <createTable tableName="RUNTIME_CONFIG">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="cloudService" type="ENUM('DATAPROC', 'GCE')">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="machineType" type="varchar(256)" defaultValue="n1-standard-4">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- This might change when we move to PD -->
+            <column name="diskSize" type="INT" defaultValue="500">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- dataproc only -->
+            <column name="numberOfWorkers" type="INT" defaultValue="0">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- dataproc only -->
+            <column name="workerMachineType" type="varchar(256)" defaultValue="NULL" />
+
+            <!-- dataproc only -->
+            <column name="workerDiskSize" type="INT" defaultValue="NULL" />
+
+            <!-- dataproc only -->
+            <column name="numberOfWorkerLocalSSDs" type="INT" defaultValue="NULL" />
+
+            <!-- dataproc only -->
+            <column name="numberOfPreemptibleWorkers" type="INT" defaultValue="NULL"/>
+
+            <column name="dateAccessed" type="TIMESTAMP(6)"/>
+        </createTable>
+
+        <!--  Add runtimeConfigId column to CLUSTER table  -->
+        <addColumn tableName="CLUSTER">
+            <column name="runtimeConfigId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!--  Add foreignkey reference for runtimeConfigId  -->
+        <createIndex indexName="FK_CLUSTER_RUNTIME_CONFIG_ID" tableName="CLUSTER">
+            <column name="runtimeConfigId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="runtimeConfigId" baseTableName="CLUSTER" constraintName="FK_CLUSTER_RUNTIME_CONFIG_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="RUNTIME_CONFIG"/>
+
+        <update tableName="RUNTIME_CONFIG">
+            <column name="machineType" valueComputed="(select CLUSTER.masterMachineType from CLUSTER where CLUSTER.runTimeConfigId=id)"/>
+            <column name="diskSize" valueComputed="(select CLUSTER.masterDiskSize from CLUSTER where CLUSTER.runTimeConfigId=id)"/>
+            <column name="numberOfWorkers" valueComputed="(select CLUSTER.numberOfWorkers from CLUSTER where CLUSTER.runTimeConfigId=id)"/>
+            <column name="workerMachineType" valueComputed="(select CLUSTER.workerMachineType from CLUSTER where CLUSTER.runTimeConfigId=id)"/>
+            <column name="workerDiskSize" valueComputed="(select CLUSTER.workerDiskSize from CLUSTER where CLUSTER.runTimeConfigId=id)"/>
+            <column name="numberOfWorkerLocalSSDs" valueComputed="(select CLUSTER.numberOfWorkerLocalSSDs from CLUSTER where CLUSTER.runTimeConfigId=id)"/>
+            <column name="numberOfPreemptibleWorkers" valueComputed="(select CLUSTER.numberOfPreemptibleWorkers from CLUSTER where CLUSTER.runTimeConfigId=id)"/>
+        </update>
+
+
+<!--        <update tableName="CLUSTER">-->
+<!--            <column name="runtimeConfigId" valueComputed="(select RUNTIME_CONFIG.id from RUNTIME_CONFIG where CLUSTER.runTimeConfigId=RUNTIME_CONFIG.id)"/>-->
+<!--        </update>-->
+
+        <dropColumn tableName="CLUSTER" columnName="masterMachineType"/>
+        <dropColumn tableName="CLUSTER" columnName="masterDiskSize"/>
+        <dropColumn tableName="CLUSTER" columnName="numberOfWorkers"/>
+        <dropColumn tableName="CLUSTER" columnName="workerMachineType"/>
+        <dropColumn tableName="CLUSTER" columnName="workerDiskSize"/>
+        <dropColumn tableName="CLUSTER" columnName="numberOfWorkerLocalSSDs"/>
+        <dropColumn tableName="CLUSTER" columnName="numberOfPreemptibleWorkers"/>
+    </changeSet>
+
+</databaseChangeLog>

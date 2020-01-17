@@ -1,8 +1,9 @@
-package org.broadinstitute.dsde.workbench.leonardo.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
-import akka.stream.ActorMaterializer
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
@@ -24,7 +25,6 @@ class MockProxyService(
   authProvider: LeoAuthProvider[IO],
   clusterDnsCache: ClusterDnsCache[IO]
 )(implicit system: ActorSystem,
-  materializer: ActorMaterializer,
   executionContext: ExecutionContext,
   timer: Timer[IO],
   cs: ContextShift[IO],

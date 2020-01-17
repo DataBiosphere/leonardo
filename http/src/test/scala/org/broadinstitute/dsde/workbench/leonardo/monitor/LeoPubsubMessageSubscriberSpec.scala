@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.monitor
+package org.broadinstitute.dsde.workbench.leonardo
+package monitor
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
@@ -15,14 +16,13 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery, followupQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, Queries, RuntimeConfigId, TestComponent, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{ClusterInvalidState, ClusterNotStopped}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, ServiceAccountInfo}
 import org.mockito.Mockito
 import org.scalatest.concurrent._
 import org.scalatest.{FlatSpecLike, Matchers}
@@ -54,8 +54,7 @@ class LeoPubsubMessageSubscriberSpec
 
   val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-  val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
-                                        dataprocConfig,
+  val clusterHelper = new ClusterHelper(dataprocConfig,
                                         imageConfig,
                                         googleGroupsConfig,
                                         proxyConfig,
@@ -90,10 +89,10 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber(queue)
 
     val savedRunningCluster = runningCluster.save()
-    savedRunningCluster shouldEqual runningCluster
+    savedRunningCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual runningCluster
 
     val clusterId = savedRunningCluster.id
-    val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
+    val newMachineConfig = defaultRuntimeConfig.copy(masterMachineType = "n1-standard-8")
     val message = StopUpdateMessage(newMachineConfig, clusterId, None)
 
     val followupDetails = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
@@ -112,7 +111,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    postStorage shouldBe newMachineConfig.masterMachineType
+    postStorage.get.value shouldBe newMachineConfig.masterMachineType
 
     eventually {
       dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Stopping
@@ -127,7 +126,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedRunningCluster = runningCluster.save()
 
     val clusterId = savedRunningCluster.id
-    val newMasterMachineType = Some("n1-standard-8")
+    val newMasterMachineType = MachineType("n1-standard-8")
     val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
     val message = ClusterTransitionFinishedMessage(followupKey, None)
 
@@ -137,7 +136,7 @@ class LeoPubsubMessageSubscriberSpec
     //save follow-up details in DB
     dbRef
       .inTransaction(
-        followupQuery.save(followupKey, newMasterMachineType)
+        followupQuery.save(followupKey, Some(newMasterMachineType))
       )
       .unsafeRunSync()
 
@@ -154,14 +153,14 @@ class LeoPubsubMessageSubscriberSpec
     val savedRunningCluster = runningCluster.save()
     val followupKey = ClusterFollowupDetails(savedRunningCluster.id, ClusterStatus.Stopped)
     val message = ClusterTransitionFinishedMessage(followupKey, None)
-    val newMasterMachineType = Some("n1-standard-8")
+    val newMasterMachineType = MachineType("n1-standard-8")
 
     val consumer = mock[AckReplyConsumer]
     Mockito.doNothing().when(consumer).ack()
 
     dbRef
       .inTransaction(
-        followupQuery.save(followupKey, newMasterMachineType)
+        followupQuery.save(followupKey, Some(newMasterMachineType))
       )
       .unsafeRunSync()
 
@@ -179,7 +178,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedStoppedCluster = stoppedCluster.save()
 
     val clusterId = savedStoppedCluster.id
-    val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
+    val newMachineConfig = defaultRuntimeConfig.copy(masterMachineType = "n1-standard-8")
     val message = StopUpdateMessage(newMachineConfig, clusterId, None)
     val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopping)
 
@@ -201,7 +200,7 @@ class LeoPubsubMessageSubscriberSpec
   "LeoPubsubMessageSubscriber" should "perform a noop when it receives an irrelevant transition for a cluster which has a saved action for a different transition" in isolatedDbTest {
     val savedRunningCluster = runningCluster.save()
     val clusterId = savedRunningCluster.id
-    val newMachineType = Some("n1-standard-8")
+    val newMachineType = MachineType("n1-standard-8")
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
 
@@ -210,7 +209,7 @@ class LeoPubsubMessageSubscriberSpec
     //subscriber has a follow-up when the cluster is stopped
     dbRef
       .inTransaction(
-        followupQuery.save(followupDetails, newMachineType)
+        followupQuery.save(followupDetails, Some(newMachineType))
       )
       .unsafeRunSync()
 
@@ -220,11 +219,11 @@ class LeoPubsubMessageSubscriberSpec
 
     leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
     val postStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupDetails)).unsafeRunSync()
-    postStorage shouldBe newMachineType
+    postStorage shouldBe Some(newMachineType)
 
     val cluster = dbFutureValue { clusterQuery.getClusterById(clusterId) }.get
     cluster.status shouldBe ClusterStatus.Running
-    cluster.machineConfig shouldBe defaultMachineConfig
+    dbFutureValue(Queries.getRuntime(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
   }
 
   //gracefully handle transition finished with no follow-up action saved
@@ -241,24 +240,23 @@ class LeoPubsubMessageSubscriberSpec
 
     val cluster = dbFutureValue { clusterQuery.getClusterById(clusterId) }.get
     cluster.status shouldBe ClusterStatus.Stopped
-    cluster.machineConfig shouldBe defaultMachineConfig
+    dbFutureValue { Queries.getRuntime(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig
   }
 
   //handle transition finished message with follow-up action saved
   "LeoPubsubMessageSubscriber" should "perform an update when follow-up action is present and the cluster is stopped" in isolatedDbTest {
     val savedStoppedCluster = stoppedCluster.save()
-    val clusterId = savedStoppedCluster.id
-    val newMachineType = Some("n1-standard-8")
+    val cluster = savedStoppedCluster
+    val newMachineType = MachineType("n1-standard-8")
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
 
-    val followupDetails = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
+    val followupDetails = ClusterFollowupDetails(cluster.id, ClusterStatus.Stopped)
 
     dbRef
       .inTransaction(
-        followupQuery.save(followupDetails, newMachineType)
-      )
-      .unsafeRunSync()
+        followupQuery.save(followupDetails, Some(newMachineType)
+      )).unsafeRunSync()
 
     val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupDetails, None)
 
@@ -269,20 +267,20 @@ class LeoPubsubMessageSubscriberSpec
     postStorage shouldBe None
 
     eventually {
-      dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Starting
+      dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.status shouldBe ClusterStatus.Starting
 
-      dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.machineConfig shouldBe defaultMachineConfig.copy(
-        masterMachineType = newMachineType
+      dbFutureValue { Queries.getRuntime(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig.copy(
+        masterMachineType = newMachineType.value
       )
     }
   }
 
   "LeoPubsubCodec" should "encode/decode a StopUpdate message" in isolatedDbTest {
-    val originalMessage = StopUpdateMessage(defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8")), 1, None)
+    val originalMessage = StopUpdateMessage(defaultRuntimeConfig.copy(masterMachineType = "n1-standard-8"), 1, None)
     val json = originalMessage.asJson
-    val actualJson = json.toString
+    val actualJsonString = json.noSpaces
 
-    val expectedJson =
+    val expectedJsonString =
       s"""
          |{
          |  "messageType": "stopUpdate",
@@ -293,15 +291,16 @@ class LeoPubsubMessageSubscriberSpec
          |    "workerMachineType": null,
          |    "workerDiskSize": null,
          |    "numberOfWorkerLocalSSDs": null,
-         |    "numberOfPreemptibleWorkers": null
+         |    "numberOfPreemptibleWorkers": null,
+         |     "cloudService": "DATAPROC"
          |  },
          |  "clusterId": 1
          |}
          |""".stripMargin
 
-    actualJson.filterNot(_.isWhitespace) shouldBe expectedJson.filterNot(_.isWhitespace)
+    actualJsonString shouldBe expectedJsonString.filterNot(_.isWhitespace)
 
-    val decodedMessage = decode[StopUpdateMessage](expectedJson)
+    val decodedMessage = decode[StopUpdateMessage](expectedJsonString)
     decodedMessage.right.get shouldBe originalMessage
   }
 

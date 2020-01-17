@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataRespon
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, RuntimeConfigId, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
@@ -145,8 +145,10 @@ class ClusterMonitorSpec
       dao.getZones(mockitoEq(masterInstance.key.project), any[String])
     } thenReturn Future.successful(List(ZoneUri("us-central1-a")))
     when {
-      dao.getMachineType(mockitoEq(masterInstance.key.project), any[ZoneUri], any[MachineType])
-    } thenReturn Future.successful(Some(new model.MachineType().setMemoryMb(7680)))
+      dao.getMachineType(mockitoEq(masterInstance.key.project), any[ZoneUri], any[String].asInstanceOf[MachineType])
+    } thenReturn {
+      Future.successful(Some(new model.MachineType().setMemoryMb(7680)))
+    }
     dao
   }
 
@@ -168,8 +170,7 @@ class ClusterMonitorSpec
                               welderDAO: WelderDAO[IO],
                               queue: InspectableQueue[IO, LeoPubsubMessage]): ActorRef = {
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
-    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
-                                          dataprocConfig,
+    val clusterHelper = new ClusterHelper(dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
@@ -261,7 +262,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -343,7 +344,7 @@ class ClusterMonitorSpec
   // - cluster status is set to Error in the DB
   it should "Delete a cluster that is stuck creating for too long" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -414,7 +415,7 @@ class ClusterMonitorSpec
   Seq(ClusterStatus.Creating, ClusterStatus.Updating, ClusterStatus.Unknown).foreach { status =>
     it should s"monitor $status status" in isolatedDbTest {
       val savedCreatingCluster = creatingCluster.save()
-      creatingCluster shouldEqual savedCreatingCluster
+      creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
       val gdDAO = mock[GoogleDataprocDAO]
       when {
@@ -473,7 +474,7 @@ class ClusterMonitorSpec
   // - monitor actor does not shut down
   it should "keep monitoring in RUNNING state with no IP" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val dao = mock[GoogleDataprocDAO]
     when {
@@ -533,7 +534,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   it should "monitor until ERROR state with no restart and getClusterStatus returns Some(ErrorDetail) " in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -607,7 +608,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   it should "monitor until ERROR state with no restart and getClusterErrorDetails returns None " in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -681,7 +682,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   it should "monitor until DELETED state" in isolatedDbTest {
     val savedDeletingCluster = deletingCluster.save()
-    deletingCluster shouldEqual savedDeletingCluster
+    deletingCluster shouldEqual savedDeletingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val dao = mock[GoogleDataprocDAO]
     when {
@@ -715,7 +716,7 @@ class ClusterMonitorSpec
 
     when {
       authProvider.notifyClusterDeleted(
-        mockitoEq(deletingCluster.internalId),
+        ClusterInternalId(mockitoEq(deletingCluster.internalId.asString)),
         mockitoEq(deletingCluster.auditInfo.creator),
         mockitoEq(deletingCluster.auditInfo.creator),
         mockitoEq(deletingCluster.googleProject),
@@ -746,7 +747,7 @@ class ClusterMonitorSpec
       verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(storageDAO, times(1)).setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
       verify(authProvider).notifyClusterDeleted(
-        mockitoEq(deletingCluster.internalId),
+        ClusterInternalId(mockitoEq(deletingCluster.internalId.asString)),
         mockitoEq(deletingCluster.auditInfo.creator),
         mockitoEq(deletingCluster.auditInfo.creator),
         mockitoEq(deletingCluster.googleProject),
@@ -771,7 +772,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   it should "monitor until ERROR state with restart" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
     val gdDAO = mock[GoogleDataprocDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val storageDAO = mock[GoogleStorageDAO]
@@ -894,7 +895,7 @@ class ClusterMonitorSpec
 
     when {
       authProvider.notifyClusterDeleted(
-        mockitoEq(creatingCluster.internalId),
+        ClusterInternalId(mockitoEq(creatingCluster.internalId.asString)),
         mockitoEq(creatingCluster.auditInfo.creator),
         mockitoEq(creatingCluster.auditInfo.creator),
         mockitoEq(creatingCluster.googleProject),
@@ -954,7 +955,7 @@ class ClusterMonitorSpec
              if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
         .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(
-        mockitoEq(creatingCluster.internalId),
+        ClusterInternalId(mockitoEq(creatingCluster.internalId.asString)),
         mockitoEq(creatingCluster.auditInfo.creator),
         mockitoEq(creatingCluster.auditInfo.creator),
         mockitoEq(creatingCluster.googleProject),
@@ -971,7 +972,7 @@ class ClusterMonitorSpec
   // - monitor actor does not shut down
   it should "not restart a deleting cluster" in isolatedDbTest {
     val savedDeletingCluster = deletingCluster.save()
-    deletingCluster shouldEqual savedDeletingCluster
+    deletingCluster shouldEqual savedDeletingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -1015,7 +1016,7 @@ class ClusterMonitorSpec
 
   it should "create two clusters for the same user" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val creatingCluster2 = creatingCluster.copy(
       clusterName = ClusterName(creatingCluster.clusterName.value + "_2"),
@@ -1023,7 +1024,7 @@ class ClusterMonitorSpec
         creatingCluster.dataprocInfo.map(_.copy(googleId = UUID.randomUUID(), hostIp = Some(IP("5.6.7.8"))))
     )
     val savedCreatingCluster2 = creatingCluster2.save()
-    creatingCluster2 shouldEqual savedCreatingCluster2
+    creatingCluster2 shouldEqual savedCreatingCluster2.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     val projectDAO = mock[GoogleProjectDAO]
@@ -1128,7 +1129,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   it should "monitor until STOPPED state" in isolatedDbTest {
     val savedStoppingCluster = stoppingCluster.save()
-    stoppingCluster shouldEqual savedStoppingCluster
+    stoppingCluster shouldEqual savedStoppingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -1182,7 +1183,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   it should "monitor from STARTING to RUNNING state" in isolatedDbTest {
     val savedStartingCluster = startingCluster.save()
-    startingCluster shouldEqual savedStartingCluster
+    startingCluster shouldEqual savedStartingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -1273,7 +1274,7 @@ class ClusterMonitorSpec
   // - monitor actor shuts down
   it should "stop a cluster after creation" in isolatedDbTest {
     val stopAfterCreationCluster = creatingCluster.copy(stopAfterCreation = true)
-    stopAfterCreationCluster.save() shouldEqual stopAfterCreationCluster
+    stopAfterCreationCluster.save().copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual stopAfterCreationCluster
 
     val projectDAO = mock[GoogleProjectDAO]
     val gdDAO = mock[GoogleDataprocDAO]
@@ -1362,7 +1363,7 @@ class ClusterMonitorSpec
   // - dataproc DAO should not have been called
   it should "stop monitoring a cluster in Error status" in isolatedDbTest {
     val savedErrorCluster = errorCluster.save()
-    savedErrorCluster shouldEqual errorCluster
+    savedErrorCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual errorCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
     val computeDAO = mock[GoogleComputeDAO]
@@ -1387,7 +1388,7 @@ class ClusterMonitorSpec
           clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName)
         }
         dbCluster shouldBe 'defined
-        dbCluster.get shouldEqual errorCluster
+        dbCluster.get.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual errorCluster
       }
       verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName])
     }
@@ -1401,7 +1402,7 @@ class ClusterMonitorSpec
   // - dataproc DAO should not have been called
   it should "put a message in the queue for a stopping cluster" in isolatedDbTest {
     val savedStoppingCluster = stoppingCluster.save()
-    stoppingCluster shouldEqual savedStoppingCluster
+    stoppingCluster shouldEqual savedStoppingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
