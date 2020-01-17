@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.db
+package org.broadinstitute.dsde.workbench.leonardo
+package db
 
 import java.sql.{Connection, SQLTimeoutException}
 
@@ -6,9 +7,9 @@ import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, IO, Resource}
 import com.google.common.base.Throwables
 import com.typesafe.scalalogging.LazyLogging
-import liquibase.database.jvm.JdbcConnection
-import liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
-import liquibase.{Contexts, Liquibase}
+import _root_.liquibase.database.jvm.JdbcConnection
+import _root_.liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
+import _root_.liquibase.{Contexts, Liquibase}
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import slick.basic.DatabaseConfig
 import slick.jdbc.{JdbcBackend, JdbcProfile, TransactionIsolation}
@@ -105,7 +106,8 @@ final class DataAccess(blocker: Blocker) {
       TableQuery[ClusterImageTable].delete andThen
       TableQuery[ScopeTable].delete andThen
       TableQuery[FollowupTable].delete andThen
-      TableQuery[ClusterTable].delete
+      TableQuery[ClusterTable].delete andThen
+      Queries.runtimeConfigs.delete
 
   def sqlDBStatus() =
     sql"select version()".as[String]

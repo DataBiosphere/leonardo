@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
 import java.time.Instant
@@ -16,13 +17,18 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleProjectDAO,
   MockGoogleStorageDAO
 }
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  DbSingleton,
+  Queries,
+  TestComponent,
+  UpdateAsyncClusterCreationFields
+}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
@@ -79,8 +85,7 @@ class AuthProviderSpec
   val bucketHelper =
     new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, FakeGoogleStorageService, serviceAccountProvider)
   val clusterHelper =
-    new ClusterHelper(DbSingleton.dbRef,
-                      dataprocConfig,
+    new ClusterHelper(dataprocConfig,
                       imageConfig,
                       googleGroupsConfig,
                       proxyConfig,
@@ -145,16 +150,15 @@ class AuthProviderSpec
       val proxy = proxyWithAuthProvider(spyProvider)
 
       // create
-      val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).unsafeToFuture.futureValue
-
+      val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).unsafeRunSync()
       // get status
-      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, cluster1Name).unsafeToFuture.futureValue
+      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, cluster1Name).unsafeRunSync()
 
-      cluster1 shouldEqual clusterStatus
+      cluster1.id shouldEqual clusterStatus.id
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(_.toListClusterResp)
+      listResponse shouldBe Seq(cluster1).map(x => LeoLenses.createClusterAPIRespToListClusterResp.get(x))
 
       //connect
       val proxyRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
@@ -164,28 +168,30 @@ class AuthProviderSpec
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
       proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).unsafeRunSync()
 
+      val updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
+        Some(GcsPath(initBucketPath, GcsObjectName(""))),
+        Some(serviceAccountKey),
+        cluster1.id,
+        Some(makeDataprocInfo(1)),
+        Instant.now
+      )
       // change cluster status to Running so that it can be deleted
       dbFutureValue {
-        clusterQuery.updateAsyncClusterCreationFields(
-          Some(GcsPath(initBucketPath, GcsObjectName(""))),
-          Some(serviceAccountKey),
-          cluster1.copy(dataprocInfo = Some(makeDataprocInfo(1))),
-          Instant.now
-        )
+        clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
       }
       dbFutureValue { clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now) }
 
       //delete
-      leo.deleteCluster(userInfo, project, cluster1Name).unsafeToFuture.futureValue
+      leo.deleteCluster(userInfo, project, cluster1Name).unsafeRunSync()
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId],
+      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
                                                any[WorkbenchEmail],
                                                any[GoogleProject],
                                                any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
 
       // notification of deletion happens only after it has been fully deleted
-      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId],
+      verify(spyProvider, never).notifyClusterDeleted(any[String].asInstanceOf[ClusterInternalId],
                                                       any[WorkbenchEmail],
                                                       any[WorkbenchEmail],
                                                       any[GoogleProject],
@@ -239,11 +245,11 @@ class AuthProviderSpec
       clusterNotFoundAgain shouldBe a[ClusterNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId],
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
                                                               any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId],
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
@@ -263,12 +269,13 @@ class AuthProviderSpec
       leo
         .getActiveClusterDetails(userInfo, project, cluster1.clusterName)
         .unsafeToFuture
-        .futureValue shouldEqual cluster1
+        .futureValue
+        .internalId shouldEqual cluster1.internalId
 
       // list should work for this user
       //list all clusters should be fine, but empty
       leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(
-        _.toListClusterResp
+        _.toListClusterResp(dbFutureValue(Queries.getRuntime(savedCluster.runtimeConfigId)))
       )
 
       //connect should 401
@@ -298,11 +305,11 @@ class AuthProviderSpec
       clusterDestroyException shouldBe a[AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId],
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
                                                               any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId],
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
@@ -328,7 +335,7 @@ class AuthProviderSpec
       mockGoogleDataprocDAO.clusters should not contain key(cluster1Name)
 
       // creation notifications should have been fired
-      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId],
+      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
                                                any[WorkbenchEmail],
                                                any[GoogleProject],
                                                any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
@@ -342,7 +349,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(_.toListClusterResp)
+      listResponse shouldBe Seq(cluster1).map(LeoLenses.createClusterAPIRespToListClusterResp.get)
     }
 
     "should return clusters the user didn't create if the auth provider says yes" in isolatedDbTest {
@@ -356,7 +363,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(newUserInfo, Map()).unsafeToFuture().futureValue
-      listResponse shouldBe Seq(cluster1).map(_.toListClusterResp)
+      listResponse shouldBe Seq(cluster1).map(LeoLenses.createClusterAPIRespToListClusterResp.get)
     }
   }
 }

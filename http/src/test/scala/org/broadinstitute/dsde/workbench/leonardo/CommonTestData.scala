@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{CustomDataProc, Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{
@@ -89,11 +89,13 @@ object CommonTestData {
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
-  val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers),
-                                                     Some(clusterDefaultsConfig.masterMachineType),
-                                                     Some(clusterDefaultsConfig.masterDiskSize))
-
-  val pubsubConfig = config.as[PubsubConfig]("pubsub")
+  val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
+    Some(clusterDefaultsConfig.numberOfWorkers),
+    Some(clusterDefaultsConfig.masterMachineType),
+    Some(clusterDefaultsConfig.masterDiskSize)
+  )
+  val singleNodeDefaultMachineConfig =
+    singleNodeDefaultMachineConfigRequest.toRuntimeConfigDataprocConfig(MachineConfigOps.createFromDefaults(clusterDefaultsConfig))
 
   val testClusterRequest = ClusterRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
@@ -103,7 +105,7 @@ object CommonTestData {
     None,
     Map.empty,
     None,
-    None,
+    false,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
     Some(30),
@@ -117,9 +119,9 @@ object CommonTestData {
     None,
     Map.empty,
     None,
-    None,
+    false,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
-    Some(true),
+    None,
     Some(30),
     Some("ThisIsADefaultClientID")
   )
@@ -148,8 +150,6 @@ object CommonTestData {
 
   val clusterResourceConstraints = ClusterResourceConstraints(MemorySize.fromMb(3584))
 
-  val defaultMachineConfig = MachineConfig(Some(0), Some(""), Some(500))
-
   def makeDataprocInfo(index: Int): DataprocInfo =
     DataprocInfo(
       UUID.randomUUID(),
@@ -158,6 +158,8 @@ object CommonTestData {
       Some(IP("numbers.and.dots"))
     )
 
+  val defaultRuntimeConfig = RuntimeConfig.DataprocConfig(0, "", 500)
+  val defaultRuntimeConfigRequest = RuntimeConfigRequest.DataprocConfig(Some(0), Some(""), Some(500))
   def makeCluster(index: Int): Cluster = {
     val clusterName = ClusterName("clustername" + index.toString)
     Cluster(
@@ -167,7 +169,6 @@ object CommonTestData {
       serviceAccountInfo = serviceAccountInfo,
       dataprocInfo = Some(makeDataprocInfo(index)),
       auditInfo = auditInfo,
-      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       properties = Map.empty,
       clusterUrl = Cluster.getClusterUrl(project, clusterName, Set(jupyterImage), Map.empty),
       status = ClusterStatus.Unknown,
@@ -196,7 +197,6 @@ object CommonTestData {
     serviceAccountInfo = serviceAccountInfo,
     dataprocInfo = Some(DataprocInfo(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
-    machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     properties = Map.empty,
     clusterUrl = Cluster.getClusterUrl(project, name1, Set(jupyterImage), Map.empty),
     status = ClusterStatus.Unknown,
@@ -227,13 +227,13 @@ object CommonTestData {
                                                  Map("serverExt1" -> "pqr"),
                                                  Map("combinedExt1" -> "xyz"))
 
-  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+  val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
-    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).unsafeRunSync()
+    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
 
   def notebookServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
-    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).unsafeRunSync()
+    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
 
   val masterInstance = Instance(
     InstanceKey(project, ZoneUri("my-zone"), InstanceName("master-instance")),

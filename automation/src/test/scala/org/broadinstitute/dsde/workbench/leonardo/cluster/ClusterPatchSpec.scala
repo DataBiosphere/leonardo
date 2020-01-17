@@ -1,13 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.cluster
+package org.broadinstitute.dsde.workbench.leonardo
+package cluster
 
-import org.broadinstitute.dsde.workbench.leonardo.{
-  Cluster,
-  ClusterFixtureSpec,
-  ClusterStatus,
-  Leonardo,
-  LeonardoTestUtils,
-  MachineConfig
-}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.DoNotDiscover
 
@@ -16,8 +9,12 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
 
   //this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start tranition" in { clusterFixture =>
-    val newMasterMachineType = Some("n1-standard-2")
-    val machineConfig = Some(MachineConfig(masterMachineType = newMasterMachineType))
+    val newMasterMachineType = "n1-standard-2"
+    val machineConfig = Some(RuntimeConfig.DataprocConfig(
+      0,
+      masterMachineType = newMasterMachineType,
+      30
+    ))
 
     val originalCluster = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
     originalCluster.status shouldBe ClusterStatus.Running

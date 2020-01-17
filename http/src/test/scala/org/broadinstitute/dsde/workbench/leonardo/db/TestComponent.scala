@@ -4,13 +4,13 @@ import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite, RuntimeConfig}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import slick.dbio.DBIO
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtils {
@@ -35,8 +35,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       dbFutureValue(dbRef.dataAccess.truncateAll)
     }
 
-  protected def getClusterId(cluster: Cluster): Long =
-    getClusterId(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
+  protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =
+    getClusterId(getClusterIdRequest.googleProject, getClusterIdRequest.clusterName, getClusterIdRequest.destroyedDate)
 
   protected def getClusterId(googleProject: GoogleProject,
                              clusterName: ClusterName,
@@ -46,9 +46,27 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   implicit class ClusterExtensions(cluster: Cluster) {
     def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Cluster =
       dbFutureValue {
-        clusterQuery.save(cluster,
-                          Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
-                          serviceAccountKeyId)
+        clusterQuery.save(
+          SaveCluster(cluster,
+                      Some(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
+                      serviceAccountKeyId,
+                      CommonTestData.defaultRuntimeConfig,
+                      Instant.now)
+        )
+      }
+
+    def saveWithRuntimeConfig(
+      runtimeConfig: RuntimeConfig,
+      serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)
+    ): Cluster =
+      dbFutureValue {
+        clusterQuery.save(
+          SaveCluster(cluster,
+                      Some(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
+                      serviceAccountKeyId,
+                      runtimeConfig,
+                      Instant.now)
+        )
       }
   }
 }

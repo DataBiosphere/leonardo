@@ -19,31 +19,22 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
+import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
-import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{
-  ClusterOutOfDate,
-  DeployWelder,
-  DisableDelocalization,
-  NoAction,
-  UpdateWelder
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, Queries, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.{
-  ClusterCannotBeStartedException,
-  ClusterCannotBeStoppedException,
-  ClusterOutOfDateException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{ClusterCannotBeStartedException, ClusterCannotBeStoppedException, ClusterOutOfDateException}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -58,13 +49,12 @@ final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: 
 final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
 
-final case class ClusterResourceConstaintsException(cluster: Cluster)
+final case class ClusterResourceConstaintsException(cluster: Cluster, machineType: MachineType)
     extends LeoException(
-      s"Unable to calculate memory constraints for cluster ${cluster.projectNameString} with master machine type ${cluster.machineConfig.masterMachineType}"
+      s"Unable to calculate memory constraints for cluster ${cluster.projectNameString} with master machine type ${machineType}"
     )
 
 class ClusterHelper(
-  dbRef: DbReference[IO],
   dataprocConfig: DataprocConfig,
   imageConfig: ImageConfig,
   googleGroupsConfig: GoogleGroupsConfig,
@@ -85,14 +75,16 @@ class ClusterHelper(
   val system: ActorSystem,
   contextShift: ContextShift[IO],
   log: Logger[IO],
-  metrics: NewRelicMetrics[IO])
+  metrics: NewRelicMetrics[IO],
+  dbRef: DbReference[IO])
     extends LazyLogging
     with Retry {
 
   import dbRef._
 
   def createCluster(
-    cluster: Cluster
+    cluster: Cluster,
+    runtimeConfig: RuntimeConfig
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateClusterResponse] = {
     val initBucketName = generateUniqueBucketName("leoinit-" + cluster.clusterName.value)
     val stagingBucketName = generateUniqueBucketName("leostaging-" + cluster.clusterName.value)
@@ -109,7 +101,7 @@ class ClusterHelper(
           } else IO.pure(Map.empty[String, String])
           clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
-          resourceConstraints <- getClusterResourceContraints(cluster)
+          resourceConstraints <- getClusterResourceContraints(cluster, runtimeConfig)
 
           // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
           _ <- IO.fromFuture(
@@ -145,7 +137,6 @@ class ClusterHelper(
                                        resourceConstraints).compile.drain
 
           // build cluster configuration
-          machineConfig = cluster.machineConfig
           initScriptResources = List(clusterResourcesConfig.initActionsScript)
           initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
           credentialsFileName = cluster.serviceAccountInfo.notebookServiceAccount
@@ -157,51 +148,55 @@ class ClusterHelper(
             dataprocConfig.legacyCustomDataprocImage
           else dataprocConfig.customDataprocImage
 
-          // Create the cluster
-          createClusterConfig = CreateClusterConfig(
-            machineConfig,
-            initScripts,
-            cluster.serviceAccountInfo.clusterServiceAccount,
-            credentialsFileName,
-            stagingBucketName,
-            cluster.scopes,
-            clusterVPCSettings,
-            cluster.properties,
-            dataprocImage,
-            monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, 1 hour)
-          )
-          retryResult <- IO.fromFuture(
-            IO(
-              retryExponentially(whenGoogleZoneCapacityIssue,
-                                 "Cluster creation failed because zone with adequate resources was not found") { () =>
-                gdDAO.createCluster(cluster.googleProject, cluster.clusterName, createClusterConfig)
-              }
-            )
-          )
+          res <- runtimeConfig match {
+            case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedException)
+            case x: RuntimeConfig.DataprocConfig =>
+              val createClusterConfig = CreateClusterConfig(
+                x,
+                initScripts,
+                cluster.serviceAccountInfo.clusterServiceAccount,
+                credentialsFileName,
+                stagingBucketName,
+                cluster.scopes,
+                clusterVPCSettings,
+                cluster.properties,
+                dataprocImage,
+                monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, 1 hour)
+              )
+              for { // Create the cluster
+                retryResult <- IO.fromFuture(
+                  IO(
+                    retryExponentially(whenGoogleZoneCapacityIssue,
+                      "Cluster creation failed because zone with adequate resources was not found") { () =>
+                      gdDAO.createCluster(cluster.googleProject, cluster.clusterName, createClusterConfig)
+                    }
+                  )
+                )
+                operation <- retryResult match {
+                  case Right((errors, op)) if errors == List.empty => IO(op)
+                  case Right((errors, op)) =>
+                    metrics
+                      .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
+                      .as(op)
+                  case Left(errors) =>
+                    metrics
+                      .incrementCounter("zoneCapacityClusterCreationFailure",
+                        errors.filter(whenGoogleZoneCapacityIssue).length)
+                      .flatMap(_ => IO.raiseError(errors.head))
+                }
 
-          operation <- retryResult match {
-            case Right((errors, op)) if errors == List.empty => IO(op)
-            case Right((errors, op)) =>
-              metrics
-                .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
-                .as(op)
-            case Left(errors) =>
-              metrics
-                .incrementCounter("zoneCapacityClusterCreationFailure",
-                                  errors.filter(whenGoogleZoneCapacityIssue).length)
-                .flatMap(_ => IO.raiseError(errors.head))
+                finalCluster = Cluster.addDataprocFields(cluster, operation, stagingBucketName)
+
+              } yield CreateClusterResponse(finalCluster, initBucketName, serviceAccountKeyOpt, dataprocImage)
           }
-
-          finalCluster = Cluster.addDataprocFields(cluster, operation, stagingBucketName)
-
-        } yield CreateClusterResponse(finalCluster, initBucketName, serviceAccountKeyOpt, dataprocImage)
+        } yield res
 
         ioResult.handleErrorWith { throwable =>
           cleanUpGoogleResourcesOnError(cluster.googleProject,
-                                        cluster.clusterName,
-                                        initBucketName,
-                                        cluster.serviceAccountInfo,
-                                        serviceAccountKeyOpt) >> IO.raiseError(throwable)
+            cluster.clusterName,
+            initBucketName,
+            cluster.serviceAccountInfo,
+            serviceAccountKeyOpt) >> IO.raiseError(throwable)
         }
     }
   }
@@ -209,7 +204,7 @@ class ClusterHelper(
   def deleteCluster(cluster: Cluster): IO[Unit] =
     IO.fromFuture(IO(gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)))
 
-  def stopCluster(cluster: Cluster): IO[Unit] =
+  def stopCluster(cluster: Cluster, runtimeConfig: RuntimeConfig): IO[Unit] =
     if (cluster.status.isStoppable) {
       for {
         // Flush the welder cache to disk
@@ -220,7 +215,7 @@ class ClusterHelper(
         } else IO.unit
 
         // Stop the cluster in Google
-        _ <- stopGoogleCluster(cluster)
+        _ <- stopGoogleCluster(cluster, runtimeConfig)
 
         // Update the cluster status to Stopping
         now <- IO(Instant.now)
@@ -229,14 +224,16 @@ class ClusterHelper(
 
     } else IO.raiseError(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
 
-  private def stopGoogleCluster(cluster: Cluster): IO[Unit] =
+  private def stopGoogleCluster(cluster: Cluster, runtimeConfig: RuntimeConfig): IO[Unit] =
     for {
       metadata <- getMasterInstanceShutdownScript(cluster)
 
       // First remove all its preemptible instances, if any
-      _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
-        IO.fromFuture(IO(gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))))
-      else IO.unit
+      _ <- runtimeConfig match {
+        case x: RuntimeConfig.DataprocConfig if(x.numberOfPreemptibleWorkers.exists(_ > 0) ) =>
+          IO.fromFuture(IO(gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))))
+        case _ => IO.unit
+      }
 
       // Now stop each instance individually
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
@@ -250,20 +247,22 @@ class ClusterHelper(
       }
     } yield ()
 
-  private def startCluster(cluster: Cluster, welderAction: WelderAction): IO[Unit] =
+  private def startCluster(cluster: Cluster, welderAction: WelderAction, runtimeConfig: RuntimeConfig): IO[Unit] =
     for {
       metadata <- getMasterInstanceStartupScript(cluster, welderAction)
 
       // Add back the preemptible instances, if any
-      _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
-        IO.fromFuture(
-          IO(
-            gdDAO.resizeCluster(cluster.googleProject,
-                                cluster.clusterName,
-                                numPreemptibles = cluster.machineConfig.numberOfPreemptibleWorkers)
+      _ <- runtimeConfig match {
+        case x: RuntimeConfig.DataprocConfig if (x.numberOfPreemptibleWorkers.exists(_ > 0) )=>
+          IO.fromFuture(
+            IO(
+              gdDAO.resizeCluster(cluster.googleProject,
+                cluster.clusterName,
+                numPreemptibles = x.numberOfPreemptibleWorkers)
+            )
           )
-        )
-      else IO.unit
+        case _ => IO.unit
+      }
 
       // Start each instance individually
       _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
@@ -279,7 +278,7 @@ class ClusterHelper(
 
     } yield ()
 
-  def internalStartCluster(cluster: Cluster): IO[Unit] =
+  def internalStartCluster(cluster: Cluster, now: Instant): IO[Unit] =
     if (cluster.status.isStartable) {
       val welderAction = getWelderAction(cluster)
       for {
@@ -291,10 +290,11 @@ class ClusterHelper(
           case ClusterOutOfDate                 => IO.raiseError(ClusterOutOfDateException())
         }
         _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
-          dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") } else IO.unit
+          dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") }.void else IO.unit
 
+        runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(cluster.runtimeConfigId))
         // Start the cluster in Google
-        _ <- startCluster(updatedCluster, welderAction)
+        _ <- startCluster(updatedCluster, welderAction, runtimeConfig)
 
         // Update the cluster status to Starting
         now <- IO(Instant.now)
@@ -368,7 +368,7 @@ class ClusterHelper(
       // Update the DB
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction {
-        clusterQuery.updateMasterMachineType(existingCluster.id, machineType, now)
+        Queries.updateMachineType(existingCluster.runtimeConfigId, machineType, now)
       }
     } yield ()
 
@@ -513,7 +513,7 @@ class ClusterHelper(
     }
   }
 
-  private[leonardo] def getClusterResourceContraints(cluster: Cluster): IO[ClusterResourceConstraints] = {
+  private[leonardo] def getClusterResourceContraints(cluster: Cluster, runtimeConfig: RuntimeConfig): IO[ClusterResourceConstraints] = {
     val totalMemory = for {
       // Find a zone in which to query the machine type: either the configured zone or
       // an arbitrary zone in the configured region.
@@ -531,15 +531,15 @@ class ClusterHelper(
       _ <- OptionT.liftF(log.debug(s"Using zone ${zoneUri} to resolve machine type"))
 
       // Resolve the master machine type in Google to get the total memory.
-      machineType <- OptionT.fromOption[IO](cluster.machineConfig.masterMachineType)
+      machineType <- OptionT.pure[IO](runtimeConfig.machineType)
       resolvedMachineType <- OptionT(
-        IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, MachineType(machineType))))
+        IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, machineType)))
       )
       _ <- OptionT.liftF(log.debug(s"Resolved machine type: ${resolvedMachineType.toPrettyString}"))
     } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
 
     totalMemory.value.flatMap {
-      case None        => IO.raiseError(ClusterResourceConstaintsException(cluster))
+      case None        => IO.raiseError(ClusterResourceConstaintsException(cluster, runtimeConfig.machineType))
       case Some(total) =>
         // total - dataproc allocated - welder allocated
         val dataprocAllocated = dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)

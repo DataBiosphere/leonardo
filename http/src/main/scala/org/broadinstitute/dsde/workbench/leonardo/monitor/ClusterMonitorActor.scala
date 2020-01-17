@@ -17,34 +17,22 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  ClusterBucketConfig,
-  DataprocConfig,
-  ImageConfig,
-  MonitorConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterImageQuery, clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, Queries, UpdateAsyncClusterCreationFields, clusterErrorQuery, clusterImageQuery, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
-  ClusterDeleted,
-  ClusterSupervisorMessage,
-  RemoveFromList
-}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  ClusterFollowupDetails,
-  ClusterTransitionFinishedMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{ClusterFollowupDetails, ClusterTransitionFinishedMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -218,7 +206,8 @@ class ClusterMonitorActor(
         if (cluster.status == Starting) {
           for {
             _ <- persistInstances(cluster, googleInstances)
-            _ <- clusterHelper.stopCluster(cluster)
+            runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(cluster.runtimeConfigId))
+            _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
             now <- IO(Instant.now)
             _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
           } yield ScheduleMonitorPass
@@ -420,15 +409,18 @@ class ClusterMonitorActor(
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] = {
     val createCluster = for {
       _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google..."))
-      clusterResult <- clusterHelper.createCluster(cluster)
+      runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(cluster.runtimeConfigId))
+      clusterResult <- clusterHelper.createCluster(cluster, runtimeConfig)
       now <- IO(Instant.now)
+      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
+        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
+        clusterResult.serviceAccountKey,
+        clusterResult.cluster.id,
+        clusterResult.cluster.dataprocInfo,
+        now
+      )
       _ <- dbRef.inTransaction {
-        clusterQuery.updateAsyncClusterCreationFields(
-          Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
-          clusterResult.serviceAccountKey,
-          clusterResult.cluster,
-          now
-        )
+        clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
       }
       clusterImage = ClusterImage(ClusterImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
       // Save dataproc image in the database

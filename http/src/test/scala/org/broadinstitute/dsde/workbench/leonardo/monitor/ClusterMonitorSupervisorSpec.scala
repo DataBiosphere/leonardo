@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, Mo
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
@@ -62,8 +62,7 @@ class ClusterMonitorSupervisorSpec
 
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
-                                          dataprocConfig,
+    val clusterHelper = new ClusterHelper(dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
@@ -139,8 +138,7 @@ class ClusterMonitorSupervisorSpec
 
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
-                                          dataprocConfig,
+    val clusterHelper = new ClusterHelper(dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
@@ -207,8 +205,7 @@ class ClusterMonitorSupervisorSpec
 
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
-                                          dataprocConfig,
+    val clusterHelper = new ClusterHelper(dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,
@@ -281,8 +278,7 @@ class ClusterMonitorSupervisorSpec
 
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, FakeGoogleStorageService, serviceAccountProvider)
 
-    val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
-                                          dataprocConfig,
+    val clusterHelper = new ClusterHelper(dataprocConfig,
                                           imageConfig,
                                           googleGroupsConfig,
                                           proxyConfig,

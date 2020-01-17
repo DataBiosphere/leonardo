@@ -5,8 +5,8 @@ import java.time.Instant
 
 import io.circe.Printer
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImageType, UserScriptPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
+import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
@@ -52,9 +52,18 @@ private[db] object LeoProfile extends MySQLProfile {
     implicit val clusterNameMappedColumnType: BaseColumnType[ClusterName] =
       MappedColumnType
         .base[ClusterName, String](_.value, ClusterName.apply)
+    implicit val google2ClusterNameMappedColumnType: BaseColumnType[google2.ClusterName] =
+      MappedColumnType
+        .base[google2.ClusterName, String](_.asString, google2.ClusterName.apply)
     implicit val workbenchEmailMappedColumnType: BaseColumnType[WorkbenchEmail] =
       MappedColumnType
         .base[WorkbenchEmail, String](_.value, WorkbenchEmail.apply)
+    implicit val machineTypeMappedColumnType: BaseColumnType[MachineType] =
+      MappedColumnType
+        .base[MachineType, String](_.value, MachineType.apply)
+    implicit val cloudServiceMappedColumnType: BaseColumnType[CloudService] =
+      MappedColumnType
+        .base[CloudService, String](_.asString, s => CloudService.withName(s))
     // mysql 5.6 doesns't support json. Hence writing properties field as string in json format
     implicit val mapMappedColumnType: BaseColumnType[Map[String, String]] =
       MappedColumnType

@@ -1,13 +1,16 @@
-package org.broadinstitute.dsde.workbench.leonardo.monitor
+package org.broadinstitute.dsde.workbench.leonardo
+package monitor
+
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 import cats.effect.{Async, Concurrent, ContextShift, Timer}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
 import fs2.{Pipe, Stream}
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.MachineConfig
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, followupQuery}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineType}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, Queries, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
@@ -74,7 +77,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
     dbRef.inTransaction { clusterQuery.getClusterById(message.clusterId) }
       .flatMap {
         case Some(resolvedCluster)
-            if ClusterStatus.stoppableStatuses.contains(resolvedCluster.status) && !message.updatedMachineConfig.masterMachineType.isEmpty =>
+            if ClusterStatus.stoppableStatuses.contains(resolvedCluster.status) =>
           val followupDetails = ClusterFollowupDetails(message.clusterId, ClusterStatus.Stopped)
 
           for {
@@ -82,9 +85,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
               s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder, and saving a record for ${resolvedCluster.id}"
             )
             _ <- dbRef.inTransaction(
-              followupQuery.save(followupDetails, message.updatedMachineConfig.masterMachineType)
+              followupQuery.save(followupDetails, Some(message.updatedMachineConfig.machineType))
             )
-            _ <- Async[F].liftIO(clusterHelper.stopCluster(resolvedCluster))
+            runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(resolvedCluster.runtimeConfigId))
+            _ <- Async[F].liftIO(clusterHelper.stopCluster(resolvedCluster, runtimeConfig))
           } yield ()
         case Some(resolvedCluster) =>
           Async[F].raiseError(
@@ -115,11 +119,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                 case Some(machineType) =>
                   for {
                     // perform gddao and db updates for new resources
-                    _ <- Async[F].liftIO(
-                      clusterHelper.updateMasterMachineType(resolvedCluster, MachineType(machineType))
-                    )
+                    _ <- Async[F].liftIO(clusterHelper.updateMasterMachineType(resolvedCluster, machineType))
+                    now <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
                     // start cluster
-                    _ <- Async[F].liftIO(clusterHelper.internalStartCluster(resolvedCluster))
+                    _ <- Async[F].liftIO(clusterHelper.internalStartCluster(resolvedCluster, Instant.ofEpochMilli(now)))
                     // clean-up info from follow-up table
                     _ <- dbRef.inTransaction { followupQuery.delete(message.clusterFollowupDetails) }
                   } yield ()
@@ -146,8 +149,7 @@ sealed trait LeoPubsubMessage {
 }
 
 object LeoPubsubMessage {
-  final case class StopUpdateMessage(updatedMachineConfig: MachineConfig, clusterId: Long, traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+  final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, clusterId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
     val messageType = "stopUpdate"
   }
 
