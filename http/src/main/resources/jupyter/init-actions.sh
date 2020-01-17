@@ -452,10 +452,15 @@ END
 
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
-      log 'All done!'
 
       STEP_TIMINGS+=($(date +%s))
     fi
+
+    # Remove any unneeded cached images to save disk space.
+    # Do this asynchronously so it doesn't hold up cluster creation
+    log 'Pruning docker images...'
+    docker image prune -a -f &
 fi
 
+log 'All done!'
 log "Timings: ${STEP_TIMINGS[@]}"
