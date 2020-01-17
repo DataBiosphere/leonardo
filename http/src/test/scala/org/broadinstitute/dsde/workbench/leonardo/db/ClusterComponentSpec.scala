@@ -44,9 +44,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     val cluster2 = makeCluster(2).copy(status = ClusterStatus.Creating)
 
     val cluster3 = makeCluster(3).copy(
-      machineConfig = MachineConfig(Some(3),
-                                    Some("test-master-machine-type"),
-                                    Some(500),
+      machineConfig = MachineConfig(3,
+                                    "test-master-machine-type",
+                                    500,
                                     Some("test-worker-machine-type"),
                                     Some(200),
                                     Some(2),
@@ -315,9 +315,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
   it should "update master machine type" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
       .copy(
-        machineConfig = MachineConfig(Some(3),
-                                      Some("test-master-machine-type"),
-                                      Some(500),
+        machineConfig = MachineConfig(3,
+                                      "test-master-machine-type",
+                                      500,
                                       Some("test-worker-machine-type"),
                                       Some(200),
                                       Some(2),
@@ -329,16 +329,16 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     dbFutureValue { clusterQuery.updateMasterMachineType(savedCluster1.id, newMachineType, Instant.now) }
 
     dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }
-      .flatMap(_.machineConfig.masterMachineType) shouldBe
+      .map(_.machineConfig.masterMachineType) shouldBe
       Option(newMachineType.value)
   }
 
   it should "update master disk size" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
       .copy(
-        machineConfig = MachineConfig(Some(3),
-                                      Some("test-master-machine-type"),
-                                      Some(500),
+        machineConfig = MachineConfig(3,
+                                      "test-master-machine-type",
+                                      500,
                                       Some("test-worker-machine-type"),
                                       Some(200),
                                       Some(2),
@@ -349,8 +349,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     val newDiskSize = 1000
     dbFutureValue { clusterQuery.updateMasterDiskSize(savedCluster1.id, newDiskSize, Instant.now) }
 
-    dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }.flatMap(_.machineConfig.masterDiskSize) shouldBe
-      Option(newDiskSize)
+    dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }.map(_.machineConfig.masterDiskSize) shouldBe
+      Some(newDiskSize)
   }
 
   it should "list monitored clusters" in isolatedDbTest {

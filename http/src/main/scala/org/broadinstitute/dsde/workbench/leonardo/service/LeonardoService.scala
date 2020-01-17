@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
 import java.text.SimpleDateFormat
@@ -21,9 +22,8 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -38,6 +38,7 @@ import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
 import LeonardoService._
+import org.broadinstitute.dsde.workbench.leonardo.LabelMap
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -193,7 +194,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
-
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
@@ -363,7 +363,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     //
     val updatedNumWorkersAndPreemptiblesOpt = machineConfigOpt.flatMap { machineConfig =>
       Ior.fromOptions(
-        getUpdatedValueIfChanged(existingCluster.machineConfig.numberOfWorkers, machineConfig.numberOfWorkers),
+        getUpdatedValueIfChanged(Some(existingCluster.machineConfig.numberOfWorkers), Some(machineConfig.numberOfWorkers)),
         getUpdatedValueIfChanged(existingCluster.machineConfig.numberOfPreemptibleWorkers,
                                  machineConfig.numberOfPreemptibleWorkers)
       )
@@ -412,9 +412,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   def maybeChangeMasterMachineType(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): IO[Boolean] = {
-    val updatedMasterMachineTypeOpt = machineConfigOpt.flatMap { machineConfig =>
-      getUpdatedValueIfChanged(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
-    }
+    val updatedMasterMachineTypeOpt = getUpdatedValueIfChanged(Some(existingCluster.machineConfig.masterMachineType), machineConfigOpt.map(_.masterMachineType))
 
     updatedMasterMachineTypeOpt match {
       // Note: instance must be stopped in order to change machine type
@@ -443,11 +441,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def maybeChangeMasterDiskSize(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): IO[Boolean] = {
     val updatedMasterDiskSizeOpt = machineConfigOpt.flatMap { machineConfig =>
-      getUpdatedValueIfChanged(existingCluster.machineConfig.masterDiskSize, machineConfig.masterDiskSize)
+      getUpdatedValueIfChanged(Some(existingCluster.machineConfig.masterDiskSize), Some(machineConfig.masterDiskSize))
     }
 
     // Note: GCE allows you to increase a persistent disk, but not decrease. Throw an exception if the user tries to decrease their disk.
-    val diskSizeIncreased = (newSize: Int) => existingCluster.machineConfig.masterDiskSize.exists(_ < newSize)
+    val diskSizeIncreased = (newSize: Int) => existingCluster.machineConfig.masterDiskSize < newSize
 
     updatedMasterDiskSizeOpt match {
       case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>

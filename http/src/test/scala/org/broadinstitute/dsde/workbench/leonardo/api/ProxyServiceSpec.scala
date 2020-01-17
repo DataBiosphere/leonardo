@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
-package service
+package http
+package api
 
 import org.scalatest.{FlatSpec, Matchers}
-import ProxyService._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import akka.http.scaladsl.model.Uri
 
 class ProxyServiceSpec extends FlatSpec with Matchers with LeonardoTestSuite {

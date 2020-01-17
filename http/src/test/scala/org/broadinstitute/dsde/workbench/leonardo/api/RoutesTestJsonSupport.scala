@@ -1,18 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   AuditInfo,
   Cluster,
   ClusterImage,
   ClusterInternalId,
-  DataprocInfo,
-  UserJupyterExtensionConfig,
-  UserScriptPath
+  DataprocInfo
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, IP, Instance, OperationName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -23,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _, _}
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ListClusterResponse
 import spray.json.DefaultJsonProtocol
 
 object RoutesTestJsonSupport extends DefaultJsonProtocol {

@@ -35,7 +35,7 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
 
   override def preStart(): Unit = {
     super.preStart()
-    system.scheduler.schedule(autoFreezeConfig.dateAccessedMonitorScheduler,
+    system.scheduler.scheduleWithFixedDelay(autoFreezeConfig.dateAccessedMonitorScheduler,
                               autoFreezeConfig.dateAccessedMonitorScheduler,
                               self,
                               Flush)

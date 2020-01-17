@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package api
 
 import java.time.Instant
@@ -10,11 +11,11 @@ import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.RoutesTestJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.FlatSpec
@@ -368,7 +369,8 @@ class LeoRoutesSpec
                                  stopAfterCreation = None,
                                  properties = Map.empty)
     Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
-      responseAs[String] shouldBe (s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
+      val expectedResponse = """"invalid cluster name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name""""
+      responseAs[String] shouldBe expectedResponse
       status shouldEqual StatusCodes.BadRequest
     }
   }

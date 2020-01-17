@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
@@ -84,10 +83,6 @@ case class DefaultLabels(clusterName: ClusterName,
       "tool" -> tool
     ) ++ ext ++ userScr ++ startScr ++ clusterSa ++ notebookSa
   }
-}
-
-object StringValueClass {
-  type LabelMap = Map[String, String]
 }
 
 object ClusterStatus extends Enumeration {

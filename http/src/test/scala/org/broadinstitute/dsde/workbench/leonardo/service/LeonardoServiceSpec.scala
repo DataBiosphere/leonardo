@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
 import java.io.ByteArrayInputStream
@@ -20,12 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, instanceQuery, DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
-  NegativeIntegerArgumentInClusterRequestException,
-  OneWorkerSpecifiedInClusterRequestException
-}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.GCR
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -158,7 +155,7 @@ class LeonardoServiceSpec
   "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
+      leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeRunSync()
 
     // check the create response has the correct info
     clusterCreateResponse.clusterName shouldBe name0
@@ -170,7 +167,12 @@ class LeonardoServiceSpec
     clusterCreateResponse.dataprocInfo shouldBe None
     clusterCreateResponse.auditInfo.creator shouldBe userInfo.userEmail
     clusterCreateResponse.auditInfo.destroyedDate shouldBe None
-    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
+    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig.copy(
+      workerMachineType = Some(clusterDefaultsConfig.workerMachineType),
+      workerDiskSize = Some(clusterDefaultsConfig.workerDiskSize),
+      numberOfWorkerLocalSSDs = Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
+      numberOfPreemptibleWorkers = Some(clusterDefaultsConfig.numberOfPreemptibleWorkers)
+    )
     clusterCreateResponse.properties shouldBe Map.empty
     clusterCreateResponse.status shouldBe ClusterStatus.Creating
     clusterCreateResponse.jupyterExtensionUri shouldBe None
@@ -303,16 +305,21 @@ class LeonardoServiceSpec
     clusterList.head.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name1/rstudio")
   }
 
-  it should "create a single node cluster with an empty machine config" in isolatedDbTest {
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig()))
+  it should "create a single node with default machine config cluster when no machine config is set" in isolatedDbTest {
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = None)
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
-    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
+    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig.copy(
+      workerMachineType = Some(clusterDefaultsConfig.workerMachineType),
+      workerDiskSize = Some(clusterDefaultsConfig.workerDiskSize),
+      numberOfWorkerLocalSSDs = Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
+      numberOfPreemptibleWorkers = Some(clusterDefaultsConfig.numberOfPreemptibleWorkers)
+    )
   }
 
   it should "create a single node cluster with zero workers explicitly defined in machine config" in isolatedDbTest {
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0))))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = 0, masterMachineType = clusterDefaultsConfig.masterMachineType, masterDiskSize = clusterDefaultsConfig.masterDiskSize)))
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
@@ -320,7 +327,7 @@ class LeonardoServiceSpec
   }
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
-    val singleNodeDefinedMachineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(200))
+    val singleNodeDefinedMachineConfig = MachineConfig(0, "test-master-machine-type2", 200)
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(singleNodeDefinedMachineConfig))
 
     val clusterCreateResponse =
@@ -331,9 +338,9 @@ class LeonardoServiceSpec
   it should "create a single node cluster and override worker configs" in isolatedDbTest {
     // machine config is creating a single node cluster, but has worker configs defined
     val machineConfig = Some(
-      MachineConfig(Some(0),
-                    Some("test-master-machine-type3"),
-                    Some(200),
+      MachineConfig(0,
+                    "test-master-machine-type3",
+                    200,
                     Some("test-worker-machine-type"),
                     Some(10),
                     Some(3),
@@ -343,15 +350,23 @@ class LeonardoServiceSpec
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
-    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200))
+    clusterCreateResponse.machineConfig shouldEqual MachineConfig(
+      0,
+      "test-master-machine-type3",
+      200,
+      Some("test-worker-machine-type"),
+      Some(10),
+      Some(3),
+      Some(4)
+    )
   }
 
   it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(2))))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = 2, masterDiskSize = clusterDefaultsConfig.masterDiskSize, masterMachineType = clusterDefaultsConfig.masterMachineType)))
     val machineConfigResponse = MachineConfig(
-      Some(2),
-      Some(clusterDefaultsConfig.masterMachineType),
-      Some(clusterDefaultsConfig.masterDiskSize),
+      2,
+      clusterDefaultsConfig.masterMachineType,
+      clusterDefaultsConfig.masterDiskSize,
       Some(clusterDefaultsConfig.workerMachineType),
       Some(clusterDefaultsConfig.workerDiskSize),
       Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
@@ -364,9 +379,9 @@ class LeonardoServiceSpec
   }
 
   it should "create a standard cluster with 10 workers with defined config" in isolatedDbTest {
-    val machineConfig = MachineConfig(Some(10),
-                                      Some("test-master-machine-type"),
-                                      Some(200),
+    val machineConfig = MachineConfig(10,
+                                      "test-master-machine-type",
+                                      200,
                                       Some("test-worker-machine-type"),
                                       Some(300),
                                       Some(3),
@@ -379,17 +394,17 @@ class LeonardoServiceSpec
   }
 
   it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
-    val machineConfig = MachineConfig(Some(2),
-                                      Some("test-master-machine-type"),
-                                      Some(5),
+    val machineConfig = MachineConfig(2,
+                                      "test-master-machine-type",
+                                      5,
                                       Some("test-worker-machine-type"),
                                       Some(5),
                                       Some(3),
                                       Some(4))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
-    val expectedMachineConfig = MachineConfig(Some(2),
-                                              Some("test-master-machine-type"),
-                                              Some(10),
+    val expectedMachineConfig = MachineConfig(2,
+                                              "test-master-machine-type",
+                                              10,
                                               Some("test-worker-machine-type"),
                                               Some(10),
                                               Some(3),
@@ -398,38 +413,6 @@ class LeonardoServiceSpec
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
     clusterCreateResponse.machineConfig shouldEqual expectedMachineConfig
-  }
-
-  it should "throw OneWorkerSpecifiedInClusterRequestException when create a 1 worker cluster" in isolatedDbTest {
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(1))))
-
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.failed.futureValue
-    clusterCreateResponse shouldBe a[OneWorkerSpecifiedInClusterRequestException]
-  }
-
-  it should "throw NegativeIntegerArgumentInClusterRequestException when master disk size in single node cluster request is a negative integer" in isolatedDbTest {
-    val clusterRequestWithMachineConfig =
-      testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0), Some("test-worker-machine-type"), Some(-30))))
-
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.failed.futureValue
-    clusterCreateResponse shouldBe a[NegativeIntegerArgumentInClusterRequestException]
-  }
-
-  it should "throw NegativeIntegerArgumentInClusterRequestException when number of preemptible workers in a 2 worker cluster request is a negative integer" in isolatedDbTest {
-    val machineConfig = MachineConfig(Some(10),
-                                      Some("test-master-machine-type"),
-                                      Some(200),
-                                      Some("test-worker-machine-type"),
-                                      Some(300),
-                                      Some(3),
-                                      Some(-1))
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Option(machineConfig))
-
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.failed.futureValue
-    clusterCreateResponse shouldBe a[NegativeIntegerArgumentInClusterRequestException]
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
@@ -1028,7 +1011,7 @@ class LeonardoServiceSpec
       .updateCluster(userInfo,
                      project,
                      name1,
-                     testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(2)))))
+                     testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = 2, masterMachineType = clusterDefaultsConfig.masterMachineType, masterDiskSize = clusterDefaultsConfig.masterDiskSize))))
       .unsafeToFuture
       .futureValue
 
@@ -1039,9 +1022,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Updating)
 
     //check that the machine config has been updated
-    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.numberOfWorkers shouldBe Some(
-      2
-    )
+    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.numberOfWorkers shouldBe 2
   }
 
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
@@ -1089,7 +1070,7 @@ class LeonardoServiceSpec
         userInfo,
         project,
         name1,
-        testClusterRequest.copy(machineConfig = Some(MachineConfig(masterMachineType = Some(newMachineType))))
+        testClusterRequest.copy(machineConfig = Some(MachineConfig(masterMachineType = newMachineType, numberOfWorkers = 0, masterDiskSize = 500)))
       )
       .unsafeToFuture
       .futureValue
@@ -1098,9 +1079,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Stopped)
 
     //check that the machine config has been updated
-    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterMachineType shouldBe Some(
-      newMachineType
-    )
+    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterMachineType shouldBe newMachineType
   }
 
   it should "not allow changing the master machine type for a cluster in RUNNING state" in isolatedDbTest {
@@ -1121,7 +1100,7 @@ class LeonardoServiceSpec
         userInfo,
         project,
         name1,
-        testClusterRequest.copy(machineConfig = Some(MachineConfig(masterMachineType = Some(newMachineType))))
+        testClusterRequest.copy(machineConfig = Some(MachineConfig(masterMachineType = newMachineType, masterDiskSize = 500, numberOfWorkers = 0)))
       )
       .unsafeToFuture
       .failed
@@ -1150,7 +1129,7 @@ class LeonardoServiceSpec
       .updateCluster(userInfo,
                      project,
                      name1,
-                     testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize)))))
+                     testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = newDiskSize, numberOfWorkers = clusterDefaultsConfig.numberOfWorkers, masterMachineType = clusterDefaultsConfig.masterMachineType))))
       .unsafeToFuture
       .futureValue
 
@@ -1158,9 +1137,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterDiskSize shouldBe Some(
-      newDiskSize
-    )
+    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterDiskSize shouldBe newDiskSize
   }
 
   it should "not allow decreasing the master disk size for a cluster" in isolatedDbTest {
@@ -1180,7 +1157,7 @@ class LeonardoServiceSpec
       .updateCluster(userInfo,
                      project,
                      name1,
-                     testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize)))))
+                     testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = newDiskSize, numberOfWorkers = clusterDefaultsConfig.numberOfWorkers, masterMachineType = clusterDefaultsConfig.masterMachineType))))
       .unsafeToFuture
       .failed
       .futureValue
@@ -1212,7 +1189,7 @@ class LeonardoServiceSpec
             .updateCluster(userInfo,
                            project,
                            name1,
-                           testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(2)))))
+                           testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = 2, masterMachineType = clusterDefaultsConfig.masterMachineType, masterDiskSize = clusterDefaultsConfig.masterDiskSize))))
             .unsafeToFuture,
           Duration.Inf
         )
@@ -1308,7 +1285,7 @@ class LeonardoServiceSpec
         project,
         name1,
         testClusterRequest.copy(
-          machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize), numberOfPreemptibleWorkers = Some(0)))
+          machineConfig = Some(MachineConfig(masterDiskSize = newDiskSize, numberOfPreemptibleWorkers = Some(0), numberOfWorkers = clusterDefaultsConfig.numberOfWorkers, masterMachineType = clusterDefaultsConfig.masterMachineType))
         )
       )
       .unsafeToFuture
@@ -1318,9 +1295,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterDiskSize shouldBe Some(
-      newDiskSize
-    )
+    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterDiskSize shouldBe newDiskSize
   }
 
   it should "extract labels properly" in {

@@ -6,7 +6,6 @@ import java.util.UUID
 
 import cats.data.Chain
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -38,7 +37,7 @@ final case class ClusterRecord(id: Long,
                                jupyterStartUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfo,
-                               machineConfig: MachineConfigRecord,
+                               machineConfig: MachineConfig,
                                properties: Map[String, String],
                                serviceAccountInfo: ServiceAccountInfoRecord,
                                stagingBucket: Option[String],
@@ -47,14 +46,6 @@ final case class ClusterRecord(id: Long,
                                stopAfterCreation: Boolean,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String])
-
-final case class MachineConfigRecord(numberOfWorkers: Int,
-                                     masterMachineType: String,
-                                     masterDiskSize: Int,
-                                     workerMachineType: Option[String],
-                                     workerDiskSize: Option[Int],
-                                     numberOfWorkerLocalSsds: Option[Int],
-                                     numberOfPreemptibleWorkers: Option[Int])
 
 final case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
                                           notebookServiceAccount: Option[String],
@@ -175,7 +166,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             auditInfo._4,
             auditInfo._5
           ),
-          MachineConfigRecord.tupled.apply(machineConfig),
+          MachineConfig.tupled.apply(machineConfig),
           properties.getOrElse(Map.empty),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
           stagingBucket,
@@ -186,7 +177,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           customClusterEnvironmentVariables.getOrElse(Map.empty)
         )
     }, { c: ClusterRecord =>
-      def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
+      def mc(_mc: MachineConfig) = MachineConfig.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       def ai(_ai: AuditInfo) = (
         _ai.creator,
@@ -372,7 +363,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter(_.clusterName === name)
       .filter(_.destroyedDate === dummyDate)
       .result
-    java.sql.Timestamp.valueOf(" 1970-01-01 00:00:01")
 
     res.map { recs =>
       recs.headOption.map { clusterRec =>
@@ -664,10 +654,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       cluster.jupyterStartUserScriptUri,
       initBucket,
       cluster.auditInfo,
-      MachineConfigRecord(
-        cluster.machineConfig.numberOfWorkers.get, //a cluster should always have numberOfWorkers defined
-        cluster.machineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined
-        cluster.machineConfig.masterDiskSize.get, //a cluster should always have masterDiskSize defined
+      MachineConfig(
+        cluster.machineConfig.numberOfWorkers, //a cluster should always have numberOfWorkers defined
+        cluster.machineConfig.masterMachineType, //a cluster should always have masterMachineType defined
+        cluster.machineConfig.masterDiskSize, //a cluster should always have masterDiskSize defined
         cluster.machineConfig.workerMachineType,
         cluster.machineConfig.workerDiskSize,
         cluster.machineConfig.numberOfWorkerLocalSSDs,
@@ -789,12 +779,12 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     val name = clusterRecord.clusterName
     val project = clusterRecord.googleProject
     val machineConfig = MachineConfig(
-      Some(clusterRecord.machineConfig.numberOfWorkers),
-      Some(clusterRecord.machineConfig.masterMachineType),
-      Some(clusterRecord.machineConfig.masterDiskSize),
+      clusterRecord.machineConfig.numberOfWorkers,
+      clusterRecord.machineConfig.masterMachineType,
+      clusterRecord.machineConfig.masterDiskSize,
       clusterRecord.machineConfig.workerMachineType,
       clusterRecord.machineConfig.workerDiskSize,
-      clusterRecord.machineConfig.numberOfWorkerLocalSsds,
+      clusterRecord.machineConfig.numberOfWorkerLocalSSDs,
       clusterRecord.machineConfig.numberOfPreemptibleWorkers
     )
     val serviceAccountInfo = ServiceAccountInfo(

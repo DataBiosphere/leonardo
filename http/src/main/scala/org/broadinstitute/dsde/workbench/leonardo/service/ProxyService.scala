@@ -1,28 +1,29 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import cats.implicits._
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
+import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
@@ -30,7 +31,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedAct
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-import ProxyService._
 
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -65,7 +65,6 @@ class ProxyService(
   clusterDateAccessedActor: ActorRef,
   blocker: Blocker
 )(implicit val system: ActorSystem,
-  materializer: ActorMaterializer,
   executionContext: ExecutionContext,
   timer: Timer[IO],
   cs: ContextShift[IO],
@@ -372,7 +371,7 @@ object ProxyService {
   // we will remove that path and #2 will be the sole entry point for users. At that point, we can
   // update the code in here to not rewrite any paths for Jupyter. We will also need to update the
   // paths in related areas like jupyter_notebook_config.py
-  private[service] def rewriteJupyterPath(path: Uri.Path): Uri.Path = {
+  def rewriteJupyterPath(path: Uri.Path): Uri.Path = {
     val proxyPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
     val notebooksPattern = "\\/notebooks\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
 

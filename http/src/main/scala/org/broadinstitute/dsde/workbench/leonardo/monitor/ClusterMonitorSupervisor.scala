@@ -4,6 +4,7 @@ package monitor
 import java.time.{Duration, Instant}
 import java.util.UUID
 
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.{ContextShift, IO}
@@ -124,10 +125,10 @@ class ClusterMonitorSupervisor(
   override def preStart(): Unit = {
     super.preStart()
 
-    timers.startPeriodicTimer(CheckClusterTimerKey, CheckForClusters, monitorConfig.pollPeriod)
+    timers.startTimerWithFixedDelay(CheckClusterTimerKey, CheckForClusters, monitorConfig.pollPeriod)
 
     if (autoFreezeConfig.enableAutoFreeze)
-      timers.startPeriodicTimer(AutoFreezeTimerKey, AutoFreezeClusters, autoFreezeConfig.autoFreezeCheckScheduler)
+      timers.startTimerWithFixedDelay(AutoFreezeTimerKey, AutoFreezeClusters, autoFreezeConfig.autoFreezeCheckScheduler)
   }
 
   override def receive: Receive = {

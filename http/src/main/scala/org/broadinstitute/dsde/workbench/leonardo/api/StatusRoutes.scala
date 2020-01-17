@@ -1,8 +1,10 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
-import org.broadinstitute.dsde.workbench.leonardo.service.StatusService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
 import spray.json.{JsObject, JsString}

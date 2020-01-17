@@ -5,7 +5,6 @@ import java.time.Instant
 
 import io.circe.Printer
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImageType, UserScriptPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}

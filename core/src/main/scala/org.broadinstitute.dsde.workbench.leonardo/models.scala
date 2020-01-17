@@ -1,12 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.net.URL
 import java.time.Instant
 
+import cats.implicits._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.{GcsPath, parseGcsPath}
+import ca.mrvisser.sealerate
+import enumeratum.{Enum, EnumEntry}
 
-final case class MachineConfig(numberOfWorkers: Option[Int] = None,
-                               masterMachineType: Option[String] = None,
-                               masterDiskSize: Option[Int] = None, //min 10
+import scala.util.matching.Regex
+
+final case class MachineConfig(numberOfWorkers: Int,
+                               masterMachineType: String,
+                               masterDiskSize: Int, //min 10
+                               // worker settings are None when numberOfWorkers is 0
                                workerMachineType: Option[String] = None,
                                workerDiskSize: Option[Int] = None, //min 10
                                numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
@@ -17,3 +25,82 @@ final case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail
                                     notebookServiceAccount: Option[WorkbenchEmail])
 
 final case class ClusterError(errorMessage: String, errorCode: Int, timestamp: Instant)
+
+sealed trait UserScriptPath extends Product with Serializable {
+  def asString: String
+}
+object UserScriptPath {
+  final case class Http(url: URL) extends UserScriptPath {
+    val asString: String = url.toString
+  }
+  final case class Gcs(gcsPath: GcsPath) extends UserScriptPath {
+    val asString: String = gcsPath.toUri
+  }
+
+  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
+    parseGcsPath(string) match {
+      case Right(value) => Right(Gcs(value))
+      case Left(_)      => Either.catchNonFatal(new URL(string)).map(url => Http(url))
+    }
+}
+
+final case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map.empty,
+                                      serverExtensions: Map[String, String] = Map.empty,
+                                      combinedExtensions: Map[String, String] = Map.empty,
+                                      labExtensions: Map[String, String] = Map.empty) {
+
+  def asLabels: LabelMap =
+    nbExtensions ++ serverExtensions ++ combinedExtensions ++ labExtensions
+}
+
+sealed trait ContainerRegistry extends Product with Serializable {
+  def regex: Regex
+}
+object ContainerRegistry {
+  final case object GCR extends ContainerRegistry {
+    val regex: Regex =
+      """^((?:us\.|eu\.|asia\.)?gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+    override def toString: String = "gcr"
+  }
+
+  // Repo format: https://docs.docker.com/docker-hub/repos/
+  final case object DockerHub extends ContainerRegistry {
+    val regex: Regex = """^([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+    override def toString: String = "docker hub"
+  }
+
+  val allRegistries: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
+}
+
+sealed trait ContainerImage extends Product with Serializable {
+  def imageUrl: String
+  def registry: ContainerRegistry
+}
+object ContainerImage {
+  final case class GCR(imageUrl: String) extends ContainerImage {
+    val registry: ContainerRegistry = ContainerRegistry.GCR
+  }
+  final case class DockerHub(imageUrl: String) extends ContainerImage {
+    val registry: ContainerRegistry = ContainerRegistry.DockerHub
+  }
+
+  def stringToJupyterDockerImage(imageUrl: String): Option[ContainerImage] =
+    List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
+      .find(image => image.regex.pattern.asPredicate().test(imageUrl))
+      .map { dockerRegistry =>
+        dockerRegistry match {
+          case ContainerRegistry.GCR       => ContainerImage.GCR(imageUrl)
+          case ContainerRegistry.DockerHub => ContainerImage.DockerHub(imageUrl)
+        }
+      }
+}
+
+sealed trait ClusterImageType extends EnumEntry with Serializable with Product
+object ClusterImageType extends Enum[ClusterImageType] {
+  val values = findValues
+
+  case object Jupyter extends ClusterImageType
+  case object RStudio extends ClusterImageType
+  case object Welder extends ClusterImageType
+  case object CustomDataProc extends ClusterImageType
+}

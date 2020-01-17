@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
 import java.util.UUID
@@ -38,7 +39,7 @@ class StatusService(
 
   private val healthMonitor =
     system.actorOf(HealthMonitor.props(Set(GoogleDataproc, Sam, Database))(() => checkStatus()))
-  system.scheduler.schedule(initialDelay, pollInterval, healthMonitor, HealthMonitor.CheckAll)
+  system.scheduler.scheduleWithFixedDelay(initialDelay, pollInterval, healthMonitor, HealthMonitor.CheckAll)
 
   def getStatus(): Future[StatusCheckResponse] =
     (healthMonitor ? GetCurrentStatus).asInstanceOf[Future[StatusCheckResponse]]

@@ -413,7 +413,7 @@ class ClusterHelper(
       _ <- OptionT.liftF(log.debug(s"Using zone ${zoneUri} to resolve machine type"))
 
       // Resolve the master machine type in Google to get the total memory.
-      machineType <- OptionT.fromOption[IO](cluster.machineConfig.masterMachineType)
+      machineType <- OptionT.pure[IO](cluster.machineConfig.masterMachineType)
       resolvedMachineType <- OptionT(
         IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, MachineType(machineType))))
       )

@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
 import java.time.Instant
@@ -141,10 +142,9 @@ class AuthProviderSpec
       val proxy = proxyWithAuthProvider(spyProvider)
 
       // create
-      val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).unsafeToFuture.futureValue
-
+      val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).unsafeRunSync()
       // get status
-      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, cluster1Name).unsafeToFuture.futureValue
+      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, cluster1Name).unsafeRunSync()
 
       cluster1 shouldEqual clusterStatus
 

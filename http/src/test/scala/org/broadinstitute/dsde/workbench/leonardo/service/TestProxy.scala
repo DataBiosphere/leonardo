@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import java.io.InputStream
 import java.security.{KeyStore, SecureRandom}
@@ -6,7 +8,7 @@ import java.security.{KeyStore, SecureRandom}
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Origin`, `Content-Disposition`, ContentDispositionTypes}
+import akka.http.scaladsl.model.headers.{ContentDispositionTypes, `Access-Control-Allow-Origin`, `Content-Disposition`}
 import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
@@ -15,14 +17,14 @@ import akka.http.scaladsl.testkit.RouteTest
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
+import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.collection.immutable
 import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
-import scala.concurrent.duration._
 
+import scala.concurrent.duration._
 import scala.concurrent.Future
 
 trait TestProxy { this: ScalaFutures =>

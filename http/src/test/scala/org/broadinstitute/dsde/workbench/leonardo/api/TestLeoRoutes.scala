@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import java.io.ByteArrayInputStream
 
@@ -18,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelder
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position

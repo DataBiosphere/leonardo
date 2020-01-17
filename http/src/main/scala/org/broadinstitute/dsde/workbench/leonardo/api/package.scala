@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 
 import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.server.directives.OnSuccessMagnet

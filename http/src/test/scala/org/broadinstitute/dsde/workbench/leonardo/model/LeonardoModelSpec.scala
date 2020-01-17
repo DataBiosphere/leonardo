@@ -5,16 +5,15 @@ import java.net.{MalformedURLException, URL}
 import java.time.Instant
 import java.util.UUID._
 
-import org.broadinstitute.dsde.workbench.leonardo.RoutesTestJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
-import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.FlatSpecLike
 import spray.json._
-import CommonTestData._
 
-class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers with ScalaFutures {
+class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
@@ -27,20 +26,23 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     welderEnabled = true
   )
 
-  "ClusterRequestFormat" should "successfully decode json" in isolatedDbTest {
+  "ClusterRequestFormat" should "successfully decode json" in {
     val inputJson =
       """
         |{
         |}
-      """.stripMargin.parseJson
+      """.stripMargin
 
     val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
 
-    val decodeResult = inputJson.convertTo[ClusterRequest]
-    decodeResult shouldBe (expectedClusterRequest)
+    val decodeResult = for {
+      json <- io.circe.parser.parse(inputJson)
+      r <- json.as[ClusterRequest]
+    } yield r
+    decodeResult shouldBe (Right(expectedClusterRequest))
   }
 
-  it should "successfully decode cluster request with null values" in isolatedDbTest {
+  it should "successfully decode cluster request with null values" in {
     val inputJson =
       """
         |{
@@ -55,15 +57,18 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "stopAfterCreation": null,
         |  "userJupyterExtensionConfig": null
         |}
-      """.stripMargin.parseJson
+      """.stripMargin
 
     val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
 
-    val decodeResult = inputJson.convertTo[ClusterRequest]
-    decodeResult shouldBe (expectedClusterRequest)
+    val decodeResult = for {
+      json <- io.circe.parser.parse(inputJson)
+      r <- json.as[ClusterRequest]
+    } yield r
+    decodeResult shouldBe (Right(expectedClusterRequest))
   }
 
-  it should "successfully decode cluster request with jupyterExtensionUri properly" in isolatedDbTest {
+  it should "successfully decode cluster request with jupyterExtensionUri properly" in {
     val inputJson =
       """
         |{
@@ -75,7 +80,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "scopes": [],
         |  "userJupyterExtensionConfig": null
         |}
-      """.stripMargin.parseJson
+      """.stripMargin
 
     val expectedClusterRequest = ClusterRequest(
       labels = Map.empty,
@@ -88,11 +93,14 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))))
     )
 
-    val decodeResult = inputJson.convertTo[ClusterRequest]
-    decodeResult shouldBe (expectedClusterRequest)
+    val decodeResult = for {
+      json <- io.circe.parser.parse(inputJson)
+      r <- json.as[ClusterRequest]
+    } yield r
+    decodeResult shouldBe (Right(expectedClusterRequest))
   }
 
-  it should "serialize/deserialize to/from JSON" in isolatedDbTest {
+  it should "serialize/deserialize to/from JSON" in {
 
     val expectedJson =
       """
@@ -197,7 +205,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     }
   }
 
-  it should "create a map of ClusterTemplateValues object" in isolatedDbTest {
+  it should "create a map of ClusterTemplateValues object" in {
     val clusterInit = ClusterTemplateValues(
       cluster,
       Some(initBucketPath),
@@ -224,7 +232,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap.size shouldBe 36
   }
 
-  it should "create UserScriptPath objects according to provided path" in isolatedDbTest {
+  it should "create UserScriptPath objects according to provided path" in {
     val gcsPath = "gs://userscript_bucket/userscript.sh"
     val httpPath = "https://userscript_path"
     val invalidPath = "invalid_userscript_path"
@@ -243,7 +251,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ContainerRegistry.GCR.regex.pattern.asPredicate().test("eu.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
     ContainerRegistry.GCR.regex.pattern
       .asPredicate()
-      .test("asia.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
+      .test("asia.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
     ContainerRegistry.GCR.regex.pattern
       .asPredicate()
       .test("unknown.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (false)

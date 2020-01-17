@@ -195,7 +195,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         billingProject,
         request = defaultClusterRequest.copy(
           machineConfig = Some(
-            MachineConfig(masterMachineType = Some("n1-standard-2"))
+            MachineConfig(numberOfWorkers = 0, masterMachineType = "n1-standard-2", masterDiskSize = 500)
           ),
           toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)
         )

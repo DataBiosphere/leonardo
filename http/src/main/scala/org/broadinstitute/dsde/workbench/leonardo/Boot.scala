@@ -1,42 +1,30 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import com.typesafe.sslconfig.akka.AkkaSSLConfig
-import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
+import com.typesafe.sslconfig.ssl.{ConfigSSLContextBuilder, DefaultKeyManagerFactoryWrapper, DefaultTrustManagerFactoryWrapper, SSLConfigFactory}
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleStorageDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO,
-  HttpGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{LeoRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  ClusterDateAccessedActor,
-  ClusterMonitorSupervisor,
-  ClusterToolMonitor,
-  ZombieClusterMonitor
-}
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, ZombieClusterMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -45,6 +33,7 @@ import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
 
 object Boot extends IOApp with LazyLogging {
   val workbenchMetricsBaseName = "google"
@@ -52,7 +41,6 @@ object Boot extends IOApp with LazyLogging {
   private def startup(): IO[Unit] = {
     // We need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
-    implicit val materializer = ActorMaterializer()
     import system.dispatcher
 
     val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
@@ -63,7 +51,7 @@ object Boot extends IOApp with LazyLogging {
     // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
     val pemWithServiceAccountUser =
       Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleGroupsConfig.googleAdminEmail))
-    implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+    implicit def structuredLogging = Slf4jLogger.getLogger[IO]
 
     createDependencies(leoServiceAccountJsonFile, pem, pemWithServiceAccountUser).use { appDependencies =>
       implicit val metrics = appDependencies.metrics
@@ -165,7 +153,7 @@ object Boot extends IOApp with LazyLogging {
               .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
               .onError {
                 case t: Throwable =>
-                  unsafeLogger.error(t)("FATAL - failure starting http server").unsafeToFuture()
+                  structuredLogging.error(t)("FATAL - failure starting http server").unsafeToFuture()
               }
           }
         }
@@ -187,7 +175,7 @@ object Boot extends IOApp with LazyLogging {
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
-      sslContext = getSSLContext
+      sslContext = getSSLContext()
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
@@ -238,14 +226,16 @@ object Boot extends IOApp with LazyLogging {
     )
   }
 
-  private def getSSLContext(implicit actorSystem: ActorSystem) = {
-    val akkaSSLConfig = AkkaSSLConfig()
-    val config = akkaSSLConfig.config
-    val logger = new AkkaLoggerFactory(actorSystem)
-    new ConfigSSLContextBuilder(logger,
-                                config,
-                                akkaSSLConfig.buildKeyManagerFactory(config),
-                                akkaSSLConfig.buildTrustManagerFactory(config)).build()
+  private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
+    val config = as.settings.config.getConfig("akka.ssl-config")
+    val sslConfigSettings = SSLConfigFactory.parse(config)
+    val keyManagerAlgorithm = new DefaultKeyManagerFactoryWrapper(sslConfigSettings.keyManagerConfig.algorithm)
+    val trustManagerAlgorithm = new DefaultTrustManagerFactoryWrapper(sslConfigSettings.trustManagerConfig.algorithm)
+
+    new ConfigSSLContextBuilder(new AkkaLoggerFactory(as),
+                                sslConfigSettings,
+      keyManagerAlgorithm,
+      trustManagerAlgorithm).build()
   }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)

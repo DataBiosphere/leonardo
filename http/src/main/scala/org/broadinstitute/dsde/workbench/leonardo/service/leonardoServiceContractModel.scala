@@ -1,14 +1,14 @@
-package org.broadinstitute.dsde.workbench.leonardo.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import java.net.URL
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, Instance}
-import org.broadinstitute.dsde.workbench.leonardo.{MachineConfig, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _, _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}

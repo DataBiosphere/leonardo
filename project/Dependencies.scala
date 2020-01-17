@@ -3,8 +3,8 @@ import sbt._
 object Dependencies {
   val scalaV = "2.12"
 
-  val akkaV = "2.5.22"
-  val akkaHttpV = "10.1.8"
+  val akkaV = "2.6.1"
+  val akkaHttpV = "10.1.11"
   val jacksonV = "2.9.9"
   val jacksonDatabindV = "2.9.9.2" // jackson-databind has a security patch on the 2.9.9 branch
   val googleV = "1.23.0"
@@ -57,12 +57,11 @@ object Dependencies {
   val ravenLogback: ModuleID =    "com.getsentry.raven"         % "raven-logback"   % "8.0.3" excludeAll (excludeJacksonCore, excludeSlf4j, excludeLogbackCore, excludeLogbackClassic)
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "2.2.5"
-  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.4.3"
+  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.4.7"
   val httpClient: ModuleID =      "org.apache.httpcomponents"   % "httpclient"      % "4.5.5" // upgrading a transitive dependency to avoid security warnings
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.5.13"
 
   val akkaActor: ModuleID =         "com.typesafe.akka" %% "akka-actor"           % akkaV excludeAll (excludeTypesafeSslConfig)
-  val akkaContrib: ModuleID =       "com.typesafe.akka" %% "akka-contrib"         % akkaV excludeAll (excludeTypesafeConfig)
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV excludeAll (excludeAkkaActor)
   val akkaHttpSprayJson: ModuleID = "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV
@@ -91,8 +90,8 @@ object Dependencies {
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
-  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.11"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.5.3"
+  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.18"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.8.5"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.5"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % "test" // brought in for FakeStorageInterpreter
 
@@ -109,7 +108,9 @@ object Dependencies {
     workbenchGoogle2,
     workbenchGoogle2Test,
     workbenchNewRelic,
-    workbenchNewRelicTest
+    workbenchNewRelicTest,
+    sealerate,
+    enumeratum
   )
 
   val rootDependencies = Seq(
@@ -130,7 +131,6 @@ object Dependencies {
     httpClient,
     enumeratum,
     akkaActor,
-    akkaContrib,
     akkaSlf4j,
     akkaHttp,
     akkaHttpSprayJson,
@@ -141,20 +141,20 @@ object Dependencies {
     googleOAuth2,
     googleSourceRepositories,
     mockito,
-    slick,
     hikariCP,
-    mysql,
-    liquibase,
     workbenchUtil,
     workbenchGoogle,
     workbenchGoogleTest,
     workbenchMetrics,
-    sealerate,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
     googleCloudNio,
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
-    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV
+    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
+    slick,
+    mysql,
+    liquibase,
+    "de.heikoseeberger" %% "akka-http-circe" % "1.30.0"
   )
 
   val serviceTestV = "0.16-e6493d5"

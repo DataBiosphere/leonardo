@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
-package dao.google
+package dao
+package google
 
 import java.time.Instant
 import java.util.UUID
@@ -23,7 +24,7 @@ import com.google.api.services.dataproc.model.{
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
-import org.broadinstitute.dsde.workbench.leonardo.api.AuthenticationError
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -277,8 +278,8 @@ class HttpGoogleDataprocDAO(
 
     // Create a config for the master node, if properties are not specified in request, use defaults
     val masterConfig = new InstanceGroupConfig()
-      .setMachineTypeUri(config.machineConfig.masterMachineType.get)
-      .setDiskConfig(new DiskConfig().setBootDiskSizeGb(config.machineConfig.masterDiskSize.get))
+      .setMachineTypeUri(config.machineConfig.masterMachineType)
+      .setDiskConfig(new DiskConfig().setBootDiskSizeGb(config.machineConfig.masterDiskSize))
 
     // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
     // This overrides the imageVersion set in SoftwareConfig.
@@ -304,7 +305,7 @@ class HttpGoogleDataprocDAO(
     val swConfig: SoftwareConfig = getSoftwareConfig(createClusterConfig)
 
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
-    if (createClusterConfig.machineConfig.numberOfWorkers.get == 0) {
+    if (createClusterConfig.machineConfig.numberOfWorkers == 0) {
       new DataprocClusterConfig().setSoftwareConfig(swConfig)
     } else // Standard, multi node cluster
       getMultiNodeClusterConfig(createClusterConfig).setSoftwareConfig(swConfig)
@@ -326,7 +327,7 @@ class HttpGoogleDataprocDAO(
         )
     }
 
-    val dataprocProps: Map[String, String] = if (createClusterConfig.machineConfig.numberOfWorkers.get == 0) {
+    val dataprocProps: Map[String, String] = if (createClusterConfig.machineConfig.numberOfWorkers == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     } else
@@ -375,7 +376,7 @@ class HttpGoogleDataprocDAO(
       .setNumLocalSsds(createClusterConfig.machineConfig.numberOfWorkerLocalSSDs.get)
 
     val workerConfig = new InstanceGroupConfig()
-      .setNumInstances(createClusterConfig.machineConfig.numberOfWorkers.get)
+      .setNumInstances(createClusterConfig.machineConfig.numberOfWorkers)
       .setMachineTypeUri(createClusterConfig.machineConfig.workerMachineType.get)
       .setDiskConfig(workerDiskConfig)
 

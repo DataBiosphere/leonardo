@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import LeoProfile.api._
 
 import scala.concurrent.ExecutionContext

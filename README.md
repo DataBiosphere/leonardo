@@ -80,6 +80,8 @@ Once you're done, tear down MySQL.
 ./docker/run-mysql.sh stop leonardo
 ```
 
+Do `docker restart leonardo-mysql` if you see `java.sql.SQLNonTransientConnectionException: Too many connections` error
+
 ## Run scalafmt
 Learn more about [scalafmt](https://scalameta.org/scalafmt/docs/installation.html)
 - Format main code `sbt scalafmt`

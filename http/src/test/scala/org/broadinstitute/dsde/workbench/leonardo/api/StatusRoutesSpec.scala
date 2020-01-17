@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
@@ -11,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.service.StatusService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, ValueObject, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
