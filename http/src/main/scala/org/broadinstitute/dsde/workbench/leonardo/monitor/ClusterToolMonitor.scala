@@ -10,10 +10,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterContainerServiceType, RunningCluster}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterToolMonitor._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 import scala.concurrent.ExecutionContext
@@ -95,7 +93,3 @@ class ClusterToolMonitor(
         }
     }
 }
-
-final case class RunningCluster(googleProject: GoogleProject,
-                                clusterName: ClusterName,
-                                containers: List[ClusterContainerServiceType])
