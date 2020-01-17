@@ -10,9 +10,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterContainerServiceType, ClusterImageType}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterToolMonitor._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -36,7 +35,7 @@ object ClusterToolMonitor {
   case object DetectClusterStatus extends ClusterToolMonitorMessage
   case object TimerKey extends ClusterToolMonitorMessage
 
-  final case class ToolStatus(isUp: Boolean, tool: ClusterImageType, cluster: RunningCluster)
+  final case class ToolStatus(isUp: Boolean, tool: ClusterContainerServiceType, cluster: RunningCluster)
 }
 
 /**
@@ -88,21 +87,15 @@ class ClusterToolMonitor(
     )
 
   def checkClusterStatus(cluster: RunningCluster): IO[List[ToolStatus]] =
-    ClusterImageType.values.toList.traverseFilter { tool =>
-      ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(tool).traverse {
-        _.isProxyAvailable(cluster.googleProject, cluster.clusterName)
-          .map(status => {
-            //the if else is necessary because otherwise we will be reporting the metric 'welder down' on all clusters without welder, which is not the desired behavior
-            //TODO: change to  `ToolStatus(status, tool, cluster)` when data syncing is fully rolled out
-            if (!cluster.welderEnabled && tool == Welder) {
-              ToolStatus(true, tool, cluster)
-            } else {
-              ToolStatus(status, tool, cluster)
-            }
-          })
-      }
+    cluster.containers.traverse { tool =>
+      tool
+        .isProxyAvailable(cluster.googleProject, cluster.clusterName)
+        .map { status =>
+          ToolStatus(status, tool, cluster)
+        }
     }
-
 }
 
-final case class RunningCluster(googleProject: GoogleProject, clusterName: ClusterName, welderEnabled: Boolean)
+final case class RunningCluster(googleProject: GoogleProject,
+                                clusterName: ClusterName,
+                                containers: List[ClusterContainerServiceType])

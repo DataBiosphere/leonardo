@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   MockJupyterDAO,
   MockRStudioDAO,
   MockWelderDAO,
+  RStudioDAO,
   ToolDAO,
   WelderDAO
 }
@@ -22,11 +23,12 @@ import org.scalatest.mockito.MockitoSugar
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.mockito.ArgumentMatchers
 import org.scalatest.concurrent.Eventually.eventually
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.Try
 import CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType
 
 class ClusterToolMonitorSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -42,23 +44,34 @@ class ClusterToolMonitorSpec
     super.afterAll()
   }
 
-  val welderEnabledCluster = makeCluster(1).copy(status = ClusterStatus.Running, welderEnabled = true)
-  val welderDisabledCluster = makeCluster(2).copy(status = ClusterStatus.Running, welderEnabled = false)
-  val notRunningCluster = makeCluster(3).copy(status = ClusterStatus.Deleted, welderEnabled = true)
+  val welderEnabledCluster = makeCluster(1).copy(status = ClusterStatus.Running,
+                                                 welderEnabled = true,
+                                                 clusterImages = Set(jupyterImage, welderImage))
+  val welderDisabledCluster =
+    makeCluster(2).copy(status = ClusterStatus.Running, welderEnabled = false, clusterImages = Set(jupyterImage))
+  val notRunningCluster = makeCluster(3).copy(status = ClusterStatus.Deleted,
+                                              welderEnabled = true,
+                                              clusterImages = Set(jupyterImage, welderImage))
+  val rstudioCluster = makeCluster(4).copy(status = ClusterStatus.Running,
+                                           welderEnabled = true,
+                                           clusterImages = Set(rstudioImage, welderImage))
 
-  it should "report both services are up normally" in isolatedDbTest {
+  it should "report all services are up normally" in isolatedDbTest {
     welderEnabledCluster.save()
+    welderDisabledCluster.save()
+    notRunningCluster.save()
+    rstudioCluster.save()
 
     withServiceActor() { (_, mockNewRelic) =>
       Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"),
-                                                           ArgumentMatchers.anyInt())(ArgumentMatchers.any())
-      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"),
-                                                           ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+      ClusterContainerServiceType.values.foreach { service =>
+        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith(service.toString + "Down"),
+                                                       ArgumentMatchers.anyInt())
+      }
     }
   }
 
-  it should "report both services are down" in isolatedDbTest {
+  it should "report all services are down for a Jupyter image" in isolatedDbTest {
     welderEnabledCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
@@ -66,10 +79,30 @@ class ClusterToolMonitorSpec
         eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
           //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
           //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterDown"),
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
                                                           ArgumentMatchers.anyInt())
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("WelderDown"),
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
                                                           ArgumentMatchers.anyInt())
+          verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("RStudioServiceDown"),
+                                                         ArgumentMatchers.anyInt())
+        }
+    }
+  }
+
+  it should "report all services are down for a RStudio image" in isolatedDbTest {
+    rstudioCluster.save()
+
+    withServiceActor(welderDAO = new MockWelderDAO(false), rstudioDAO = new MockRStudioDAO(false)) {
+      (_, mockNewRelic) =>
+        eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
+          //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
+          //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("RStudioServiceDown"),
+                                                          ArgumentMatchers.anyInt())
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
+                                                          ArgumentMatchers.anyInt())
+          verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
+                                                         ArgumentMatchers.anyInt())
         }
     }
   }
@@ -80,12 +113,12 @@ class ClusterToolMonitorSpec
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
       (_, mockNewRelic) =>
         eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterDown"),
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
                                                           ArgumentMatchers.anyInt())
         }
 
         Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("WelderDown"),
+        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
                                                        ArgumentMatchers.anyInt())
     }
   }
@@ -96,19 +129,20 @@ class ClusterToolMonitorSpec
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
       (_, mockNewRelic) =>
         Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-        verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"),
-                                                             ArgumentMatchers.anyInt())(ArgumentMatchers.any())
-        verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"),
-                                                             ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
+                                                       ArgumentMatchers.anyInt())
+        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
+                                                       ArgumentMatchers.anyInt())
     }
   }
 
   private def withServiceActor[T](
     newRelic: NewRelicMetrics[IO] = mock[NewRelicMetrics[IO]],
     welderDAO: WelderDAO[IO] = new MockWelderDAO(),
-    jupyterDAO: JupyterDAO[IO] = new MockJupyterDAO()
+    jupyterDAO: JupyterDAO[IO] = new MockJupyterDAO(),
+    rstudioDAO: RStudioDAO[IO] = new MockRStudioDAO()
   )(testCode: (ActorRef, NewRelicMetrics[IO]) => T): T = {
-    implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, MockRStudioDAO)
+    implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, rstudioDAO)
 
     val actor = system.actorOf(
       ClusterToolMonitor.props(clusterToolConfig,
