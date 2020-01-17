@@ -712,7 +712,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   }
 
   private def unmarshalRunningCluster(clusterImages: Seq[(ClusterRecord, ClusterImageRecord)]): Seq[RunningCluster] = {
-    val clusterImageMap: Map[RunningCluster, Chain[ClusterContainerServiceType]] = clusterImages.toList.foldMap {
+    val clusterContainerMap: Map[RunningCluster, Chain[ClusterContainerServiceType]] = clusterImages.toList.foldMap {
       case (clusterRec, clusterImageRec) =>
         val containers = Chain.fromSeq(
           ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(clusterImageRec.imageType).toSeq
@@ -720,7 +720,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         Map(RunningCluster(clusterRec.googleProject, clusterRec.clusterName, List.empty) -> containers)
     }
 
-    clusterImageMap.toSeq.map {
+    clusterContainerMap.toSeq.map {
       case (runningCluster, containers) => runningCluster.copy(containers = containers.toList)
     }
   }

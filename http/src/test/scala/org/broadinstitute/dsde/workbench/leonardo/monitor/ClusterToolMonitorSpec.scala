@@ -71,7 +71,7 @@ class ClusterToolMonitorSpec
     }
   }
 
-  it should "report all services are down for a Jupyter image" in isolatedDbTest {
+  it should "report services are down for a Jupyter image" in isolatedDbTest {
     welderEnabledCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
@@ -89,7 +89,7 @@ class ClusterToolMonitorSpec
     }
   }
 
-  it should "report all services are down for a RStudio image" in isolatedDbTest {
+  it should "report services are down for a RStudio image" in isolatedDbTest {
     rstudioCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), rstudioDAO = new MockRStudioDAO(false)) {
