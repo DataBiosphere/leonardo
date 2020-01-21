@@ -50,7 +50,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
     }
   }
 
-  val process: Stream[IO, Unit] = subscriber.messages through messageHandler
+  val process: Stream[IO, Unit] = (subscriber.messages through messageHandler).repeat
 
 
   def handleStopUpdateMessage(message: StopUpdateMessage) = {
