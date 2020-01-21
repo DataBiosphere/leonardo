@@ -235,7 +235,7 @@ object Boot extends IOApp with LazyLogging {
       googlePublisher <- GooglePublisher.resource[F, LeoPubsubMessage](publisherConfig)
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
-      publisherStream = (publisherQueue.dequeue through googlePublisher.publish).repeat
+      publisherStream = Stream.eval(publisherQueue.dequeue1) through googlePublisher.publish
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
