@@ -154,7 +154,7 @@ object Boot extends IOApp with LazyLogging {
       val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
       with StandardUserInfoDirectives
 
-      val subscriberStream =
+      val messageProcessorStream =
         if (leoExecutionModeConfig.backLeo) {
           logger.info("starting subscriber in boot")
           val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] = new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
@@ -177,7 +177,7 @@ object Boot extends IOApp with LazyLogging {
         }
       } yield ()
 
-      val app = Stream(Stream.eval(httpServer), appDependencies.publisherStream, subscriberStream).parJoin(5)
+      val app = Stream(appDependencies.publisherStream, Stream.eval(appDependencies.subscriber.start), messageProcessorStream, Stream.eval(httpServer)).parJoin(5)
 
       app
         .handleErrorWith { error =>
