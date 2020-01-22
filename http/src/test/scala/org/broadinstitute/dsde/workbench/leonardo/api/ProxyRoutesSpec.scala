@@ -227,7 +227,7 @@ class ProxyRoutesSpec
       Get(s"/$prefix/$googleProject/$clusterName/setCookie")
         .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
         .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
-        validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
+        validateRawCookie(setCookie = header("Set-Cookie"), age = 3600)
         status shouldEqual StatusCodes.NoContent
         validateCors(origin = Some("http://example.com"))
       }
