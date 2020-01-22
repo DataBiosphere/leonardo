@@ -159,6 +159,8 @@ object Boot extends IOApp with LazyLogging {
           logger.info("starting subscriber in boot")
           val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] = new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
           pubsubSubscriber.process
+            .handleErrorWith(error =>
+              Stream.eval(Logger[IO].error(error)("Failed to process message in pubsubMessageSubscriber")))
         } else Stream.eval(IO.unit)
 
       val httpServer = for {
@@ -186,7 +188,7 @@ object Boot extends IOApp with LazyLogging {
 
       app
         .handleErrorWith { error =>
-          Stream.eval(Logger[IO].error(error)("Failed to start server"))
+          Stream.eval(Logger[IO].error(error)("Failed to start leonardo"))
         }
         .compile
         .drain
@@ -199,8 +201,6 @@ object Boot extends IOApp with LazyLogging {
     pemWithServiceAccountUser: Pem
   )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
     implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
-    val print: fs2.Pipe[F, LeoPubsubMessage, Unit] = in => in.evalMap(x => Logger[F].info(s"trying to publish ${x.toString}"))
-
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
