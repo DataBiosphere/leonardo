@@ -22,6 +22,11 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import java.time.Instant
+
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
+import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -34,6 +39,8 @@ class ClusterHelperSpec
     with Matchers
     with BeforeAndAfterAll
     with ScalaFutures {
+
+  implicit val nr = FakeNewRelicMetricsInterpreter
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO
@@ -62,7 +69,7 @@ class ClusterHelperSpec
                                         mockGoogleComputeDAO,
                                         mockGoogleDirectoryDAO,
                                         mockGoogleIamDAO,
-                                        mockGoogleProjectDAO,
+                                        mockGoogleProjectDAO, MockWelderDAO,
                                         blocker)
 
   override def beforeAll(): Unit =
@@ -146,7 +153,7 @@ class ClusterHelperSpec
                                                  mockGoogleComputeDAO,
                                                  mockGoogleDirectoryDAO,
                                                  mockGoogleIamDAO,
-                                                 mockGoogleProjectDAO,
+                                                 mockGoogleProjectDAO, MockWelderDAO,
                                                  blocker)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
@@ -177,7 +184,7 @@ class ClusterHelperSpec
                                                  mockGoogleComputeDAO,
                                                  mockGoogleDirectoryDAO,
                                                  mockGoogleIamDAO,
-                                                 mockGoogleProjectDAO,
+                                                 mockGoogleProjectDAO, MockWelderDAO,
                                                  blocker)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
@@ -209,7 +216,7 @@ class ClusterHelperSpec
                                                     mockGoogleComputeDAO,
                                                     mockGoogleDirectoryDAO,
                                                     mockGoogleIamDAO,
-                                                    mockGoogleProjectDAO,
+                                                    mockGoogleProjectDAO, MockWelderDAO,
                                                     blocker)
 
     val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
@@ -235,7 +242,7 @@ class ClusterHelperSpec
                                                       mockGoogleComputeDAO,
                                                       mockGoogleDirectoryDAO,
                                                       mockGoogleIamDAO,
-                                                      mockGoogleProjectDAO,
+                                                      mockGoogleProjectDAO, MockWelderDAO,
                                                       blocker)
     clusterHelperWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(VPCNetwork("test-network"))
   }
@@ -257,7 +264,7 @@ class ClusterHelperSpec
                                                  mockGoogleComputeDAO,
                                                  mockGoogleDirectoryDAO,
                                                  erroredIamDAO,
-                                                 mockGoogleProjectDAO,
+                                                 mockGoogleProjectDAO, MockWelderDAO,
                                                  blocker)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue

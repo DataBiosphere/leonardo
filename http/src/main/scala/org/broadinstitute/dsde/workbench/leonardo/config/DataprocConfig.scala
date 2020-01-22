@@ -7,6 +7,7 @@ final case class DataprocConfig(
   applicationName: String,
   dataprocDefaultRegion: String,
   dataprocZone: Option[String],
+  //TODO: refactor a common config with "realm" in swagger config and the field in pubsub config
   leoGoogleProject: GoogleProject,
   clusterUrlBase: String,
   jupyterServerName: String,

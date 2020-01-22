@@ -23,6 +23,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     stopAfterCreation = true,
+    allowStop = false,
     clusterImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
     welderEnabled = true
   )
@@ -125,6 +126,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
         |  "stopAfterCreation": true,
+        |  "allowStop": false,
         |  "clusterImages": [
         |    { "imageType": "Jupyter",
         |      "imageUrl": "jupyter/jupyter-base:latest",

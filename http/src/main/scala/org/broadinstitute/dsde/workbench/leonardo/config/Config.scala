@@ -3,10 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 import java.io.File
 import java.nio.file.Paths
 
+import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.{Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
+import org.broadinstitute.dsde.workbench.google2.{GoogleTopicAdminInterpreter, PublisherConfig, SubscriberConfig}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
@@ -232,6 +234,14 @@ object Config {
   implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
 
+  implicit val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
+    PubsubConfig(
+      GoogleProject(config.getString("pubsubGoogleProject")),
+      config.getString("topicName"),
+      config.getInt("queueSize")
+    )
+  }
+
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val imageConfig = config.as[ImageConfig]("image")
@@ -257,4 +267,13 @@ object Config {
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
   val welderConfig = config.as[WelderConfig]("welder")
   val dbConcurrency = config.as[Long]("mysql.concurrency")
+
+  val pubsubConfig = config.as[PubsubConfig]("pubsub")
+
+  val topicName = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
+  val subscriberConfig: SubscriberConfig = SubscriberConfig(leoServiceAccountJsonFile, topicName, 1 minute, None)
+
+  private val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
+  private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
+  val publisherConfig: PublisherConfig = PublisherConfig(leoServiceAccountJsonFile, topic, retryConfig)
 }

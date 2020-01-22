@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="jdcanas" id="cluster-followup-table">
+        <createTable tableName="CLUSTER_FOLLOWUP">
+            <column name="clusterId" type="BIGINT">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="status" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="masterMachineType" type="varchar(256)"></column>
+        </createTable>
+        <createIndex indexName="FK_CLUSTER_FOLLOWUP_CLUSTER_ID" tableName="CLUSTER_FOLLOWUP">
+            <column name="clusterId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="CLUSTER_FOLLOWUP" constraintName="FK_CLUSTER_FOLLOWUP_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -99,13 +99,11 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
 
       withNewCluster(
         billingProject,
-        request = defaultClusterRequest.copy(
-          scopes = Set(
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/source.read_only"
-          )
-        )
+        request = defaultClusterRequest.copy(scopes = Set(
+                    "https://www.googleapis.com/auth/userinfo.email",
+                    "https://www.googleapis.com/auth/userinfo.profile",
+                    "https://www.googleapis.com/auth/source.read_only"
+                  ))
       ) { cluster =>
         withWebDriver { implicit driver =>
           withNewNotebook(cluster) { notebookPage =>
