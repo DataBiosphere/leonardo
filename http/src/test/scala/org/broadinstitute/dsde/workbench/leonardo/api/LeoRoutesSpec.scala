@@ -3,15 +3,18 @@ package api
 
 import java.time.Instant
 
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, OAuth2BearerToken}
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.RoutesTestJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.FlatSpec
@@ -19,9 +22,6 @@ import slick.dbio.DBIO
 import spray.json._
 
 import scala.concurrent.duration._
-import RoutesTestJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
-import CommonTestData._
 
 class LeoRoutesSpec
     extends FlatSpec
@@ -63,7 +63,8 @@ class LeoRoutesSpec
     Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
 
     // GET endpoint has a single version
@@ -80,7 +81,8 @@ class LeoRoutesSpec
         .unsafeRunSync()
       responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
@@ -108,7 +110,8 @@ class LeoRoutesSpec
     Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
@@ -159,7 +162,8 @@ class LeoRoutesSpec
       status shouldEqual StatusCodes.OK
       responseAs[List[Cluster]] shouldBe 'empty
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
@@ -193,7 +197,8 @@ class LeoRoutesSpec
                                        "tool" -> "Jupyter") ++ serviceAccountLabels
       }
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
@@ -224,7 +229,8 @@ class LeoRoutesSpec
                                      "tool" -> "Jupyter",
                                      "label6" -> "value6") ++ serviceAccountLabels
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
 
     Get("/api/clusters?_labels=label4%3Dvalue4") ~> timedLeoRoutes.route ~> check {
@@ -244,7 +250,8 @@ class LeoRoutesSpec
                                      "tool" -> "Jupyter",
                                      "label4" -> "value4") ++ serviceAccountLabels
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
 
     Get("/api/clusters?_labels=bad") ~> leoRoutes.route ~> check {
@@ -283,7 +290,8 @@ class LeoRoutesSpec
                                        "tool" -> "Jupyter") ++ serviceAccountLabels
       }
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
@@ -293,7 +301,8 @@ class LeoRoutesSpec
     Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
 
     // stopping a creating cluster should return 409
@@ -313,14 +322,16 @@ class LeoRoutesSpec
     Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
 
     // starting a stopping cluster should also return 202
     Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
-      validateCookie { header[`Set-Cookie`] }
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
@@ -342,9 +353,8 @@ class LeoRoutesSpec
       )
       Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", request.toJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
-        validateCookie {
-          header[`Set-Cookie`]
-        }
+        //validateCookie { header[`Set-Cookie`] }
+        validateRawCookie(header("Set-Cookie"))
       }
     }
   }

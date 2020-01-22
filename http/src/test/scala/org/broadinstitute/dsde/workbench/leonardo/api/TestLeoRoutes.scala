@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import java.io.ByteArrayInputStream
 
+import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -11,20 +12,22 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleProjectDAO,
   MockGoogleStorageDAO
 }
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
 import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
-import CommonTestData._
+
 import scala.concurrent.duration._
+import scala.util.matching.Regex
 
 trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite =>
   implicit val db = DbSingleton.dbRef
@@ -111,11 +114,12 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
     override val userInfo: UserInfo = timedUserInfo
   }
 
+  def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
+  val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r
+
   private[api] def validateCookie(setCookie: Option[`Set-Cookie`],
                                   expectedCookie: HttpCookiePair = tokenCookie,
                                   age: Long = tokenAge): Unit = {
-    def roundUpToNearestTen(d: Long) = Math.ceil(d / 10.0) * 10
-
     setCookie shouldBe 'defined
     val cookie = setCookie.get.cookie
     cookie.name shouldBe expectedCookie.name
@@ -124,5 +128,20 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
     cookie.maxAge.map(roundUpToNearestTen) shouldBe Some(age) // test execution loses some milliseconds
     cookie.domain shouldBe None
     cookie.path shouldBe Some("/")
+  }
+
+  // TODO: remove when we upgrade to akka-http 10.2.0.
+  // See comment in CookieHelper.setTokenCookie.
+  private[api] def validateRawCookie(setCookie: Option[HttpHeader],
+                                     expectedCookie: HttpCookiePair = tokenCookie,
+                                     age: Long = tokenAge): Unit = {
+    setCookie shouldBe 'defined
+    setCookie.get.name shouldBe "Set-Cookie"
+
+    // test execution loses some milliseconds, so round Max-Age before validation
+    val replaced =
+      cookieMaxAgeRegex.replaceAllIn(setCookie.get.value, m => s"Max-Age=${roundUpToNearestTen(m.group(1).toLong)};")
+
+    replaced shouldBe s"${expectedCookie.name}=${expectedCookie.value}; Max-Age=${age.toString}; Path=/; Secure; SameSite=None"
   }
 }
