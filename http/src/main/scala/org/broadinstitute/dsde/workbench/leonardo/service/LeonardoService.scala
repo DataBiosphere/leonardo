@@ -327,12 +327,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         shouldFollowup = masterMachineTypeChanged.map(result => result.shouldFollowup).getOrElse(false)
         _ <- if (shouldFollowup) {
           val action = masterMachineTypeChanged.map(result => result.followupAction).getOrElse(Noop(None))
-          logger.info(s"detected follow-up action necessary: ${action}")
-          logger.info("in start of internalUpdateCluster")
-          handleClusterTransition(existingCluster, action)
+          IO(logger.info(s"detected follow-up action necessary: ${action}")) >> handleClusterTransition(existingCluster, action)
         } else {
-          logger.info("detected no follow-up action necessary")
-          IO.unit
+          IO(logger.info("detected no follow-up action necessary"))
         }
 
         cluster <- errors match {
@@ -353,6 +350,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
            _ <- metrics.incrementCounter(s"queuePublish/LeonardoService/StopStartTransition ")
            //sends a message with the config to google pub/sub queue for processing by back leo
            _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
+         _ <- IO(logger.info("enqueued a patch request"))
         } yield ()
 
       //TODO: we currently do not support this
