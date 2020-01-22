@@ -60,7 +60,7 @@ object ClusterMonitorActor {
     dbRef: DbReference,
     authProvider: LeoAuthProvider[IO],
     clusterHelper: ClusterHelper,
-    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
+    publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
     cs: ContextShift[IO]): Props =
@@ -121,7 +121,7 @@ class ClusterMonitorActor(
   val dbRef: DbReference,
   val authProvider: LeoAuthProvider[IO],
   val clusterHelper: ClusterHelper,
-  val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage],
+  val publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
 )(implicit metrics: NewRelicMetrics[IO],
   clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
@@ -378,18 +378,20 @@ class ClusterMonitorActor(
   private def handleStoppedCluster(cluster: Cluster, googleInstances: Set[Instance]): Future[ClusterMonitorMessage] = {
     logger.info(s"Cluster ${cluster.projectNameString} has been stopped.")
 
-    for {
+    val res = for {
       // create or update instances in the DB
-      _ <- persistInstances(cluster, googleInstances)
-      now <- IO(Instant.now).unsafeToFuture()
+      _ <- IO.fromFuture(IO(persistInstances(cluster, googleInstances)))
+      now <- IO(Instant.now)
       // this sets the cluster status to stopped and clears the cluster IP
-      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, now) }
+      _ <- dbRef.inTransactionIO { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped, now) }
       // reset the time at which the kernel was last found to be busy
-      _ <- dbRef.inTransaction { _.clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
-      _ <- publisherQueue.enqueue1(ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped))).unsafeToFuture()
+      _ <- dbRef.inTransactionIO { _.clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
+      _ <- publisherQueue.enqueue1(ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)))
       // Record metrics in NewRelic
-      _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Stopped).unsafeToFuture()
+      _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Stopped)
     } yield ShutdownActor(RemoveFromList(cluster))
+
+    res.unsafeToFuture()
   }
 
   private def createClusterInGoogle(
