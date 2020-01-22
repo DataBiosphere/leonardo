@@ -27,6 +27,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.duration._
+import scala.util.matching.Regex
 
 trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite =>
   implicit val db = DbSingleton.dbRef
@@ -113,11 +114,12 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
     override val userInfo: UserInfo = timedUserInfo
   }
 
+  def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
+  val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r
+
   private[api] def validateCookie(setCookie: Option[`Set-Cookie`],
                                   expectedCookie: HttpCookiePair = tokenCookie,
                                   age: Long = tokenAge): Unit = {
-    def roundUpToNearestTen(d: Long) = Math.ceil(d / 10.0) * 10
-
     setCookie shouldBe 'defined
     val cookie = setCookie.get.cookie
     cookie.name shouldBe expectedCookie.name
@@ -135,6 +137,11 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                                      age: Long = tokenAge): Unit = {
     setCookie shouldBe 'defined
     setCookie.get.name shouldBe "Set-Cookie"
-    setCookie.get.value shouldBe s"${expectedCookie.name}=${expectedCookie.value}; Max-Age=${age.toString}; Path=/; Secure; SameSite=None"
+
+    // test execution loses some milliseconds, so round Max-Age before validation
+    val replaced =
+      cookieMaxAgeRegex.replaceAllIn(setCookie.get.value, m => s"Max-Age=${roundUpToNearestTen(m.group(1).toLong)};")
+
+    replaced shouldBe s"${expectedCookie.name}=${expectedCookie.value}; Max-Age=${age.toString}; Path=/; Secure; SameSite=None"
   }
 }
