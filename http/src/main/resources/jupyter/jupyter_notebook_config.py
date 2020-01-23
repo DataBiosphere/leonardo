@@ -18,7 +18,7 @@ c.NotebookApp.allow_origin = '*'
 c.NotebookApp.terminado_settings={'shell_command': ['bash']}
 
 if 'GOOGLE_PROJECT' in os.environ and 'CLUSTER_NAME' in os.environ:
-    fragment = '/' + os.envirion['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME'] + '/'
+    fragment = '/' + os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME'] + '/'
 else:
     fragment = '/'
 
