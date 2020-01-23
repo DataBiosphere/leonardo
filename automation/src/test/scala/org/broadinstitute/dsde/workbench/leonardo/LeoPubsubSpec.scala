@@ -66,7 +66,6 @@ class LeoPubsubSpec extends ClusterFixtureSpec with BeforeAndAfterAll with Leona
         client.delete(LeonardoConfig.Leonardo.publisherConfig.projectTopicName)
           .compile
           .drain
-        IO.unit
       }
   }
 
