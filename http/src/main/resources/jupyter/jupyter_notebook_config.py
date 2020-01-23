@@ -1,10 +1,6 @@
 # adapted from https://github.com/jupyter/docker-stacks/blob/master/base-notebook/jupyter_notebook_config.py
 
-from jupyter_core.paths import jupyter_data_dir
-import subprocess
 import os
-import errno
-import stat
 
 c = get_config()
 c.NotebookApp.ip = '0.0.0.0'
@@ -18,9 +14,9 @@ c.NotebookApp.allow_origin = '*'
 c.NotebookApp.terminado_settings={'shell_command': ['bash']}
 
 if 'GOOGLE_PROJECT' in os.environ and 'CLUSTER_NAME' in os.environ:
-    fragment = '/' + os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME'] + '/'
+  fragment = '/' + os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME'] + '/'
 else:
-    fragment = '/'
+  fragment = '/'
 
 c.NotebookApp.base_url = '/notebooks' + fragment
 
@@ -30,9 +26,9 @@ c.NotebookApp.base_url = '/notebooks' + fragment
 # to mount there as it effectively deletes existing files on the image.
 # See https://docs.google.com/document/d/1b8wIydzC4D7Sbb6h2zWe-jCvoNq-bbD02CT1cnKLbGk
 if os.environ.get('WELDER_ENABLED') == 'true':
-    # Only enable this along with Welder, as this change is backwards incompatible
-    # for older localization users.
-    c.NotebookApp.notebook_dir = os.environ.get('NOTEBOOKS_DIR', '/home/jupyter-user/notebooks')
+  # Only enable this along with Welder, as this change is backwards incompatible
+  # for older localization users.
+  c.NotebookApp.notebook_dir = os.environ.get('NOTEBOOKS_DIR', '/home/jupyter-user/notebooks')
 
 # This is also specified in run-jupyter.sh
 c.NotebookApp.nbserver_extensions = {
@@ -41,11 +37,9 @@ c.NotebookApp.nbserver_extensions = {
 
 mgr_class = 'DelocalizingContentsManager'
 if os.environ.get('WELDER_ENABLED') == 'true':
-    mgr_class = 'WelderContentsManager'
+  mgr_class = 'WelderContentsManager'
 c.NotebookApp.contents_manager_class = 'jupyter_delocalize.' + mgr_class
 
-# Content-Security-Policy is set by the Leo proxy so Jupyter can be rendered in an iframe
-# See https://jupyter-notebook.readthedocs.io/en/latest/public_server.html?highlight=server#embedding-the-notebook-in-another-website
 c.NotebookApp.tornado_settings = {
     'static_url_prefix':'/notebooks' + fragment + 'static/'
 }
