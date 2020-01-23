@@ -13,7 +13,7 @@ object Dependencies {
   val scalaTestV = "3.0.8"
   val slickV = "3.3.2"
   val http4sVersion = "0.21.0-M6" //remove http4s related dependencies once workbench-libs are upgraded
-  val guavaV = "28.0-jre"
+  val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
 
   val workbenchUtilV = "0.5-4c7acd5"
@@ -104,6 +104,7 @@ object Dependencies {
 
   val coreDependencies = List(
     scalaTest,
+    guava,
     workbenchModel,
     workbenchGoogle2,
     workbenchGoogle2Test,
@@ -128,7 +129,6 @@ object Dependencies {
     ficus,
     httpClient,
     enumeratum,
-    guava,
     akkaActor,
     akkaContrib,
     akkaSlf4j,
