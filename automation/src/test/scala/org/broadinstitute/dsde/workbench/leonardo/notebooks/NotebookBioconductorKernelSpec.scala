@@ -250,5 +250,16 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
         }
       }
     }
+
+    "should have Java available" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val javaOutput = notebookPage.executeCell("""system('java --version', intern = TRUE)""")
+          javaOutput shouldBe 'defined
+          javaOutput.get should include("OpenJDK Runtime Environment")
+          javaOutput.get should not include ("not found")
+        }
+      }
+    }
   }
 }

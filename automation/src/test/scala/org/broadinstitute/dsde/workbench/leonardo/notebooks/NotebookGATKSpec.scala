@@ -12,7 +12,7 @@ class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.gatkImageUrl)
   "NotebookGATKSpec" - {
 
-    "should install Python packages, R, GATK, and Samtools" in { clusterFixture =>
+    "should install Python packages, R, GATK, Samtools, and Java" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
           val pythonOutput = notebookPage.executeCell("""! pip3 show tensorflow""")
@@ -33,6 +33,11 @@ class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
           samtoolsOutput shouldBe 'defined
           samtoolsOutput.get should include("Using htslib")
           samtoolsOutput.get should not include ("not found")
+
+          val javaOutput = notebookPage.executeCell("""! java --version""")
+          javaOutput shouldBe 'defined
+          javaOutput.get should include("OpenJDK Runtime Environment")
+          javaOutput.get should not include ("not found")
         }
       }
     }
