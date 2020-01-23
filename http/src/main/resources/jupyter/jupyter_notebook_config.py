@@ -1,4 +1,6 @@
 # adapted from https://github.com/jupyter/docker-stacks/blob/master/base-notebook/jupyter_notebook_config.py
+# Note: this file also lives in the terra-jupyter-base image in the terra-docker repo.
+# If you change this please keep the other version consistent as well.
 
 import os
 
