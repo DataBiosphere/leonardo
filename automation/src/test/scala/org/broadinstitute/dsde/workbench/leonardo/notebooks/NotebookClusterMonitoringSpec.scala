@@ -23,6 +23,7 @@ import scala.util.Try
  * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
  * so lives in the notebooks sub-package.
  */
+@DoNotDiscover
 class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
   "NotebookClusterMonitoringSpec" - {
