@@ -99,7 +99,8 @@ final class LeonardoSuite
       new NotebookHailSpec,
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
-      new RStudioSpec
+      new RStudioSpec,
+      new LeoPubsubSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
