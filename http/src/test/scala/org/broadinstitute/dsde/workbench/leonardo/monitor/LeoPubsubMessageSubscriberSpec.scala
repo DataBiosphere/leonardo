@@ -24,8 +24,8 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import CommonTestData._
-
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

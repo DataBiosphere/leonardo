@@ -60,8 +60,6 @@ object Boot extends IOApp with LazyLogging {
     implicit val materializer = ActorMaterializer()
     import system.dispatcher
 
-    logger.info("beginning startUp function")
-
     val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
     }

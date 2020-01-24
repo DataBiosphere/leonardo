@@ -6,13 +6,14 @@ import fs2.{Pipe, Stream}
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.MachineConfig
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineType}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.Logger
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
 import scala.concurrent.ExecutionContext
@@ -52,19 +53,18 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
     response
   }
 
-  def messageHandler: Pipe[IO, Event[LeoPubsubMessage], Unit] = in => {
+  private def messageHandler: Pipe[IO, Event[LeoPubsubMessage], Unit] = in => {
     in.flatMap { event =>
       for {
-        _ <- Stream
-          .eval(IO.pure(event.consumer.ack())) //we always ack first, as it could cause an endless loop of exceptions to do it after
         _ <- Stream.eval(messageResponder(event.msg))
+        _ <- Stream.eval(IO.pure(event.consumer.ack()))
       } yield ()
     }
   }
 
   val process: Stream[IO, Unit] = (subscriber.messages through messageHandler).repeat
 
-  def handleStopUpdateMessage(message: StopUpdateMessage): IO[Unit] =
+  private def handleStopUpdateMessage(message: StopUpdateMessage): IO[Unit] =
     dbRef
       .inTransaction { clusterQuery.getClusterById(message.clusterId) }
       .flatMap {
@@ -95,7 +95,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
           )
       }
 
-  def handleClusterTransitionFinished(message: ClusterTransitionFinishedMessage): IO[Unit] =
+  private def handleClusterTransitionFinished(message: ClusterTransitionFinishedMessage): IO[Unit] =
     message.clusterFollowupDetails.clusterStatus match {
       case Stopped => {
         for {
@@ -143,15 +143,17 @@ sealed trait LeoPubsubMessage {
   def messageType: String
 }
 
-final case class StopUpdateMessage(updatedMachineConfig: MachineConfig, clusterId: Long) extends LeoPubsubMessage {
-  val messageType = "stopUpdate"
-}
+object LeoPubsubMessage {
+  final case class StopUpdateMessage(updatedMachineConfig: MachineConfig, clusterId: Long) extends LeoPubsubMessage {
+    val messageType = "stopUpdate"
+  }
 
-case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails) extends LeoPubsubMessage {
-  val messageType = "transitionFinished"
-}
+  case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails) extends LeoPubsubMessage {
+    val messageType = "transitionFinished"
+  }
 
-final case class ClusterFollowupDetails(clusterId: Long, clusterStatus: ClusterStatus) extends Product with Serializable
+  final case class ClusterFollowupDetails(clusterId: Long, clusterStatus: ClusterStatus) extends Product with Serializable
+}
 
 final case class PubsubException(message: String) extends Exception
 
@@ -175,15 +177,6 @@ object LeoPubsubCodec {
       }
     } yield value
   }
-
-  implicit val machineConfigEncoder: Encoder[MachineConfig] =
-    Encoder.forProduct7("numberOfWorkers",
-                        "masterMachineType",
-                        "masterDiskSize",
-                        "workerMachineType",
-                        "workerDiskSize",
-                        "numberOfWorkerLocalSSDs",
-                        "numberOfPreemptibleWorkers")(x => MachineConfig.unapply(x).get)
 
   implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
     Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(

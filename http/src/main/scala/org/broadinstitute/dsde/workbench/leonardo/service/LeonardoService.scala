@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, StopUpdateMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -38,6 +38,8 @@ import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
 import LeonardoService._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
+import org.broadinstitute.dsde.workbench.leonardo.service.UpdateTransition._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -120,9 +122,12 @@ case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
 case class UpdateResult(hasUpdateSucceded: Boolean, shouldFollowup: Boolean, followupAction: UpdateTransition)
 
 sealed trait UpdateTransition
-case class StopStartTransition(updateConfig: MachineConfig) extends UpdateTransition
-case class DeleteCreateTransition(updateConfig: MachineConfig) extends UpdateTransition
-case class Noop(updateConfig: Option[MachineConfig]) extends UpdateTransition
+
+object UpdateTransition {
+  case class StopStartTransition(updateConfig: MachineConfig) extends UpdateTransition
+  case class DeleteCreateTransition(updateConfig: MachineConfig) extends UpdateTransition
+  case class Noop(updateConfig: Option[MachineConfig]) extends UpdateTransition
+}
 
 class LeonardoService(
   protected val dataprocConfig: DataprocConfig,

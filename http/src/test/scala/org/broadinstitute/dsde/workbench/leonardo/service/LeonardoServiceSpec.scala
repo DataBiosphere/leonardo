@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, instanceQuery, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery, instanceQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
 import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{FakeGoogleStorageService, StopUpdateMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory, TemplateHelper}
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
@@ -41,6 +41,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
 
 class LeonardoServiceSpec
     extends TestKit(ActorSystem("leonardotest"))
