@@ -19,10 +19,13 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery, instanceQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, instanceQuery, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.ContainerImage.GCR
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{
+  NegativeIntegerArgumentInClusterRequestException,
+  OneWorkerSpecifiedInClusterRequestException
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
@@ -109,7 +112,7 @@ class LeonardoServiceSpec
                                       directoryDAO,
                                       iamDAO,
                                       projectDAO,
-      MockWelderDAO,
+                                      MockWelderDAO,
                                       blocker)
 
     leo = new LeonardoService(dataprocConfig,
@@ -280,7 +283,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO(RStudio),
-      QueueFactory.makePublisherQueue())
+                                         QueueFactory.makePublisherQueue())
 
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -499,7 +502,8 @@ class LeonardoServiceSpec
                                                     computeDAO,
                                                     directoryDAO,
                                                     iamDAO,
-                                                    projectDAO, MockWelderDAO,
+                                                    projectDAO,
+                                                    MockWelderDAO,
                                                     blocker)
 
     val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
@@ -525,7 +529,8 @@ class LeonardoServiceSpec
                                                       computeDAO,
                                                       directoryDAO,
                                                       iamDAO,
-                                                      projectDAO, MockWelderDAO,
+                                                      projectDAO,
+                                                      MockWelderDAO,
                                                       blocker)
     clusterHelperWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(VPCNetwork("test-network"))
   }
@@ -550,7 +555,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      QueueFactory.makePublisherQueue())
+                                         QueueFactory.makePublisherQueue())
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -604,7 +609,7 @@ class LeonardoServiceSpec
                                          bucketHelper,
                                          clusterHelper,
                                          new MockDockerDAO,
-      QueueFactory.makePublisherQueue())
+                                         QueueFactory.makePublisherQueue())
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1140,22 +1145,22 @@ class LeonardoServiceSpec
   it should "allow changing the master machine type for a cluster in RUNNING state with flag set id2" in isolatedDbTest {
     // create the cluster
 
-    val queue =  QueueFactory.makePublisherQueue()
+    val queue = QueueFactory.makePublisherQueue()
     val leo = new LeonardoService(dataprocConfig,
-      imageConfig,
-      MockWelderDAO,
-      clusterDefaultsConfig,
-      proxyConfig,
-      swaggerConfig,
-      autoFreezeConfig,
-      welderConfig,
-      mockPetGoogleDAO,
-      authProvider,
-      serviceAccountProvider,
-      bucketHelper,
-      clusterHelper,
-      new MockDockerDAO,
-      queue)
+                                  imageConfig,
+                                  MockWelderDAO,
+                                  clusterDefaultsConfig,
+                                  proxyConfig,
+                                  swaggerConfig,
+                                  autoFreezeConfig,
+                                  welderConfig,
+                                  mockPetGoogleDAO,
+                                  authProvider,
+                                  serviceAccountProvider,
+                                  bucketHelper,
+                                  clusterHelper,
+                                  new MockDockerDAO,
+                                  queue)
     val clusterCreateResponse =
       leo
         .createCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(defaultMachineConfig)))

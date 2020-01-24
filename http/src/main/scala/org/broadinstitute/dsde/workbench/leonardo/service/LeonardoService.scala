@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -339,7 +339,9 @@ class LeonardoService(
             logger.info(s"detected follow-up action necessary: ${action}")
             handleClusterTransition(existingCluster, action)
           } else {
-            logger.warn("A user tried to resize the cluster and master machine type at the same time, which is not supported. Only the cluster will be resized.")
+            logger.warn(
+              "A user tried to resize the cluster and master machine type at the same time, which is not supported. Only the cluster will be resized."
+            )
             metrics.incrementCounter("pubsub/LeonardoService/unableToFollowupDueToResize")
           }
         } else {

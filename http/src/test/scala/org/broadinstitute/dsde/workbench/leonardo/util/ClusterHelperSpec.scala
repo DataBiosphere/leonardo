@@ -69,7 +69,8 @@ class ClusterHelperSpec
                                         mockGoogleComputeDAO,
                                         mockGoogleDirectoryDAO,
                                         mockGoogleIamDAO,
-                                        mockGoogleProjectDAO, MockWelderDAO,
+                                        mockGoogleProjectDAO,
+                                        MockWelderDAO,
                                         blocker)
 
   override def beforeAll(): Unit =
@@ -153,7 +154,8 @@ class ClusterHelperSpec
                                                  mockGoogleComputeDAO,
                                                  mockGoogleDirectoryDAO,
                                                  mockGoogleIamDAO,
-                                                 mockGoogleProjectDAO, MockWelderDAO,
+                                                 mockGoogleProjectDAO,
+                                                 MockWelderDAO,
                                                  blocker)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
@@ -184,7 +186,8 @@ class ClusterHelperSpec
                                                  mockGoogleComputeDAO,
                                                  mockGoogleDirectoryDAO,
                                                  mockGoogleIamDAO,
-                                                 mockGoogleProjectDAO, MockWelderDAO,
+                                                 mockGoogleProjectDAO,
+                                                 MockWelderDAO,
                                                  blocker)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue
@@ -216,7 +219,8 @@ class ClusterHelperSpec
                                                     mockGoogleComputeDAO,
                                                     mockGoogleDirectoryDAO,
                                                     mockGoogleIamDAO,
-                                                    mockGoogleProjectDAO, MockWelderDAO,
+                                                    mockGoogleProjectDAO,
+                                                    MockWelderDAO,
                                                     blocker)
 
     val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
@@ -242,7 +246,8 @@ class ClusterHelperSpec
                                                       mockGoogleComputeDAO,
                                                       mockGoogleDirectoryDAO,
                                                       mockGoogleIamDAO,
-                                                      mockGoogleProjectDAO, MockWelderDAO,
+                                                      mockGoogleProjectDAO,
+                                                      MockWelderDAO,
                                                       blocker)
     clusterHelperWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(VPCNetwork("test-network"))
   }
@@ -264,7 +269,8 @@ class ClusterHelperSpec
                                                  mockGoogleComputeDAO,
                                                  mockGoogleDirectoryDAO,
                                                  erroredIamDAO,
-                                                 mockGoogleProjectDAO, MockWelderDAO,
+                                                 mockGoogleProjectDAO,
+                                                 MockWelderDAO,
                                                  blocker)
 
     val exception = erroredClusterHelper.createCluster(testCluster).unsafeToFuture().failed.futureValue

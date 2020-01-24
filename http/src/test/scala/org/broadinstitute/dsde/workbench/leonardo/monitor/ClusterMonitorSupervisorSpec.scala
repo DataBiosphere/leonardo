@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, Mo
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
@@ -154,9 +154,8 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
-      MockWelderDAO,
-                                          blocker
-    )
+                                          MockWelderDAO,
+                                          blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
     val clusterSupervisorActor = system.actorOf(
@@ -223,7 +222,7 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
-      MockWelderDAO,
+                                          MockWelderDAO,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -297,7 +296,7 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
-      MockWelderDAO,
+                                          MockWelderDAO,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)

@@ -8,7 +8,7 @@ import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImageType, UserScriptPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
 

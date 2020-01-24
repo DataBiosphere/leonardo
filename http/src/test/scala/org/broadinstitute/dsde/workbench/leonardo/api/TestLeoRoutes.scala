@@ -3,10 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 import java.io.ByteArrayInputStream
 
 import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
@@ -75,7 +80,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                       mockGoogleComputeDAO,
                       mockGoogleDirectoryDAO,
                       mockGoogleIamDAO,
-                      mockGoogleProjectDAO, MockWelderDAO,
+                      mockGoogleProjectDAO,
+                      MockWelderDAO,
                       blocker)
 
   val leonardoService = new LeonardoService(

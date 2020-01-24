@@ -19,9 +19,14 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDA
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.{CustomDataProc, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GoogleProject,
+  ServiceAccountKey,
+  ServiceAccountKeyId,
+  ServiceAccountPrivateKeyData,
+  _
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-
 
 object CommonTestData {
 // values common to multiple tests, to reduce boilerplate

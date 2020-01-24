@@ -22,9 +22,7 @@ class FollowupTable(tag: Tag) extends Table[FollowupRecord](tag, "CLUSTER_FOLLOW
 
 object followupQuery extends TableQuery(new FollowupTable(_)) {
   def save(followupDetails: ClusterFollowupDetails, masterMachineType: Option[String]): DBIO[Int] =
-    followupQuery += FollowupRecord(followupDetails.clusterId,
-                                    followupDetails.clusterStatus,
-                                    masterMachineType)
+    followupQuery += FollowupRecord(followupDetails.clusterId, followupDetails.clusterStatus, masterMachineType)
 
   def delete(followupDetails: ClusterFollowupDetails): DBIO[Int] =
     baseFollowupQuery(followupDetails).delete

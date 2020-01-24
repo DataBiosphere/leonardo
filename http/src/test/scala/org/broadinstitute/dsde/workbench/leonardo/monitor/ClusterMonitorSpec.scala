@@ -20,14 +20,20 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataRespon
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GcsBucketName,
+  GcsEntity,
+  GcsObjectName,
+  GoogleProject,
+  ServiceAccountKeyId
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
@@ -166,7 +172,7 @@ class ClusterMonitorSpec
                               jupyterDAO: JupyterDAO[IO],
                               rstudioDAO: RStudioDAO[IO],
                               welderDAO: WelderDAO[IO],
-                             queue: InspectableQueue[IO, LeoPubsubMessage]): ActorRef = {
+                              queue: InspectableQueue[IO, LeoPubsubMessage]): ActorRef = {
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
     val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                           dataprocConfig,
@@ -182,7 +188,8 @@ class ClusterMonitorSpec
                                           computeDAO,
                                           directoryDAO,
                                           iamDAO,
-                                          projectDAO, MockWelderDAO,
+                                          projectDAO,
+                                          MockWelderDAO,
                                           blocker)
     val supervisorActor = system.actorOf(
       TestClusterSupervisorActor.props(
@@ -222,7 +229,7 @@ class ClusterMonitorSpec
     welderDAO: WelderDAO[IO] = MockWelderDAO,
     runningChild: Boolean = true,
     directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO(),
-                              queue: InspectableQueue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
+    queue: InspectableQueue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
   )(testCode: ActorRef => T): T = {
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     directoryDAO
@@ -241,7 +248,7 @@ class ClusterMonitorSpec
                                              jupyterDAO,
                                              rstudioDAO,
                                              welderDAO,
-      queue)
+                                             queue)
     val testResult = Try(testCode(supervisor))
     testKit watch supervisor
     supervisor ! TearDown
@@ -1421,24 +1428,22 @@ class ClusterMonitorSpec
     queue.getSize.unsafeRunSync() shouldBe 0
 
     withClusterSupervisor(gdDAO,
-      computeDAO,
-      iamDAO,
-      projectDAO,
-      storageDAO,
-      FakeGoogleStorageService,
-      authProvider,
-      MockJupyterDAO,
-      MockRStudioDAO,
-      MockWelderDAO,
-      false,
-        queue = queue
-    ) { actor =>
+                          computeDAO,
+                          iamDAO,
+                          projectDAO,
+                          storageDAO,
+                          FakeGoogleStorageService,
+                          authProvider,
+                          MockJupyterDAO,
+                          MockRStudioDAO,
+                          MockWelderDAO,
+                          false,
+                          queue = queue) { actor =>
       eventually {
         val size = queue.getSize.unsafeRunSync()
         size shouldBe 1
       }
     }
-
 
   }
 }

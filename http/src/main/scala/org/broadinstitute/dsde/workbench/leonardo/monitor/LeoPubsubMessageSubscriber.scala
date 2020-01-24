@@ -6,7 +6,7 @@ import fs2.{Pipe, Stream}
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.MachineConfig
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, followupQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineType}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.Logger
@@ -152,7 +152,9 @@ object LeoPubsubMessage {
     val messageType = "transitionFinished"
   }
 
-  final case class ClusterFollowupDetails(clusterId: Long, clusterStatus: ClusterStatus) extends Product with Serializable
+  final case class ClusterFollowupDetails(clusterId: Long, clusterStatus: ClusterStatus)
+      extends Product
+      with Serializable
 }
 
 final case class PubsubException(message: String) extends Exception

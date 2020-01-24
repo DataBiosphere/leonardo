@@ -161,13 +161,16 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           .setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader)
           .futureValue
 
-        val request = defaultClusterRequest.copy(machineConfig = Option(
-                    MachineConfig(
-                      // need at least 2 regular workers to enable preemptibles
-                      numberOfWorkers = Option(2),
-                      numberOfPreemptibleWorkers = Option(10)
-                    )
-                  ), toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
+        val request = defaultClusterRequest.copy(
+          machineConfig = Option(
+            MachineConfig(
+              // need at least 2 regular workers to enable preemptibles
+              numberOfWorkers = Option(2),
+              numberOfPreemptibleWorkers = Option(10)
+            )
+          ),
+          toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl)
+        )
 
         withNewCluster(billingProject, request = request) { cluster =>
           // Verify a Hail job uses preemptibles
@@ -211,7 +214,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
       withNewCluster(
         billingProject,
-        request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"), toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl), enableWelder = Some(false))
+        request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"),
+                                             toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl),
+                                             enableWelder = Some(false))
       ) { cluster =>
         withWebDriver { implicit driver =>
           // Verify welder is not running
@@ -248,7 +253,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
       withNewCluster(
         billingProject,
-        request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"), welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage), enableWelder = Some(true))
+        request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"),
+                                             welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage),
+                                             enableWelder = Some(true))
       ) { cluster =>
         // Verify welder is running with old version
         val statusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
@@ -297,7 +304,8 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       // Create a cluster
       withNewCluster(billingProject,
                      request = defaultClusterRequest.copy(toolDockerImage =
-                                                                                 Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl), enableWelder = Some(true))) { cluster =>
+                                                            Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl),
+                                                          enableWelder = Some(true))) { cluster =>
         // Make sure RStudio is up
         // See this ticket for adding more comprehensive selenium tests for RStudio:
         // https://broadworkbench.atlassian.net/browse/IA-697
