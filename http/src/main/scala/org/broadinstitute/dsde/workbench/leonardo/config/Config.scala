@@ -64,6 +64,7 @@ object Config {
     ImageConfig(
       config.getString("welderDockerImage"),
       config.getString("jupyterImage"),
+      config.getString("legacyJupyterImage"),
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),
       config.getString("broadDockerhubImageRegex")

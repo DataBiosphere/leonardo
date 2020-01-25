@@ -276,6 +276,7 @@ END
       log 'Installing Jupydocker kernelspecs...'
 
       # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
+      # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
 
       # Install hail addition if the image is old leonardo jupyter image or it's a hail specific image
@@ -287,6 +288,7 @@ END
       fi
 
       # Install jupyter_notebook_config.py
+      # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
         log 'Copy Jupyter notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc

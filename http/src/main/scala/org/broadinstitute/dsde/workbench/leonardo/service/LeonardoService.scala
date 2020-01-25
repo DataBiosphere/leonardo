@@ -115,9 +115,8 @@ case class IllegalLabelKeyException(labelKey: String)
 case class InvalidDataprocMachineConfigException(errorMsg: String)
     extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
-case class ImageAutoDetectionException(traceId: TraceId, image: ContainerImage)
-    extends LeoException(s"${traceId} | Unable to auto-detect tool for ${image.registry} image ${image.imageUrl}",
-                         StatusCodes.Conflict)
+case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
+    extends LeoException(s"${traceId} | Image ${image.imageUrl} not found", StatusCodes.NotFound)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val imageConfig: ImageConfig,
@@ -780,7 +779,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Try to autodetect the image
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
         dockerDAO.detectTool(image, petTokenOpt).flatMap {
-          case None       => IO.raiseError(ImageAutoDetectionException(traceId, image))
+          case None       => IO.raiseError(ImageNotFoundException(traceId, image))
           case Some(tool) => IO.pure(ClusterImage(tool, image.imageUrl, now))
         }
       }
