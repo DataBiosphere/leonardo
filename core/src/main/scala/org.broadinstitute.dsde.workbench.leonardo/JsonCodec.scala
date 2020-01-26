@@ -22,12 +22,12 @@ object JsonCodec {
 
   implicit val machineConfigEncoder: Encoder[MachineConfig] =
     Encoder.forProduct7("numberOfWorkers",
-      "masterMachineType",
-      "masterDiskSize",
-      "workerMachineType",
-      "workerDiskSize",
-      "numberOfWorkerLocalSSDs",
-      "numberOfPreemptibleWorkers")(x => MachineConfig.unapply(x).get)
+                        "masterMachineType",
+                        "masterDiskSize",
+                        "workerMachineType",
+                        "workerDiskSize",
+                        "numberOfWorkerLocalSSDs",
+                        "numberOfPreemptibleWorkers")(x => MachineConfig.unapply(x).get)
 
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val serviceAccountInfoDecoder: Decoder[ServiceAccountInfo] = Decoder.forProduct2(
