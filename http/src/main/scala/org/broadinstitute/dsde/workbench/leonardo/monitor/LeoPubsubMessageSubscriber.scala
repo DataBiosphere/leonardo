@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
+import cats.implicits._
 
 import scala.concurrent.ExecutionContext
 
@@ -41,16 +42,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
     }
 
     //ensure we don't crash if the handler throws an exception
-    response.handleErrorWith(
-      e =>
-        IO(
-          logger
-            .error(s"Unable to process a message in received from pub/sub subscription in messageResponder: ${message}",
-                   e)
-        )
-    )
-
-    response
+    response.onError {
+      case e => IO(logger.error(s"Unable to process a message in received from pub/sub subscription in messageResponder: ${message}, errorMessage: ${e.getMessage}", e))
+    }
   }
 
   private def messageHandler: Pipe[IO, Event[LeoPubsubMessage], Unit] = in => {
