@@ -153,15 +153,15 @@ chmod +x "${docker_compose_binary_download_target_filename:?}"
 
 # Pull docker image versions as of the time this script ran; this caches them in the
 # dataproc custom instance image.
-#if [[ -n ${docker_image_var_names:?} ]]; then
-#    for _docker_image_var_name in ${docker_image_var_names:?}
-#    do
-#        _docker_image="${!_docker_image_var_name:?}"
-#        retry 5 docker pull "${_docker_image:?}"
-#    done
-#else
-#    log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
-#fi
+if [[ -n ${docker_image_var_names:?} ]]; then
+    for _docker_image_var_name in ${docker_image_var_names:?}
+    do
+        _docker_image="${!_docker_image_var_name:?}"
+        retry 5 docker pull "${_docker_image:?}"
+    done
+else
+    log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
+fi
 
 log 'Making systemd additions...'
 mkdir -p /etc/systemd/system/google-startup-scripts.service.d
