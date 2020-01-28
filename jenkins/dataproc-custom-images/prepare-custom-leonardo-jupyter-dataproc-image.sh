@@ -199,4 +199,4 @@ make -j "$(nproc)"
 make install
 ldconfig
 python3 --version
-log "Finished installing Python ${python_version}"
+log "Finished installing Python $python_version"
