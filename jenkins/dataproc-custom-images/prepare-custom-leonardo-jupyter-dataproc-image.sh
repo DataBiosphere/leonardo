@@ -105,7 +105,8 @@ retry 5 apt-get install -y -q \
     ca-certificates \
     curl \
     gnupg2 \
-    software-properties-common
+    software-properties-common \
+    libffi-dev
 
 log 'Adding Docker package sources...'
 
