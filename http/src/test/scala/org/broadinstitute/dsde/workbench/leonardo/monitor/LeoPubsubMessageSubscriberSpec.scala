@@ -151,9 +151,9 @@ class LeoPubsubMessageSubscriberSpec
       leoSubscriber.messageResponder(message).unsafeRunSync()
     }
 
-    //we shouldn't have cleaned up the db information because we didn't do anything
+    //we want to ensure we have cleaned up the db information, because otherwise subsequent updates can error
     val savedDetails = dbRef.inTransaction(followupQuery.getFollowupAction(followupKey)).unsafeRunSync()
-    savedDetails shouldBe newMasterMachineType
+    savedDetails shouldBe None
     caught.getMessage should include("it is not stopped")
 
     dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Running

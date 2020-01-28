@@ -336,17 +336,10 @@ class LeonardoService(
           //we do not support follow-up transitions when the cluster is set to an updating status
           if (!shouldUpdate.combineAll) {
             val action = masterMachineTypeChanged.map(result => result.followupAction).getOrElse(Noop(None))
-            logger.info(s"detected follow-up action necessary: ${action}")
+            logger.info(s"detected follow-up action necessary for update on cluster ${existingCluster.projectNameString}: ${action}")
             handleClusterTransition(existingCluster, action)
-          } else {
-            logger.warn(
-              "A user tried to resize the cluster and master machine type at the same time, which is not supported. Only the cluster will be resized."
-            )
-            metrics.incrementCounter("pubsub/LeonardoService/unableToFollowupDueToResize")
-          }
-        } else {
-          IO(logger.info("detected no follow-up action necessary"))
-        }
+          } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
+        } else IO(logger.debug(s"detected no follow-up action necessary for update on cluster ${existingCluster.projectNameString}"))
 
         cluster <- errors match {
           case Nil => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
@@ -362,10 +355,10 @@ class LeonardoService(
     transition match {
       case StopStartTransition(machineConfig) =>
         for {
-          _ <- metrics.incrementCounter(s"pubsub/LeonardoService/StopStartTransition ")
+          _ <- metrics.incrementCounter(s"pubsub/LeonardoService/StopStartTransition")
           //sends a message with the config to google pub/sub queue for processing by back leo
           _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
-          _ <- IO(logger.info("enqueued a patch request"))
+          _ <- IO(logger.info(s"enqueued a patch request to google pub/sub for ${existingCluster.projectNameString}"))
         } yield ()
 
       //TODO: we currently do not support this
@@ -473,22 +466,18 @@ class LeonardoService(
         } yield UpdateResult(true, false, Noop(None))
 
       case Some(updatedMasterMachineType) =>
-        logger.info("in stop and update case of maybeChangeMasterMachineType")
-        //        Future.failed(ClusterMachineTypeCannotBeChangedException(existingCluster))
+        logger.debug("in stop and update case of maybeChangeMasterMachineType")
         val updatedConfig =
           machineConfigOpt.map(config => config.copy(masterMachineType = Option(updatedMasterMachineType)))
 
         if (allowStop) {
-          logger.info("detected stop and update transition specified in request of maybeChangeMasterMachineType")
           val transition = if (updatedConfig.isEmpty) Noop(None) else StopStartTransition(updatedConfig.get)
-          logger.info(s"transition in maybeChangeMasterMachineType ${transition}")
+          logger.debug(s"detected stop and update transition specified in request of maybeChangeMasterMachineType, ${transition}")
           IO.pure(UpdateResult(false, true, transition))
-        } else {
-          IO.raiseError(ClusterMachineTypeCannotBeChangedException(existingCluster))
-        }
+        } else IO.raiseError(ClusterMachineTypeCannotBeChangedException(existingCluster))
 
       case None =>
-        logger.info("detected no cluster in maybeChangeMasterMachineType")
+        logger.debug("detected no cluster in maybeChangeMasterMachineType")
         IO.pure(UpdateResult(false, false, Noop(None)))
     }
   }

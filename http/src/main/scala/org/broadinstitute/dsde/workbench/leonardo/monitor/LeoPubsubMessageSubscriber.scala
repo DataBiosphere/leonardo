@@ -11,19 +11,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, M
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.Logger
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 import cats.implicits._
 
 import scala.concurrent.ExecutionContext
-
-case class ClusterNotFoundException(
-  clusterId: Long,
-  override val message: String =
-    "Could not process ClusterTransitionFinishedMessage because it was not found in the database"
-) extends LeoException
 
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concurrent](
   subscriber: GoogleSubscriber[IO, LeoPubsubMessage],
@@ -43,7 +36,17 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
 
     //ensure we don't crash if the handler throws an exception
     response.onError {
-      case e => IO(logger.error(s"Unable to process a message in received from pub/sub subscription in messageResponder: ${message}, errorMessage: ${e.getMessage}", e))
+      case e =>
+        for {
+          _ <- IO(logger.error(s"Unable to process a message in received from pub/sub subscription in messageResponder: ${message}, errorMessage: ${e.getMessage}", e))
+          //clean up the db if there is an error and we have saved records
+           _ <- message match {
+              case msg @ ClusterTransitionFinishedMessage(_) =>
+                dbRef.inTransaction { followupQuery.delete(msg.clusterFollowupDetails) }
+              case _ => IO.unit
+            }
+
+        } yield ()
     }
   }
 
@@ -121,7 +124,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
               }
             }
 
-            case None => IO.raiseError(ClusterNotFoundException(message.clusterFollowupDetails.clusterId))
+            case None => IO.raiseError(new WorkbenchException(s"Unable to process transition finished message ${message} for cluster ${message.clusterFollowupDetails.clusterId} because it was not found in the database"))
           }
         } yield result
       }

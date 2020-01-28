@@ -27,7 +27,6 @@ object followupQuery extends TableQuery(new FollowupTable(_)) {
   def delete(followupDetails: ClusterFollowupDetails): DBIO[Int] =
     baseFollowupQuery(followupDetails).delete
 
-  //TODO: should this differentiate itself between no cluster with that ID found, and no machine config found?
   def getFollowupAction(followupDetails: ClusterFollowupDetails)(implicit ec: ExecutionContext): DBIO[Option[String]] =
     baseFollowupQuery(followupDetails).result.headOption
       .map { recordOpt =>
