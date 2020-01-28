@@ -116,5 +116,43 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
         }
       }
     }
+
+    // Make sure we can import a Hail table from a pandas dataframe.
+    // See https://broadworkbench.atlassian.net/browse/IA-1637
+    // This also simulates this featured workspace: https://app.terra.bio/#workspaces/fc-product-demo/2019_ASHG_Reproducible_GWAS
+    "should import a pandas DataFrame into Hail" in { clusterFixture =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, ResourceFile("bucket-tests/hail_samples.csv"), "text/plain") {
+        gcsPath =>
+          withWebDriver { implicit driver =>
+            withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+              // Read the CSV into a pandas DataFrame
+              val dataFrame =
+                s"""! gsutil cp ${gcsPath.toUri} .
+                   |import pandas as pd
+                   |df = pd.read_csv('hail_samples.csv')
+                   |df.size""".stripMargin
+              notebookPage.executeCell(dataFrame).get shouldBe "37560"
+
+              // Import hail
+              val importHail =
+                """import hail as hl
+                  |hl.init()
+                """.stripMargin
+              notebookPage.executeCell(importHail)
+
+              // Import the DataFrame into a Hail table
+              val result = notebookPage.executeCell(s"samples = hl.Table.from_pandas(df, key = 'sample')")
+              result shouldBe 'defined
+              result.get should not include ("FatalError")
+              result.get should not include ("PythonException")
+              // TODO what's a positive verification?
+
+              // Verify the Hail table
+              val tableResult = notebookPage.executeCell("samples.count()")
+              tableResult shouldBe Some("4")
+            }
+          }
+      }
+    }
   }
 }
