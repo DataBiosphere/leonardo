@@ -285,7 +285,7 @@ pipeline {
               println("Installing Python $python_version on Dataproc $dp_version")
               sh (
                 script: """
-                  sed -i 's/python_version.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                  sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                   cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                   cd jenkins/dataproc-custom-images/dataproc-custom-images
                   python generate_custom_image.py \
