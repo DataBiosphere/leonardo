@@ -173,7 +173,7 @@ pipeline {
 
     stage('Leonardo Git') {
       steps {
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'rt-ia-1637'
       }
     }
 
