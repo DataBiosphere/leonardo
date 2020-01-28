@@ -285,7 +285,7 @@ pipeline {
               sh (
                 script: """
                   cd jenkins/dataproc-custom-images/dataproc-custom-images
-                  sed -i 's/python_version.*/python_version=$python_version' prepare-custom-leonardo-jupyter-dataproc-image.sh
+                  sed -i 's/python_version.*/python_version="$python_version"/' prepare-custom-leonardo-jupyter-dataproc-image.sh
                   python generate_custom_image.py \
                     --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
                     --dataproc-version "$dp_version" \
