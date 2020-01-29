@@ -35,6 +35,9 @@ anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconducto
 # the entry must match the var name above, which must correspond to a valid docker URI
 docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk openidc_proxy anvil_rstudio_base anvil_rstudio_bioconductor"
 
+# The version of python to install
+python_version="3.7.4"
+
 #
 # Functions
 #
@@ -102,7 +105,8 @@ retry 5 apt-get install -y -q \
     ca-certificates \
     curl \
     gnupg2 \
-    software-properties-common
+    software-properties-common \
+    libffi-dev
 
 log 'Adding Docker package sources...'
 
@@ -172,13 +176,12 @@ cat > /etc/systemd/system/google-shutdown-scripts.service.d/override.conf <<EOF
 After=docker.service
 EOF
 
-# Install Python 3.6.8
-export PYTHON_VERSION="3.6.8"
-python_source_archive_name="Python-${PYTHON_VERSION:?}.tar.xz"
-python_source_archive_download_url="https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/${python_source_archive_name:?}"
+# Install Python
+python_source_archive_name="Python-${python_version:?}.tar.xz"
+python_source_archive_download_url="https://www.python.org/ftp/python/${python_version%%[a-z]*}/${python_source_archive_name:?}"
 python_target_archive_name="python.tar.xz"
 
-log "Installing Python ${PYTHON_VERSION:?} on the dataproc VM..."
+log "Installing Python ${python_version:?} on the dataproc VM..."
 retry 5 wget -O "${python_target_archive_name:?}" "${python_source_archive_download_url:?}"
 
 mkdir -p /usr/src/python
@@ -197,5 +200,4 @@ make -j "$(nproc)"
 make install
 ldconfig
 python3 --version
-
-log "Finished installing Python $PYTHON_VERSION"
+log "Finished installing Python $python_version"

@@ -8,6 +8,8 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
+import scala.concurrent.duration._
+
 /**
  * This spec verifies Hail and Spark functionality.
  */
@@ -36,7 +38,9 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
                |   / __  / _ `/ / /
                |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
 
-          notebookPage.executeCell(importHail, cellNumberOpt = Some(1)).get should include(importHailOutput)
+          notebookPage.executeCell(importHail, timeout = 2.minutes, cellNumberOpt = Some(1)).get should include(
+            importHailOutput
+          )
 
           // Run the Hail tutorial and verify
           // https://hail.is/docs/0.2/tutorials-landing.html
@@ -101,10 +105,11 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
                 """import hail as hl
                   |hl.init()
                 """.stripMargin
-              notebookPage.executeCell(importHail)
+              notebookPage.executeCell(importHail, timeout = 2.minutes)
 
               // Import the TSV into a Hail table
-              val importResult = notebookPage.executeCell(s"table = hl.import_table('${tsvUri}', impute=True)")
+              val importResult =
+                notebookPage.executeCell(s"table = hl.import_table('${tsvUri}', impute=True)", timeout = 5.minutes)
               importResult shouldBe 'defined
               importResult.get should include("Finished type imputation")
 
@@ -112,6 +117,50 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
               val tableResult = notebookPage.executeCell("table.count()")
               tableResult shouldBe Some("4")
             }
+          }
+        }
+      }
+    }
+
+    // Make sure we can import a Hail table from a pandas dataframe.
+    // See https://broadworkbench.atlassian.net/browse/IA-1637
+    // This also simulates this featured workspace: https://app.terra.bio/#workspaces/fc-product-demo/2019_ASHG_Reproducible_GWAS
+    "should import a pandas DataFrame into Hail" in { clusterFixture =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject,
+                               ResourceFile("bucket-tests/hail_samples.csv"),
+                               "text/plain") { gcsPath =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+            // Localize the CSV
+            val localizeResult = notebookPage.executeCell(s"! gsutil cp ${gcsPath.toUri} .")
+            localizeResult shouldBe 'defined
+            localizeResult.get should include("Operation completed")
+
+            // Read the CSV into a pandas DataFrame
+            val dataFrame =
+              s"""import pandas as pd
+                 |df = pd.read_csv('hail_samples.csv')
+                 |df.shape""".stripMargin
+            notebookPage.executeCell(dataFrame).get shouldBe "(2504, 15)" // (rows, cols)
+
+            // Import hail
+            val importHail =
+              """import hail as hl
+                |hl.init()
+                """.stripMargin
+            notebookPage.executeCell(importHail, timeout = 2.minutes)
+
+            // Import the DataFrame into a Hail table
+            val result =
+              notebookPage.executeCell(s"samples = hl.Table.from_pandas(df, key = 'sample')", timeout = 5.minutes)
+            result shouldBe 'defined
+            result.get should not include ("FatalError")
+            result.get should not include ("PythonException")
+            result.get should include("Coerced sorted dataset")
+
+            // Verify the Hail table
+            val tableResult = notebookPage.executeCell("samples.count()")
+            tableResult shouldBe Some("2504") // rows
           }
         }
       }
