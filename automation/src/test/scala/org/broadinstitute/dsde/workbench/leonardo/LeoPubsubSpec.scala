@@ -40,33 +40,4 @@ class LeoPubsubSpec extends ClusterFixtureSpec with LeonardoTestUtils {
     }
   }
 
-  "Google subscriber should receive a published message" in { clusterFixture =>
-    val newMasterMachineType = Some("n1-standard-2")
-    val machineConfig = Some(MachineConfig(masterMachineType = newMasterMachineType))
-
-    val originalCluster = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-    originalCluster.status shouldBe ClusterStatus.Running
-
-    val originalMachineConfig = originalCluster.machineConfig
-
-    Leonardo.cluster.update(
-      clusterFixture.cluster.googleProject,
-      clusterFixture.cluster.clusterName,
-      clusterRequest = defaultClusterRequest.copy(allowStop = Some(true), machineConfig = machineConfig)
-    )
-
-    eventually(timeout(Span(1, Minutes)), interval(Span(10, Seconds))) {
-      val getCluster: Cluster =
-        Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-      getCluster.status shouldBe ClusterStatus.Stopping
-    }
-
-    eventually(timeout(Span(10, Minutes)), interval(Span(30, Seconds))) {
-      val getCluster: Cluster =
-        Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-      getCluster.status shouldBe ClusterStatus.Running
-      getCluster.machineConfig shouldBe originalMachineConfig.copy(masterMachineType = newMasterMachineType)
-    }
-  }
-
 }
