@@ -8,6 +8,8 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
+import scala.concurrent.duration._
+
 /**
  * This spec verifies Hail and Spark functionality.
  */
@@ -36,7 +38,9 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
                |   / __  / _ `/ / /
                |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
 
-          notebookPage.executeCell(importHail, cellNumberOpt = Some(1)).get should include(importHailOutput)
+          notebookPage.executeCell(importHail, timeout = 2.minutes, cellNumberOpt = Some(1)).get should include(
+            importHailOutput
+          )
 
           // Run the Hail tutorial and verify
           // https://hail.is/docs/0.2/tutorials-landing.html
@@ -101,10 +105,11 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
                 """import hail as hl
                   |hl.init()
                 """.stripMargin
-              notebookPage.executeCell(importHail)
+              notebookPage.executeCell(importHail, timeout = 2.minutes)
 
               // Import the TSV into a Hail table
-              val importResult = notebookPage.executeCell(s"table = hl.import_table('${tsvUri}', impute=True)")
+              val importResult =
+                notebookPage.executeCell(s"table = hl.import_table('${tsvUri}', impute=True)", timeout = 5.minutes)
               importResult shouldBe 'defined
               importResult.get should include("Finished type imputation")
 
@@ -135,26 +140,27 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
             val dataFrame =
               s"""import pandas as pd
                  |df = pd.read_csv('hail_samples.csv')
-                 |df.size""".stripMargin
-            notebookPage.executeCell(dataFrame).get shouldBe "37560"
+                 |df.shape""".stripMargin
+            notebookPage.executeCell(dataFrame).get shouldBe "(2504, 15)" // (rows, cols)
 
             // Import hail
             val importHail =
               """import hail as hl
                 |hl.init()
                 """.stripMargin
-            notebookPage.executeCell(importHail)
+            notebookPage.executeCell(importHail, timeout = 2.minutes)
 
             // Import the DataFrame into a Hail table
-            val result = notebookPage.executeCell(s"samples = hl.Table.from_pandas(df, key = 'sample')")
+            val result =
+              notebookPage.executeCell(s"samples = hl.Table.from_pandas(df, key = 'sample')", timeout = 5.minutes)
             result shouldBe 'defined
             result.get should not include ("FatalError")
             result.get should not include ("PythonException")
-            // TODO what's a positive verification?
+            result.get should include("Coerced sorted dataset")
 
             // Verify the Hail table
             val tableResult = notebookPage.executeCell("samples.count()")
-            tableResult shouldBe Some("4")
+            tableResult shouldBe Some("2504") // rows
           }
         }
       }
