@@ -21,7 +21,7 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
     Leonardo.cluster.update(
       clusterFixture.cluster.googleProject,
       clusterFixture.cluster.clusterName,
-      clusterRequest = defaultClusterRequest.copy(allowStop = Some(true), machineConfig = machineConfig)
+      clusterRequest = defaultClusterRequest.copy(allowStop = true, machineConfig = machineConfig)
     )
 
     eventually(timeout(Span(1, Minutes)), interval(Span(10, Seconds))) {

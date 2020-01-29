@@ -43,7 +43,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None,
                           customClusterEnvironmentVariables: Map[String, String] = Map.empty,
-                          allowStop: Option[Boolean] = Some(false))
+                          allowStop: Boolean = false)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),

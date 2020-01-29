@@ -364,11 +364,11 @@ class ClusterHelper(
         s"New machine config present. Changing machine type to ${machineType} for cluster ${existingCluster.projectNameString}..."
       )
       // Update the machine type in Google
-      _ <- setMasterMachineTypeInGoogle(existingCluster, MachineType(machineType.value))
+      _ <- setMasterMachineTypeInGoogle(existingCluster, machineType)
       // Update the DB
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction {
-        clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(machineType.value), now)
+        clusterQuery.updateMasterMachineType(existingCluster.id, machineType, now)
       }
     } yield ()
 
