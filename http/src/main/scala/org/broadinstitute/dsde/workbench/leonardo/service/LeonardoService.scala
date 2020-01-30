@@ -336,10 +336,17 @@ class LeonardoService(
           //we do not support follow-up transitions when the cluster is set to an updating status
           if (!shouldUpdate.combineAll) {
             val action = masterMachineTypeChanged.map(result => result.followupAction).getOrElse(Noop(None))
-            logger.info(s"detected follow-up action necessary for update on cluster ${existingCluster.projectNameString}: ${action}")
+            logger.info(
+              s"detected follow-up action necessary for update on cluster ${existingCluster.projectNameString}: ${action}"
+            )
             handleClusterTransition(existingCluster, action)
           } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
-        } else IO(logger.debug(s"detected no follow-up action necessary for update on cluster ${existingCluster.projectNameString}"))
+        } else
+          IO(
+            logger.debug(
+              s"detected no follow-up action necessary for update on cluster ${existingCluster.projectNameString}"
+            )
+          )
 
         cluster <- errors match {
           case Nil => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
@@ -472,7 +479,9 @@ class LeonardoService(
 
         if (allowStop) {
           val transition = if (updatedConfig.isEmpty) Noop(None) else StopStartTransition(updatedConfig.get)
-          logger.debug(s"detected stop and update transition specified in request of maybeChangeMasterMachineType, ${transition}")
+          logger.debug(
+            s"detected stop and update transition specified in request of maybeChangeMasterMachineType, ${transition}"
+          )
           IO.pure(UpdateResult(false, true, transition))
         } else IO.raiseError(ClusterMachineTypeCannotBeChangedException(existingCluster))
 
