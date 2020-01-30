@@ -125,7 +125,7 @@ class LeoPubsubMessageSubscriberSpec
     }
   }
 
-  "LeoPubsubMessageSubscriber" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
+  "LeoPubsubMessageSubscriber" should "do not throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
 
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
@@ -147,14 +147,11 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    val caught = the[WorkbenchException] thrownBy {
-      leoSubscriber.messageResponder(message).unsafeRunSync()
-    }
+    leoSubscriber.messageResponder(message).unsafeRunSync() //no exception is thrown
 
     //we want to ensure we have cleaned up the db information, because otherwise subsequent updates can error
     val savedDetails = dbRef.inTransaction(followupQuery.getFollowupAction(followupKey)).unsafeRunSync()
     savedDetails shouldBe None
-    caught.getMessage should include("it is not stopped")
 
     dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Running
   }
@@ -175,15 +172,11 @@ class LeoPubsubMessageSubscriberSpec
       .inTransaction(followupQuery.getFollowupAction(followupKey))
       .unsafeRunSync() shouldBe None
 
-    val caught = the[WorkbenchException] thrownBy {
-      leoSubscriber.messageResponder(message).unsafeRunSync()
-    }
+    leoSubscriber.messageResponder(message).unsafeRunSync() //no exception is thrown
 
     dbRef
       .inTransaction(followupQuery.getFollowupAction(followupKey))
       .unsafeRunSync() shouldBe None
-
-    caught.getMessage should include("Failed to process StopUpdateMessage")
 
     dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Stopped
   }
