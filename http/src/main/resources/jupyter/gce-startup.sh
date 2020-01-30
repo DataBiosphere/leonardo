@@ -90,12 +90,13 @@ function betterAptGet() {
 STEP_TIMINGS=($(date +%s))
 
 # ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
-ROLE='Master'
+ROLE="Master"
 
-# If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS EV.
+# If a Google credentials file was specified, grab the service account json file
+# and set the GOOGLE_APPLICATION_CREDENTIALS EV.
 # This overrides the credentials on the metadata server.
-# This needs to happen on master and worker nodes.
-SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
+# SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
+SERVICE_ACCOUNT_CREDENTIALS=""
 if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   gsutil cp ${SERVICE_ACCOUNT_CREDENTIALS} /etc
   SERVICE_ACCOUNT_CREDENTIALS=`basename ${SERVICE_ACCOUNT_CREDENTIALS}`
@@ -110,6 +111,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
+    : '
     export CLUSTER_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)
     export STAGING_BUCKET=$(stagingBucketName)
@@ -146,6 +148,44 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
+    '
+
+    export CLUSTER_NAME="saturn-984109e8-1dfe-4d12-9f70-7f3f233e5779"
+    export GOOGLE_PROJECT="callisto-dev"
+    export STAGING_BUCKET="leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f"
+    export OWNER_EMAIL="kyuksel.dev@gmail.com"
+    export JUPYTER_SERVER_NAME="jupyter-server"
+    export RSTUDIO_SERVER_NAME="rstudio-server"
+    export PROXY_SERVER_NAME="proxy-server"
+    export WELDER_SERVER_NAME="welder-server"
+    export JUPYTER_DOCKER_IMAGE="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.9"
+    export RSTUDIO_DOCKER_IMAGE=""
+    export PROXY_DOCKER_IMAGE="broadinstitute/openidc-proxy:2.3.1_2"
+    export WELDER_DOCKER_IMAGE="us.gcr.io/broad-dsp-gcr-public/welder-server:ed93873"
+    export WELDER_ENABLED="true"
+    export NOTEBOOKS_DIR="/home/jupyter-user/notebooks"
+    export MEM_LIMIT="10200547328b"
+
+    SERVER_CRT="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter-server.crt"
+    SERVER_KEY="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter-server.key"
+    ROOT_CA="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/rootCA.pem"
+    JUPYTER_DOCKER_COMPOSE="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter-docker-compose.yaml"
+    RSTUDIO_DOCKER_COMPOSE="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/rstudio-docker-compose.yaml"
+    PROXY_DOCKER_COMPOSE="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/proxy-docker-compose.yaml"
+    WELDER_DOCKER_COMPOSE="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/welder-docker-compose.yaml"
+    PROXY_SITE_CONF="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/cluster-site.conf"
+    JUPYTER_SERVER_EXTENSIONS=""
+    JUPYTER_NB_EXTENSIONS="https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"
+    JUPYTER_COMBINED_EXTENSIONS=""
+    JUPYTER_LAB_EXTENSIONS=""
+    JUPYTER_USER_SCRIPT_URI=""
+    JUPYTER_USER_SCRIPT_OUTPUT_URI="gs://leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f/userscript_output.txt"
+    JUPYTER_START_USER_SCRIPT_URI=""
+    # Include a timestamp suffix to differentiate different startup logs across restarts.
+    JUPYTER_START_USER_SCRIPT_OUTPUT_URI=""gs://leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f/startscript_output.txt"-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
+    JUPYTER_NOTEBOOK_CONFIG_URI="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter_notebook_config.py"
+    JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/notebook.json"
+    CUSTOM_ENV_VARS_CONFIG_URI="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/custom_env_vars.env"
 
     STEP_TIMINGS+=($(date +%s))
 
@@ -167,8 +207,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
-    touch auth_openidc.conf
 
+    # TODO: Figure out why /etc/google-fluentd doesn't exist and turn back on the config creation below
+    : '
     # Add stack driver configuration for welder
     tee /etc/google-fluentd/config.d/welder.conf << END
 <source>
@@ -206,7 +247,8 @@ END
 END
 
     service google-fluentd reload
-
+    '
+    
     # Install env var config
     if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
       log 'Copy custom env vars config...'
@@ -223,7 +265,7 @@ END
     # authorize docker to interact with gcr.io.
     if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
       log 'Authorizing GCR...'
-      gcloud auth configure-docker
+      gcloud --quiet auth configure-docker
     fi
 
     STEP_TIMINGS+=($(date +%s))
