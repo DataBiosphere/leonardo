@@ -90,6 +90,12 @@ case class ClusterCannotBeUpdatedException(cluster: Cluster)
     extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status",
                          StatusCodes.Conflict)
 
+case class ClusterCannotBeUpdatedException(cluster: Cluster, userHint: String)
+    extends LeoException(
+      s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status. ${userHint}",
+      StatusCodes.Conflict
+    )
+
 case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
     extends LeoException(
       s"Cluster ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type. Some updates require stopping the cluster or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
@@ -340,7 +346,11 @@ class LeonardoService(
               s"detected follow-up action necessary for update on cluster ${existingCluster.projectNameString}: ${action}"
             )
             handleClusterTransition(existingCluster, action)
-          } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
+          } else
+            IO.raiseError(
+              ClusterCannotBeUpdatedException(existingCluster,
+                                              "Please stop your cluster to perform this type of update.")
+            )
         } else
           IO(
             logger.debug(
