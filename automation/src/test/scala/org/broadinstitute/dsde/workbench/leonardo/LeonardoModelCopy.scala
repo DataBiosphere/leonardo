@@ -42,7 +42,8 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           welderDockerImage: Option[String] = None,
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None,
-                          customClusterEnvironmentVariables: Map[String, String] = Map.empty)
+                          customClusterEnvironmentVariables: Map[String, String] = Map.empty,
+                          allowStop: Boolean = false)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),

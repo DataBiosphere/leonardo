@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.leonardo.cluster.ClusterStatusTransitionsSpec
+import org.broadinstitute.dsde.workbench.leonardo.cluster.{ClusterPatchSpec, ClusterStatusTransitionsSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -9,7 +9,6 @@ import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
-
 import cats.implicits._
 
 trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
@@ -99,7 +98,9 @@ final class LeonardoSuite
       new NotebookHailSpec,
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
-      new RStudioSpec
+      new RStudioSpec,
+      new LeoPubsubSpec,
+      new ClusterPatchSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll

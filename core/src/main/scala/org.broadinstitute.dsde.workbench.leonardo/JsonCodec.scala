@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectN
 
 object JsonCodec {
   implicit val googleProjectDecoder: Decoder[GoogleProject] = Decoder.decodeString.map(GoogleProject)
+
   implicit val machineConfigDecoder: Decoder[MachineConfig] = Decoder.forProduct7(
     "numberOfWorkers",
     "masterMachineType",
@@ -18,6 +19,16 @@ object JsonCodec {
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers"
   )(MachineConfig.apply)
+
+  implicit val machineConfigEncoder: Encoder[MachineConfig] =
+    Encoder.forProduct7("numberOfWorkers",
+                        "masterMachineType",
+                        "masterDiskSize",
+                        "workerMachineType",
+                        "workerDiskSize",
+                        "numberOfWorkerLocalSSDs",
+                        "numberOfPreemptibleWorkers")(x => MachineConfig.unapply(x).get)
+
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val serviceAccountInfoDecoder: Decoder[ServiceAccountInfo] = Decoder.forProduct2(
     "clusterServiceAccount",

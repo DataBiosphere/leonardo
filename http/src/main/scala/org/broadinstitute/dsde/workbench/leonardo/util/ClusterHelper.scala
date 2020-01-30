@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
+import java.time.Instant
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
@@ -18,13 +20,26 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates.
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{DeployWelder, DisableDelocalization, UpdateWelder}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Welder
+import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{
+  ClusterOutOfDate,
+  DeployWelder,
+  DisableDelocalization,
+  NoAction,
+  UpdateWelder
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.service.{
+  ClusterCannotBeStartedException,
+  ClusterCannotBeStoppedException,
+  ClusterOutOfDateException
+}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -32,6 +47,7 @@ import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
     extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
@@ -63,6 +79,7 @@ class ClusterHelper(
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
   googleProjectDAO: GoogleProjectDAO,
+  welderDao: WelderDAO[IO],
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   val system: ActorSystem,
@@ -193,6 +210,26 @@ class ClusterHelper(
     IO.fromFuture(IO(gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)))
 
   def stopCluster(cluster: Cluster): IO[Unit] =
+    if (cluster.status.isStoppable) {
+      for {
+        // Flush the welder cache to disk
+        _ <- if (cluster.welderEnabled) {
+          welderDao
+            .flushCache(cluster.googleProject, cluster.clusterName)
+            .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
+        } else IO.unit
+
+        // Stop the cluster in Google
+        _ <- stopGoogleCluster(cluster)
+
+        // Update the cluster status to Stopping
+        now <- IO(Instant.now)
+        _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
+      } yield ()
+
+    } else IO.raiseError(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
+
+  private def stopGoogleCluster(cluster: Cluster): IO[Unit] =
     for {
       metadata <- getMasterInstanceShutdownScript(cluster)
 
@@ -213,7 +250,7 @@ class ClusterHelper(
       }
     } yield ()
 
-  def startCluster(cluster: Cluster, welderAction: WelderAction): IO[Unit] =
+  private def startCluster(cluster: Cluster, welderAction: WelderAction): IO[Unit] =
     for {
       metadata <- getMasterInstanceStartupScript(cluster, welderAction)
 
@@ -242,6 +279,72 @@ class ClusterHelper(
 
     } yield ()
 
+  def internalStartCluster(cluster: Cluster): IO[Unit] =
+    if (cluster.status.isStartable) {
+      val welderAction = getWelderAction(cluster)
+      for {
+        // Check if welder should be deployed or updated
+        now <- IO(Instant.now)
+        updatedCluster <- welderAction match {
+          case DeployWelder | UpdateWelder      => updateWelder(cluster, now)
+          case NoAction | DisableDelocalization => IO.pure(cluster)
+          case ClusterOutOfDate                 => IO.raiseError(ClusterOutOfDateException())
+        }
+        _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
+          dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") } else IO.unit
+
+        // Start the cluster in Google
+        _ <- startCluster(updatedCluster, welderAction)
+
+        // Update the cluster status to Starting
+        now <- IO(Instant.now)
+        _ <- dbRef.inTransaction { clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting, now) }
+      } yield ()
+    } else IO.raiseError(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
+
+  private def getWelderAction(cluster: Cluster): WelderAction =
+    if (cluster.welderEnabled) {
+      // Welder is already enabled; do we need to update it?
+      val labelFound = welderConfig.updateWelderLabel.exists(cluster.labels.contains)
+
+      val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
+        case Some(welderImage) if welderImage.imageUrl != imageConfig.welderDockerImage => true
+        case _                                                                          => false
+      }
+
+      if (labelFound && imageChanged) UpdateWelder
+      else NoAction
+    } else {
+      // Welder is not enabled; do we need to deploy it?
+      val labelFound = welderConfig.deployWelderLabel.exists(cluster.labels.contains)
+      if (labelFound) {
+        if (isClusterBeforeCutoffDate(cluster)) DisableDelocalization
+        else DeployWelder
+      } else NoAction
+    }
+
+  private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean =
+    (for {
+      dateStr <- welderConfig.deployWelderCutoffDate
+      date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
+      isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
+    } yield isClusterBeforeCutoffDate) getOrElse false
+
+  private def updateWelder(cluster: Cluster, now: Instant): IO[Cluster] =
+    for {
+      _ <- log.info(s"Will deploy welder to cluster ${cluster.projectNameString}")
+      _ <- metrics.incrementCounter("welder/deploy")
+      now <- IO(Instant.now)
+      welderImage = ClusterImage(Welder, imageConfig.welderDockerImage, now)
+
+      _ <- dbRef.inTransaction {
+        clusterQuery.updateWelder(cluster.id, ClusterImage(Welder, imageConfig.welderDockerImage, now), now)
+      }
+
+      newCluster = cluster.copy(welderEnabled = true,
+                                clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
+    } yield newCluster
+
   def resizeCluster(cluster: Cluster, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =
     for {
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
@@ -255,7 +358,22 @@ class ClusterHelper(
       )
     } yield ()
 
-  def setMasterMachineType(cluster: Cluster, machineType: MachineType): IO[Unit] =
+  def updateMasterMachineType(existingCluster: Cluster, machineType: MachineType): IO[Unit] =
+    for {
+      _ <- log.info(
+        s"New machine config present. Changing machine type to ${machineType} for cluster ${existingCluster.projectNameString}..."
+      )
+      // Update the machine type in Google
+      _ <- setMasterMachineTypeInGoogle(existingCluster, machineType)
+      // Update the DB
+      now <- IO(Instant.now)
+      _ <- dbRef.inTransaction {
+        clusterQuery.updateMasterMachineType(existingCluster.id, machineType, now)
+      }
+    } yield ()
+
+  //updates machine type in gdDAO
+  private def setMasterMachineTypeInGoogle(cluster: Cluster, machineType: MachineType): IO[Unit] =
     cluster.instances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,

@@ -12,19 +12,19 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleProjectDAO,
   MockGoogleStorageDAO
 }
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
 import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
+import CommonTestData._
 
 import scala.concurrent.duration._
 import scala.util.matching.Regex
@@ -81,7 +81,9 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
                       mockGoogleDirectoryDAO,
                       mockGoogleIamDAO,
                       mockGoogleProjectDAO,
+                      MockWelderDAO,
                       blocker)
+
   val leonardoService = new LeonardoService(
     dataprocConfig,
     imageConfig,
@@ -96,10 +98,12 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
     serviceAccountProvider,
     bucketHelper,
     clusterHelper,
-    new MockDockerDAO
+    new MockDockerDAO,
+    QueueFactory.makePublisherQueue()
   )(executor, system, loggerIO, cs, metrics, DbSingleton.dbRef, timer)
 
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
+
   val proxyService =
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache)
   val statusService =

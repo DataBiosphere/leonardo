@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google.{
   HttpGoogleProjectDAO,
   HttpGoogleStorageDAO
 }
-import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
+import org.broadinstitute.dsde.workbench.google2.{Event, GooglePublisher, GoogleStorageService, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -34,6 +34,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterDateAccessedActor,
   ClusterMonitorSupervisor,
   ClusterToolMonitor,
+  LeoPubsubMessage,
+  LeoPubsubMessageSubscriber,
   ZombieClusterMonitor
 }
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
@@ -42,9 +44,12 @@ import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import fs2.concurrent.InspectableQueue
+import fs2.Stream
 
 object Boot extends IOApp with LazyLogging {
   val workbenchMetricsBaseName = "google"
@@ -89,6 +94,7 @@ object Boot extends IOApp with LazyLogging {
                                             appDependencies.googleDirectoryDAO,
                                             appDependencies.googleIamDAO,
                                             appDependencies.googleProjectDAO,
+                                            appDependencies.welderDAO,
                                             appDependencies.blocker)
 
       val leonardoService = new LeonardoService(dataprocConfig,
@@ -104,7 +110,9 @@ object Boot extends IOApp with LazyLogging {
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
                                                 clusterHelper,
-                                                appDependencies.dockerDAO)
+                                                appDependencies.dockerDAO,
+                                                appDependencies.publisherQueue)
+
       if (leoExecutionModeConfig.backLeo) {
         implicit def clusterToolToToolDao =
           ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
@@ -125,7 +133,8 @@ object Boot extends IOApp with LazyLogging {
             appDependencies.jupyterDAO,
             appDependencies.rStudioDAO,
             appDependencies.welderDAO,
-            clusterHelper
+            clusterHelper,
+            appDependencies.publisherQueue
           )
         )
         system.actorOf(
@@ -157,8 +166,21 @@ object Boot extends IOApp with LazyLogging {
       val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
       with StandardUserInfoDirectives
 
-      (for {
-        _ <- if (leoExecutionModeConfig.backLeo) clusterHelper.setupDataprocImageGoogleGroup() else IO.unit
+      val messageProcessorStream =
+        if (leoExecutionModeConfig.backLeo) {
+          logger.info("starting subscriber in boot")
+          val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
+            new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
+          pubsubSubscriber.process
+            .handleErrorWith(
+              error => Stream.eval(Logger[IO].error(error)("Failed to initialize message processor in Boot. "))
+            )
+        } else Stream.eval(IO.unit)
+
+      val httpServer = for {
+        _ <- if (leoExecutionModeConfig.backLeo) {
+          clusterHelper.setupDataprocImageGoogleGroup()
+        } else IO.unit
         _ <- IO.fromFuture {
           IO {
             Http()
@@ -169,7 +191,21 @@ object Boot extends IOApp with LazyLogging {
               }
           }
         }
-      } yield ()) >> IO.never
+      } yield ()
+
+      val app = Stream(
+        appDependencies.publisherStream, //start the publisher queue .dequeue
+        messageProcessorStream, //start subscriber dequeue
+        Stream.eval(httpServer), //start http server
+        Stream.eval(appDependencies.subscriber.start) //start asyncly pulling data in subscriber
+      ).parJoin(4)
+
+      app
+        .handleErrorWith { error =>
+          Stream.eval(Logger[IO].error(error)("Failed to start leonardo"))
+        }
+        .compile
+        .drain
     }
   }
 
@@ -179,7 +215,6 @@ object Boot extends IOApp with LazyLogging {
     pemWithServiceAccountUser: Pem
   )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
     implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
-
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
@@ -216,6 +251,15 @@ object Boot extends IOApp with LazyLogging {
                                         NetworkTag(dataprocConfig.networkTag),
                                         dataprocConfig.dataprocDefaultRegion,
                                         dataprocConfig.dataprocZone)
+
+      googlePublisher <- GooglePublisher.resource[F, LeoPubsubMessage](publisherConfig)
+
+      publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
+
+      publisherStream = publisherQueue.dequeue through googlePublisher.publish
+
+      subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
+      subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
     } yield AppDependencies(
       storage,
       dbRef,
@@ -234,7 +278,10 @@ object Boot extends IOApp with LazyLogging {
       serviceAccountProvider,
       authProvider,
       metrics,
-      blocker
+      blocker,
+      publisherStream,
+      publisherQueue,
+      subscriber
     )
   }
 
@@ -268,4 +315,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        serviceAccountProvider: ServiceAccountProvider[F],
                                        authProvider: LeoAuthProvider[F],
                                        metrics: NewRelicMetrics[F],
-                                       blocker: Blocker)
+                                       blocker: Blocker,
+                                       publisherStream: Stream[F, Unit],
+                                       publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
+                                       subscriber: GoogleSubscriber[F, LeoPubsubMessage])

@@ -829,6 +829,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterRecord.autopauseThreshold,
       clusterRecord.defaultClientId,
       clusterRecord.stopAfterCreation,
+      false,
       clusterImages,
       scopeQuery.unmarshallScopes(scopes),
       clusterRecord.welderEnabled,

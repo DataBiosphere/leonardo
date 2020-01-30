@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton,
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
+import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
 import org.broadinstitute.dsde.workbench.model.google.{
@@ -47,6 +47,8 @@ import scala.concurrent.duration._
 import scala.util.{Random, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import CommonTestData._
+import fs2.concurrent.InspectableQueue
+import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 /**
  * Created by rtitle on 9/6/17.
@@ -91,6 +93,12 @@ class ClusterMonitorSpec
     clusterImages = Set(ClusterImage(ClusterImageType.RStudio, "rstudio_image", Instant.now()),
                         ClusterImage(ClusterImageType.Jupyter, "jupyter_image", Instant.now()))
   )
+  val runningCluster = makeCluster(1).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount),
+    dataprocInfo = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    status = ClusterStatus.Running,
+    instances = Set(masterInstance, workerInstance1, workerInstance2)
+  )
 
   val errorCluster = makeCluster(5).copy(
     serviceAccountInfo =
@@ -113,6 +121,7 @@ class ClusterMonitorSpec
   val clusterMonitorPatience = 10 seconds
 
   implicit val monitorPat = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(2, Seconds)))
+  implicit val nr = FakeNewRelicMetricsInterpreter
 
   def stubComputeDAO(status: InstanceStatus): GoogleComputeDAO = {
     val dao = mock[GoogleComputeDAO]
@@ -162,7 +171,8 @@ class ClusterMonitorSpec
                               authProvider: LeoAuthProvider[IO],
                               jupyterDAO: JupyterDAO[IO],
                               rstudioDAO: RStudioDAO[IO],
-                              welderDAO: WelderDAO[IO]): ActorRef = {
+                              welderDAO: WelderDAO[IO],
+                              queue: InspectableQueue[IO, LeoPubsubMessage]): ActorRef = {
     val bucketHelper = new BucketHelper(computeDAO, storageDAO, storage2DAO, serviceAccountProvider)
     val clusterHelper = new ClusterHelper(DbSingleton.dbRef,
                                           dataprocConfig,
@@ -179,6 +189,7 @@ class ClusterMonitorSpec
                                           directoryDAO,
                                           iamDAO,
                                           projectDAO,
+                                          MockWelderDAO,
                                           blocker)
     val supervisorActor = system.actorOf(
       TestClusterSupervisorActor.props(
@@ -197,7 +208,8 @@ class ClusterMonitorSpec
         jupyterDAO,
         rstudioDAO,
         welderDAO,
-        clusterHelper
+        clusterHelper,
+        queue
       )
     )
 
@@ -216,7 +228,8 @@ class ClusterMonitorSpec
     rstudioDAO: RStudioDAO[IO] = MockRStudioDAO,
     welderDAO: WelderDAO[IO] = MockWelderDAO,
     runningChild: Boolean = true,
-    directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO()
+    directoryDAO: GoogleDirectoryDAO = new MockGoogleDirectoryDAO(),
+    queue: InspectableQueue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
   )(testCode: ActorRef => T): T = {
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     directoryDAO
@@ -234,7 +247,8 @@ class ClusterMonitorSpec
                                              authProvider,
                                              jupyterDAO,
                                              rstudioDAO,
-                                             welderDAO)
+                                             welderDAO,
+                                             queue)
     val testResult = Try(testCode(supervisor))
     testKit watch supervisor
     supervisor ! TearDown
@@ -1383,6 +1397,54 @@ class ClusterMonitorSpec
       }
       verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName])
     }
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Stopping
+  // Post:
+  // - cluster is not updated in the DB
+  // - monitor actor shuts down
+  // - dataproc DAO should not have been called
+  it should "put a message in the queue for a stopping cluster" in isolatedDbTest {
+    val savedStoppingCluster = stoppingCluster.save()
+    stoppingCluster shouldEqual savedStoppingCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Running)
+    when {
+      gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+    } thenReturn Future.successful(clusterInstances)
+
+    val computeDAO = stubComputeDAO(InstanceStatus.Stopped)
+    val storageDAO = mock[GoogleStorageDAO]
+    val projectDAO = mock[GoogleProjectDAO]
+    val iamDAO = mock[GoogleIamDAO]
+    val authProvider = mock[LeoAuthProvider[IO]]
+
+    val queue = QueueFactory.makePublisherQueue()
+
+    queue.getSize.unsafeRunSync() shouldBe 0
+
+    withClusterSupervisor(gdDAO,
+                          computeDAO,
+                          iamDAO,
+                          projectDAO,
+                          storageDAO,
+                          FakeGoogleStorageService,
+                          authProvider,
+                          MockJupyterDAO,
+                          MockRStudioDAO,
+                          MockWelderDAO,
+                          false,
+                          queue = queue) { actor =>
+      eventually {
+        val size = queue.getSize.unsafeRunSync()
+        size shouldBe 1
+      }
+    }
+
   }
 }
 

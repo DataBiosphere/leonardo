@@ -104,6 +104,7 @@ final class DataAccess(blocker: Blocker) {
       TableQuery[ExtensionTable].delete andThen
       TableQuery[ClusterImageTable].delete andThen
       TableQuery[ScopeTable].delete andThen
+      TableQuery[FollowupTable].delete andThen
       TableQuery[ClusterTable].delete
 
   def sqlDBStatus() =

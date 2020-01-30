@@ -36,4 +36,5 @@
     <include file="changesets/20191107_add_cluster_custom_environment_variables.xml" relativeToChangelogFile="true" />
     <include file="changesets/20191120_rename_cluster_image.xml" relativeToChangelogFile="true" />
     <include file="changesets/20191204_jupyter_start_script.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200122_cluster_followup_table.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

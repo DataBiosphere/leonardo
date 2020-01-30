@@ -4,6 +4,7 @@ package monitor
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import cats.effect.{ContextShift, IO}
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{
@@ -17,8 +18,9 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.{ClusterHelper}
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
+
 import scala.concurrent.ExecutionContext.global
 
 object TestClusterSupervisorActor {
@@ -37,7 +39,8 @@ object TestClusterSupervisorActor {
             jupyterProxyDAO: JupyterDAO[IO],
             rstudioProxyDAO: RStudioDAO[IO],
             welderDAO: WelderDAO[IO],
-            clusterHelper: ClusterHelper)(implicit cs: ContextShift[IO]): Props =
+            clusterHelper: ClusterHelper,
+            publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO]): Props =
     Props(
       new TestClusterSupervisorActor(monitorConfig,
                                      dataprocConfig,
@@ -54,7 +57,8 @@ object TestClusterSupervisorActor {
                                      jupyterProxyDAO,
                                      rstudioProxyDAO,
                                      welderDAO,
-                                     clusterHelper)
+                                     clusterHelper,
+                                     publisherQueue)
     )
 }
 
@@ -78,7 +82,8 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  jupyterProxyDAO: JupyterDAO[IO],
                                  rstudioProxyDAO: RStudioDAO[IO],
                                  welderDAO: WelderDAO[IO],
-                                 clusterHelper: ClusterHelper)(implicit cs: ContextShift[IO])
+                                 clusterHelper: ClusterHelper,
+                                 publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO])
     extends ClusterMonitorSupervisor(
       monitorConfig,
       dataprocConfig,
@@ -93,13 +98,13 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       jupyterProxyDAO,
       rstudioProxyDAO,
       welderDAO,
-      clusterHelper
+      clusterHelper,
+      publisherQueue
     )(FakeNewRelicMetricsInterpreter,
       global,
       dbRef,
       ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO),
       cs) {
-
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
 

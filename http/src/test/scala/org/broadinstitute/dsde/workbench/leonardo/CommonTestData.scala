@@ -28,9 +28,8 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
-// values common to multiple tests, to reduce boilerplate
-
 object CommonTestData {
+// values common to multiple tests, to reduce boilerplate
   val name0 = ClusterName("clustername0")
   val name1 = ClusterName("clustername1")
   val name2 = ClusterName("clustername2")
@@ -93,6 +92,9 @@ object CommonTestData {
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers),
                                                      Some(clusterDefaultsConfig.masterMachineType),
                                                      Some(clusterDefaultsConfig.masterDiskSize))
+
+  val pubsubConfig = config.as[PubsubConfig]("pubsub")
+
   val testClusterRequest = ClusterRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
     None,
@@ -100,6 +102,7 @@ object CommonTestData {
     None,
     None,
     Map.empty,
+    None,
     None,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
@@ -113,6 +116,7 @@ object CommonTestData {
     Some(jupyterStartUserScriptUri),
     None,
     Map.empty,
+    None,
     None,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
@@ -143,6 +147,8 @@ object CommonTestData {
   val customDataprocImage = ClusterImage(CustomDataProc, "custom_dataproc", Instant.now)
 
   val clusterResourceConstraints = ClusterResourceConstraints(MemorySize.fromMb(3584))
+
+  val defaultMachineConfig = MachineConfig(Some(0), Some(""), Some(500))
 
   def makeDataprocInfo(index: Int): DataprocInfo =
     DataprocInfo(
@@ -175,6 +181,7 @@ object CommonTestData {
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
+      allowStop = false,
       clusterImages = Set(jupyterImage),
       scopes = defaultScopes,
       welderEnabled = false,
@@ -204,6 +211,7 @@ object CommonTestData {
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
+    allowStop = false,
     clusterImages = Set(jupyterImage),
     scopes = defaultScopes,
     welderEnabled = false,

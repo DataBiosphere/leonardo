@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
+import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
@@ -23,6 +23,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import CommonTestData._
+import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 class ClusterMonitorSupervisorSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -34,6 +35,7 @@ class ClusterMonitorSupervisorSpec
     with GcsPathUtils { testKit =>
 
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
+  implicit val nr = FakeNewRelicMetricsInterpreter
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -75,6 +77,7 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
+                                          MockWelderDAO,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(MockJupyterDAO, MockWelderDAO, MockRStudioDAO)
@@ -93,7 +96,8 @@ class ClusterMonitorSupervisorSpec
         MockJupyterDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper
+        clusterHelper,
+        QueueFactory.makePublisherQueue()
       )
     )
 
@@ -150,6 +154,7 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
+                                          MockWelderDAO,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -168,7 +173,8 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper
+        clusterHelper,
+        QueueFactory.makePublisherQueue()
       )
     )
 
@@ -216,6 +222,7 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
+                                          MockWelderDAO,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -234,7 +241,8 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper
+        clusterHelper,
+        QueueFactory.makePublisherQueue()
       )
     )
 
@@ -288,6 +296,7 @@ class ClusterMonitorSupervisorSpec
                                           mockGoogleDirectoryDAO,
                                           iamDAO,
                                           projectDAO,
+                                          MockWelderDAO,
                                           blocker)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -307,7 +316,8 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper
+        clusterHelper,
+        QueueFactory.makePublisherQueue()
       )
     )
 

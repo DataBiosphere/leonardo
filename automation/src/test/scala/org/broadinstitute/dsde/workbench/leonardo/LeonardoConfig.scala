@@ -1,6 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import com.google.pubsub.v1.ProjectTopicName
 import org.broadinstitute.dsde.workbench.config.CommonConfig
+import org.broadinstitute.dsde.workbench.google2.PublisherConfig
+import org.broadinstitute.dsde.workbench.google2.GoogleTopicAdminInterpreter
 
 object LeonardoConfig extends CommonConfig {
   private val leonardo = config.getConfig("leonardo")
@@ -18,6 +21,11 @@ object LeonardoConfig extends CommonConfig {
     val curWelderDockerImage: String = leonardo.getString("currentWelderImage")
     val bioconductorImageUrl: String = leonardo.getString("bioconductorImageUrl")
     val rstudioBaseImageUrl: String = leonardo.getString("rstudioBaseImageUrl")
+
+    private val topic = ProjectTopicName.of(gcs.getString("serviceProject"), leonardo.getString("topicName"))
+
+    private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
+    val publisherConfig: PublisherConfig = PublisherConfig(GCS.pathToQAJson, topic, retryConfig)
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson

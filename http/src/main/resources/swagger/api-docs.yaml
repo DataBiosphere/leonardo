@@ -1146,6 +1146,10 @@ definitions:
           Defaults to false.
         type: boolean
         default: false
+      allowStop:
+        type: boolean
+        description: If true, leo will allow updates that require a stop for this cluster. This flag should not be used at the time of cluster creation, but should be specified in the payload for the patch endpoint.
+        default: false
       autopause:
         type: boolean
         description: Whether autopause feature is enabled for this specific cluster. If unset, autopause will be enabled and a system default threshold will be used.
@@ -1298,6 +1302,9 @@ definitions:
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/UpdateMachineConfig'
+      allowStop:
+        type: boolean
+        description: Whether leo should stop the cluster if it is necessary for the update. If false, an exception will be thrown in cases where a stop was required. This cluster will undergo the follow transition. Running -> Stopping -> Stopped -> Update (the cluster will not have the Updating status though) -> Starting -> Running
       autopause:
         type: boolean
         description: Whether autopause feature is enabled for this specific cluster. If unset, autopause will be enabled and a system default threshold will be used.

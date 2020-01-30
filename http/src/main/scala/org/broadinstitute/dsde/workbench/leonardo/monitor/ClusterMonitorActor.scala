@@ -36,6 +36,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
   ClusterSupervisorMessage,
   RemoveFromList
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  ClusterFollowupDetails,
+  ClusterTransitionFinishedMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
@@ -68,7 +72,8 @@ object ClusterMonitorActor {
     google2StorageDAO: GoogleStorageService[IO],
     dbRef: DbReference[IO],
     authProvider: LeoAuthProvider[IO],
-    clusterHelper: ClusterHelper
+    clusterHelper: ClusterHelper,
+    publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
     cs: ContextShift[IO]): Props =
@@ -84,7 +89,8 @@ object ClusterMonitorActor {
                               google2StorageDAO,
                               dbRef,
                               authProvider,
-                              clusterHelper)
+                              clusterHelper,
+                              publisherQueue)
     )
 
   // ClusterMonitorActor messages:
@@ -128,6 +134,7 @@ class ClusterMonitorActor(
   val dbRef: DbReference[IO],
   val authProvider: LeoAuthProvider[IO],
   val clusterHelper: ClusterHelper,
+  val publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
 )(implicit metrics: NewRelicMetrics[IO],
   clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
@@ -399,6 +406,9 @@ class ClusterMonitorActor(
       }
       // reset the time at which the kernel was last found to be busy
       _ <- dbRef.inTransaction { clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
+      _ <- publisherQueue.enqueue1(
+        ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped))
+      )
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(cluster.status, ClusterStatus.Stopped)
     } yield ShutdownActor(RemoveFromList(cluster))

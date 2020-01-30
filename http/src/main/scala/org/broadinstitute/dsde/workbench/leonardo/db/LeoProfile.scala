@@ -6,7 +6,7 @@ import java.time.Instant
 import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImageType, UserScriptPath}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
+import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
@@ -41,6 +41,11 @@ private[db] object LeoProfile extends MySQLProfile {
     implicit val gsPathMappedColumnType: BaseColumnType[GcsPath] =
       MappedColumnType
         .base[GcsPath, String](_.toUri, s => parseGcsPath(s).fold(e => throw new Exception(e.toString()), identity))
+
+    implicit val statusMappedColumnType: BaseColumnType[ClusterStatus] =
+      MappedColumnType
+        .base[ClusterStatus, String](_.entryName, s => ClusterStatus.withName(s))
+
     implicit val googleProjectMappedColumnType: BaseColumnType[GoogleProject] =
       MappedColumnType
         .base[GoogleProject, String](_.value, GoogleProject.apply)
