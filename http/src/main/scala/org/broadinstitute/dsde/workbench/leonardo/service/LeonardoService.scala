@@ -86,11 +86,7 @@ case class ClusterOutOfDateException()
       StatusCodes.Conflict
     )
 
-case class ClusterCannotBeUpdatedException(cluster: Cluster)
-    extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status",
-                         StatusCodes.Conflict)
-
-case class ClusterCannotBeUpdatedException(cluster: Cluster, userHint: String)
+case class ClusterCannotBeUpdatedException(cluster: Cluster, userHint: String = "")
     extends LeoException(
       s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status. ${userHint}",
       StatusCodes.Conflict
