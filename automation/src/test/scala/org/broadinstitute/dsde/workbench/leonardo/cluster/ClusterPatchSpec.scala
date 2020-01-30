@@ -1,12 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo.cluster
 
-import org.broadinstitute.dsde.workbench.leonardo.{Cluster, ClusterFixtureSpec, ClusterStatus, Leonardo, LeonardoTestUtils, MachineConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  Cluster,
+  ClusterFixtureSpec,
+  ClusterStatus,
+  Leonardo,
+  LeonardoTestUtils,
+  MachineConfig
+}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.DoNotDiscover
 
 @DoNotDiscover
 class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
-
 
   //this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start tranition" in { clusterFixture =>

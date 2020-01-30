@@ -38,13 +38,18 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
     response.onError {
       case e =>
         for {
-          _ <- IO(logger.error(s"Unable to process a message in received from pub/sub subscription in messageResponder: ${message}, errorMessage: ${e.getMessage}", e))
+          _ <- IO(
+            logger.error(
+              s"Unable to process a message in received from pub/sub subscription in messageResponder: ${message}, errorMessage: ${e.getMessage}",
+              e
+            )
+          )
           //clean up the db if there is an error and we have saved records
-           _ <- message match {
-              case msg @ ClusterTransitionFinishedMessage(_) =>
-                dbRef.inTransaction { followupQuery.delete(msg.clusterFollowupDetails) }
-              case _ => IO.unit
-            }
+          _ <- message match {
+            case msg @ ClusterTransitionFinishedMessage(_) =>
+              dbRef.inTransaction { followupQuery.delete(msg.clusterFollowupDetails) }
+            case _ => IO.unit
+          }
 
         } yield ()
     }
@@ -124,7 +129,12 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
               }
             }
 
-            case None => IO.raiseError(new WorkbenchException(s"Unable to process transition finished message ${message} for cluster ${message.clusterFollowupDetails.clusterId} because it was not found in the database"))
+            case None =>
+              IO.raiseError(
+                new WorkbenchException(
+                  s"Unable to process transition finished message ${message} for cluster ${message.clusterFollowupDetails.clusterId} because it was not found in the database"
+                )
+              )
           }
         } yield result
       }
