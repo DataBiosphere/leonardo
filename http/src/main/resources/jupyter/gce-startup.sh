@@ -1,37 +1,31 @@
 #!/usr/bin/env bash
 
+# This init script instantiates the tool (e.g. Jupyter) docker images on the Dataproc cluster master node.
+# Adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
+
 # Assumption: jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh was run before this script
 # TODO: Instead, incorporate the necessary pieces into this script unless they will go into the GCE image.
 
 # TODO: Remove hardcodings of templated variables throughout this script
 
-##############################
-###### init-actions.sh #######
-##############################
-
 set -e -x
 
-#
-# This init script instantiates the tool (e.g. Jupyter) docker images on the Dataproc cluster master node.
-# Adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
-#
-
-#
+#####################################################################################################
 # Functions
-#
+#####################################################################################################
 
 # Retry a command up to a specific number of times until it exits successfully,
-# with exponential back off.
+# with exponential back off. For example:
 #
-# $ retry 5 echo "Hello"
-# Hello
+#   $ retry 5 echo "Hello"
+#     Hello
 #
-# $ retry 5 false
-# Retry 1/5 exited 1, retrying in 2 seconds...
-# Retry 2/5 exited 1, retrying in 4 seconds...
-# Retry 3/5 exited 1, retrying in 8 seconds...
-# Retry 4/5 exited 1, retrying in 16 seconds...
-# Retry 5/5 exited 1, no more retries left.
+#   $ retry 5 false
+#     Retry 1/5 exited 1, retrying in 2 seconds...
+#     Retry 2/5 exited 1, retrying in 4 seconds...
+#     Retry 3/5 exited 1, retrying in 8 seconds...
+#     Retry 4/5 exited 1, retrying in 16 seconds...
+#     Retry 5/5 exited 1, no more retries left.
 function retry {
   local retries=$1
   shift
@@ -66,11 +60,13 @@ function betterAptGet() {
   fi
 }
 
-#
-# Main
-#
+#####################################################################################################
+# Main starts here. It is composed of three sections:
+#   1. Set up that is NOT specific to GCE_OPERATION
+#   2. Operations we want to perform only when we are 'creating' a VM
+#   3. Operations we want to perform only when we are 'restarting' a VM that was previously created
+#####################################################################################################
 
-#
 # Array for instrumentation
 # UPDATE THIS IF YOU ADD MORE STEPS:
 # currently the steps are:
@@ -87,10 +83,16 @@ function betterAptGet() {
 # .. after lab extension install
 # .. after jupyter notebook start
 # END
+
+
+#####################################################################################################
+# Set up that is NOT specific to GCE_OPERATION
+#####################################################################################################
 STEP_TIMINGS=($(date +%s))
 
-# ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
-ROLE="Master"
+#GCE_OPERATION=$(gceOperation)
+GCE_OPERATION="creating"
+JUPYTER_HOME=/etc/jupyter
 
 # If a Google credentials file was specified, grab the service account json file
 # and set the GOOGLE_APPLICATION_CREDENTIALS EV.
@@ -103,14 +105,20 @@ if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
 fi
 
-# Only initialize tool and proxy docker containers on the master
-if [[ "${ROLE}" == 'Master' ]]; then
-    JUPYTER_HOME=/etc/jupyter
+#####################################################################################################
+# Set up that IS specific to GCE_OPERATION:
+#
+# We perform some of the operations based on whether we are 'creating' a GCE VM or 'restarting'
+# a VM that was previously created and stopped.
+#####################################################################################################
+
+if [[ "${GCE_OPERATION}" == 'creating' ]]; then
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
     JUPYTER_USER_HOME=/home/jupyter-user
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
+    # TODO: Uncomment below and remove corresponding hardcodings
     : '
     export CLUSTER_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)
@@ -127,6 +135,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export WELDER_ENABLED=$(welderEnabled)
     export NOTEBOOKS_DIR=$(notebooksDir)
     export MEM_LIMIT=$(memLimit)
+    export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
+    # Include a timestamp suffix to differentiate different startup logs across restarts.
+    export JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -142,9 +153,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
-    JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
-    # Include a timestamp suffix to differentiate different startup logs across restarts.
-    JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
@@ -165,6 +173,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export WELDER_ENABLED="true"
     export NOTEBOOKS_DIR="/home/jupyter-user/notebooks"
     export MEM_LIMIT="10200547328b"
+    export JUPYTER_START_USER_SCRIPT_URI=""
+    # Include a timestamp suffix to differentiate different startup logs across restarts.
+    export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=""gs://leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f/startscript_output.txt"-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
+
 
     SERVER_CRT="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter-server.crt"
     SERVER_KEY="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter-server.key"
@@ -180,9 +192,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_LAB_EXTENSIONS=""
     JUPYTER_USER_SCRIPT_URI=""
     JUPYTER_USER_SCRIPT_OUTPUT_URI="gs://leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f/userscript_output.txt"
-    JUPYTER_START_USER_SCRIPT_URI=""
-    # Include a timestamp suffix to differentiate different startup logs across restarts.
-    JUPYTER_START_USER_SCRIPT_OUTPUT_URI=""gs://leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f/startscript_output.txt"-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
     JUPYTER_NOTEBOOK_CONFIG_URI="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter_notebook_config.py"
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/notebook.json"
     CUSTOM_ENV_VARS_CONFIG_URI="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/custom_env_vars.env"
@@ -444,7 +453,7 @@ END
         fi
       fi
 
-      # If a Jupyter start user script was specified, copy it into the jupyter docker container for consumption by startup.sh.
+      # If a Jupyter start user script was specified, copy it into the jupyter docker container for consumption during startups.
       if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
         log 'Copying Jupyter start user script [$JUPYTER_START_USER_SCRIPT_URI]...'
         JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
@@ -514,13 +523,29 @@ END
     # Do this asynchronously so it doesn't hold up cluster creation
     log 'Pruning docker images...'
     docker image prune -a -f &
+elif [[ "${GCE_OPERATION}" == 'restarting' ]]; then
+  # TODO: Merge the vars below with the other env set up above
+  : '
+  export DEPLOY_WELDER=$(deployWelder)
+  export UPDATE_WELDER=$(updateWelder)
+  export DISABLE_DELOCALIZATION=$(disableDelocalization)
+  '
+
+  export DEPLOY_WELDER="false"
+  export UPDATE_WELDER="false"
+  export DISABLE_DELOCALIZATION="false"
+
+  if [ "$UPDATE_WELDER" == "true" ] ; then
+      # Run welder-docker-compose
+      gcloud auth configure-docker
+      docker-compose -f /etc/welder-docker-compose.yaml stop
+      docker-compose -f /etc/welder-docker-compose.yaml rm -f
+      docker-compose -f /etc/welder-docker-compose.yaml up -d
+  fi
+else
+  log "Invalid GCE_OPERATION: ${GCE_OPERATION}. Expected it to be either 'creating' or 'restarting'."
+  exit 1
 fi
 
 log 'All done!'
 log "Timings: ${STEP_TIMINGS[@]}"
-
-##############################
-###### startup.sh ############
-##############################
-
-
