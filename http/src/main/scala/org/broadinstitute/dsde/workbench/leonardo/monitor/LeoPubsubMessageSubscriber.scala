@@ -38,25 +38,20 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
       val res = for {
         _ <- Logger[F].info(s"Subscriber received ${event.msg}")
         res <- messageResponder(event.msg).attempt
-        isAcked <- res match {
+        _ <- res match {
           case Left(e) =>
             e match {
               case ee: PubsubHandleMessageError =>
                 if(ee.isRetryable)
-                  Logger[F].error(e)("Fail to process retryable pubsub message") >> Async[F].delay(event.consumer.nack()).as(false)
+                  Logger[F].error(e)("Fail to process retryable pubsub message") >> Async[F].delay(event.consumer.nack())
                 else
-                  Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(event.consumer.ack()).as(true)
+                  Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(event.consumer.ack())
               case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
-                Logger[F].error(e)("Fail to process retryable pubsub message due to Google API call failure") >> Async[F].delay(event.consumer.nack()).as(false)
+                Logger[F].error(e)("Fail to process retryable pubsub message due to Google API call failure") >> Async[F].delay(event.consumer.nack())
               case _ =>
-                Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(event.consumer.ack()).as(true)
+                Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(event.consumer.ack())
             }
-          case Right(_) => Async[F].delay(event.consumer.ack()).as(true)
-        }
-        _ <- event.msg match {
-          case msg @ ClusterTransitionFinishedMessage(_) if isAcked => // If the event is acknowledged, then we delete the follow up action; otherwise, we leave the follow up action in DB for future events
-            dbRef.inTransaction(followupQuery.delete(msg.clusterFollowupDetails)).void
-          case _ => Async[F].unit
+          case Right(_) => Async[F].delay(event.consumer.ack())
         }
       } yield ()
 

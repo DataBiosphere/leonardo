@@ -171,10 +171,6 @@ class LeoPubsubMessageSubscriberSpec
     val res = process.compile.drain
 
     res.attempt.unsafeRunSync().isRight shouldBe true //messageHandler will never throw exception
-
-    //we want to ensure we have cleaned up the db information, because otherwise subsequent updates can error
-    val savedDetails = dbRef.inTransaction(followupQuery.getFollowupAction(followupKey)).unsafeRunSync()
-    savedDetails shouldBe None
   }
 
   it should "throw an exception if it receives an incorrect StopUpdate message and the database does not reflect the state in message" in isolatedDbTest {
