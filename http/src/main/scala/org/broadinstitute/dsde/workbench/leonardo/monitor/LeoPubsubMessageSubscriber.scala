@@ -6,7 +6,7 @@ import fs2.{Pipe, Stream}
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.MachineConfig
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, followupQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineType}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.Logger
@@ -24,14 +24,13 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
   clusterHelper: ClusterHelper,
   dbRef: DbReference[F]
 )(implicit executionContext: ExecutionContext) {
-  private[monitor] def messageResponder(message: LeoPubsubMessage): F[Unit] = {
+  private[monitor] def messageResponder(message: LeoPubsubMessage): F[Unit] =
     message match {
       case msg @ StopUpdateMessage(_, _) =>
         handleStopUpdateMessage(msg)
       case msg @ ClusterTransitionFinishedMessage(_) =>
         handleClusterTransitionFinished(msg)
     }
-  }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
     in.evalMap { event =>
@@ -42,21 +41,28 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
           case Left(e) =>
             e match {
               case ee: PubsubHandleMessageError =>
-                if(ee.isRetryable)
-                  Logger[F].error(e)("Fail to process retryable pubsub message") >> Async[F].delay(event.consumer.nack())
+                if (ee.isRetryable)
+                  Logger[F].error(e)("Fail to process retryable pubsub message") >> Async[F]
+                    .delay(event.consumer.nack())
                 else
-                  Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(event.consumer.ack())
+                  Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(
+                    event.consumer.ack()
+                  )
               case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
-                Logger[F].error(e)("Fail to process retryable pubsub message due to Google API call failure") >> Async[F].delay(event.consumer.nack())
+                Logger[F]
+                  .error(e)("Fail to process retryable pubsub message due to Google API call failure") >> Async[F]
+                  .delay(event.consumer.nack())
               case _ =>
-                Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(event.consumer.ack())
+                Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(
+                  event.consumer.ack()
+                )
             }
           case Right(_) => Async[F].delay(event.consumer.ack())
         }
       } yield ()
 
-      res.handleErrorWith {
-        e => Logger[F].error(e)("Fail to process pubsub message") >> Async[F].delay(event.consumer.ack())
+      res.handleErrorWith { e =>
+        Logger[F].error(e)("Fail to process pubsub message") >> Async[F].delay(event.consumer.ack())
       }
     }
   }
@@ -82,7 +88,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
           } yield ()
         case Some(resolvedCluster) =>
           Async[F].raiseError(
-            PubsubHandleMessageError.ClusterInvalidState(message.clusterId, resolvedCluster.projectNameString, resolvedCluster, message)
+            PubsubHandleMessageError
+              .ClusterInvalidState(message.clusterId, resolvedCluster.projectNameString, resolvedCluster, message)
           )
         case None =>
           Async[F].raiseError(PubsubHandleMessageError.ClusterNotFound(message.clusterId, message))
@@ -99,14 +106,19 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
           result <- clusterOpt match {
             case Some(resolvedCluster) if resolvedCluster.status != ClusterStatus.Stopped =>
               Async[F].raiseError[Unit](
-                PubsubHandleMessageError.ClusterNotStopped(resolvedCluster.id, resolvedCluster.projectNameString, resolvedCluster.status, message)
+                PubsubHandleMessageError.ClusterNotStopped(resolvedCluster.id,
+                                                           resolvedCluster.projectNameString,
+                                                           resolvedCluster.status,
+                                                           message)
               )
             case Some(resolvedCluster) =>
               savedMasterMachineType match {
                 case Some(machineType) =>
                   for {
                     // perform gddao and db updates for new resources
-                    _ <- Async[F].liftIO(clusterHelper.updateMasterMachineType(resolvedCluster, MachineType(machineType)))
+                    _ <- Async[F].liftIO(
+                      clusterHelper.updateMasterMachineType(resolvedCluster, MachineType(machineType))
+                    )
                     // start cluster
                     _ <- Async[F].liftIO(clusterHelper.internalStartCluster(resolvedCluster))
                     // clean-up info from follow-up table
@@ -116,7 +128,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
               }
 
             case None =>
-              Async[F].raiseError[Unit](PubsubHandleMessageError.ClusterNotFound(message.clusterFollowupDetails.clusterId, message))
+              Async[F].raiseError[Unit](
+                PubsubHandleMessageError.ClusterNotFound(message.clusterFollowupDetails.clusterId, message)
+              )
           }
         } yield result
 
@@ -192,15 +206,26 @@ sealed trait PubsubHandleMessageError extends NoStackTrace {
 }
 object PubsubHandleMessageError {
   final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String = s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
+    override def getMessage: String =
+      s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
     val isRetryable: Boolean = false
   }
-  final case class ClusterNotStopped(clusterId: Long, projectName: String, clusterStatus: ClusterStatus, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String = s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
+  final case class ClusterNotStopped(clusterId: Long,
+                                     projectName: String,
+                                     clusterStatus: ClusterStatus,
+                                     message: LeoPubsubMessage)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
     val isRetryable: Boolean = false
   }
-  final case class ClusterInvalidState(clusterId: Long, projectName: String, cluster: Cluster, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String = s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
+  final case class ClusterInvalidState(clusterId: Long,
+                                       projectName: String,
+                                       cluster: Cluster,
+                                       message: LeoPubsubMessage)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
     val isRetryable: Boolean = false
   }
 }

@@ -19,10 +19,10 @@ class FollowupComponentSpec extends TestComponent with FlatSpecLike {
       r3 <- followupQuery.save(followUpDetails, Some("machineType2")).transaction
       r4 <- followupQuery.getFollowupAction(followUpDetails).transaction
     } yield {
-      r1 shouldBe(1)
-      r2 shouldBe(Some("machineType1"))
-      r3 shouldBe(1)
-      r4 shouldBe(Some("machineType2"))
+      r1 shouldBe (1)
+      r2 shouldBe (Some("machineType1"))
+      r3 shouldBe (1)
+      r4 shouldBe (Some("machineType2"))
     }
     res.unsafeRunSync()
   }
