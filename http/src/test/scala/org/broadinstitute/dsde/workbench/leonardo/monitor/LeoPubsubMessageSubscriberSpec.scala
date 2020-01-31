@@ -3,35 +3,32 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
-import com.typesafe.scalalogging.LazyLogging
+import com.google.cloud.pubsub.v1.AckReplyConsumer
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import io.circe.parser.decode
+import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDataprocDAO,
-  MockGoogleDirectoryDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, ServiceAccountInfo}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  ClusterInvalidState,
+  ClusterNotStopped
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, ServiceAccountInfo}
+import org.mockito.Mockito
+import org.scalatest.concurrent._
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
-import org.scalatest.concurrent._
-import org.broadinstitute.dsde.workbench.model.WorkbenchException
-import io.circe.parser.decode
-import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -42,8 +39,7 @@ class LeoPubsubMessageSubscriberSpec
     with Matchers
     with MockitoSugar
     with Eventually
-    with LazyLogging {
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+    with LeonardoTestSuite {
 
   val mockWelderDAO = mock[WelderDAO[IO]]
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
@@ -125,7 +121,7 @@ class LeoPubsubMessageSubscriberSpec
     }
   }
 
-  "LeoPubsubMessageSubscriber" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
+  "LeoPubsubMessageSubscriber messageResponder" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
 
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
@@ -147,19 +143,41 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    val caught = the[WorkbenchException] thrownBy {
+    the[ClusterNotStopped] thrownBy {
       leoSubscriber.messageResponder(message).unsafeRunSync()
     }
-
-    //we want to ensure we have cleaned up the db information, because otherwise subsequent updates can error
-    val savedDetails = dbRef.inTransaction(followupQuery.getFollowupAction(followupKey)).unsafeRunSync()
-    savedDetails shouldBe None
-    caught.getMessage should include("it is not stopped")
 
     dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Running
   }
 
-  "LeoPubsubMessageSubscriber" should "throw an exception if it receives an incorrect StopUpdate message and the database does not reflect the state in message" in isolatedDbTest {
+  "LeoPubsubMessageSubscriber messageHandler" should "not throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+    val savedRunningCluster = runningCluster.save()
+    val followupKey = ClusterFollowupDetails(savedRunningCluster.id, ClusterStatus.Stopped)
+    val message = ClusterTransitionFinishedMessage(followupKey)
+    val newMasterMachineType = Some("n1-standard-8")
+
+    val consumer = mock[AckReplyConsumer]
+    Mockito.doNothing().when(consumer).ack()
+
+    dbRef
+      .inTransaction(
+        followupQuery.save(followupKey, newMasterMachineType)
+      )
+      .unsafeRunSync()
+
+    val process = fs2.Stream(Event[LeoPubsubMessage](message, consumer)) through leoSubscriber.messageHandler
+    val res = process.compile.drain
+
+    res.attempt.unsafeRunSync().isRight shouldBe true //messageHandler will never throw exception
+
+    //we want to ensure we have cleaned up the db information, because otherwise subsequent updates can error
+    val savedDetails = dbRef.inTransaction(followupQuery.getFollowupAction(followupKey)).unsafeRunSync()
+    savedDetails shouldBe None
+  }
+
+  it should "throw an exception if it receives an incorrect StopUpdate message and the database does not reflect the state in message" in isolatedDbTest {
 
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
@@ -175,15 +193,13 @@ class LeoPubsubMessageSubscriberSpec
       .inTransaction(followupQuery.getFollowupAction(followupKey))
       .unsafeRunSync() shouldBe None
 
-    val caught = the[WorkbenchException] thrownBy {
+    the[ClusterInvalidState] thrownBy {
       leoSubscriber.messageResponder(message).unsafeRunSync()
     }
 
     dbRef
       .inTransaction(followupQuery.getFollowupAction(followupKey))
       .unsafeRunSync() shouldBe None
-
-    caught.getMessage should include("Failed to process StopUpdateMessage")
 
     dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Stopped
   }
@@ -209,7 +225,6 @@ class LeoPubsubMessageSubscriberSpec
       ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Creating))
 
     leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
-
     val postStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupDetails)).unsafeRunSync()
     postStorage shouldBe newMachineType
 
@@ -293,7 +308,6 @@ class LeoPubsubMessageSubscriberSpec
     actualJson.filterNot(_.isWhitespace) shouldBe expectedJson.filterNot(_.isWhitespace)
 
     val decodedMessage = decode[StopUpdateMessage](expectedJson)
-    logger.info(s"decodedMessage: ${decodedMessage}")
     decodedMessage.right.get shouldBe originalMessage
   }
 
@@ -317,7 +331,6 @@ class LeoPubsubMessageSubscriberSpec
     actualJson.filterNot(_.isWhitespace) shouldBe expectedJson.filterNot(_.isWhitespace)
 
     val decodedMessage = decode[ClusterTransitionFinishedMessage](expectedJson)
-    logger.info(s"decodedMessage: ${decodedMessage}")
     decodedMessage.right.get shouldBe originalMessage
   }
 

@@ -4,7 +4,7 @@ import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.scalatest.time.{Minutes, Seconds, Span}
+import org.scalatest.time.{Minutes, Span}
 import org.scalatest.DoNotDiscover
 
 @DoNotDiscover
