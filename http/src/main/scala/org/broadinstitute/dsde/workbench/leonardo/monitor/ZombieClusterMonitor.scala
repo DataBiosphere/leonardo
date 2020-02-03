@@ -105,6 +105,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
         //if we fail because of a permission error, we consider the cluster a zombie, as the permissions have been clean-up elsewhere
         //this occurs in the case of free credits projects, which are managed elsewhere
         case e: GoogleJsonResponseException if e.getStatusCode == 403 =>
+          logger.info(s"Unable to check status of project ${googleProject.value} for zombie cluster detection due to a 403 from google. We are assuming this is a free credits project that has been cleaned up, and zombifying", e)
           false
         case e =>
           logger.warn(s"Unable to check status of project ${googleProject.value} for zombie cluster detection", e)
