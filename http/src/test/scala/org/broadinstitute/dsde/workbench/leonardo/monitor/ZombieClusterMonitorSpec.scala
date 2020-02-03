@@ -2,19 +2,24 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
+import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
-import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatestplus.mockito.MockitoSugar
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Try
@@ -24,7 +29,8 @@ class ZombieClusterMonitorSpec
     with FlatSpecLike
     with BeforeAndAfterAll
     with TestComponent
-    with GcsPathUtils { testKit =>
+    with GcsPathUtils
+    with MockitoSugar { testKit =>
 
   val testCluster1 = makeCluster(1).copy(status = ClusterStatus.Running)
   val testCluster2 = makeCluster(2).copy(status = ClusterStatus.Running)
@@ -63,6 +69,36 @@ class ZombieClusterMonitorSpec
           c.errors.head.errorCode shouldBe -1
           c.errors.head.errorMessage should include("An underlying resource was removed in Google")
         }
+      }
+    }
+  }
+
+  "ZombieClusterMonitor" should "detect zombie clusters when we get a 403 from google" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    // create a running cluster
+    val savedTestCluster1 = testCluster1.save()
+    savedTestCluster1 shouldEqual testCluster1
+
+    // stub GoogleProjectDAO to make the project throw an error
+    val googleProjectDAO = new MockGoogleProjectDAO {
+      val jsonFactory = new MockJsonFactory
+      val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, 403, "you shall not pass")
+
+      override def isProjectActive(projectName: String): Future[Boolean] =
+        Future.failed(testException)
+    }
+
+    // zombie actor should flag the cluster as inactive
+    withZombieActor(googleProjectDAO = googleProjectDAO) { _ =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
+
+          c1.status shouldBe ClusterStatus.Deleted
+          c1.auditInfo.destroyedDate shouldBe 'defined
+          c1.errors.size shouldBe 1
+          c1.errors.head.errorCode shouldBe -1
+          c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
   }
@@ -212,7 +248,7 @@ class ZombieClusterMonitorSpec
     }
   }
 
-  it should "not zombify upon errors from Google" in isolatedDbTest {
+  it should "not zombify upon non-403 errors from Google" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // running cluster in "bad" project - should not get zombified
