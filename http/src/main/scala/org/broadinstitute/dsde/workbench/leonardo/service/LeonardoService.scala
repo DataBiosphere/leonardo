@@ -86,8 +86,8 @@ case class ClusterOutOfDateException()
       StatusCodes.Conflict
     )
 
-case class ClusterCannotBeUpdatedException(cluster: Cluster)
-    extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status",
+case class ClusterCannotBeUpdatedException(projectNameString: String, status: ClusterStatus, userHint: String = "")
+    extends LeoException(s"Cluster ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict)
 
 case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
@@ -340,7 +340,12 @@ class LeonardoService(
               s"detected follow-up action necessary for update on cluster ${existingCluster.projectNameString}: ${action}"
             )
             handleClusterTransition(existingCluster, action)
-          } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
+          } else
+            IO.raiseError(
+              ClusterCannotBeUpdatedException(existingCluster.projectNameString,
+                                              existingCluster.status,
+                                              "Please stop your cluster to perform this type of update.")
+            )
         } else
           IO(
             logger.debug(
@@ -355,7 +360,7 @@ class LeonardoService(
         }
       } yield cluster
 
-    } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster))
+    } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster.projectNameString, existingCluster.status))
   }
 
   private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] =
