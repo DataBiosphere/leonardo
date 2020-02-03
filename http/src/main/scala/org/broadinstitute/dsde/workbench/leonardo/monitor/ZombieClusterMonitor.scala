@@ -6,11 +6,12 @@ import java.time.{Duration, Instant}
 import akka.actor.{Actor, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterErrorQuery, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor._
@@ -101,6 +102,10 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
     (googleProjectDAO.isProjectActive(googleProject.value), googleProjectDAO.isBillingActive(googleProject.value))
       .mapN(_ && _)
       .recover {
+        //if we fail because of a permission error, we consider the cluster a zombie, as the permissions have been clean-up elsewhere
+        //this occurs in the case of free credits projects, which are managed elsewhere
+        case e: GoogleJsonResponseException if e.getStatusCode == 403 =>
+          false
         case e =>
           logger.warn(s"Unable to check status of project ${googleProject.value} for zombie cluster detection", e)
           true
