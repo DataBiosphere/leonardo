@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
@@ -13,11 +12,9 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
-import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -29,8 +26,7 @@ class ZombieClusterMonitorSpec
     with FlatSpecLike
     with BeforeAndAfterAll
     with TestComponent
-    with GcsPathUtils
-    with MockitoSugar { testKit =>
+    with GcsPathUtils { testKit =>
 
   val testCluster1 = makeCluster(1).copy(status = ClusterStatus.Running)
   val testCluster2 = makeCluster(2).copy(status = ClusterStatus.Running)
