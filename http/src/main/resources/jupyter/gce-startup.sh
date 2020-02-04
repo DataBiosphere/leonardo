@@ -94,6 +94,36 @@ STEP_TIMINGS=($(date +%s))
 GCE_OPERATION="creating"
 JUPYTER_HOME=/etc/jupyter
 
+: '
+    export CLUSTER_NAME=$(clusterName)
+    export GOOGLE_PROJECT=$(googleProject)
+    export STAGING_BUCKET=$(stagingBucketName)
+    export OWNER_EMAIL=$(loginHint)
+    export JUPYTER_SERVER_NAME=$(jupyterServerName)
+    export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
+    export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
+    # Include a timestamp suffix to differentiate different startup logs across restarts.
+    export JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
+    export NOTEBOOKS_DIR=$(notebooksDir)
+    export WELDER_SERVER_NAME=$(welderServerName)
+    export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+    export WELDER_ENABLED=$(welderEnabled)
+'
+
+export CLUSTER_NAME="saturn-984109e8-1dfe-4d12-9f70-7f3f233e5779"
+export GOOGLE_PROJECT="callisto-dev"
+export STAGING_BUCKET="leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f"
+export OWNER_EMAIL="kyuksel.dev@gmail.com"
+export JUPYTER_SERVER_NAME="jupyter-server"
+export JUPYTER_DOCKER_IMAGE="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.9"
+export JUPYTER_START_USER_SCRIPT_URI=""
+# Include a timestamp suffix to differentiate different startup logs across restarts.
+export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=""gs://leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f/startscript_output.txt"-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
+export NOTEBOOKS_DIR="/home/jupyter-user/notebooks"
+export WELDER_SERVER_NAME="welder-server"
+export WELDER_DOCKER_IMAGE="us.gcr.io/broad-dsp-gcr-public/welder-server:ed93873"
+export WELDER_ENABLED="true"
+
 # If a Google credentials file was specified, grab the service account json file
 # and set the GOOGLE_APPLICATION_CREDENTIALS EV.
 # This overrides the credentials on the metadata server.
@@ -120,24 +150,11 @@ if [[ "${GCE_OPERATION}" == 'creating' ]]; then
     # The following values are populated by Leo when a cluster is created.
     # TODO: Uncomment below and remove corresponding hardcodings
     : '
-    export CLUSTER_NAME=$(clusterName)
-    export GOOGLE_PROJECT=$(googleProject)
-    export STAGING_BUCKET=$(stagingBucketName)
-    export OWNER_EMAIL=$(loginHint)
-    export JUPYTER_SERVER_NAME=$(jupyterServerName)
     export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
-    export WELDER_SERVER_NAME=$(welderServerName)
-    export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
-    export WELDER_DOCKER_IMAGE=$(welderDockerImage)
-    export WELDER_ENABLED=$(welderEnabled)
-    export NOTEBOOKS_DIR=$(notebooksDir)
     export MEM_LIMIT=$(memLimit)
-    export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
-    # Include a timestamp suffix to differentiate different startup logs across restarts.
-    export JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -158,25 +175,11 @@ if [[ "${GCE_OPERATION}" == 'creating' ]]; then
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
     '
 
-    export CLUSTER_NAME="saturn-984109e8-1dfe-4d12-9f70-7f3f233e5779"
-    export GOOGLE_PROJECT="callisto-dev"
-    export STAGING_BUCKET="leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f"
-    export OWNER_EMAIL="kyuksel.dev@gmail.com"
-    export JUPYTER_SERVER_NAME="jupyter-server"
     export RSTUDIO_SERVER_NAME="rstudio-server"
     export PROXY_SERVER_NAME="proxy-server"
-    export WELDER_SERVER_NAME="welder-server"
-    export JUPYTER_DOCKER_IMAGE="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.9"
     export RSTUDIO_DOCKER_IMAGE=""
     export PROXY_DOCKER_IMAGE="broadinstitute/openidc-proxy:2.3.1_2"
-    export WELDER_DOCKER_IMAGE="us.gcr.io/broad-dsp-gcr-public/welder-server:ed93873"
-    export WELDER_ENABLED="true"
-    export NOTEBOOKS_DIR="/home/jupyter-user/notebooks"
     export MEM_LIMIT="10200547328b"
-    export JUPYTER_START_USER_SCRIPT_URI=""
-    # Include a timestamp suffix to differentiate different startup logs across restarts.
-    export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=""gs://leostaging-saturn-984109e8-c37334e6-0ae7-4403-933c-3ac651319a0f/startscript_output.txt"-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
-
 
     SERVER_CRT="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter-server.crt"
     SERVER_KEY="gs://leoinit-saturn-984109e8-1d-ed6d53e5-7880-49e3-8e63_kyuksel_1/jupyter-server.key"
@@ -465,6 +468,7 @@ END
         docker cp /etc/${JUPYTER_START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
 
+        # TODO: Factor out the part below into a function since it's common for both GCE_OPERATIONs
         # Keep in sync with startup.sh
         log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
         EXIT_CODE=0
@@ -535,12 +539,47 @@ elif [[ "${GCE_OPERATION}" == 'restarting' ]]; then
   export UPDATE_WELDER="false"
   export DISABLE_DELOCALIZATION="false"
 
+  # Sometimes we want to update Welder without having to delete and recreate a cluster
   if [ "$UPDATE_WELDER" == "true" ] ; then
-      # Run welder-docker-compose
       gcloud auth configure-docker
       docker-compose -f /etc/welder-docker-compose.yaml stop
       docker-compose -f /etc/welder-docker-compose.yaml rm -f
       docker-compose -f /etc/welder-docker-compose.yaml up -d
+  fi
+
+  # If a Jupyter start user script was specified, execute it now. It should already be in the docker container
+  # via initialization at VM creation time. We do not want to recopy it from GCS on every cluster restart.
+  if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
+    JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
+    log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
+    EXIT_CODE=0
+    docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+    if [ $EXIT_CODE -ne 0 ]; then
+      echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
+      retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+      exit $EXIT_CODE
+    else
+      retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+    fi
+  fi
+
+  # Start Jupyter
+  if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+      echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
+      docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
+
+      # TODO: Do we still need this for GCE?
+      if [ "$WELDER_ENABLED" == "true" ] ; then
+          # fix for https://broadworkbench.atlassian.net/browse/IA-1453
+          # TODO: remove this when we stop supporting the legacy docker image
+          docker exec -u root jupyter-server sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' /etc/jupyter/scripts/kernel/kernel_bootstrap.sh
+      fi
+  fi
+
+  # Start welder, if enabled
+  if [ "$WELDER_ENABLED" == "true" ] ; then
+      echo "Starting Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
+      docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
   fi
 else
   log "Invalid GCE_OPERATION: ${GCE_OPERATION}. Expected it to be either 'creating' or 'restarting'."
