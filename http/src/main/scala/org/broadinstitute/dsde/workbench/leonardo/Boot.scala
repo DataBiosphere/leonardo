@@ -15,13 +15,13 @@ import com.typesafe.sslconfig.ssl.{
   DefaultTrustManagerFactoryWrapper,
   SSLConfigFactory
 }
-import fs2.{Pipe, Stream}
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
+import fs2.{Pipe, Stream}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
 import io.circe.syntax._
 import javax.net.ssl.SSLContext
-import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
+import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
 import org.broadinstitute.dsde.workbench.google.{
   GoogleStorageDAO,
   HttpGoogleDirectoryDAO,
@@ -29,20 +29,26 @@ import org.broadinstitute.dsde.workbench.google.{
   HttpGoogleProjectDAO,
   HttpGoogleStorageDAO
 }
-import org.broadinstitute.dsde.workbench.google2.{Event, GooglePublisher, GoogleStorageService, GoogleSubscriber}
+import org.broadinstitute.dsde.workbench.google2.{
+  Event,
+  FirewallRuleName,
+  GoogleComputeService,
+  GooglePublisher,
+  GoogleStorageService,
+  GoogleSubscriber
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
+import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
@@ -56,27 +62,50 @@ object Boot extends IOApp {
 
   private def startup(): IO[Unit] = {
     // We need an ActorSystem to host our application in
-    implicit val system = ActorSystem("leonardo")
+    implicit val system = ActorSystem(applicationConfig.applicationName)
     import system.dispatcher
 
-    val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
-      new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
-    }
-
-    val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
-    // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
-    val pemWithServiceAccountUser =
-      Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleGroupsConfig.googleAdminEmail))
+//    val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
+//      new HttpGoogleStorageDAO(applicationConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
+//    }
+//
+//    val json = Json(applicationConfig.leoServiceAccountJsonFile)
+//
+//    val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
+//    // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
+//    val pemWithServiceAccountUser =
+//      Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleGroupsConfig.googleAdminEmail))
     implicit def logger = Slf4jLogger.getLogger[IO]
 
-    createDependencies(leoServiceAccountJsonFile, pem, pemWithServiceAccountUser).use { appDependencies =>
+    createDependencies(leoServiceAccountJsonFile).use { appDependencies =>
       implicit val metrics = appDependencies.metrics
       implicit val dbRef = appDependencies.dbReference
 
-      val bucketHelper = new BucketHelper(appDependencies.googleComputeDAO,
+      val bucketHelperConfig = BucketHelperConfig(
+        imageConfig,
+        welderConfig,
+        proxyConfig,
+        clusterFilesConfig,
+        clusterResourcesConfig
+      )
+      val bucketHelper = new BucketHelper(bucketHelperConfig,
+                                          appDependencies.googleComputeService,
                                           appDependencies.googleStorageDAO,
                                           appDependencies.google2StorageDao,
-                                          appDependencies.serviceAccountProvider)
+                                          appDependencies.googleProjectDAO,
+                                          appDependencies.serviceAccountProvider,
+                                          appDependencies.blocker)
+
+      val vpcHelperConfig = VPCHelperConfig(
+        proxyConfig.projectVPCNetworkLabel,
+        proxyConfig.projectVPCSubnetLabel,
+        FirewallRuleName(proxyConfig.firewallRuleName),
+        proxyConfig.proxyProtocol,
+        proxyConfig.proxyPort,
+        List(NetworkTag(proxyConfig.networkTag))
+      )
+      val vpcHelper =
+        new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
 
       val clusterHelper = new ClusterHelper(dataprocConfig,
                                             imageConfig,
@@ -87,8 +116,9 @@ object Boot extends IOApp {
                                             monitorConfig,
                                             welderConfig,
                                             bucketHelper,
+                                            vpcHelper,
                                             appDependencies.googleDataprocDAO,
-                                            appDependencies.googleComputeDAO,
+                                            appDependencies.googleComputeService,
                                             appDependencies.googleDirectoryDAO,
                                             appDependencies.googleIamDAO,
                                             appDependencies.googleProjectDAO,
@@ -103,7 +133,7 @@ object Boot extends IOApp {
                                                 swaggerConfig,
                                                 autoFreezeConfig,
                                                 welderConfig,
-                                                petGoogleStorageDAO,
+                                                appDependencies.petGoogleStorageDAO,
                                                 appDependencies.authProvider,
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
@@ -123,7 +153,7 @@ object Boot extends IOApp {
             imageConfig,
             clusterBucketConfig,
             appDependencies.googleDataprocDAO,
-            appDependencies.googleComputeDAO,
+            appDependencies.googleComputeService,
             appDependencies.googleStorageDAO,
             appDependencies.google2StorageDao,
             appDependencies.authProvider,
@@ -159,7 +189,7 @@ object Boot extends IOApp {
       val statusService = new StatusService(appDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
                                             appDependencies.dbReference,
-                                            dataprocConfig)
+                                            applicationConfig)
       val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
       with StandardUserInfoDirectives
 
@@ -221,11 +251,9 @@ object Boot extends IOApp {
       }
 
   private def createDependencies[F[_]: StructuredLogger: ContextShift: ConcurrentEffect: Timer](
-    pathToCredentialJson: String,
-    pem: Pem,
-    pemWithServiceAccountUser: Pem
+    pathToCredentialJson: String
   )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
-    implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
+    implicit val metrics = NewRelicMetrics.fromNewRelic[F](applicationConfig.applicationName)
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
@@ -249,17 +277,25 @@ object Boot extends IOApp {
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
-      googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName,
-                                                      pemWithServiceAccountUser,
+      // TODO is this correct?
+      credentialJson <- org.broadinstitute.dsde.workbench.util2
+        .readFile(applicationConfig.leoServiceAccountJsonFile.getAbsolutePath)
+        .map(_.toString)
+      json = Json(credentialJson)
+      jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
+
+      googleStorageDAO = new HttpGoogleStorageDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
+      petGoogleStorageDAO = (token: String) =>
+        new HttpGoogleStorageDAO(applicationConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
+      googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
+      googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
+                                                      jsonWithServiceAccountUser,
                                                       workbenchMetricsBaseName)
-      googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName,
-                                        pem,
+      googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
+      gdDAO = new HttpGoogleDataprocDAO(applicationConfig.applicationName,
+                                        json,
                                         workbenchMetricsBaseName,
-                                        NetworkTag(dataprocConfig.networkTag),
+                                        NetworkTag(proxyConfig.networkTag),
                                         dataprocConfig.dataprocDefaultRegion,
                                         dataprocConfig.dataprocZone)
 
@@ -271,12 +307,15 @@ object Boot extends IOApp {
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
+
+      googleComputeService <- GoogleComputeService.resource(pathToCredentialJson, blocker, semaphore)
     } yield AppDependencies(
       storage,
       dbRef,
       clusterDnsCache,
       googleStorageDAO,
-      googleComputeDAO,
+      petGoogleStorageDAO,
+      googleComputeService,
       googleProjectDAO,
       googleDirectoryDAO,
       googleIamDAO,
@@ -317,7 +356,8 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        dbReference: DbReference[F],
                                        clusterDnsCache: ClusterDnsCache[F],
                                        googleStorageDAO: HttpGoogleStorageDAO,
-                                       googleComputeDAO: HttpGoogleComputeDAO,
+                                       petGoogleStorageDAO: String => GoogleStorageDAO,
+                                       googleComputeService: GoogleComputeService[F],
                                        googleProjectDAO: HttpGoogleProjectDAO,
                                        googleDirectoryDAO: HttpGoogleDirectoryDAO,
                                        googleIamDAO: HttpGoogleIamDAO,

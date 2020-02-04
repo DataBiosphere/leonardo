@@ -6,15 +6,9 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.google2.ClusterName
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{
-  parseGcsPath,
-  GcsBucketName,
-  GcsObjectName,
-  GcsPath,
-  GoogleProject
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
 
 object JsonCodec {
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)
@@ -30,8 +24,9 @@ object JsonCodec {
   implicit val googleProjectEncoder: Encoder[GoogleProject] = Encoder.encodeString.contramap(_.value)
   implicit val gcsPathEncoder: Encoder[GcsPath] = Encoder.encodeString.contramap(_.toUri)
   implicit val userScriptPathEncoder: Encoder[UserScriptPath] = Encoder.encodeString.contramap(_.asString)
-  implicit val machineTypeEncoder: Encoder[MachineType] = Encoder.encodeString.contramap(_.value)
+  implicit val machineTypeEncoder: Encoder[MachineTypeName] = Encoder.encodeString.contramap(_.value)
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
+  implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
     "numberOfWorkers",
     "masterMachineType",
@@ -53,7 +48,7 @@ object JsonCodec {
        x.numberOfPreemptibleWorkers,
        x.cloudService)
   )
-  implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct3(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct3(
     "machineType",
     "diskSize",
     "cloudService"
@@ -71,12 +66,12 @@ object JsonCodec {
     "dateAccessed",
     "kernelFoundBusyDate"
   )(x => AuditInfo.unapply(x).get)
-  implicit val clusterImageTypeEncoder: Encoder[ClusterImageType] = Encoder.encodeString.contramap(_.toString)
-  implicit val clusterImageEncoder: Encoder[ClusterImage] = Encoder.forProduct3(
+  implicit val runtimeImageTypeEncoder: Encoder[RuntimeImageType] = Encoder.encodeString.contramap(_.toString)
+  implicit val runtimeImageEncoder: Encoder[RuntimeImage] = Encoder.forProduct3(
     "imageType",
     "imageUrl",
     "timestamp"
-  )(x => ClusterImage.unapply(x).get)
+  )(x => RuntimeImage.unapply(x).get)
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(
     x =>
@@ -90,15 +85,17 @@ object JsonCodec {
     "clusterServiceAccount",
     "notebookServiceAccount"
   )(x => ServiceAccountInfo.unapply(x).get)
+  implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
 
   implicit val containerImageDecoder: Decoder[ContainerImage] = Decoder.decodeString.emap(
     s => ContainerImage.stringToJupyterDockerImage(s).toRight(s"invalid container image ${s}")
   )
   implicit val cloudServiceDecoder: Decoder[CloudService] =
     Decoder.decodeString.emap(s => CloudService.withNameOption(s).toRight(s"Unsupported cloud service ${s}"))
-  implicit val clusterNameDecoder: Decoder[ClusterName] = Decoder.decodeString.map(ClusterName)
-  implicit val clusterInternalIdDecoder: Decoder[ClusterInternalId] = Decoder.decodeString.map(ClusterInternalId)
-  implicit val machineTypeDecoder: Decoder[MachineType] = Decoder.decodeString.map(MachineType)
+  implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
+  implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
+  implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
+  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.map(MachineTypeName)
   implicit val instantDecoder: Decoder[Instant] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
   implicit val gcsBucketNameDecoder: Decoder[GcsBucketName] = Decoder.decodeString.map(GcsBucketName)
@@ -106,14 +103,14 @@ object JsonCodec {
   implicit val urlDecoder: Decoder[URL] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
-  implicit val clusterImageTypeDecoder: Decoder[ClusterImageType] = Decoder.decodeString.emap(
-    s => ClusterImageType.stringToClusterImageType.get(s).toRight(s"invalid ClusterImageType ${s}")
+  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(
+    s => RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
   )
-  implicit val clusterImageDecoder: Decoder[ClusterImage] = Decoder.forProduct3(
+  implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct3(
     "imageType",
     "imageUrl",
     "timestamp"
-  )(ClusterImage.apply)
+  )(RuntimeImage.apply)
   implicit val auditInfoDecoder: Decoder[AuditInfo] = Decoder.forProduct5(
     "creator",
     "createdDate",
@@ -161,11 +158,11 @@ object JsonCodec {
     "notebookServiceAccount"
   )(ServiceAccountInfo.apply)
 
-  implicit val clusterErrorDecoder: Decoder[ClusterError] = Decoder.forProduct3(
+  implicit val runtimeErrorDecoder: Decoder[RuntimeCreationError] = Decoder.forProduct3(
     "errorMessage",
     "errorCode",
     "timestamp"
-  )(ClusterError.apply)
+  )(RuntimeCreationError.apply)
   implicit val gcsPathDecoder: Decoder[GcsPath] = Decoder.decodeString.emap(s => parseGcsPath(s).leftMap(_.value))
   implicit val userScriptPathDecoder: Decoder[UserScriptPath] = Decoder.decodeString.emap { s =>
     UserScriptPath.stringToUserScriptPath(s).leftMap(_.getMessage)
@@ -176,4 +173,15 @@ object JsonCodec {
     "combinedExtensions",
     "labExtensions"
   )(UserJupyterExtensionConfig.apply)
+
+  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct8(
+    "clusterName",
+    "googleProject",
+    "creator",
+    "clusterServiceAccount",
+    "notebookServiceAccount",
+    "notebookUserScript",
+    "notebookStartUserScript",
+    "tool"
+  )(x => DefaultLabels.unapply(x).get)
 }

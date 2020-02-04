@@ -11,7 +11,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import akka.pattern.ask
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -30,7 +30,7 @@ class StatusService(
   gdDAO: GoogleDataprocDAO,
   samDAO: SamDAO[IO],
   dbRef: DbReference[IO],
-  dataprocConfig: DataprocConfig,
+  applicationConfig: ApplicationConfig,
   initialDelay: FiniteDuration = Duration.Zero,
   pollInterval: FiniteDuration = 1 minute
 )(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO], cs: ContextShift[IO]) {
@@ -71,7 +71,7 @@ class StatusService(
     // Does a 'list clusters' in Leo's project.
     // Doesn't look at results, just checks if the request was successful.
     logger.debug("Checking Google Dataproc connection").unsafeToFuture()
-    gdDAO.listClusters(dataprocConfig.leoGoogleProject).map(_ => HealthMonitor.OkStatus)
+    gdDAO.listClusters(applicationConfig.leoGoogleProject).map(_ => HealthMonitor.OkStatus)
   }
 
   private def checkDatabase: Future[SubsystemStatus] = {

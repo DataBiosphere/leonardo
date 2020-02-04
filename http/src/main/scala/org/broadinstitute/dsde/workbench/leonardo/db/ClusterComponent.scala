@@ -6,8 +6,6 @@ import java.util.UUID
 
 import cats.data.Chain
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -21,6 +19,8 @@ import org.broadinstitute.dsde.workbench.model.google.{
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
+
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -53,7 +53,7 @@ final case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
 class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
   def internalId = column[String]("internalId", O.Length(254))
-  def clusterName = column[ClusterName]("clusterName", O.Length(254))
+  def clusterName = column[RuntimeName]("clusterName", O.Length(254))
   def googleId = column[Option[UUID]]("googleId")
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
   def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
@@ -267,8 +267,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def save(saveCluster: SaveCluster)(implicit ec: ExecutionContext): DBIO[Cluster] =
     for {
-      runtimeConfigId <- RuntimeConfigQueries.insertRuntime(saveCluster.runtimeConfig, saveCluster.now)
-      cluster = LeoLenses.clusterToRuntimeConfigId.modify(_ => runtimeConfigId)(saveCluster.cluster) // update runtimeConfigId
+      runtimeConfigId <- RuntimeConfigQueries.insertRuntimeConfig(saveCluster.runtimeConfig, saveCluster.now)
+      cluster = LeoLenses.clusterToRuntimeConfigId.modify(_ => runtimeConfigId.value)(saveCluster.cluster) // update runtimeConfigId
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
                                                                                    saveCluster.initBucket.map(_.toUri),
                                                                                    saveCluster.serviceAccountKeyId)
@@ -291,37 +291,37 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     clusterLabelQuery.result.map(unmarshalMinimalCluster)
 
   def listActiveWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] =
-    clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }.result map { recs =>
+    clusterLabelQuery.filter { _._1.status inSetBind RuntimeStatus.activeStatuses.map(_.toString) }.result map { recs =>
       unmarshalMinimalCluster(recs)
     }
 
   def listMonitoredClusterOnly(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] =
-    clusterQuery.filter { _.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
+    clusterQuery.filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
       recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
     }
 
   def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] =
-    clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map {
+    clusterLabelQuery.filter { _._1.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }.result map {
       recs =>
         unmarshalMinimalCluster(recs)
     }
 
-  def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningCluster]] =
-    clusterJoinClusterImageQuery.filter { _._1.status === ClusterStatus.Running.toString }.result map {
+  def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =
+    clusterJoinClusterImageQuery.filter { _._1.status === RuntimeStatus.Running.toString }.result map {
       unmarshalRunningCluster
     }
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
     clusterQuery
       .filter { _.clusterServiceAccount === Option(clusterServiceAccount.value) }
-      .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
+      .filter { _.status inSetBind RuntimeStatus.activeStatuses.map(_.toString) }
       .length
       .result
 
   def countActiveByProject(googleProject: GoogleProject) =
     clusterQuery
       .filter { _.googleProject === googleProject }
-      .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
+      .filter { _.status inSetBind RuntimeStatus.activeStatuses.map(_.toString) }
       .length
       .result
 
@@ -336,7 +336,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def getDeletingClusterByName(project: GoogleProject,
                                name: ClusterName)(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
     fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).filter {
-      _._1.status === ClusterStatus.Deleting.toString
+      _._1.status === RuntimeStatus.Deleting.toString
     }.result map { recs =>
       unmarshalFullCluster(recs).headOption
     }
@@ -371,12 +371,12 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .result
       .map { recs =>
         recs.headOption.map { clusterRec =>
-          ClusterInternalId(clusterRec.internalId)
+          RuntimeInternalId(clusterRec.internalId)
         }
       }
 
   private[leonardo] def getIdByUniqueKey(cluster: Cluster)(implicit ec: ExecutionContext): DBIO[Option[Long]] =
-    getIdByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
+    getIdByUniqueKey(cluster.googleProject, cluster.runtimeName, cluster.auditInfo.destroyedDate)
 
   private[leonardo] def getIdByUniqueKey(
     googleProject: GoogleProject,
@@ -434,9 +434,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         recs.headOption.flatten.map(ServiceAccountKeyId)
       }
 
-  def getClusterStatus(id: Long)(implicit ec: ExecutionContext): DBIO[Option[ClusterStatus]] =
+  def getClusterStatus(id: Long)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] =
     findByIdQuery(id).map(_.status).result.headOption map { statusOpt =>
-      statusOpt map ClusterStatus.withName
+      statusOpt map RuntimeStatus.withName
     }
 
   def getClustersReadyToAutoFreeze(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] = {
@@ -449,7 +449,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter { record =>
         tsdiff(minute, record.dateAccessed, now) >= record.autopauseThreshold
       }
-      .filter(_.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString))
+      .filter(_.status inSetBind RuntimeStatus.stoppableStatuses.map(_.toString))
 
     fullClusterQuery(baseQuery).result map { recs =>
       unmarshalFullCluster(recs)
@@ -459,15 +459,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def markPendingDeletion(id: Long, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.status, c.hostIp, c.dateAccessed))
-      .update((ClusterStatus.Deleting.toString, None, dateAccessed))
+      .update((RuntimeStatus.Deleting.toString, None, dateAccessed))
 
   def completeDeletion(id: Long, destroyedDate: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
-      .update((destroyedDate, ClusterStatus.Deleted.toString, None, destroyedDate))
+      .update((destroyedDate, RuntimeStatus.Deleted.toString, None, destroyedDate))
 
   def updateClusterStatusAndHostIp(id: Long,
-                                   status: ClusterStatus,
+                                   status: RuntimeStatus,
                                    hostIp: Option[IP],
                                    dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
@@ -489,9 +489,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         (
           updateAsyncClusterCreationFields.initBucket.map(_.toUri),
           updateAsyncClusterCreationFields.serviceAccountKey.map(_.id.value),
-          updateAsyncClusterCreationFields.dataprocInfo.map(_.googleId),
-          updateAsyncClusterCreationFields.dataprocInfo.map(_.operationName.value),
-          updateAsyncClusterCreationFields.dataprocInfo.map(_.stagingBucket.value),
+          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.googleId),
+          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.operationName.value),
+          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.stagingBucket.value),
           updateAsyncClusterCreationFields.dateAccessed
         )
       )
@@ -501,7 +501,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
       .update((None, None, None, None, None, dateAccessed))
 
-  def updateClusterStatus(id: Long, newStatus: ClusterStatus, dateAccessed: Instant): DBIO[Int] =
+  def updateClusterStatus(id: Long, newStatus: RuntimeStatus, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update((newStatus.toString, dateAccessed))
 
   // for testing only
@@ -543,7 +543,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(c => (c.autopauseThreshold, c.dateAccessed))
       .update((autopauseThreshold, dateAccessed))
 
-  def updateWelder(id: Long, welderImage: ClusterImage, dateAccessed: Instant)(
+  def updateWelder(id: Long, welderImage: RuntimeImage, dateAccessed: Instant)(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
     for {
@@ -552,10 +552,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield ()
 
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =
-    updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp), dateAccessed)
+    updateClusterStatusAndHostIp(id, RuntimeStatus.Running, Some(hostIp), dateAccessed)
 
   def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
-    updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None, dateAccessed)
+    updateClusterStatusAndHostIp(id, RuntimeStatus.Stopping, None, dateAccessed)
 
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
@@ -566,12 +566,12 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ClusterRecord(
       id = 0, // DB AutoInc
       cluster.internalId.asString,
-      cluster.clusterName,
-      cluster.dataprocInfo.map(_.googleId),
+      cluster.runtimeName,
+      cluster.asyncRuntimeFields.map(_.googleId),
       cluster.googleProject,
-      cluster.dataprocInfo.map(_.operationName.value),
+      cluster.asyncRuntimeFields.map(_.operationName.value),
       cluster.status.toString,
-      cluster.dataprocInfo.flatMap(_.hostIp.map(_.value)),
+      cluster.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)),
       cluster.jupyterExtensionUri,
       cluster.jupyterUserScriptUri,
       cluster.jupyterStartUserScriptUri,
@@ -583,13 +583,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
         serviceAccountKeyId.map(_.value)
       ),
-      cluster.dataprocInfo.map(_.stagingBucket.value),
+      cluster.asyncRuntimeFields.map(_.stagingBucket.value),
       cluster.autopauseThreshold,
       cluster.defaultClientId,
       cluster.stopAfterCreation,
       cluster.welderEnabled,
       cluster.customClusterEnvironmentVariables,
-      cluster.runtimeConfigId
+      RuntimeConfigId(cluster.runtimeConfigId)
     )
 
   private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
@@ -615,13 +615,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }.toSeq
   }
 
-  private def unmarshalRunningCluster(clusterImages: Seq[(ClusterRecord, ClusterImageRecord)]): Seq[RunningCluster] = {
-    val clusterContainerMap: Map[RunningCluster, Chain[ClusterContainerServiceType]] = clusterImages.toList.foldMap {
+  private def unmarshalRunningCluster(clusterImages: Seq[(ClusterRecord, ClusterImageRecord)]): Seq[RunningRuntime] = {
+    val clusterContainerMap: Map[RunningRuntime, Chain[RuntimeContainerServiceType]] = clusterImages.toList.foldMap {
       case (clusterRec, clusterImageRec) =>
         val containers = Chain.fromSeq(
-          ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(clusterImageRec.imageType).toSeq
+          RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(clusterImageRec.imageType).toSeq
         )
-        Map(RunningCluster(clusterRec.googleProject, clusterRec.clusterName, List.empty) -> containers)
+        Map(RunningRuntime(clusterRec.googleProject, clusterRec.clusterName, List.empty) -> containers)
     }
 
     clusterContainerMap.toSeq.map {
@@ -699,21 +699,24 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     )
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
-        DataprocInfo(googleId, OperationName(operationName), GcsBucketName(stagingBucket), clusterRecord.hostIp map IP)
+        AsyncRuntimeFields(googleId,
+                           OperationName(operationName),
+                           GcsBucketName(stagingBucket),
+                           clusterRecord.hostIp map IP)
     }
     val clusterImages = clusterImageRecords map clusterImageQuery.unmarshalClusterImage toSet
 
-    Cluster(
+    Runtime(
       clusterRecord.id,
-      ClusterInternalId(clusterRecord.internalId),
+      RuntimeInternalId(clusterRecord.internalId),
       name,
       project,
       serviceAccountInfo,
       dataprocInfo,
       clusterRecord.auditInfo,
       clusterRecord.properties,
-      Cluster.getClusterUrl(project, name, clusterImages, labels),
-      ClusterStatus.withName(clusterRecord.status),
+      Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),
+      RuntimeStatus.withName(clusterRecord.status),
       labels,
       clusterRecord.jupyterExtensionUri,
       clusterRecord.jupyterUserScriptUri,
@@ -729,7 +732,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       scopeQuery.unmarshallScopes(scopes),
       clusterRecord.welderEnabled,
       clusterRecord.customClusterEnvironmentVariables,
-      clusterRecord.runtimeConfigId
+      clusterRecord.runtimeConfigId.value
     )
   }
 }
@@ -739,7 +742,7 @@ final case class GetClusterKey(googleProject: GoogleProject, clusterName: Cluste
 final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   serviceAccountKey: Option[ServiceAccountKey],
                                                   clusterId: Long,
-                                                  dataprocInfo: Option[DataprocInfo],
+                                                  asyncRuntimeFields: Option[AsyncRuntimeFields],
                                                   dateAccessed: Instant)
 
 final case class SaveCluster(cluster: Cluster,

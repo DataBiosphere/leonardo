@@ -19,8 +19,8 @@ import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeConfigId, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, RuntimeConfigId, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
@@ -202,7 +202,7 @@ class ClusterMonitorSpec
         computeDAO,
         storageDAO,
         storage2DAO,
-        dbRef,
+        DbSingleton.dbRef,
         testKit,
         authProvider,
         autoFreezeConfig,

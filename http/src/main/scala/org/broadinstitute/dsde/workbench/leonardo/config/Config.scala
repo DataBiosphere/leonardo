@@ -4,15 +4,14 @@ import java.io.File
 import java.nio.file.Paths
 
 import com.google.pubsub.v1.ProjectTopicName
-import com.typesafe.config.ConfigFactory
-import com.typesafe.config.{Config => TypeSafeConfig}
+import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.{GoogleTopicAdminInterpreter, PublisherConfig, SubscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{CustomDataprocImage, MemorySize, RuntimeResource, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterResource, MemorySize, ServiceAccountProviderConfig}
+import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -24,10 +23,29 @@ import scala.concurrent.duration._
 object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
-  implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
-    SwaggerConfig(
-      config.getString("googleClientId"),
-      config.getString("realm")
+  implicit val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
+    ApplicationConfig(
+      config.getString("applicationName"),
+      GoogleProject(config.getString("leoGoogleProject")),
+      new File(config.getString("leoServiceAccountJsonFile"))
+    )
+  }
+
+  implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
+    DataprocConfig(
+      config.getString("dataprocDefaultRegion"),
+      config.getAs[String]("dataprocZone"),
+      config.getStringList("defaultScopes").asScala.toSet,
+      CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
+      CustomDataprocImage(config.getString("customDataprocImage")),
+      config.getAs[MemorySize]("dataprocReservedMemory")
+    )
+  }
+
+  implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
+    GceConfig(
+      config.getStringList("defaultScopes").asScala.toSet,
+      config.getAs[MemorySize]("gceReservedMemory")
     )
   }
 
@@ -39,34 +57,16 @@ object Config {
     )
   }
 
-  implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
-    DataprocConfig(
-      config.getString("applicationName"),
-      config.getString("dataprocDefaultRegion"),
-      config.getAs[String]("dataprocZone"),
-      GoogleProject(config.getString("leoGoogleProject")),
-      config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName"),
-      config.getString("rstudioServerName"),
-      config.getString("welderServerName"),
-      config.getString("firewallRuleName"),
-      config.getString("networkTag"),
-      config.getStringList("defaultScopes").asScala.toSet,
-      config.getAs[String]("vpcNetwork"),
-      config.getAs[String]("vpcSubnet"),
-      config.getAs[String]("projectVPCNetworkLabel"),
-      config.getAs[String]("projectVPCSubnetLabel"),
-      CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
-      CustomDataprocImage(config.getString("customDataprocImage")),
-      config.getAs[MemorySize]("dataprocReservedMemory")
-    )
-  }
-
   implicit val imageConfigReader: ValueReader[ImageConfig] = ValueReader.relative { config =>
     ImageConfig(
-      config.getString("welderDockerImage"),
+      config.getString("welderImage"),
       config.getString("jupyterImage"),
       config.getString("legacyJupyterImage"),
+      config.getString("proxyImage"),
+      config.getString("jupyterContainerName"),
+      config.getString("rstudioContainerName"),
+      config.getString("welderContainerName"),
+      config.getString("proxyContainerName"),
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),
       config.getString("broadDockerhubImageRegex")
@@ -84,6 +84,22 @@ object Config {
     )
   }
 
+  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
+    ClusterResourcesConfig(
+      RuntimeResource(config.getString("initActionsScript")),
+      RuntimeResource(config.getString("startupScript")),
+      RuntimeResource(config.getString("shutdownScript")),
+      RuntimeResource(config.getString("jupyterDockerCompose")),
+      RuntimeResource(config.getString("rstudioDockerCompose")),
+      RuntimeResource(config.getString("proxyDockerCompose")),
+      RuntimeResource(config.getString("welderDockerCompose")),
+      RuntimeResource(config.getString("proxySiteConf")),
+      RuntimeResource(config.getString("jupyterNotebookConfigUri")),
+      RuntimeResource(config.getString("jupyterNotebookFrontendConfigUri")),
+      RuntimeResource(config.getString("customEnvVarsConfigUri"))
+    )
+  }
+
   implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
     val baseDir = config.getString("configFolderPath")
     ClusterFilesConfig(
@@ -91,22 +107,6 @@ object Config {
       new File(baseDir, config.getString("jupyterServerKey")),
       new File(baseDir, config.getString("jupyterRootCaPem")),
       new File(baseDir, config.getString("jupyterRootCaKey"))
-    )
-  }
-
-  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
-    ClusterResourcesConfig(
-      ClusterResource(config.getString("initActionsScript")),
-      ClusterResource(config.getString("startupScript")),
-      ClusterResource(config.getString("shutdownScript")),
-      ClusterResource(config.getString("jupyterDockerCompose")),
-      ClusterResource(config.getString("rstudioDockerCompose")),
-      ClusterResource(config.getString("proxyDockerCompose")),
-      ClusterResource(config.getString("welderDockerCompose")),
-      ClusterResource(config.getString("proxySiteConf")),
-      ClusterResource(config.getString("jupyterNotebookConfigUri")),
-      ClusterResource(config.getString("jupyterNotebookFrontendConfigUri")),
-      ClusterResource(config.getString("customEnvVarsConfigUri"))
     )
   }
 
@@ -150,17 +150,31 @@ object Config {
     )
   }
 
+  implicit val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative { config =>
+    ClusterDnsCacheConfig(
+      toScalaDuration(config.getDuration("cacheExpiryTime")),
+      config.getInt("cacheMaxSize")
+    )
+  }
+
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
     LiquibaseConfig(config.as[String]("changelog"), config.as[Boolean]("initWithLiquibase"))
   }
 
+  implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
+    SamConfig(config.getString("server"))
+  }
+
   implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
     ProxyConfig(
-      config.getString("jupyterProxyDockerImage"),
-      config.getString("proxyServerName"),
-      config.getInt("jupyterPort"),
-      config.getString("jupyterProtocol"),
-      config.getString("jupyterDomain"),
+      config.getString("proxyDomain"),
+      config.getString("proxyUrlBase"),
+      config.getInt("proxyPort"),
+      config.getString("proxyProtocol"),
+      config.getString("firewallRuleName"),
+      config.getString("networkTag"),
+      config.getString("projectVPCNetworkLabel"),
+      config.getString("projectVPCSubnetLabel"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
       config.getInt("tokenCacheMaxSize"),
@@ -169,11 +183,18 @@ object Config {
     )
   }
 
+  implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
+    SwaggerConfig(
+      config.getString("googleClientId"),
+      config.getString("realm")
+    )
+  }
+
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
     val statusTimeouts = config.getConfig("statusTimeouts")
-    val timeoutMap: Map[ClusterStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
+    val timeoutMap: Map[RuntimeStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
       for {
-        status <- ClusterStatus.withNameInsensitiveOption(e.getKey)
+        status <- RuntimeStatus.withNameInsensitiveOption(e.getKey)
         duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
       } yield (status, duration)
     }.toMap
@@ -184,8 +205,12 @@ object Config {
                   timeoutMap)
   }
 
-  implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
-    SamConfig(config.getString("server"))
+  implicit val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
+    PubsubConfig(
+      GoogleProject(config.getString("pubsubGoogleProject")),
+      config.getString("topicName"),
+      config.getInt("queueSize")
+    )
   }
 
   implicit val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
@@ -207,16 +232,9 @@ object Config {
     )
   }
 
-  implicit val clusterServiceValueReader: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
+  implicit val clusterToolConfigValueReader: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
     ClusterToolConfig(
       toScalaDuration(config.getDuration("pollPeriod"))
-    )
-  }
-
-  implicit val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative { config =>
-    ClusterDnsCacheConfig(
-      toScalaDuration(config.getDuration("cacheExpiryTime")),
-      config.getInt("cacheMaxSize")
     )
   }
 
@@ -269,16 +287,10 @@ object Config {
   implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
 
-  implicit val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
-    PubsubConfig(
-      GoogleProject(config.getString("pubsubGoogleProject")),
-      config.getString("topicName"),
-      config.getInt("queueSize")
-    )
-  }
-
+  val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
+  val gceConfig = config.as[GceConfig]("gce")
   val imageConfig = config.as[ImageConfig]("image")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")

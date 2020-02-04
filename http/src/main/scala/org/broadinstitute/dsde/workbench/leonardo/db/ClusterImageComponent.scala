@@ -9,12 +9,12 @@ import slick.lifted.ProvenShape
 
 import scala.concurrent.ExecutionContext
 
-case class ClusterImageRecord(clusterId: Long, imageType: ClusterImageType, imageUrl: String, timestamp: Instant)
+case class ClusterImageRecord(clusterId: Long, imageType: RuntimeImageType, imageUrl: String, timestamp: Instant)
 
 class ClusterImageTable(tag: Tag) extends Table[ClusterImageRecord](tag, "CLUSTER_IMAGE") {
   def clusterId = column[Long]("clusterId")
 
-  def imageType = column[ClusterImageType]("imageType", O.Length(254))
+  def imageType = column[RuntimeImageType]("imageType", O.Length(254))
 
   def imageUrl = column[String]("imageUrl", O.Length(1024))
 
@@ -47,11 +47,11 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
   def upsert(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] =
     clusterImageQuery.insertOrUpdate(marshallClusterImage(clusterId, clusterImage))
 
-  def get(clusterId: Long, imageType: ClusterImageType)(implicit ec: ExecutionContext): DBIO[Option[ClusterImage]] =
+  def get(clusterId: Long, imageType: RuntimeImageType)(implicit ec: ExecutionContext): DBIO[Option[ClusterImage]] =
     getRecord(clusterId, imageType).headOption
       .map(_.map(unmarshalClusterImage))
 
-  def getRecord(clusterId: Long, imageType: ClusterImageType) =
+  def getRecord(clusterId: Long, imageType: RuntimeImageType) =
     clusterImageQuery
       .filter { _.clusterId === clusterId }
       .filter { _.imageType === imageType }
@@ -72,7 +72,7 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
     )
 
   def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): ClusterImage =
-    ClusterImage(
+    RuntimeImage(
       clusterImageRecord.imageType,
       clusterImageRecord.imageUrl,
       clusterImageRecord.timestamp

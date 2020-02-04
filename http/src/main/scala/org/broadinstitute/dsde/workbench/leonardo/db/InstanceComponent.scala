@@ -3,9 +3,9 @@ package db
 
 import java.sql.Timestamp
 
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import LeoProfile.api._
+import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
 
 import scala.concurrent.ExecutionContext
 
@@ -107,7 +107,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
       googleId = BigDecimal(instance.googleId),
       status = instance.status.entryName,
       ip = instance.ip.map(_.value),
-      dataprocRole = instance.dataprocRole.map(_.entryName),
+      dataprocRole = Some(instance.dataprocRole.entryName),
       createdDate = Timestamp.from(instance.createdDate)
     )
 
@@ -115,13 +115,13 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
     Instance(
       InstanceKey(
         GoogleProject(record.googleProject),
-        ZoneUri(record.zone),
+        ZoneName(record.zone),
         InstanceName(record.name)
       ),
       record.googleId.toBigInt,
       InstanceStatus.withName(record.status),
       record.ip map IP,
-      record.dataprocRole.map(DataprocRole.withName),
+      record.dataprocRole.map(DataprocRole.withName).getOrElse(throw new Exception("dataproc role is null")),
       record.createdDate.toInstant
     )
 }

@@ -8,7 +8,6 @@ import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.ProjectAction
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -35,15 +34,15 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
    * @param userInfo The user in question
    * @param action   The cluster-level action (above) the user is requesting
-   * @param clusterName The user-provided name of the Dataproc cluster
+   * @param runtimeName The user-provided name of the Dataproc cluster
    * @return If the userEmail has permission on this individual notebook cluster to perform this action
    */
   override def hasNotebookClusterPermission(
-    internalId: ClusterInternalId,
+    internalId: RuntimeInternalId,
     userInfo: UserInfo,
     action: NotebookClusterAction,
     googleProject: GoogleProject,
-    clusterName: ClusterName
+    runtimeName: RuntimeName
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     checkWhitelist(userInfo)
 
@@ -55,9 +54,9 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
    * @param clusters All non-deleted clusters from the database
    * @return         Filtered list of clusters that the user is allowed to see
    */
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, ClusterInternalId)]] =
+  ): IO[List[(GoogleProject, RuntimeInternalId)]] =
     clusters.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
@@ -75,13 +74,13 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
    * @param creatorEmail     The email address of the user in question
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def notifyClusterCreated(internalId: ClusterInternalId,
+  def notifyClusterCreated(internalId: RuntimeInternalId,
                            creatorEmail: WorkbenchEmail,
                            googleProject: GoogleProject,
-                           clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+                           runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   /**
    * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
@@ -92,14 +91,14 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
    * @param userEmail     The email address of the user in question
    * @param creatorEmail     The email address of the creator of the cluster
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def notifyClusterDeleted(internalId: ClusterInternalId,
+  def notifyClusterDeleted(internalId: RuntimeInternalId,
                            userEmail: WorkbenchEmail,
                            creatorEmail: WorkbenchEmail,
                            googleProject: GoogleProject,
-                           clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+                           runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 }

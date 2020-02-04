@@ -10,9 +10,8 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, IP}
 import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
+import org.broadinstitute.dsde.workbench.leonardo.{IP, Runtime, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
@@ -31,7 +30,7 @@ object ClusterDnsCache {
   case class HostReady(hostname: Host) extends HostStatus
 }
 
-case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
+case class DnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
 
 /**
  * This class provides in-memory caches of:
@@ -64,17 +63,17 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
     .build(
       new CacheLoader[DnsCacheKey, HostStatus] {
         def load(key: DnsCacheKey): HostStatus = {
-          logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.clusterName}...loading from DB...")
+          logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
           val res = dbRef
             .inTransaction {
-              clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.clusterName)
+              clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
             }
             .toIO
             .unsafeRunSync()
 
           res match {
-            case Some(cluster) =>
-              getHostStatusAndUpdateHostToIpIfHostReady(cluster)
+            case Some(runtime) =>
+              getHostStatusAndUpdateHostToIpIfHostReady(runtime)
             case None =>
               HostNotFound
           }
@@ -82,31 +81,31 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
       }
     )
 
-  private def getHostStatusAndUpdateHostToIpIfHostReady(cluster: Cluster): HostStatus = {
-    val hostStatus = hostStatusByProjectAndCluster(cluster)
+  private def getHostStatusAndUpdateHostToIpIfHostReady(runtime: Runtime): HostStatus = {
+    val hostStatus = hostStatusByProjectAndCluster(runtime)
 
     PartialFunction.condOpt(hostStatus) {
-      case HostReady(_) => hostToIpMapping.mutate(_ + hostToIpEntry(cluster))
+      case HostReady(_) => hostToIpMapping.mutate(_ + hostToIpEntry(runtime))
     }
 
     hostStatus
   }
 
-  private def host(c: Cluster): Host = {
-    val googleId = c.dataprocInfo.map(_.googleId)
-    val assumption = s"Google ID for Google project/cluster ${c.googleProject}/${c.clusterName} must not be undefined."
+  private def host(r: Runtime): Host = {
+    val googleId = r.asyncRuntimeFields.map(_.googleId)
+    val assumption = s"Google ID for Google project/cluster ${r.googleProject}/${r.runtimeName} must not be undefined."
     assert(googleId.isDefined, assumption)
 
-    Host(googleId.get.toString + proxyConfig.jupyterDomain)
+    Host(googleId.get.toString + proxyConfig.proxyDomain)
   }
 
-  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.flatMap(_.hostIp).get
+  private def hostToIpEntry(r: Runtime): (Host, IP) = host(r) -> r.asyncRuntimeFields.flatMap(_.hostIp).get
 
-  private def hostStatusByProjectAndCluster(c: Cluster): HostStatus =
-    if (c.status.isStartable)
+  private def hostStatusByProjectAndCluster(r: Runtime): HostStatus =
+    if (r.status.isStartable)
       HostPaused
-    else if (c.dataprocInfo.flatMap(_.hostIp).isDefined)
-      HostReady(host(c))
+    else if (r.asyncRuntimeFields.flatMap(_.hostIp).isDefined)
+      HostReady(host(r))
     else
       HostNotReady
 

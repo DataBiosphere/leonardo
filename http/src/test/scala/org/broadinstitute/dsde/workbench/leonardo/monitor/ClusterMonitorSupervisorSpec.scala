@@ -9,7 +9,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}

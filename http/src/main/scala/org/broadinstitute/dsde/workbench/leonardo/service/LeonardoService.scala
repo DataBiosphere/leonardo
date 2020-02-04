@@ -18,7 +18,9 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
@@ -26,17 +28,15 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterQuery,
   DbReference,
   LeonardoServiceDbQueries,
+  RuntimeConfigId,
   RuntimeConfigQueries,
   SaveCluster
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition._
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.{Stopped, _}
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdate
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
@@ -44,7 +44,6 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
-import spray.json._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -54,36 +53,36 @@ case class AuthorizationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized",
                          StatusCodes.Forbidden)
 
-case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
-    extends LeoException(s"Runtime ${googleProject.value}/${clusterName.value} not found", StatusCodes.NotFound)
+case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: RuntimeName)
+    extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found", StatusCodes.NotFound)
 
-case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
+case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
-      s"Runtime ${googleProject.value}/${clusterName.value} already exists in ${status.toString} status",
+      s"Runtime ${googleProject.value}/${runtimeName.asString} already exists in ${status.toString} status",
       StatusCodes.Conflict
     )
 
-case class ClusterCannotBeStoppedException(googleProject: GoogleProject,
-                                           clusterName: ClusterName,
-                                           status: ClusterStatus)
+case class RuntimeCannotBeStoppedException(googleProject: GoogleProject,
+                                           runtimeName: RuntimeName,
+                                           status: RuntimeStatus)
     extends LeoException(
-      s"Runtime ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status",
+      s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be stopped in ${status.toString} status",
       StatusCodes.Conflict
     )
 
-case class ClusterCannotBeDeletedException(googleProject: GoogleProject, clusterName: ClusterName)
-    extends LeoException(s"Runtime ${googleProject.value}/${clusterName.value} cannot be deleted in Creating status",
+case class RuntimeCannotBeDeletedException(googleProject: GoogleProject, runtimeName: RuntimeName)
+    extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be deleted in Creating status",
                          StatusCodes.Conflict)
 
-case class ClusterCannotBeStartedException(googleProject: GoogleProject,
-                                           clusterName: ClusterName,
-                                           status: ClusterStatus)
+case class RuntimeCannotBeStartedException(googleProject: GoogleProject,
+                                           runtimeName: RuntimeName,
+                                           status: RuntimeStatus)
     extends LeoException(
-      s"Runtime ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status",
+      s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be started in ${status.toString} status",
       StatusCodes.Conflict
     )
 
-case class ClusterOutOfDateException()
+case class RuntimeOutOfDateException()
     extends LeoException(
       "Your notebook runtime is out of date, and cannot be started due to recent updates in Terra. If you generated " +
         "data or copied external files to the runtime that you want to keep please contact support by emailing " +
@@ -91,18 +90,18 @@ case class ClusterOutOfDateException()
       StatusCodes.Conflict
     )
 
-case class ClusterCannotBeUpdatedException(projectNameString: String, status: ClusterStatus, userHint: String = "")
+case class RuntimeCannotBeUpdatedException(projectNameString: String, status: RuntimeStatus, userHint: String = "")
     extends LeoException(s"Runtime ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict)
 
-case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
+case class RuntimeMachineTypeCannotBeChangedException(runtime: Runtime)
     extends LeoException(
-      s"Runtime ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type. Some updates require stopping the runtime, or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
+      s"Runtime ${runtime.projectNameString} in ${runtime.status} status must be stopped in order to change machine type. Some updates require stopping the runtime, or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
       StatusCodes.Conflict
     )
 
-case class ClusterDiskSizeCannotBeDecreasedException(cluster: Cluster)
-    extends LeoException(s"Runtime ${cluster.projectNameString}: decreasing master disk size is not allowed",
+case class RuntimeDiskSizeCannotBeDecreasedException(runtime: Runtime)
+    extends LeoException(s"Runtime ${runtime.projectNameString}: decreasing master disk size is not allowed",
                          StatusCodes.PreconditionFailed)
 
 case class BucketObjectException(gcsUri: String)
@@ -175,28 +174,28 @@ class LeonardoService(
   protected def checkClusterPermission(userInfo: UserInfo,
                                        action: NotebookClusterAction,
                                        clusterInternalId: ClusterInternalId,
-                                       clusterProjectAndName: ClusterProjectAndName,
+                                       runtimeProjectAndName: RuntimeProjectAndName,
                                        throw403: Boolean = false)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       traceId <- ev.ask
       hasPermission <- authProvider.hasNotebookClusterPermission(clusterInternalId,
                                                                  userInfo,
                                                                  action,
-                                                                 clusterProjectAndName.googleProject,
-                                                                 clusterProjectAndName.clusterName)
+                                                                 runtimeProjectAndName.googleProject,
+                                                                 runtimeProjectAndName.runtimeName)
       _ <- hasPermission match {
         case false =>
           log
             .warn(
               s"${traceId} | User ${userInfo.userEmail} does not have the notebook permission ${action} for " +
-                s"${clusterProjectAndName.googleProject}/${clusterProjectAndName.clusterName}"
+                s"${runtimeProjectAndName.googleProject}/${runtimeProjectAndName.runtimeName}"
             )
             .flatMap { _ =>
               if (throw403)
                 IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
               else
                 IO.raiseError(
-                  ClusterNotFoundException(clusterProjectAndName.googleProject, clusterProjectAndName.clusterName)
+                  RuntimeNotFoundException(runtimeProjectAndName.googleProject, runtimeProjectAndName.runtimeName)
                 )
             }
         case true => IO.unit
@@ -209,8 +208,8 @@ class LeonardoService(
     userInfo: UserInfo,
     googleProject: GoogleProject,
     clusterName: ClusterName,
-    clusterRequest: ClusterRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateClusterAPIResponse] =
+    clusterRequest: CreateRuntimeRequest
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeAPIResponse] =
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
       // Grab the service accounts from serviceAccountProvider for use later
@@ -224,7 +223,7 @@ class LeonardoService(
 
       cluster <- clusterOpt.fold(
         internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
-      )(c => IO.raiseError(ClusterAlreadyExistsException(googleProject, clusterName, c.status)))
+      )(c => IO.raiseError(RuntimeAlreadyExistsException(googleProject, clusterName, c.status)))
 
     } yield cluster
 
@@ -233,41 +232,44 @@ class LeonardoService(
     serviceAccountInfo: ServiceAccountInfo,
     googleProject: GoogleProject,
     clusterName: ClusterName,
-    clusterRequest: ClusterRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateClusterAPIResponse] =
+    clusterRequest: CreateRuntimeRequest
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeAPIResponse] =
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     for {
       traceId <- ev.ask
-      internalId <- IO(ClusterInternalId(UUID.randomUUID().toString))
-      clusterImages <- getClusterImages(userEmail, googleProject, clusterRequest)
+      internalId <- IO(RuntimeInternalId(UUID.randomUUID().toString))
+      clusterImages <- getRuntimeImages(userEmail, googleProject, clusterRequest)
       augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo,
                                                       googleProject,
                                                       clusterName,
                                                       userEmail,
                                                       clusterRequest,
                                                       clusterImages)
-      defaultRuntimeConfig = MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
+      // TODO
+      defaultRuntimeConfig = null // MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
       machineConfig = clusterRequest.runtimeConfig
-        .asInstanceOf[Option[model.RuntimeConfigRequest.DataprocConfig]]
+        .asInstanceOf[Option[RuntimeConfigRequest.DataprocConfig]]
         .map(_.toRuntimeConfigDataprocConfig(defaultRuntimeConfig))
         .getOrElse(defaultRuntimeConfig) //TODO: remove this asInstanceOf
       now <- IO(Instant.now())
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       clusterScopes = if (clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
-      initialClusterToSave = Cluster.create(
-        augmentedClusterRequest,
-        internalId,
-        userEmail,
-        clusterName,
-        googleProject,
-        serviceAccountInfo,
-        machineConfig,
-        dataprocConfig.clusterUrlBase,
-        autopauseThreshold,
-        clusterScopes,
-        clusterImages
-      )
+      // TODO
+      initialClusterToSave: Runtime = null.asInstanceOf[Runtime]
+//      Runtime.create(
+//        augmentedClusterRequest,
+//        internalId,
+//        userEmail,
+//        clusterName,
+//        googleProject,
+//        serviceAccountInfo,
+//        machineConfig,
+//        dataprocConfig.clusterUrlBase,
+//        autopauseThreshold,
+//        clusterScopes,
+//        clusterImages
+//      )
       _ <- log.info(
         s"[$traceId] will deploy the following images to cluster ${initialClusterToSave.projectNameString}: ${clusterImages}"
       )
@@ -284,8 +286,9 @@ class LeonardoService(
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
-      _ <- publisherQueue.enqueue1(cluster.toCreateCluster(machineConfig, Some(traceId)))
-    } yield CreateClusterAPIResponse.fromCluster(cluster, machineConfig)
+      // TODO
+      _ <- publisherQueue.enqueue1(null) // (cluster.toCreateCluster(machineConfig, Some(traceId)))
+    } yield CreateRuntimeAPIResponse.fromRuntime(cluster, machineConfig)
 
   // throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
@@ -297,14 +300,14 @@ class LeonardoService(
         userInfo,
         GetClusterStatus,
         cluster.internalId,
-        ClusterProjectAndName(cluster.googleProject, cluster.clusterName)
+        RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName)
       ) //throws 404 if no auth
     } yield cluster
 
   // throws 404 if nonexistent or no permissions
   def getClusterAPI(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[GetClusterResponse] =
+  ): IO[GetRuntimeResponse] =
     for {
       resp <- LeonardoServiceDbQueries
         .getGetClusterResponse(googleProject, clusterName)
@@ -312,12 +315,12 @@ class LeonardoService(
       _ <- checkClusterPermission(userInfo,
                                   GetClusterStatus,
                                   resp.internalId,
-                                  ClusterProjectAndName(resp.googleProject, resp.clusterName)) //throws 404 if no auth
+                                  RuntimeProjectAndName(resp.googleProject, resp.clusterName)) //throws 404 if no auth
     } yield resp
 
   private def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): IO[Cluster] =
     clusterQuery.getActiveClusterByName(googleProject, clusterName).transaction.flatMap {
-      case None          => IO.raiseError(ClusterNotFoundException(googleProject, clusterName))
+      case None          => IO.raiseError(RuntimeNotFoundException(googleProject, clusterName))
       case Some(cluster) => IO.pure(cluster)
     }
 
@@ -325,17 +328,17 @@ class LeonardoService(
     userInfo: UserInfo,
     googleProject: GoogleProject,
     clusterName: ClusterName,
-    clusterRequest: ClusterRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateClusterResponse] =
+    clusterRequest: CreateRuntimeRequest
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateRuntimeResponse] =
     for {
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if nonexistent or no auth
-      runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId)).transaction
       updatedCluster <- internalUpdateCluster(cluster, clusterRequest, runtimeConfig)
-    } yield UpdateClusterResponse.fromCluster(updatedCluster, runtimeConfig)
+    } yield UpdateRuntimeResponse.fromCluster(updatedCluster, runtimeConfig)
 
   def internalUpdateCluster(
     existingCluster: Cluster,
-    clusterRequest: ClusterRequest,
+    clusterRequest: CreateRuntimeRequest,
     existingRuntimeConfig: RuntimeConfig
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
     if (existingCluster.status.isUpdatable) {
@@ -350,7 +353,7 @@ class LeonardoService(
               case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedError("GCE is not supported yet"))
               case existingRuntimeConfig: RuntimeConfig.DataprocConfig =>
                 target match {
-                  case _: model.RuntimeConfigRequest.GceConfig =>
+                  case _: RuntimeConfigRequest.GceConfig =>
                     IO.raiseError(
                       new WorkbenchException(
                         "Bad request. This runtime is created with GCE, and can not be updated to use dataproc"
@@ -364,7 +367,7 @@ class LeonardoService(
                                                            x.numberOfPreemptibleWorkers).attempt
                       masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster,
                                                                                existingRuntimeConfig,
-                                                                               x.masterMachineType.map(MachineType),
+                                                                               x.masterMachineType.map(MachineTypeName),
                                                                                clusterRequest.allowStop).attempt
                       masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster,
                                                                          existingRuntimeConfig,
@@ -392,7 +395,7 @@ class LeonardoService(
         // Set the cluster status to Updating if the cluster was resized
         now <- IO(Instant.now)
         _ <- if (shouldUpdate) {
-          clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating, now).transaction.void
+          clusterQuery.updateClusterStatus(existingCluster.id, RuntimeStatus.Updating, now).transaction.void
         } else IO.unit
 
         //maybeMasterMachineTypeChanged will throw an error if the appropriate flag hasn't been set to allow special update transitions
@@ -406,7 +409,7 @@ class LeonardoService(
               handleClusterTransition(existingCluster, action, now)
             } else
               IO.raiseError(
-                ClusterCannotBeUpdatedException(
+                RuntimeCannotBeUpdatedException(
                   existingCluster.projectNameString,
                   existingCluster.status,
                   "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time. The number of workers will be updated."
@@ -421,12 +424,12 @@ class LeonardoService(
         }
 
         cluster <- error match {
-          case None    => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
+          case None    => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.runtimeName)
           case Some(e) => IO.raiseError(e)
         }
       } yield cluster
 
-    } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster.projectNameString, existingCluster.status))
+    } else IO.raiseError(RuntimeCannotBeUpdatedException(existingCluster.projectNameString, existingCluster.status))
 
   private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition, now: Instant)(
     implicit ev: ApplicativeAsk[IO, TraceId]
@@ -488,7 +491,7 @@ class LeonardoService(
 
     updatedNumWorkersAndPreemptiblesOpt match {
       case Some(updatedNumWorkersAndPreemptibles) =>
-        if (existingCluster.status != ClusterStatus.Stopped) { //updating the number of workers in a stopped cluster can take forever, so we forbid it
+        if (existingCluster.status != RuntimeStatus.Stopped) { //updating the number of workers in a stopped cluster can take forever, so we forbid it
           for {
             _ <- log.info(
               s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
@@ -515,26 +518,28 @@ class LeonardoService(
             now <- IO(Instant.now)
             _ <- dbRef.inTransaction {
               updatedNumWorkersAndPreemptibles.fold(
-                a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
                 a =>
-                  RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId,
-                                                                        Option(a),
-                                                                        now),
+                  RuntimeConfigQueries.updateNumberOfWorkers(RuntimeConfigId(existingCluster.runtimeConfigId), a, now),
+                a =>
+                  RuntimeConfigQueries
+                    .updateNumberOfPreemptibleWorkers(RuntimeConfigId(existingCluster.runtimeConfigId), Option(a), now),
                 (a, b) =>
                   RuntimeConfigQueries
-                    .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
+                    .updateNumberOfWorkers(RuntimeConfigId(existingCluster.runtimeConfigId), a, now)
                     .flatMap(
                       _ =>
-                        RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId,
-                                                                              Option(b),
-                                                                              now)
+                        RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(
+                          RuntimeConfigId(existingCluster.runtimeConfigId),
+                          Option(b),
+                          now
+                        )
                     )
               )
             }
           } yield UpdateResult(true, None)
         } else
           IO.raiseError(
-            ClusterCannotBeUpdatedException(
+            RuntimeCannotBeUpdatedException(
               existingCluster.projectNameString,
               existingCluster.status,
               "You cannot update the number of workers in a stopped cluster. Please start your cluster to perform this action"
@@ -547,8 +552,8 @@ class LeonardoService(
 
   def maybeChangeMasterMachineType(existingCluster: Cluster,
                                    existingRuntimeConfig: RuntimeConfig,
-                                   targetMachineType: Option[MachineType],
-                                   allowStop: Boolean): IO[UpdateResult] = {
+                                   targetMachineType: Option[MachineTypeName],
+                                   allowStop: Boolean)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
     val updatedMasterMachineTypeOpt =
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.machineType), targetMachineType)
 
@@ -571,7 +576,7 @@ class LeonardoService(
                 s"detected stop and update transition specified in request of maybeChangeMasterMachineType, ${transition}"
               )
               IO.pure(UpdateResult(false, Some(transition)))
-            } else IO.raiseError(ClusterMachineTypeCannotBeChangedException(existingCluster))
+            } else IO.raiseError(RuntimeMachineTypeCannotBeChangedException(existingCluster))
           case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedError("GCE is not implemented"))
         }
 
@@ -601,12 +606,12 @@ class LeonardoService(
           // Update the DB
           now <- IO(Instant.now)
           _ <- RuntimeConfigQueries
-            .updateDiskSize(existingCluster.runtimeConfigId, updatedMasterDiskSize, now)
+            .updateDiskSize(RuntimeConfigId(existingCluster.runtimeConfigId), updatedMasterDiskSize, now)
             .transaction
         } yield UpdateResult(true, None)
 
       case Some(_) =>
-        IO.raiseError(ClusterDiskSizeCannotBeDecreasedException(existingCluster))
+        IO.raiseError(RuntimeDiskSizeCannotBeDecreasedException(existingCluster))
 
       case None =>
         IO.pure(UpdateResult(false, None))
@@ -624,7 +629,7 @@ class LeonardoService(
       _ <- checkClusterPermission(userInfo,
                                   DeleteCluster,
                                   cluster.internalId,
-                                  ClusterProjectAndName(cluster.googleProject, cluster.clusterName),
+                                  RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
       _ <- internalDeleteCluster(userInfo.userEmail, cluster)
@@ -636,16 +641,16 @@ class LeonardoService(
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
-        keyIdOpt <- clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName).transaction
+        keyIdOpt <- clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.runtimeName).transaction
         _ <- clusterHelper
           .removeServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount, keyIdOpt)
           .recoverWith {
             case NonFatal(e) =>
               log.error(e)(
-                s"Error occurred removing service account key for ${cluster.googleProject} / ${cluster.clusterName}"
+                s"Error occurred removing service account key for ${cluster.googleProject} / ${cluster.runtimeName}"
               )
           }
-        hasDataprocInfo = cluster.dataprocInfo.isDefined
+        hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
         // Delete the cluster in Google
         _ <- if (hasDataprocInfo) clusterHelper.deleteCluster(cluster) else IO.unit
         // Change the cluster status to Deleting in the database
@@ -661,10 +666,10 @@ class LeonardoService(
                                   cluster.auditInfo.creator,
                                   cluster.auditInfo.creator,
                                   cluster.googleProject,
-                                  cluster.clusterName)
+                                  cluster.runtimeName)
       } yield ()
-    } else if (cluster.status == ClusterStatus.Creating) {
-      IO.raiseError(ClusterCannotBeDeletedException(cluster.googleProject, cluster.clusterName))
+    } else if (cluster.status == RuntimeStatus.Creating) {
+      IO.raiseError(RuntimeCannotBeDeletedException(cluster.googleProject, cluster.runtimeName))
     } else IO.unit
 
   def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
@@ -678,24 +683,24 @@ class LeonardoService(
       _ <- checkClusterPermission(userInfo,
                                   StopStartCluster,
                                   cluster.internalId,
-                                  ClusterProjectAndName(cluster.googleProject, cluster.clusterName),
+                                  RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId)).transaction
       _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
     } yield ()
 
-  def internalStopCluster(cluster: Cluster): IO[Unit] =
+  def internalStopCluster(cluster: Cluster)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     if (cluster.status.isStoppable) {
       for {
         // Flush the welder cache to disk
         _ <- if (cluster.welderEnabled) {
           welderDao
-            .flushCache(cluster.googleProject, cluster.clusterName)
+            .flushCache(cluster.googleProject, cluster.runtimeName)
             .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
         } else IO.unit
 
-        runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId)).transaction
         // Stop the cluster in Google
         _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
 
@@ -704,7 +709,7 @@ class LeonardoService(
         _ <- clusterQuery.setToStopping(cluster.id, now).transaction
       } yield ()
 
-    } else IO.raiseError(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
+    } else IO.raiseError(RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
@@ -717,16 +722,16 @@ class LeonardoService(
       _ <- checkClusterPermission(userInfo,
                                   StopStartCluster,
                                   cluster.internalId,
-                                  ClusterProjectAndName(cluster.googleProject, cluster.clusterName),
+                                  RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
       now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      _ <- clusterHelper.internalStartCluster(cluster, Instant.ofEpochMilli(now))
+      _ <- clusterHelper.startCluster(cluster, Instant.ofEpochMilli(now))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Vector[ListClusterResponse]] =
+  ): IO[Vector[ListRuntimeResponse]] =
     for {
       paramMap <- IO.fromEither(processListClustersParameters(params))
       clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProjectOpt).transaction
@@ -756,7 +761,7 @@ class LeonardoService(
   private def validateClusterRequestBucketObjectUri(
     userEmail: WorkbenchEmail,
     googleProject: GoogleProject,
-    clusterRequest: ClusterRequest
+    clusterRequest: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = {
     val transformed = for {
       // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
@@ -846,8 +851,8 @@ class LeonardoService(
                                              googleProject: GoogleProject,
                                              clusterName: ClusterName,
                                              userEmail: WorkbenchEmail,
-                                             clusterRequest: ClusterRequest,
-                                             clusterImages: Set[ClusterImage]): ClusterRequest = {
+                                             clusterRequest: CreateRuntimeRequest,
+                                             clusterImages: Set[ClusterImage]): CreateRuntimeRequest = {
     val userJupyterExt = clusterRequest.jupyterExtensionUri match {
       case Some(ext) => Map("notebookExtension" -> ext.toUri)
       case None      => Map.empty[String, String]
@@ -875,19 +880,21 @@ class LeonardoService(
                                         googleProject: GoogleProject,
                                         clusterName: ClusterName,
                                         creator: WorkbenchEmail,
-                                        clusterRequest: ClusterRequest,
-                                        clusterImages: Set[ClusterImage]): ClusterRequest = {
+                                        clusterRequest: CreateRuntimeRequest,
+                                        clusterImages: Set[ClusterImage]): CreateRuntimeRequest = {
     // create a LabelMap of default labels
-    val defaultLabels = DefaultLabels(
-      clusterName,
-      googleProject,
-      creator,
-      serviceAccountInfo.clusterServiceAccount,
-      serviceAccountInfo.notebookServiceAccount,
-      clusterRequest.jupyterUserScriptUri,
-      clusterRequest.jupyterStartUserScriptUri,
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
-    ).toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
+    // TODO
+    val defaultLabels = Map.empty[String, String]
+//      DefaultLabels(
+//      clusterName,
+//      googleProject,
+//      creator,
+//      serviceAccountInfo.clusterServiceAccount,
+//      serviceAccountInfo.notebookServiceAccount,
+//      clusterRequest.jupyterUserScriptUri,
+//      clusterRequest.jupyterStartUserScriptUri,
+//      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+//    ).toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
 
     // combine default and given labels and add labels for extensions
     val allLabels = clusterRequest.labels ++ defaultLabels ++
@@ -901,10 +908,10 @@ class LeonardoService(
         .copy(labels = allLabels)
   }
 
-  private[service] def getClusterImages(
+  private[service] def getRuntimeImages(
     userEmail: WorkbenchEmail,
     googleProject: GoogleProject,
-    clusterRequest: ClusterRequest
+    clusterRequest: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[ClusterImage]] =
     for {
       now <- IO(Instant.now)
@@ -914,22 +921,22 @@ class LeonardoService(
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
         dockerDAO.detectTool(image, petTokenOpt).flatMap {
           case None       => IO.raiseError(ImageNotFoundException(traceId, image))
-          case Some(tool) => IO.pure(ClusterImage(tool, image.imageUrl, now))
+          case Some(tool) => IO.pure(RuntimeImage(tool, image.imageUrl, now))
         }
       }
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
       // - else if a legacy jupyterDockerImage param was sent, use that
       // - else use the default jupyter image
-      jupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i.imageUrl, now))
-      defaultJupyterImage = ClusterImage(Jupyter, imageConfig.jupyterImage, now)
+      jupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => RuntimeImage(Jupyter, i.imageUrl, now))
+      defaultJupyterImage = RuntimeImage(Jupyter, imageConfig.jupyterImage, now)
       toolImage = autodetectedImageOpt orElse jupyterImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
       // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
       // - If welder is not enabled, we won't use any image.
       welderImageOpt = if (clusterRequest.enableWelder.getOrElse(false)) {
-        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(imageConfig.welderDockerImage)
-        Some(ClusterImage(Welder, imageUrl, now))
+        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(imageConfig.welderImage)
+        Some(RuntimeImage(Welder, imageUrl, now))
       } else None
     } yield Set(Some(toolImage), welderImageOpt).flatten
 

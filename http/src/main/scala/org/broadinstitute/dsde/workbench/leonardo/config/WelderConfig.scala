@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import java.nio.file.Path
 
-import org.broadinstitute.dsde.workbench.leonardo.model.MemorySize
+import org.broadinstitute.dsde.workbench.leonardo.MemorySize
 
 final case class WelderConfig(
   welderEnabledNotebooksDir: Path,

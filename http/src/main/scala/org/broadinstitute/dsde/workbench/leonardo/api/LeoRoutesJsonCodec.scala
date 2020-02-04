@@ -5,21 +5,10 @@ package api
 import cats.implicits._
 import io.circe.{Decoder, DecodingFailure}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  CreateClusterAPIResponse,
-  GetClusterResponse,
-  ListClusterResponse,
-  UpdateClusterResponse
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, PropertyFilePrefix, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
-import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _, _}
-import spray.json.{JsObject, _}
 
-object LeoRoutesJsonCodec extends DefaultJsonProtocol {
+object LeoRoutesJsonCodec {
   val invalidPropertiesError = DecodingFailure("invalid properties", List.empty)
 
   implicit val dataprocConfigDecoder: Decoder[RuntimeConfigRequest.DataprocConfig] = Decoder.instance { c =>
@@ -73,12 +62,12 @@ object LeoRoutesJsonCodec extends DefaultJsonProtocol {
     } yield res
   }
 
-  implicit val gceConfigDecoder: Decoder[model.RuntimeConfigRequest.GceConfig] = Decoder.forProduct2(
+  implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.forProduct2(
     "machineType",
     "diskSize"
   )((mt, ds) => RuntimeConfigRequest.GceConfig(mt, ds))
 
-  implicit val runtimeConfigDecoder: Decoder[model.RuntimeConfigRequest] = Decoder.instance { x =>
+  implicit val runtimeConfigDecoder: Decoder[RuntimeConfigRequest] = Decoder.instance { x =>
     //For newer version of requests, we use `cloudService` field to distinguish whether user is
     val newDecoder = for {
       cloudService <- x.downField("cloudService").as[CloudService]
@@ -91,17 +80,18 @@ object LeoRoutesJsonCodec extends DefaultJsonProtocol {
     } yield r
 
     newDecoder // when the request has `cloudService` field specified
-      .orElse(x.as[model.RuntimeConfigRequest.DataprocConfig]: Either[DecodingFailure, RuntimeConfigRequest]) //try decode as DataprocConfig
-      .orElse(x.as[model.RuntimeConfigRequest.GceConfig]) //try decode as GceConfig
+      .orElse(x.as[RuntimeConfigRequest.DataprocConfig]: Either[DecodingFailure, RuntimeConfigRequest]) //try decode as DataprocConfig
+      .orElse(x.as[RuntimeConfigRequest.GceConfig]) //try decode as GceConfig
   }
 
-  implicit val clusterRequestDecoder: Decoder[ClusterRequest] = Decoder.instance { c =>
+  implicit val createRuntimeRequestDecoder: Decoder[CreateRuntimeRequest] = Decoder.instance { c =>
     for {
       labels <- c.downField("labels").as[Option[Map[String, String]]]
       jupyterExtensionUri <- c.downField("jupyterExtensionUri").as[Option[GcsPath]]
       jupyterUserScriptUri <- c.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jupyterStartUserScriptUri <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
-      machineConfig <- c.downField("machineConfig").as[Option[model.RuntimeConfigRequest.DataprocConfig]]
+      // TODO: handle GCE here
+      machineConfig <- c.downField("machineConfig").as[Option[RuntimeConfigRequest.DataprocConfig]]
       properties <- c.downField("properties").as[Option[Map[String, String]]].map(_.getOrElse(Map.empty))
       isValid = properties.keys.toList.forall { s =>
         val prefix = s.split(":")(0)
@@ -122,7 +112,7 @@ object LeoRoutesJsonCodec extends DefaultJsonProtocol {
       customClusterEnvironmentVariables <- c
         .downField("customClusterEnvironmentVariables")
         .as[Option[Map[String, String]]]
-    } yield ClusterRequest(
+    } yield CreateRuntimeRequest(
       labels.getOrElse(Map.empty),
       jupyterExtensionUri,
       jupyterUserScriptUri,
@@ -142,190 +132,5 @@ object LeoRoutesJsonCodec extends DefaultJsonProtocol {
       enableWelder,
       customClusterEnvironmentVariables.getOrElse(Map.empty)
     )
-  }
-
-  implicit val runtimeConfigWriter: RootJsonWriter[RuntimeConfig] = (obj: RuntimeConfig) => {
-    val allFields = obj match {
-      case x: RuntimeConfig.GceConfig =>
-        Map(
-          "machineType" -> x.machineType.value.toJson,
-          "diskSize" -> x.diskSize.toJson,
-          "cloudService" -> x.cloudService.asString.toJson
-        )
-      case x: RuntimeConfig.DataprocConfig =>
-        Map(
-          "numberOfWorkers" -> x.numberOfWorkers.toJson,
-          "masterMachineType" -> x.masterMachineType.toJson,
-          "masterDiskSize" -> x.masterDiskSize.toJson,
-          "workerMachineType" -> x.workerMachineType.toJson,
-          "workerDiskSize" -> x.workerDiskSize.map(_.toJson).getOrElse(JsNull),
-          "cloudService" -> x.cloudService.asString.toJson,
-          "numberOfWorkerLocalSSDs" -> x.numberOfWorkerLocalSSDs.map(_.toJson).getOrElse(JsNull),
-          "numberOfPreemptibleWorkers" -> x.numberOfPreemptibleWorkers.map(_.toJson).getOrElse(JsNull)
-        )
-    }
-
-    val presentFields = allFields.filter(_._2 != JsNull)
-
-    JsObject(presentFields)
-  }
-
-  implicit val listClusterResponseWriter: RootJsonWriter[ListClusterResponse] = (obj: ListClusterResponse) => {
-    val allFields = Map(
-      "id" -> obj.id.toJson,
-      "internalId" -> obj.internalId.asString.toJson,
-      "clusterName" -> obj.clusterName.toJson,
-      "googleId" -> obj.dataprocInfo.map(_.googleId.toJson).getOrElse(JsNull),
-      "googleProject" -> obj.googleProject.toJson,
-      "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
-      "machineConfig" -> obj.machineConfig.toJson,
-      "clusterUrl" -> obj.clusterUrl.toJson,
-      "operationName" -> obj.dataprocInfo.map(_.operationName.toJson).getOrElse(JsNull),
-      "status" -> obj.status.toJson,
-      "hostIp" -> obj.dataprocInfo.map(_.hostIp.toJson).getOrElse(JsNull),
-      "creator" -> obj.auditInfo.creator.toJson,
-      "createdDate" -> obj.auditInfo.createdDate.toJson,
-      "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-      "kernelFoundBusyDate" -> obj.auditInfo.kernelFoundBusyDate.toJson,
-      "labels" -> obj.labels.toJson,
-      "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
-      "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-      "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket.toJson).getOrElse(JsNull),
-      "instances" -> obj.instances.toJson,
-      "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-      "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-      "defaultClientId" -> obj.defaultClientId.toJson,
-      "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-      "welderEnabled" -> obj.welderEnabled.toJson,
-      "scopes" -> List
-        .empty[String]
-        .toJson //TODO: stubbing this out temporarily until AOU move to new swagger generated client
-    )
-
-    val presentFields = allFields.filter(_._2 != JsNull)
-
-    JsObject(presentFields)
-  }
-
-  implicit object GetClusterFormat extends RootJsonWriter[GetClusterResponse] {
-    override def write(obj: GetClusterResponse): JsValue = {
-      val allFields = List(
-        "id" -> obj.id.toJson,
-        "internalId" -> obj.internalId.asString.toJson,
-        "clusterName" -> obj.clusterName.toJson,
-        "googleId" -> obj.dataprocInfo.map(_.googleId).toJson,
-        "googleProject" -> obj.googleProject.toJson,
-        "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
-        "machineConfig" -> obj.runtimeConfig.toJson,
-        "clusterUrl" -> obj.clusterUrl.toJson,
-        "operationName" -> obj.dataprocInfo.map(_.operationName).toJson,
-        "status" -> obj.status.toJson,
-        "hostIp" -> obj.dataprocInfo.map(_.hostIp).toJson,
-        "creator" -> obj.auditInfo.creator.toJson,
-        "createdDate" -> obj.auditInfo.createdDate.toJson,
-        "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-        "kernelFoundBusyDate" -> obj.auditInfo.kernelFoundBusyDate.toJson,
-        "labels" -> obj.labels.toJson,
-        "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
-        "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-        "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.toJson,
-        "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket).toJson,
-        "errors" -> obj.errors.toJson,
-        "instances" -> obj.instances.toJson,
-        "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
-        "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-        "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-        "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-        "clusterImages" -> obj.clusterImages.toJson,
-        "scopes" -> obj.scopes.toJson,
-        "welderEnabled" -> obj.welderEnabled.toJson
-      )
-
-      val presentFields = allFields.filter(_._2 != JsNull)
-
-      JsObject(presentFields: _*)
-    }
-  }
-
-  implicit object CreateClusterAPIResponseFormat extends RootJsonWriter[CreateClusterAPIResponse] {
-    override def write(obj: CreateClusterAPIResponse): JsValue = {
-      val allFields = List(
-        "id" -> obj.id.toJson,
-        "internalId" -> obj.internalId.asString.toJson,
-        "clusterName" -> obj.clusterName.toJson,
-        "googleId" -> obj.dataprocInfo.map(_.googleId).toJson,
-        "googleProject" -> obj.googleProject.toJson,
-        "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
-        "machineConfig" -> obj.runtimeConfig.toJson,
-        "clusterUrl" -> obj.clusterUrl.toJson,
-        "operationName" -> obj.dataprocInfo.map(_.operationName).toJson,
-        "status" -> obj.status.toJson,
-        "hostIp" -> obj.dataprocInfo.map(_.hostIp).toJson,
-        "creator" -> obj.auditInfo.creator.toJson,
-        "createdDate" -> obj.auditInfo.createdDate.toJson,
-        "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-        "kernelFoundBusyDate" -> obj.auditInfo.kernelFoundBusyDate.toJson,
-        "labels" -> obj.labels.toJson,
-        "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
-        "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-        "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.toJson,
-        "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket).toJson,
-        "errors" -> obj.errors.toJson,
-        "instances" -> obj.instances.toJson,
-        "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
-        "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-        "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-        "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-        "clusterImages" -> obj.clusterImages.toJson,
-        "scopes" -> obj.scopes.toJson,
-        "welderEnabled" -> obj.welderEnabled.toJson
-      )
-
-      val presentFields = allFields.filter(_._2 != JsNull)
-
-      JsObject(presentFields: _*)
-    }
-  }
-  implicit object UpdateClusterResponseFormat extends RootJsonWriter[UpdateClusterResponse] {
-    override def write(obj: UpdateClusterResponse): JsValue = {
-      val allFields = List(
-        "id" -> obj.id.toJson,
-        "internalId" -> obj.internalId.asString.toJson,
-        "clusterName" -> obj.clusterName.toJson,
-        "googleId" -> obj.dataprocInfo.map(_.googleId).toJson,
-        "googleProject" -> obj.googleProject.toJson,
-        "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
-        "machineConfig" -> obj.runtimeConfig.toJson, //Note, for this response, we're still encoding runtimeConfig as machineConfig
-        "clusterUrl" -> obj.clusterUrl.toJson,
-        "operationName" -> obj.dataprocInfo.map(_.operationName).toJson,
-        "status" -> obj.status.toJson,
-        "hostIp" -> obj.dataprocInfo.map(_.hostIp).toJson,
-        "creator" -> obj.auditInfo.creator.toJson,
-        "createdDate" -> obj.auditInfo.createdDate.toJson,
-        "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-        "kernelFoundBusyDate" -> obj.auditInfo.kernelFoundBusyDate.toJson,
-        "labels" -> obj.labels.toJson,
-        "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
-        "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-        "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.toJson,
-        "stagingBucket" -> obj.dataprocInfo.map(_.stagingBucket).toJson,
-        "errors" -> obj.errors.toJson,
-        "instances" -> obj.instances.toJson,
-        "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
-        "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-        "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-        "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-        "clusterImages" -> obj.clusterImages.toJson,
-        "scopes" -> obj.scopes.toJson,
-        "welderEnabled" -> obj.welderEnabled.toJson
-      )
-
-      val presentFields = allFields.filter(_._2 != JsNull)
-
-      JsObject(presentFields: _*)
-    }
   }
 }

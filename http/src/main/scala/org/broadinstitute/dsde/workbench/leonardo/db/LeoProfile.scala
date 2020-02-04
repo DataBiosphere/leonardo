@@ -5,8 +5,7 @@ import java.time.Instant
 
 import io.circe.Printer
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
-import org.broadinstitute.dsde.workbench.google2
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
@@ -42,25 +41,22 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType
         .base[GcsPath, String](_.toUri, s => parseGcsPath(s).fold(e => throw new Exception(e.toString()), identity))
 
-    implicit val statusMappedColumnType: BaseColumnType[ClusterStatus] =
+    implicit val statusMappedColumnType: BaseColumnType[RuntimeStatus] =
       MappedColumnType
-        .base[ClusterStatus, String](_.entryName, s => ClusterStatus.withName(s))
+        .base[RuntimeStatus, String](_.entryName, s => RuntimeStatus.withName(s))
 
     implicit val googleProjectMappedColumnType: BaseColumnType[GoogleProject] =
       MappedColumnType
         .base[GoogleProject, String](_.value, GoogleProject.apply)
-    implicit val clusterNameMappedColumnType: BaseColumnType[ClusterName] =
+    implicit val clusterNameMappedColumnType: BaseColumnType[RuntimeName] =
       MappedColumnType
-        .base[ClusterName, String](_.value, ClusterName.apply)
-    implicit val google2ClusterNameMappedColumnType: BaseColumnType[google2.ClusterName] =
-      MappedColumnType
-        .base[google2.ClusterName, String](_.asString, google2.ClusterName.apply)
+        .base[RuntimeName, String](_.asString, RuntimeName.apply)
     implicit val workbenchEmailMappedColumnType: BaseColumnType[WorkbenchEmail] =
       MappedColumnType
         .base[WorkbenchEmail, String](_.value, WorkbenchEmail.apply)
-    implicit val machineTypeMappedColumnType: BaseColumnType[MachineType] =
+    implicit val machineTypeMappedColumnType: BaseColumnType[MachineTypeName] =
       MappedColumnType
-        .base[MachineType, String](_.value, MachineType.apply)
+        .base[MachineTypeName, String](_.value, MachineTypeName.apply)
     implicit val cloudServiceMappedColumnType: BaseColumnType[CloudService] =
       MappedColumnType
         .base[CloudService, String](_.asString, s => CloudService.withName(s))
@@ -77,9 +73,9 @@ private[leonardo] object LeoProfile extends MySQLProfile {
             res.fold(e => throw e, identity)
           }
         )
-    implicit def customImageTypeMapper = MappedColumnType.base[ClusterImageType, String](
+    implicit def customImageTypeMapper = MappedColumnType.base[RuntimeImageType, String](
       _.toString,
-      s => ClusterImageType.withName(s)
+      s => RuntimeImageType.withName(s)
     )
   }
 }

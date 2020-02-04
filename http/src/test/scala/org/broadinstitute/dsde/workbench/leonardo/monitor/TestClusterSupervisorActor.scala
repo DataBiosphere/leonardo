@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   ImageConfig,
   MonitorConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}

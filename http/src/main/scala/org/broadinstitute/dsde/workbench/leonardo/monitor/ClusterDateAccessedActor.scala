@@ -5,9 +5,9 @@ import java.time.Instant
 import akka.actor.{Actor, Props}
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.{Flush, UpdateDateAccessed}
 

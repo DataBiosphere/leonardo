@@ -19,17 +19,18 @@ import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
+import LeoRoutesJsonCodec._
+import LeoRoutesSprayJsonCodec._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.{
-  listClusterResponseWriter,
-  clusterRequestDecoder,
-  _
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  CreateRuntimeRequest,
+  LeonardoService,
+  ProxyService,
+  StatusService
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, ProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException, RequestValidationError}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -78,7 +79,7 @@ abstract class LeoRoutes(
             validateClusterNameDirective(clusterNameString) { clusterName =>
               pathEndOrSingleSlash {
                 put {
-                  entity(as[ClusterRequest]) { cluster =>
+                  entity(as[CreateRuntimeRequest]) { cluster =>
                     complete {
                       leonardoService
                         .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
@@ -95,7 +96,7 @@ abstract class LeoRoutes(
               validateClusterNameDirective(clusterNameString) { clusterName =>
                 pathEndOrSingleSlash {
                   patch {
-                    entity(as[ClusterRequest]) { cluster =>
+                    entity(as[CreateRuntimeRequest]) { cluster =>
                       complete {
                         leonardoService
                           .updateCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
@@ -106,7 +107,7 @@ abstract class LeoRoutes(
                     }
                   } ~
                     put {
-                      entity(as[ClusterRequest]) { cluster =>
+                      entity(as[CreateRuntimeRequest]) { cluster =>
                         complete {
                           leonardoService
                             .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
@@ -243,7 +244,7 @@ object LeoRoutes {
   private val clusterNameReg = "([a-z|0-9|-])*".r
   private def validateClusterName(clusterNameString: String): Either[Throwable, ClusterName] =
     clusterNameString match {
-      case clusterNameReg(_) => Right(ClusterName(clusterNameString))
+      case clusterNameReg(_) => Right(RuntimeName(clusterNameString))
       case _ =>
         Left(
           RequestValidationError(

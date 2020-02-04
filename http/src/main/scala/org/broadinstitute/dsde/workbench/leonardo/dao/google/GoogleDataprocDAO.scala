@@ -4,8 +4,17 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
+import org.broadinstitute.dsde.workbench.leonardo.{
+  CreateClusterConfig,
+  DataprocRole,
+  InstanceKey,
+  Operation,
+  OperationName,
+  RuntimeErrorDetails,
+  RuntimeName,
+  RuntimeStatus
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google._
 
@@ -15,26 +24,26 @@ case class DataprocDisabledException(errorMsg: String) extends LeoException(s"${
 
 trait GoogleDataprocDAO {
   def createCluster(googleProject: GoogleProject,
-                    clusterName: ClusterName,
+                    clusterName: RuntimeName,
                     createClusterConfig: CreateClusterConfig): Future[Operation]
 
-  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit]
+  def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName): Future[Unit]
 
-  def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus]
+  def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus]
 
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 
-  def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]]
+  def getClusterMasterInstance(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[InstanceKey]]
 
   def getClusterInstances(googleProject: GoogleProject,
-                          clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]]
+                          clusterName: RuntimeName): Future[Map[DataprocRole, Set[InstanceKey]]]
 
-  def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]]
+  def getClusterStagingBucket(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[GcsBucketName]]
 
-  def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]]
+  def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[RuntimeErrorDetails]]
 
   def resizeCluster(googleProject: GoogleProject,
-                    clusterName: ClusterName,
+                    clusterName: RuntimeName,
                     numWorkers: Option[Int] = None,
                     numPreemptibles: Option[Int] = None): Future[Unit]
 

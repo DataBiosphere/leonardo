@@ -4,11 +4,11 @@ import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.Decoder
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
@@ -17,23 +17,23 @@ import org.http4s.{Method, Request, Uri}
 class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache: ClusterDnsCache[F], client: Client[F])
     extends JupyterDAO[F]
     with LazyLogging {
-  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean] =
-    Proxy.getTargetHost[F](clusterDnsCache, googleProject, clusterName) flatMap {
+  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
+    Proxy.getTargetHost[F](clusterDnsCache, googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
         client.successful(
           Request[F](
             method = Method.GET,
             uri = Uri.unsafeFromString(
-              s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status"
+              s"https://${targetHost.toString}/notebooks/$googleProject/$runtimeName/api/status"
             )
           )
         )
       case _ => Concurrent[F].pure(false)
     }
 
-  def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean] =
+  def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     for {
-      hostStatus <- Proxy.getTargetHost[F](clusterDnsCache, googleProject, clusterName)
+      hostStatus <- Proxy.getTargetHost[F](clusterDnsCache, googleProject, runtimeName)
       resp <- hostStatus match {
         case HostReady(host) =>
           for {
@@ -41,7 +41,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache:
               Request[F](
                 method = Method.GET,
                 uri = Uri.unsafeFromString(
-                  s"https://${host.toString}/notebooks/$googleProject/$clusterName/api/sessions"
+                  s"https://${host.toString}/notebooks/$googleProject/$runtimeName/api/sessions"
                 )
               )
             )
@@ -59,8 +59,8 @@ object HttpJupyterDAO {
 }
 
 trait JupyterDAO[F[_]] {
-  def isAllKernelsIdle(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean]
-  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean]
+  def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
 }
 
 sealed abstract class ExecutionState

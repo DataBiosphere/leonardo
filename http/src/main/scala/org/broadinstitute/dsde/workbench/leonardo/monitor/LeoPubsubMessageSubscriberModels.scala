@@ -6,8 +6,6 @@ import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, IP, OperationName}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterProjectAndName, DataprocInfo}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
@@ -29,9 +27,9 @@ object LeoPubsubMessage {
   }
 
   case class CreateCluster(id: Long,
-                           clusterProjectAndName: ClusterProjectAndName,
+                           clusterProjectAndName: RuntimeProjectAndName,
                            serviceAccountInfo: ServiceAccountInfo,
-                           dataprocInfo: Option[DataprocInfo],
+                           asyncRuntimeFields: Option[AsyncRuntimeFields],
                            auditInfo: AuditInfo,
                            properties: Map[String, String],
                            jupyterExtensionUri: Option[GcsPath],
@@ -39,7 +37,7 @@ object LeoPubsubMessage {
                            jupyterStartUserScriptUri: Option[UserScriptPath],
                            userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                            defaultClientId: Option[String],
-                           clusterImages: Set[ClusterImage],
+                           runtimeImages: Set[RuntimeImage],
                            scopes: Set[String],
                            welderEnabled: Boolean,
                            customClusterEnvironmentVariables: Map[String, String],
@@ -49,7 +47,7 @@ object LeoPubsubMessage {
     val messageType = "createCluster"
   }
 
-  final case class ClusterFollowupDetails(clusterId: Long, clusterStatus: ClusterStatus)
+  final case class ClusterFollowupDetails(clusterId: Long, runtimeStatus: RuntimeStatus)
       extends Product
       with Serializable
 }
@@ -66,15 +64,14 @@ object LeoPubsubCodec {
   implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransition] =
     Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransition.apply)
 
-  implicit val clusterNameDecoder: Decoder[ClusterName] = Decoder.decodeString.map(ClusterName)
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
 
-  implicit val clusterProjectAndNameDecoder: Decoder[ClusterProjectAndName] =
-    Decoder.forProduct2("googleProject", "clusterName")(ClusterProjectAndName.apply)
+  implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =
+    Decoder.forProduct2("googleProject", "clusterName")(RuntimeProjectAndName.apply)
 
-  implicit val dataprocInfoDecoder: Decoder[DataprocInfo] =
-    Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(DataprocInfo.apply)
+  implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
+    Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
 
   implicit val createClusterDecoder: Decoder[CreateCluster] =
     Decoder.forProduct17(
@@ -89,7 +86,7 @@ object LeoPubsubCodec {
       "jupyterStartUserScriptUri",
       "userJupyterExtensionConfig",
       "defaultClientId",
-      "clusterImages",
+      "runtimeImages",
       "scopes",
       "welderEnabled",
       "customClusterEnvironmentVariables",
@@ -115,22 +112,21 @@ object LeoPubsubCodec {
     )
 
   implicit val clusterFollowupDetailsEncoder: Encoder[ClusterFollowupDetails] =
-    Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.clusterId, x.clusterStatus))
+    Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.clusterId, x.runtimeStatus))
 
   implicit val clusterTransitionFinishedEncoder: Encoder[ClusterTransition] =
     Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.clusterFollowupDetails))
 
   //TODO: These google specific models json codec should be moved to a better place once Rob's GCE PR is in
-  implicit val clusterNameEncoder: Encoder[ClusterName] = Encoder.encodeString.contramap(_.value)
   implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
   implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.value)
-  implicit val dataprocInfoEncoder: Encoder[DataprocInfo] =
-    Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => DataprocInfo.unapply(x).get)
+  implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
+    Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
 
-  implicit val clusterProjectAndNameEncoder: Encoder[ClusterProjectAndName] = Encoder.forProduct2(
+  implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
     "googleProject",
     "clusterName"
-  )(x => ClusterProjectAndName.unapply(x).get)
+  )(x => RuntimeProjectAndName.unapply(x).get)
 
   implicit val createClusterEncoder: Encoder[CreateCluster] =
     Encoder.forProduct18(
@@ -158,7 +154,7 @@ object LeoPubsubCodec {
          x.id,
          x.clusterProjectAndName,
          x.serviceAccountInfo,
-         x.dataprocInfo,
+         x.asyncRuntimeFields,
          x.auditInfo,
          x.properties,
          x.jupyterExtensionUri,
@@ -166,7 +162,7 @@ object LeoPubsubCodec {
          x.jupyterStartUserScriptUri,
          x.userJupyterExtensionConfig,
          x.defaultClientId,
-         x.clusterImages,
+         x.runtimeImages,
          x.scopes,
          x.welderEnabled,
          x.customClusterEnvironmentVariables,

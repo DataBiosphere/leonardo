@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package model
 
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -45,14 +44,14 @@ abstract class LeoAuthProvider[F[_]] {
    * @param userInfo      The user in question
    * @param action        The cluster-level action (above) the user is requesting
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return If the userEmail has permission on this individual notebook cluster to perform this action
    */
-  def hasNotebookClusterPermission(internalId: ClusterInternalId,
+  def hasNotebookClusterPermission(internalId: RuntimeInternalId,
                                    userInfo: UserInfo,
                                    action: NotebookClusterActions.NotebookClusterAction,
                                    googleProject: GoogleProject,
-                                   clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
+                                   runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
   /**
    * Leo calls this method when it receives a "list clusters" API call, passing in all non-deleted clusters from the database.
@@ -62,9 +61,9 @@ abstract class LeoAuthProvider[F[_]] {
    * @param clusters All non-deleted clusters from the database
    * @return         Filtered list of clusters that the user is allowed to see
    */
-  def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(
+  def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, ClusterInternalId)]]
+  ): F[List[(GoogleProject, RuntimeInternalId)]]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 
@@ -77,13 +76,13 @@ abstract class LeoAuthProvider[F[_]] {
    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
    * @param creatorEmail     The email address of the user in question
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def notifyClusterCreated(internalId: ClusterInternalId,
+  def notifyClusterCreated(internalId: RuntimeInternalId,
                            creatorEmail: WorkbenchEmail,
                            googleProject: GoogleProject,
-                           clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+                           runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
   /**
    * Leo calls this method to notify the auth provider that a notebook cluster has been deleted.
@@ -94,12 +93,12 @@ abstract class LeoAuthProvider[F[_]] {
    * @param userEmail     The email address of the user in question
    * @param creatorEmail  The email address of the creator of the cluster
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def notifyClusterDeleted(internalId: ClusterInternalId,
+  def notifyClusterDeleted(internalId: RuntimeInternalId,
                            userEmail: WorkbenchEmail,
                            creatorEmail: WorkbenchEmail,
                            googleProject: GoogleProject,
-                           clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+                           runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 }

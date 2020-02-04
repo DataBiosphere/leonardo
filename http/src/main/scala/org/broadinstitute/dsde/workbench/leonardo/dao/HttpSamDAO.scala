@@ -22,7 +22,6 @@ import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
@@ -103,13 +102,13 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
    * @param creatorEmail     The email address of the user in question
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def createClusterResource(internalId: ClusterInternalId,
+  def createClusterResource(internalId: RuntimeInternalId,
                             creatorEmail: WorkbenchEmail,
                             googleProject: GoogleProject,
-                            clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
@@ -121,7 +120,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- logger.info(
-        s"${traceId} | creating notebook-cluster resource in sam for ${googleProject}/${clusterName}/${internalId}"
+        s"${traceId} | creating notebook-cluster resource in sam for ${googleProject}/${runtimeName}/${internalId}"
       )
       _ <- httpClient.fetch[Unit](
         Request[F](
@@ -147,14 +146,14 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
    * @param userEmail        The email address of the user in question
    * @param creatorEmail     The email address of the creator of the cluster
    * @param googleProject    The Google project the cluster was created in
-   * @param clusterName      The user-provided name of the Dataproc cluster
+   * @param runtimeName      The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def deleteClusterResource(internalId: ClusterInternalId,
+  def deleteClusterResource(internalId: RuntimeInternalId,
                             userEmail: WorkbenchEmail,
                             creatorEmail: WorkbenchEmail,
                             googleProject: GoogleProject,
-                            clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
@@ -268,8 +267,8 @@ object HttpSamDAO {
   implicit val samResourcePolicyDecoder: Decoder[SamNotebookClusterPolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
-      clusterInternalId <- c.downField("resourceId").as[ClusterInternalId]
-    } yield SamNotebookClusterPolicy(policyName, clusterInternalId)
+      runtimeInternalId <- c.downField("resourceId").as[RuntimeInternalId]
+    } yield SamNotebookClusterPolicy(policyName, runtimeInternalId)
   }
   implicit val samProjectPolicyDecoder: Decoder[SamProjectPolicy] = Decoder.instance { c =>
     for {
@@ -314,7 +313,7 @@ object AccessPolicyName {
     sealerate.collect[AccessPolicyName].map(p => (p.toString, p)).toMap
 
 }
-final case class SamNotebookClusterPolicy(accessPolicyName: AccessPolicyName, internalId: ClusterInternalId)
+final case class SamNotebookClusterPolicy(accessPolicyName: AccessPolicyName, internalId: RuntimeInternalId)
 final case class SamProjectPolicy(accessPolicyName: AccessPolicyName, googleProject: GoogleProject)
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 

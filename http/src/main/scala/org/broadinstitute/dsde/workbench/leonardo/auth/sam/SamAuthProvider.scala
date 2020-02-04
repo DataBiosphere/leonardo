@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO,
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.circe.CirceEntityDecoder._
