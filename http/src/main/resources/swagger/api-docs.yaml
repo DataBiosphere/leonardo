@@ -1180,7 +1180,7 @@ definitions:
       enableWelder:
         type: boolean
         description: If set to true, sets up welder on the cluster. If unset, welder will not be put on the cluster.
-        default: false
+        default: true
       customClusterEnvironmentVariables:
         type: object
         description: Optional environment variables to be set on the cluster.
