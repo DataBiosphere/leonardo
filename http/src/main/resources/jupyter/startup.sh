@@ -110,7 +110,9 @@ if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
   fi
 fi
 
-# Start Jupyter
+# By default GCE restarts containers on exit so we're not explicitly starting them below
+
+# Configuring Jupyter
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
     docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
@@ -122,7 +124,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     fi
 fi
 
-# Start welder, if enabled
+# Configuring Welder, if enabled
 if [ "$WELDER_ENABLED" == "true" ] ; then
     echo "Starting Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
     docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
