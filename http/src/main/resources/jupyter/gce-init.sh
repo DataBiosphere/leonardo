@@ -6,8 +6,6 @@
 # Assumption: jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh was run before this script
 # TODO: Instead, incorporate the necessary pieces into this script unless they will go into the GCE image.
 
-# TODO: Remove hardcodings of templated variables throughout this script
-
 set -e -x
 
 #####################################################################################################
@@ -470,7 +468,6 @@ END
         docker cp /etc/${JUPYTER_START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT}
 
-        # TODO: Factor out the part below into a function since it's common for both GCE_OPERATIONs
         # Keep in sync with startup.sh
         log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
         EXIT_CODE=0
