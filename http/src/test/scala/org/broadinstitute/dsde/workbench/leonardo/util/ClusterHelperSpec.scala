@@ -282,8 +282,8 @@ class ClusterHelperSpec
   it should "calculate cluster resource constraints" in isolatedDbTest {
     val resourceConstraints = clusterHelper.getClusterResourceContraints(testCluster).unsafeRunSync()
 
-    // 7680m (in mock compute dao) - 5g (dataproc allocated) - 512m (welder allocated) = 2048m
-    resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(2048)
+    // 7680m (in mock compute dao) - 6g (dataproc allocated) - 512m (welder allocated) = 1024m
+    resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(1024)
   }
 
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
