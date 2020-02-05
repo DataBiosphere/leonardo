@@ -6,11 +6,12 @@ import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
-import com.typesafe.scalalogging.LazyLogging
+import com.google.protobuf.ByteString
+import com.google.pubsub.v1.PubsubMessage
 import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
 import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{
@@ -49,9 +50,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import fs2.concurrent.InspectableQueue
-import fs2.Stream
+import fs2.{Pipe, Stream}
+import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 
-object Boot extends IOApp with LazyLogging {
+object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
 
   private def startup(): IO[Unit] = {
@@ -68,7 +71,7 @@ object Boot extends IOApp with LazyLogging {
     // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
     val pemWithServiceAccountUser =
       Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleGroupsConfig.googleAdminEmail))
-    implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+    implicit def logger = Slf4jLogger.getLogger[IO]
 
     createDependencies(leoServiceAccountJsonFile, pem, pemWithServiceAccountUser).use { appDependencies =>
       implicit val metrics = appDependencies.metrics
@@ -166,16 +169,14 @@ object Boot extends IOApp with LazyLogging {
       val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
       with StandardUserInfoDirectives
 
-      val messageProcessorStream =
-        if (leoExecutionModeConfig.backLeo) {
-          logger.info("starting subscriber in boot")
-          val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
-            new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
-          pubsubSubscriber.process
-            .handleErrorWith(
-              error => Stream.eval(Logger[IO].error(error)("Failed to initialize message processor in Boot. "))
-            )
-        } else Stream.eval(IO.unit)
+      val messageProcessorStream = if (leoExecutionModeConfig.backLeo) {
+        val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
+          new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
+        Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName} in boot")) ++ pubsubSubscriber.process
+          .handleErrorWith(
+            error => Stream.eval(logger.error(error)("Failed to initialize message processor in Boot. "))
+          )
+      } else Stream.eval(logger.info(s"Not starting subscriber in boot"))
 
       val httpServer = for {
         _ <- if (leoExecutionModeConfig.backLeo) {
@@ -187,7 +188,7 @@ object Boot extends IOApp with LazyLogging {
               .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
               .onError {
                 case t: Throwable =>
-                  unsafeLogger.error(t)("FATAL - failure starting http server").unsafeToFuture()
+                  logger.error(t)("FATAL - failure starting http server").unsafeToFuture()
               }
           }
         }
@@ -202,14 +203,26 @@ object Boot extends IOApp with LazyLogging {
 
       app
         .handleErrorWith { error =>
-          Stream.eval(Logger[IO].error(error)("Failed to start leonardo"))
+          Stream.eval(logger.error(error)("Failed to start leonardo"))
         }
         .compile
         .drain
     }
   }
 
-  private def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](
+  private def conertToPubsubMessagePipe[F[_]]: Pipe[F, LeoPubsubMessage, PubsubMessage] =
+    in =>
+      in.map { msg =>
+        val stringMessage = msg.asJson.noSpaces
+        val byteString = ByteString.copyFromUtf8(stringMessage)
+        PubsubMessage
+          .newBuilder()
+          .setData(byteString)
+          .putAttributes("traceId", msg.traceId.map(_.asString).getOrElse("null"))
+          .build()
+      }
+
+  private def createDependencies[F[_]: StructuredLogger: ContextShift: ConcurrentEffect: Timer](
     pathToCredentialJson: String,
     pem: Pem,
     pemWithServiceAccountUser: Pem
@@ -252,11 +265,11 @@ object Boot extends IOApp with LazyLogging {
                                         dataprocConfig.dataprocDefaultRegion,
                                         dataprocConfig.dataprocZone)
 
-      googlePublisher <- GooglePublisher.resource[F, LeoPubsubMessage](publisherConfig)
+      googlePublisher <- GooglePublisher.resource[F](publisherConfig)
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
 
-      publisherStream = publisherQueue.dequeue through googlePublisher.publish
+      publisherStream = Stream.eval(Logger[F].info(s"Initializing publisher for ${publisherConfig.projectTopicName}")) ++ (publisherQueue.dequeue through conertToPubsubMessagePipe through googlePublisher.publishNative)
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)

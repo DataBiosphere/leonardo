@@ -9,56 +9,55 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineType}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
-import _root_.io.chrisdavenport.log4cats.Logger
+import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.WorkbenchException
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
-
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 import scala.concurrent.ExecutionContext
 import scala.util.control.NoStackTrace
 
-class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concurrent](
+class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   clusterHelper: ClusterHelper,
   dbRef: DbReference[F]
-)(implicit executionContext: ExecutionContext) {
+)(implicit executionContext: ExecutionContext, logger: StructuredLogger[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage): F[Unit] =
     message match {
-      case msg @ StopUpdateMessage(_, _) =>
+      case msg @ StopUpdateMessage(_, _, _) =>
         handleStopUpdateMessage(msg)
-      case msg @ ClusterTransitionFinishedMessage(_) =>
+      case msg @ ClusterTransitionFinishedMessage(_, _) =>
         handleClusterTransitionFinished(msg)
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
     in.evalMap { event =>
       val res = for {
-        _ <- Logger[F].info(s"Subscriber received ${event.msg}")
         res <- messageResponder(event.msg).attempt
         _ <- res match {
           case Left(e) =>
             e match {
               case ee: PubsubHandleMessageError =>
                 if (ee.isRetryable)
-                  Logger[F].error(e)("Fail to process retryable pubsub message") >> Async[F]
+                  logger.error(e)("Fail to process retryable pubsub message") >> Async[F]
                     .delay(event.consumer.nack())
                 else
-                  Logger[F].error(e)("Fail to process non-retryable pubsub message") >> ack(event)
+                  logger.error(e)("Fail to process non-retryable pubsub message") >> ack(event)
               case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
-                Logger[F]
+                logger
                   .error(e)("Fail to process retryable pubsub message due to Google API call failure") >> Async[F]
                   .delay(event.consumer.nack())
               case _ =>
-                Logger[F].error(e)("Fail to process non-retryable pubsub message") >> ack(event)
+                logger.error(e)("Fail to process non-retryable pubsub message") >> ack(event)
             }
           case Right(_) => ack(event)
         }
       } yield ()
 
       res.handleErrorWith { e =>
-        Logger[F].error(e)("Fail to process pubsub message") >> Async[F].delay(event.consumer.ack())
+        logger.error(e)("Fail to process pubsub message") >> Async[F].delay(event.consumer.ack())
       }
     }
   }
@@ -66,7 +65,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
   val process: Stream[F, Unit] = (subscriber.messages through messageHandler).repeat
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] = {
-    Logger[F].debug(s"acking message: ${event.msg}") >> Async[F].delay(
+    logger.debug(s"acking message: ${event.msg}") >> Async[F].delay(
       event.consumer.ack()
     )
   }
@@ -80,7 +79,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
           val followupDetails = ClusterFollowupDetails(message.clusterId, ClusterStatus.Stopped)
 
           for {
-            _ <- Logger[F].info(
+            _ <- logger.info(
               s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder, and saving a record for ${resolvedCluster.id}"
             )
             _ <- dbRef.inTransaction(
@@ -143,15 +142,18 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
 }
 
 sealed trait LeoPubsubMessage {
+  def traceId: Option[TraceId]
   def messageType: String
 }
 
 object LeoPubsubMessage {
-  final case class StopUpdateMessage(updatedMachineConfig: MachineConfig, clusterId: Long) extends LeoPubsubMessage {
+  final case class StopUpdateMessage(updatedMachineConfig: MachineConfig, clusterId: Long, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
     val messageType = "stopUpdate"
   }
 
-  case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails) extends LeoPubsubMessage {
+  case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
     val messageType = "transitionFinished"
   }
 
@@ -164,13 +166,13 @@ final case class PubsubException(message: String) extends Exception
 
 object LeoPubsubCodec {
   implicit val stopUpdateMessageDecoder: Decoder[StopUpdateMessage] =
-    Decoder.forProduct2("updatedMachineConfig", "clusterId")(StopUpdateMessage.apply)
+    Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdateMessage.apply)
 
   implicit val clusterFollowupDetailsDecoder: Decoder[ClusterFollowupDetails] =
     Decoder.forProduct2("clusterId", "clusterStatus")(ClusterFollowupDetails.apply)
 
   implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransitionFinishedMessage] =
-    Decoder.forProduct1("clusterFollowupDetails")(ClusterTransitionFinishedMessage.apply)
+    Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransitionFinishedMessage.apply)
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
