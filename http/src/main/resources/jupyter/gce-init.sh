@@ -88,6 +88,8 @@ function betterAptGet() {
 #####################################################################################################
 # Set up that is NOT specific to GCE_OPERATION
 #####################################################################################################
+log "Running GCE VM init script in ${GCE_OPERATION} mode..."
+
 STEP_TIMINGS=($(date +%s))
 
 #GCE_OPERATION=$(gceOperation)
