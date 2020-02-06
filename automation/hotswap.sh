@@ -15,7 +15,7 @@ FIAB=$1
 
 printf "Generating the Leo jar. This will fail silently here if you have any compilation errors, or print a success message otherwise\n\n"
 # Example: /Users/qi/workspace/leonardo/http/target/scala-2.12/http-assembly-0.1-437ee4a9-SNAPSHOT.jar
-sbt -Dsbt.log.noformat=true "project http" assembly
+sbt -Dsbt.log.noformat=true "project http" clean assembly
 LEO_JAR_PATH=$(ls http/target/scala-2.12/http*)
 
 printf "Jar successfully generated."
