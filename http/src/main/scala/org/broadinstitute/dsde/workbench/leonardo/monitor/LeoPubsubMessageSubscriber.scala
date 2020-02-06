@@ -66,7 +66,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
   val process: Stream[F, Unit] = (subscriber.messages through messageHandler).repeat
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] = {
-    Logger[F].info(s"acking message: ${event.msg}") >> Async[F].delay(
+    Logger[F].debug(s"acking message: ${event.msg}") >> Async[F].delay(
       event.consumer.ack()
     )
   }
