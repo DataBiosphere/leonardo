@@ -19,7 +19,7 @@ object Dependencies {
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-db13244-SNAP"
   val workbenchGoogleV = "0.21-890a74f"
-  val workbenchGoogle2V = "0.6-8ad0760-SNAP"
+  val workbenchGoogle2V = "0.6-707125c-SNAP"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchNewRelicV = "0.3-8bae8e8"
 
@@ -109,7 +109,8 @@ object Dependencies {
     workbenchGoogle2,
     workbenchGoogle2Test,
     workbenchNewRelic,
-    workbenchNewRelicTest
+    workbenchNewRelicTest,
+    "net.logstash.logback" % "logstash-logback-encoder" % "6.2" // for structured logging in logback
   )
 
   val rootDependencies = Seq(

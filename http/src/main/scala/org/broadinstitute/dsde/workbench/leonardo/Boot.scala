@@ -210,7 +210,7 @@ object Boot extends IOApp {
     }
   }
 
-  private def conertToPubsubMessagePipe[F[_]]: Pipe[F, LeoPubsubMessage, PubsubMessage] =
+  private def convertToPubsubMessagePipe[F[_]]: Pipe[F, LeoPubsubMessage, PubsubMessage] =
     in =>
       in.map { msg =>
         val stringMessage = msg.asJson.noSpaces
@@ -269,7 +269,7 @@ object Boot extends IOApp {
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
 
-      publisherStream = Stream.eval(Logger[F].info(s"Initializing publisher for ${publisherConfig.projectTopicName}")) ++ (publisherQueue.dequeue through conertToPubsubMessagePipe through googlePublisher.publishNative)
+      publisherStream = Stream.eval(Logger[F].info(s"Initializing publisher for ${publisherConfig.projectTopicName}")) ++ (publisherQueue.dequeue through convertToPubsubMessagePipe through googlePublisher.publishNative)
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)

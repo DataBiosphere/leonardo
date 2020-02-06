@@ -10,11 +10,11 @@
 
     <appender name="file" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>log/leonardo.log</file>
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <fieldNames>
-                <level>severity</level>
-            </fieldNames>
-        </encoder>
+<!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder">-->
+<!--            <fieldNames>-->
+<!--                <level>severity</level>-->
+<!--            </fieldNames>-->
+<!--        </encoder>-->
         <append>true</append>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <!-- daily rollover -->
@@ -32,12 +32,12 @@
     <appender name="SYSLOG" class="ch.qos.logback.classic.net.SyslogAppender">
         <syslogHost>127.0.0.1</syslogHost>
         <facility>AUDIT</facility>
-<!--        <suffixPattern>[%level] [%d{HH:mm:ss.SSS}] [%thread] %logger{36} - %msg%n</suffixPattern>-->
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <fieldNames>
-                <level>severity</level>
-            </fieldNames>
-        </encoder>
+        <suffixPattern>[%level] [%d{HH:mm:ss.SSS}] [%thread] %logger{36} - %msg%n</suffixPattern>
+<!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder">-->
+<!--            <fieldNames>-->
+<!--                <level>severity</level>-->
+<!--            </fieldNames>-->
+<!--        </encoder>-->
     </appender>
 
     <!-- Configure the Sentry appender, overriding the logging threshold to the WARN level -->

@@ -65,14 +65,13 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   val process: Stream[F, Unit] = (subscriber.messages through messageHandler).repeat
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] = {
-    logger.debug(s"acking message: ${event.msg}") >> Async[F].delay(
+    logger.info(s"acking message: ${event}") >> Async[F].delay(
       event.consumer.ack()
     )
   }
 
   private def handleStopUpdateMessage(message: StopUpdateMessage): F[Unit] =
-    dbRef
-      .inTransaction { clusterQuery.getClusterById(message.clusterId) }
+    dbRef.inTransaction { clusterQuery.getClusterById(message.clusterId) }
       .flatMap {
         case Some(resolvedCluster)
             if ClusterStatus.stoppableStatuses.contains(resolvedCluster.status) && !message.updatedMachineConfig.masterMachineType.isEmpty =>
