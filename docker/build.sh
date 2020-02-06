@@ -201,11 +201,6 @@ function docker_cmd()
                 $DOCKER_REMOTES_BINARY push $DOCKERHUB_IMAGE:${DOCKER_TAG}
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} $DOCKERHUB_IMAGE:${GIT_BRANCH}
                 $DOCKER_REMOTES_BINARY push $DOCKERHUB_IMAGE:${GIT_BRANCH}
-
-                echo "pushing $TESTS_IMAGE docker image..."
-                $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
-                $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${GIT_BRANCH}
-                $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
             fi
 
             if [ -n "$GCR_REGISTRY" ]; then
@@ -215,6 +210,12 @@ function docker_cmd()
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${GIT_BRANCH}
                 $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${GIT_BRANCH}
             fi
+
+            # Push tests image no matter what. Currently this is only supported in Dockerhub.
+            echo "pushing $TESTS_IMAGE docker image..."
+            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
+            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${GIT_BRANCH}
+            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
 
             # push the UI docker image.
             if $BUILD_UI; then
