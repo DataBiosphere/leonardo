@@ -6,7 +6,7 @@ import fs2.{Pipe, Stream}
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.MachineConfig
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineType}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.Logger
@@ -45,19 +45,15 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
                   Logger[F].error(e)("Fail to process retryable pubsub message") >> Async[F]
                     .delay(event.consumer.nack())
                 else
-                  Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(
-                    event.consumer.ack()
-                  )
+                  Logger[F].error(e)("Fail to process non-retryable pubsub message") >> ack(event)
               case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
                 Logger[F]
                   .error(e)("Fail to process retryable pubsub message due to Google API call failure") >> Async[F]
                   .delay(event.consumer.nack())
               case _ =>
-                Logger[F].error(e)("Fail to process non-retryable pubsub message") >> Async[F].delay(
-                  event.consumer.ack()
-                )
+                Logger[F].error(e)("Fail to process non-retryable pubsub message") >> ack(event)
             }
-          case Right(_) => Async[F].delay(event.consumer.ack())
+          case Right(_) => ack(event)
         }
       } yield ()
 
@@ -68,6 +64,12 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
   }
 
   val process: Stream[F, Unit] = (subscriber.messages through messageHandler).repeat
+
+  private def ack(event: Event[LeoPubsubMessage]): F[Unit] = {
+    Logger[F].debug(s"acking message: ${event.msg}") >> Async[F].delay(
+      event.consumer.ack()
+    )
+  }
 
   private def handleStopUpdateMessage(message: StopUpdateMessage): F[Unit] =
     dbRef
@@ -100,11 +102,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Logger: Concu
       case Stopped =>
         for {
           clusterOpt <- dbRef.inTransaction { clusterQuery.getClusterById(message.clusterFollowupDetails.clusterId) }
-          savedMasterMachineType <- dbRef.inTransaction {
-            followupQuery.getFollowupAction(message.clusterFollowupDetails)
-          }
+          savedMasterMachineType <- dbRef.inTransaction { followupQuery.getFollowupAction(message.clusterFollowupDetails) }
+
           result <- clusterOpt match {
-            case Some(resolvedCluster) if resolvedCluster.status != ClusterStatus.Stopped =>
+            case Some(resolvedCluster) if resolvedCluster.status != ClusterStatus.Stopped && savedMasterMachineType.isDefined =>
               Async[F].raiseError[Unit](
                 PubsubHandleMessageError.ClusterNotStopped(resolvedCluster.id,
                                                            resolvedCluster.projectNameString,
