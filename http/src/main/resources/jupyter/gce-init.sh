@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-# This init script instantiates the tool (e.g. Jupyter) docker images on the Dataproc cluster master node.
-# Adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
+# This init script instantiates the tool (e.g. Jupyter) docker images on Google Compute Engine instances created by Leo.
 
 set -e -x
 
@@ -45,14 +44,6 @@ function retry {
 
 function log() {
   echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
-}
-
-function betterAptGet() {
-  if ! { apt-get update 2>&1 || echo E: update failed; } | grep -q '^[WE]:'; then
-    return 0
-  else
-    return 1
-  fi
 }
 
 #####################################################################################################
