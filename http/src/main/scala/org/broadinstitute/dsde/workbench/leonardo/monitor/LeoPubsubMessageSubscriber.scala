@@ -26,9 +26,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
 )(implicit executionContext: ExecutionContext, logger: StructuredLogger[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage): F[Unit] =
     message match {
-      case msg @ StopUpdateMessage(_, _, _) =>
+      case msg: StopUpdateMessage =>
         handleStopUpdateMessage(msg)
-      case msg @ ClusterTransitionFinishedMessage(_, _) =>
+      case msg: ClusterTransitionFinishedMessage =>
         handleClusterTransitionFinished(msg)
     }
 
