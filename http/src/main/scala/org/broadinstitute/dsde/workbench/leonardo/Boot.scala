@@ -178,6 +178,10 @@ object Boot extends IOApp {
           )
       } else Stream.eval(logger.info(s"Not starting subscriber in boot"))
 
+      val startSubscriber = if(leoExecutionModeConfig.backLeo) {
+        Stream.eval(appDependencies.subscriber.start)
+      } else Stream.eval(IO.unit)
+
       val httpServer = for {
         _ <- if (leoExecutionModeConfig.backLeo) {
           clusterHelper.setupDataprocImageGoogleGroup()
@@ -198,7 +202,7 @@ object Boot extends IOApp {
         appDependencies.publisherStream, //start the publisher queue .dequeue
         messageProcessorStream, //start subscriber dequeue
         Stream.eval(httpServer), //start http server
-        Stream.eval(appDependencies.subscriber.start) //start asyncly pulling data in subscriber
+        startSubscriber //start asyncly pulling data in subscriber
       ).parJoin(4)
 
       app
