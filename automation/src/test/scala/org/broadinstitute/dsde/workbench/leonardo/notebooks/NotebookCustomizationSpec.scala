@@ -211,7 +211,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             notebookPage.addCodeAndExecute(cell, 5.minutes)
 
             // Kernel should restart automatically and still be functional
-            notebookPage.dismissKernelDied()
+            notebookPage.validateKernelDiedAndDismiss()
             notebookPage.executeCell("print('Still alive!')", cellNumberOpt = Some(1)).get shouldBe "Still alive!"
           }
         }

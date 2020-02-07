@@ -334,6 +334,9 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
   def kernelNotificationText: String =
     find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
 
+  def isKernelDead: Boolean =
+    find(jupyterModal).exists(_.text == "Kernel Restarting")
+
   def modeExists(): Boolean =
     find(modeBanner).size > 0
 
@@ -403,11 +406,11 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
       await notVisible jupyterModal
     }
 
-  def dismissKernelDied(): Unit =
-    if (find(jupyterModal).exists(_.text == "Kernel Restarting")) {
-      click on confirmKernelDiedButton
-      await notVisible jupyterModal
-    }
+  def validateKernelDiedAndDismiss(timeout: FiniteDuration = 5.minutes): Unit = {
+    await condition (isKernelDead, timeout.toSeconds)
+    click on (await enabled confirmKernelDiedButton)
+    await notVisible jupyterModal
+  }
 
 }
 
