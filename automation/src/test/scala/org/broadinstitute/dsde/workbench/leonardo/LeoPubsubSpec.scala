@@ -13,7 +13,7 @@ class LeoPubsubSpec extends ClusterFixtureSpec with LeonardoTestUtils {
   "Google publisher should be able to auth" taggedAs Tags.SmokeTest in { _ =>
     logger.info(s"publisher config is: ${LeonardoConfig.Leonardo.publisherConfig}")
 
-    val publisher = GooglePublisher.resource[IO, String](LeonardoConfig.Leonardo.publisherConfig)
+    val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
 
     publisher
       .use { _ =>
@@ -23,7 +23,7 @@ class LeoPubsubSpec extends ClusterFixtureSpec with LeonardoTestUtils {
   }
 
   "Google publisher should publish" in { _ =>
-    val publisher = GooglePublisher.resource[IO, String](LeonardoConfig.Leonardo.publisherConfig)
+    val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
     val queue = InspectableQueue.bounded[IO, String](100).unsafeRunSync()
 
     publisher

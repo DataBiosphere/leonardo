@@ -30,7 +30,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -38,6 +37,7 @@ import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
 import LeonardoService._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
 import org.broadinstitute.dsde.workbench.leonardo.service.UpdateTransition._
 
@@ -298,7 +298,8 @@ class LeonardoService(
       updatedCluster <- internalUpdateCluster(cluster, clusterRequest)
     } yield updatedCluster
 
-  def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest): IO[Cluster] = {
+  def internalUpdateCluster(existingCluster: Cluster,
+                            clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] = {
     implicit val booleanSumMonoidInstance = new Monoid[Boolean] {
       def empty = false
       def combine(a: Boolean, b: Boolean): Boolean = a || b
@@ -339,7 +340,7 @@ class LeonardoService(
             logger.info(
               s"detected follow-up action necessary for update on cluster ${existingCluster.projectNameString}: ${action}"
             )
-            handleClusterTransition(existingCluster, action)
+            handleClusterTransition(existingCluster, action, now)
           } else
             IO.raiseError(
               ClusterCannotBeUpdatedException(existingCluster.projectNameString,
@@ -363,14 +364,16 @@ class LeonardoService(
     } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster.projectNameString, existingCluster.status))
   }
 
-  private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition): IO[Unit] =
+  private def handleClusterTransition(existingCluster: Cluster, transition: UpdateTransition, now: Instant)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] =
     transition match {
       case StopStartTransition(machineConfig) =>
         for {
+          traceId <- ev.ask
           _ <- metrics.incrementCounter(s"pubsub/LeonardoService/StopStartTransition")
           //sends a message with the config to google pub/sub queue for processing by back leo
-          _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id))
-          _ <- IO(logger.info(s"enqueued a patch request to google pub/sub for ${existingCluster.projectNameString}"))
+          _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id, Some(traceId)))
         } yield ()
 
       //TODO: we currently do not support this

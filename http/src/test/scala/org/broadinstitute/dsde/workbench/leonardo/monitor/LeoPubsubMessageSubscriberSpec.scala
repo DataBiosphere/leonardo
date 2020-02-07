@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
 import com.google.cloud.pubsub.v1.AckReplyConsumer
+import com.google.protobuf.Timestamp
 import fs2.concurrent.InspectableQueue
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -14,15 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  ClusterInvalidState,
-  ClusterNotStopped
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{ClusterInvalidState, ClusterNotStopped}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, ServiceAccountInfo}
 import org.mockito.Mockito
@@ -96,7 +94,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val clusterId = savedRunningCluster.id
     val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
-    val message = StopUpdateMessage(newMachineConfig, clusterId)
+    val message = StopUpdateMessage(newMachineConfig, clusterId, None)
 
     val followupDetails = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
 
@@ -131,7 +129,7 @@ class LeoPubsubMessageSubscriberSpec
     val clusterId = savedRunningCluster.id
     val newMasterMachineType = Some("n1-standard-8")
     val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
-    val message = ClusterTransitionFinishedMessage(followupKey)
+    val message = ClusterTransitionFinishedMessage(followupKey, None)
 
     val preStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupKey)).unsafeRunSync()
     preStorage shouldBe None
@@ -155,7 +153,7 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber(queue)
     val savedRunningCluster = runningCluster.save()
     val followupKey = ClusterFollowupDetails(savedRunningCluster.id, ClusterStatus.Stopped)
-    val message = ClusterTransitionFinishedMessage(followupKey)
+    val message = ClusterTransitionFinishedMessage(followupKey, None)
     val newMasterMachineType = Some("n1-standard-8")
 
     val consumer = mock[AckReplyConsumer]
@@ -167,7 +165,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    val process = fs2.Stream(Event[LeoPubsubMessage](message, consumer)) through leoSubscriber.messageHandler
+    val process = fs2.Stream(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance ,consumer)) through leoSubscriber.messageHandler
     val res = process.compile.drain
 
     res.attempt.unsafeRunSync().isRight shouldBe true //messageHandler will never throw exception
@@ -182,7 +180,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val clusterId = savedStoppedCluster.id
     val newMachineConfig = defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8"))
-    val message = StopUpdateMessage(newMachineConfig, clusterId)
+    val message = StopUpdateMessage(newMachineConfig, clusterId, None)
     val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopping)
 
     dbRef
@@ -218,7 +216,7 @@ class LeoPubsubMessageSubscriberSpec
 
     //we are notifying the subscriber the cluster has finished creating (aka, noise as far as its concerned)
     val transitionFinishedMessage =
-      ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Creating))
+      ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Creating), None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
     val postStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupDetails)).unsafeRunSync()
@@ -237,7 +235,7 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber(queue)
 
     val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
-    val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupKey)
+    val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupKey, None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
 
@@ -262,7 +260,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupDetails)
+    val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupDetails, None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
 
@@ -280,7 +278,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   "LeoPubsubCodec" should "encode/decode a StopUpdate message" in isolatedDbTest {
-    val originalMessage = StopUpdateMessage(defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8")), 1)
+    val originalMessage = StopUpdateMessage(defaultMachineConfig.copy(masterMachineType = Some("n1-standard-8")), 1, None)
     val json = originalMessage.asJson
     val actualJson = json.toString
 
@@ -309,7 +307,7 @@ class LeoPubsubMessageSubscriberSpec
 
   "LeoPubsubCodec" should "encode/decode a ClusterTransitionFinished message" in isolatedDbTest {
     val clusterFollowupDetails = ClusterFollowupDetails(1, ClusterStatus.Stopping)
-    val originalMessage = ClusterTransitionFinishedMessage(clusterFollowupDetails)
+    val originalMessage = ClusterTransitionFinishedMessage(clusterFollowupDetails, None)
     val json = originalMessage.asJson
     val actualJson = json.toString
 
