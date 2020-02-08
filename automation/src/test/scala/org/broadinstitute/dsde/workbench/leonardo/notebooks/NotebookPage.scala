@@ -245,15 +245,15 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
   }
 
   //TODO: this function is duplicative of the above but does not have the bug
-  def addCodeAndExecute(code: String, timeout: FiniteDuration = 1 minute): Unit = {
+  def addCodeAndExecute(code: String, wait: Boolean = true, timeout: FiniteDuration = 1 minute): Unit = {
     dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
-    clickRunCell(timeout)
-    await condition (!cellsAreRunning, timeout.toSeconds)
+    clickRunCell(timeout, wait)
+    if (wait) await condition (!cellsAreRunning, timeout.toSeconds)
   }
 
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
@@ -300,9 +300,9 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
     await condition (isKernelReady && kernelNotificationText == "none", timeout.toSeconds)
   }
 
-  def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
+  def clickRunCell(timeout: FiniteDuration = 2.minutes, wait: Boolean = true): Unit = {
     click on runCellButton
-    awaitReadyKernel(timeout)
+    if (wait) awaitReadyKernel(timeout)
   }
 
   def awaitReadyKernel(timeout: FiniteDuration): Unit = {

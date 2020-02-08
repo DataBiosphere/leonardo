@@ -208,11 +208,12 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                 |result = [numpy.random.bytes(1024*1024) for x in range(6*1024)]
                 |print(len(result))
                 |""".stripMargin
-            notebookPage.addCodeAndExecute(cell, 5.minutes)
-
+            notebookPage.addCodeAndExecute(cell, wait = false, timeout = 5.minutes)
             // Kernel should restart automatically and still be functional
             notebookPage.validateKernelDiedAndDismiss()
-            notebookPage.executeCell("print('Still alive!')", cellNumberOpt = Some(1)).get shouldBe "Still alive!"
+            notebookPage
+              .executeCell("print('Still alive!')", timeout = 2.minutes, cellNumberOpt = Some(1))
+              .get shouldBe "Still alive!"
           }
         }
       }
