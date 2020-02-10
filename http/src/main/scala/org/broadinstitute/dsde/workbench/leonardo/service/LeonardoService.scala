@@ -50,11 +50,11 @@ case class AuthorizationError(email: Option[WorkbenchEmail] = None)
                          StatusCodes.Forbidden)
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
-    extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} not found", StatusCodes.NotFound)
+    extends LeoException(s"Runtime ${googleProject.value}/${clusterName.value} not found", StatusCodes.NotFound)
 
 case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
     extends LeoException(
-      s"Cluster ${googleProject.value}/${clusterName.value} already exists in ${status.toString} status",
+      s"Runtime ${googleProject.value}/${clusterName.value} already exists in ${status.toString} status",
       StatusCodes.Conflict
     )
 
@@ -62,19 +62,19 @@ case class ClusterCannotBeStoppedException(googleProject: GoogleProject,
                                            clusterName: ClusterName,
                                            status: ClusterStatus)
     extends LeoException(
-      s"Cluster ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status",
+      s"Runtime ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status",
       StatusCodes.Conflict
     )
 
 case class ClusterCannotBeDeletedException(googleProject: GoogleProject, clusterName: ClusterName)
-    extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be deleted in Creating status",
+    extends LeoException(s"Runtime ${googleProject.value}/${clusterName.value} cannot be deleted in Creating status",
                          StatusCodes.Conflict)
 
 case class ClusterCannotBeStartedException(googleProject: GoogleProject,
                                            clusterName: ClusterName,
                                            status: ClusterStatus)
     extends LeoException(
-      s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status",
+      s"Runtime ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status",
       StatusCodes.Conflict
     )
 
@@ -87,17 +87,17 @@ case class ClusterOutOfDateException()
     )
 
 case class ClusterCannotBeUpdatedException(projectNameString: String, status: ClusterStatus, userHint: String = "")
-    extends LeoException(s"Cluster ${projectNameString} cannot be updated in ${status} status. ${userHint}",
+    extends LeoException(s"Runtime ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict)
 
 case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
     extends LeoException(
-      s"Cluster ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type. Some updates require stopping the cluster or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
+      s"Runtime ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type. Some updates require stopping the cluster or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
       StatusCodes.Conflict
     )
 
 case class ClusterDiskSizeCannotBeDecreasedException(cluster: Cluster)
-    extends LeoException(s"Cluster ${cluster.projectNameString}: decreasing master disk size is not allowed",
+    extends LeoException(s"Runtime ${cluster.projectNameString}: decreasing master disk size is not allowed",
                          StatusCodes.PreconditionFailed)
 
 case class BucketObjectException(gcsUri: String)
@@ -345,7 +345,7 @@ class LeonardoService(
             IO.raiseError(
               ClusterCannotBeUpdatedException(existingCluster.projectNameString,
                                               existingCluster.status,
-                                              "Please stop your cluster to perform this type of update.")
+                                              "Please stop your runtime to update the CPUs/Memory and the number of workers at the same time, or update one at a time.")
             )
         } else
           IO(
