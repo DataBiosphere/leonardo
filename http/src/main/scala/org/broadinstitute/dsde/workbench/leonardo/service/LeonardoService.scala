@@ -92,7 +92,7 @@ case class ClusterCannotBeUpdatedException(projectNameString: String, status: Cl
 
 case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
     extends LeoException(
-      s"Runtime ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type. Some updates require stopping the cluster or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
+      s"Runtime ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type. Some updates require stopping the runtime, or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
       StatusCodes.Conflict
     )
 
