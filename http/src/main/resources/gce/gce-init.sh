@@ -79,7 +79,7 @@ STEP_TIMINGS=($(date +%s))
 GCE_OPERATION=$(gceOperation)
 JUPYTER_HOME=/etc/jupyter
 
-log "Running GCE VM init script in ${GCE_OPERATION} mode..."
+log "Running GCE VM init script in $GCE_OPERATION mode..."
 
 export CLUSTER_NAME=$(clusterName)
 export GOOGLE_PROJECT=$(googleProject)
@@ -96,11 +96,10 @@ export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
 
 # If a Google credentials file was specified, grab the service account json file
-# and set the GOOGLE_APPLICATION_CREDENTIALS EV.
+# and set the GOOGLE_APPLICATION_CREDENTIALS env var.
 # This overrides the credentials on the metadata server.
-# SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
-SERVICE_ACCOUNT_CREDENTIALS=""
-if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
+if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
   gsutil cp ${SERVICE_ACCOUNT_CREDENTIALS} /etc
   SERVICE_ACCOUNT_CREDENTIALS=`basename ${SERVICE_ACCOUNT_CREDENTIALS}`
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
@@ -113,7 +112,7 @@ fi
 # a VM that was previously created and stopped.
 #####################################################################################################
 
-if [[ "${GCE_OPERATION}" == 'creating' ]]; then
+if [[ "$GCE_OPERATION" == 'creating' ]]; then
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
     JUPYTER_USER_HOME=/home/jupyter-user
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
@@ -206,12 +205,12 @@ END
     service google-fluentd reload
     
     # Install env var config
-    if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
+    if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
       log 'Copy custom env vars config...'
       gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
     fi
 
-    if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+    if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
       echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
     else
       echo "" > /etc/google_application_credentials.env
@@ -233,15 +232,15 @@ END
     # `docker-compose up` is not retried.
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
     cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
-    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+    if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
     fi
-    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
       cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+    if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
@@ -255,16 +254,16 @@ END
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
     # credentials on the metadata server.
-    if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
-      if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+    if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
+      if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         log 'Copying SA into Jupyter Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
-      if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+      if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
         log 'Copying SA into RStudio Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
-      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+      if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
         log 'Copying SA into Welder Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
@@ -272,7 +271,7 @@ END
 
     # if Welder is installed, start the service.
     # See https://broadworkbench.atlassian.net/browse/IA-1026
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+    if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
       log 'Starting Welder file synchronization service...'
       retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
@@ -280,7 +279,7 @@ END
     STEP_TIMINGS+=($(date +%s))
 
     # Jupyter-specific setup, only do if Jupyter is installed
-    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+    if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
       log 'Installing Jupydocker kernelspecs...'
 
       # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
@@ -288,7 +287,7 @@ END
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
 
       # Install hail addition if the image is old leonardo jupyter image or it's a hail specific image
-      if [[ ${JUPYTER_DOCKER_IMAGE} == *"leonardo-jupyter"* ]] ; then
+      if [[ "$JUPYTER_DOCKER_IMAGE" == *"leonardo-jupyter"* ]] ; then
         log 'Installing Hail additions to Jupydocker spark.conf...'
 
         # Install the Hail additions to Spark conf.
@@ -297,7 +296,7 @@ END
 
       # Install jupyter_notebook_config.py
       # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
-      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
+      if [ ! -z "$JUPYTER_NOTEBOOK_CONFIG_URI" ] ; then
         log 'Copy Jupyter notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
         JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
@@ -305,7 +304,7 @@ END
       fi
 
       # Install notebook.json
-      if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
+      if [ ! -z "$JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI" ] ; then
         log 'Copy Jupyter frontend notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
@@ -315,7 +314,7 @@ END
       STEP_TIMINGS+=($(date +%s))
 
       # Install NbExtensions
-      if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
+      if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
         do
           log 'Installing Jupyter NB extension [$ext]...'
@@ -338,7 +337,7 @@ END
       STEP_TIMINGS+=($(date +%s))
 
       # Install serverExtensions
-      if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
+      if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
         do
           log 'Installing Jupyter server extension [$ext]...'
@@ -356,7 +355,7 @@ END
       STEP_TIMINGS+=($(date +%s))
 
       # Install combined extensions
-      if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
+      if [ ! -z "$JUPYTER_COMBINED_EXTENSIONS"  ] ; then
         for ext in ${JUPYTER_COMBINED_EXTENSIONS}
         do
           log 'Installing Jupyter combined extension [$ext]...'
@@ -375,10 +374,10 @@ END
       STEP_TIMINGS+=($(date +%s))
 
       # If a Jupyter user script was specified, copy it into the jupyter docker container and execute it.
-      if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
+      if [ ! -z "$JUPYTER_USER_SCRIPT_URI" ] ; then
         log 'Running Jupyter user script [$JUPYTER_USER_SCRIPT_URI]...'
         JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
-        if [[ ${JUPYTER_USER_SCRIPT_URI} == 'gs://'* ]]; then
+        if [[ "$JUPYTER_USER_SCRIPT_URI" == 'gs://'* ]]; then
           gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
         else
           curl $JUPYTER_USER_SCRIPT_URI -o /etc/${JUPYTER_USER_SCRIPT}
@@ -401,10 +400,10 @@ END
       fi
 
       # If a Jupyter start user script was specified, copy it into the jupyter docker container for consumption during startups.
-      if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
+      if [ ! -z "$JUPYTER_START_USER_SCRIPT_URI" ] ; then
         log 'Copying Jupyter start user script [$JUPYTER_START_USER_SCRIPT_URI]...'
         JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
-        if [[ ${JUPYTER_START_USER_SCRIPT_URI} == 'gs://'* ]]; then
+        if [[ "$JUPYTER_START_USER_SCRIPT_URI" == 'gs://'* ]]; then
           gsutil cp ${JUPYTER_START_USER_SCRIPT_URI} /etc
         else
           curl $JUPYTER_START_USER_SCRIPT_URI -o /etc/${JUPYTER_START_USER_SCRIPT}
@@ -429,7 +428,7 @@ END
 
       # Install lab extensions
       # Note: lab extensions need to installed as jupyter user, not root
-      if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
+      if [ ! -z "$JUPYTER_LAB_EXTENSIONS" ] ; then
         for ext in ${JUPYTER_LAB_EXTENSIONS}
         do
           log 'Installing JupyterLab extension [$ext]...'
@@ -454,7 +453,7 @@ END
 
       # fix for https://broadworkbench.atlassian.net/browse/IA-1453
       # TODO: remove this when we stop supporting the legacy docker image
-      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+      if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
       fi
 
@@ -470,7 +469,7 @@ END
     # Do this asynchronously so it doesn't hold up cluster creation
     log 'Pruning docker images...'
     docker image prune -a -f &
-elif [[ "${GCE_OPERATION}" == 'restarting' ]]; then
+elif [[ "$GCE_OPERATION" == 'restarting' ]]; then
   export DEPLOY_WELDER=$(deployWelder)
   export UPDATE_WELDER=$(updateWelder)
   export DISABLE_DELOCALIZATION=$(disableDelocalization)
@@ -485,7 +484,7 @@ elif [[ "${GCE_OPERATION}" == 'restarting' ]]; then
 
   # If a Jupyter start user script was specified, execute it now. It should already be in the docker container
   # via initialization at VM creation time. We do not want to recopy it from GCS on every cluster restart.
-  if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
+  if [ ! -z "$JUPYTER_START_USER_SCRIPT_URI" ] ; then
     JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
     log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
     EXIT_CODE=0
@@ -520,7 +519,7 @@ elif [[ "${GCE_OPERATION}" == 'restarting' ]]; then
       docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
   fi
 else
-  log "Invalid GCE_OPERATION: ${GCE_OPERATION}. Expected it to be either 'creating' or 'restarting'."
+  log "Invalid GCE_OPERATION: $GCE_OPERATION. Expected it to be either 'creating' or 'restarting'."
   exit 1
 fi
 
