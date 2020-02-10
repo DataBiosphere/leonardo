@@ -15,6 +15,9 @@ import slick.basic.DatabaseConfig
 import slick.jdbc.{JdbcBackend, JdbcProfile, TransactionIsolation}
 import sun.security.provider.certpath.SunCertPathBuilderException
 import LeoProfile.api._
+import io.chrisdavenport.log4cats.Logger
+import cats.implicits._
+
 import scala.concurrent.Future
 
 object DbReference extends LazyLogging {
@@ -45,7 +48,7 @@ object DbReference extends LazyLogging {
         throw e
     }
 
-  def init[F[_]: Async: ContextShift](config: LiquibaseConfig,
+  def init[F[_]: Async: ContextShift: Logger](config: LiquibaseConfig,
                                       concurrentDbAccessPermits: Semaphore[F],
                                       blocker: Blocker): Resource[F, DbReference[F]] = {
     val dbConfig =
@@ -54,7 +57,7 @@ object DbReference extends LazyLogging {
     for {
       db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
       dbConnection <- Resource.make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
-      initLiquidbase = if (config.initWithLiquibase) Async[F].delay(initWithLiquibase(dbConnection, config))
+      initLiquidbase = if (config.initWithLiquibase) Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
       else Async[F].unit
       _ <- Resource.liftF(initLiquidbase)
     } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
