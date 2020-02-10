@@ -130,7 +130,7 @@ if [[ "$GCE_OPERATION" == 'creating' ]]; then
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
     ROOT_CA=$(rootCaPem)
-    JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
+    JUPYTER_DOCKER_COMPOSE=$(jupyterDockerComposeGce)
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
     WELDER_DOCKER_COMPOSE=$(welderDockerCompose)

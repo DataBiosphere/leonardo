@@ -1,0 +1,31 @@
+# Note: we need to stay on docker-compose version 2 because version 3 doesn't support
+# configuring memory options in container mode. See discussion in:
+# https://docs.docker.com/compose/compose-file/#resources
+# https://github.com/docker/compose/issues/4513
+version: '2'
+services:
+  jupyter:
+    container_name: "${JUPYTER_SERVER_NAME}"
+    image: "${JUPYTER_DOCKER_IMAGE}"
+    # Override entrypoint with a placeholder to keep the container running indefinitely.
+    # The cluster init script will run some scripts as root and then start pyspark as
+    # jupyter-user via docker exec.
+    entrypoint: "tail -f /dev/null"
+    network_mode: host
+    volumes:
+      # shared with welder
+      - "${NOTEBOOKS_DIR}":"${NOTEBOOKS_DIR}"
+    restart: always
+    environment:
+      GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
+      WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
+      CLUSTER_NAME: "${CLUSTER_NAME}"
+      OWNER_EMAIL: "${OWNER_EMAIL}"
+      # Value must be the string "true" to enable.
+      WELDER_ENABLED: "${WELDER_ENABLED}"
+      NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
+    env_file:
+      - /etc/google_application_credentials.env
+      - /etc/custom_env_vars.env
+    # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
+    mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
