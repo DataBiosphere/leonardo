@@ -220,7 +220,10 @@ END
 
     log 'Starting up the Jupydocker...'
 
-    # Run docker-compose for each specified compose file with retries to get around intermittent network errors
+    # Run docker-compose for each specified compose file.
+    # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
+    # `docker-compose up` is not retried since if that fails, something is probably broken
+    # and wouldn't be remedied by retrying
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
     cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
@@ -236,9 +239,9 @@ END
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
 
-    retry 5 docker-compose "${COMPOSE_FILES[@]}" config
+    docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
-    retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
+    docker-compose "${COMPOSE_FILES[@]}" up -d
 
     # If Welder is installed, start the service.
     # See https://broadworkbench.atlassian.net/browse/IA-1026
