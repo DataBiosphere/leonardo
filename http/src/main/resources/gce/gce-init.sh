@@ -236,9 +236,7 @@ END
 
     log 'Starting up the Jupydocker...'
 
-    # Run docker-compose for each specified compose file.
-    # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
-    # `docker-compose up` is not retried.
+    # Run docker-compose for each specified compose file with retries to get around intermittent network errors
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
     cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
@@ -258,28 +256,10 @@ END
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
 
-    # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
-    # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
-    # credentials on the metadata server.
-    if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
-      if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-        log 'Copying SA into Jupyter Docker...'
-        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
-      fi
-      if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-        log 'Copying SA into RStudio Docker...'
-        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
-      fi
-      if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
-        log 'Copying SA into Welder Docker...'
-        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
-      fi
-    fi
-
-    # if Welder is installed, start the service.
+    # If Welder is installed, start the service.
     # See https://broadworkbench.atlassian.net/browse/IA-1026
     if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
-      log 'Starting Welder file synchronization service...'
+      log 'Starting Welder (file synchronization service)...'
       retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
 
@@ -290,14 +270,6 @@ END
       # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
       # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
-
-      # Install hail addition if the image is old leonardo jupyter image or it's a hail specific image
-      if [[ "$JUPYTER_DOCKER_IMAGE" == *"leonardo-jupyter"* ]] ; then
-        log 'Installing Hail additions to Jupydocker spark.conf...'
-
-        # Install the Hail additions to Spark conf.
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
-      fi
 
       # Install jupyter_notebook_config.py
       # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
@@ -442,12 +414,6 @@ END
             retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
           fi
         done
-      fi
-
-      # fix for https://broadworkbench.atlassian.net/browse/IA-1453
-      # TODO: remove this when we stop supporting the legacy docker image
-      if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
       fi
 
       log 'Starting Jupyter Notebook...'
