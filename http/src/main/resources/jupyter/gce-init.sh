@@ -108,16 +108,6 @@ export WELDER_SERVER_NAME=$(welderServerName)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
 
-# If a Google credentials file was specified, grab the service account json file
-# and set the GOOGLE_APPLICATION_CREDENTIALS env var.
-# This overrides the credentials on the metadata server.
-SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
-if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
-  gsutil cp ${SERVICE_ACCOUNT_CREDENTIALS} /etc
-  SERVICE_ACCOUNT_CREDENTIALS=`basename ${SERVICE_ACCOUNT_CREDENTIALS}`
-  export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
-fi
-
 #####################################################################################################
 # Set up that IS specific to GCE_OPERATION:
 #
@@ -219,12 +209,6 @@ END
     if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
       log 'Copy custom env vars config...'
       gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
-    fi
-
-    if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
-      echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
-    else
-      echo "" > /etc/google_application_credentials.env
     fi
 
     # If any image is hosted in a GCR registry (detected by regex) then
