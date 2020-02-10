@@ -163,7 +163,7 @@ object ClusterUI {
   }
   def getClusterUI(cluster: Cluster): ClusterUI =
     if (cluster.labels.contains(Config.uiConfig.terraLabel)) ClusterUI.Terra
-    else if (cluster.labels.contains(Config.uiConfig.AoULabel)) ClusterUI.AoU
+    else if (cluster.labels.contains(Config.uiConfig.allOfUsLabel)) ClusterUI.AoU
     else ClusterUI.Other
 }
 

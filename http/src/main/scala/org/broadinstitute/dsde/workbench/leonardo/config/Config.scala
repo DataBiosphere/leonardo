@@ -205,7 +205,7 @@ object Config {
   implicit val clusterUIConfigValueReader: ValueReader[ClusterUIConfig] = ValueReader.relative { config =>
     ClusterUIConfig(
       config.getString("terraLabel"),
-      config.getString("AoULabel")
+      config.getString("allOfUsLabel")
     )
   }
   implicit val samAuthConfigConfigValueReader: ValueReader[SamAuthProviderConfig] = ValueReader.relative { config =>
