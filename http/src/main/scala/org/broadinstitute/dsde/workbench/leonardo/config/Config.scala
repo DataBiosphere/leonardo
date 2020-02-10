@@ -202,6 +202,12 @@ object Config {
       toScalaDuration(config.getDuration("stagingBucketExpiration"))
     )
   }
+  implicit val clusterUIConfigValueReader: ValueReader[ClusterUIConfig] = ValueReader.relative { config =>
+    ClusterUIConfig(
+      config.getString("terraLabel"),
+      config.getString("AoULabel")
+    )
+  }
   implicit val samAuthConfigConfigValueReader: ValueReader[SamAuthProviderConfig] = ValueReader.relative { config =>
     SamAuthProviderConfig(
       config.getOrElse("notebookAuthCacheEnabled", true),
@@ -260,6 +266,7 @@ object Config {
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
+  val uiConfig = config.as[ClusterUIConfig]("ui")
   val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
   val leoServiceAccountJsonFile = config.as[String]("google.leoServiceAccountJsonFile")
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
