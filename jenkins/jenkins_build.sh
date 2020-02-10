@@ -10,7 +10,7 @@ if [ "$skip_docker_build" = false ]; then
        broadinstitute/dsde-toolbox:latest vault read --format=json ${GCR_SVCACCT_VAULT} \
        | jq .data > dspci-wb-gcr-service-account.json
 
-  ./docker/build.sh jar -d push -dr "broadinstitute" -gr "gcr.io/broad-dsp-gcr-public" \
+  ./docker/build.sh jar -d push -gr "gcr.io/broad-dsp-gcr-public" \
       -n "us.gcr.io/broad-dsp-gcr-public" -k "dspci-wb-gcr-service-account.json"
 
   # clean up

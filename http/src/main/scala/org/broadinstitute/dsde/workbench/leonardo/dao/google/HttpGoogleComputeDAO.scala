@@ -144,7 +144,9 @@ class HttpGoogleComputeDAO(
       .setAllowed(List(allowed).asJava)
 
     val request = compute.firewalls().insert(googleProject.value, googleFirewall)
-    logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' in project ${googleProject.value}")
+
+    //This can be simplified if its too verbose
+    logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' and VPCConfig ${firewallRule.network} in project ${googleProject.value}. Firewall rule details: ${firewallRule}")
     retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void
   }
 

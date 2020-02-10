@@ -1204,13 +1204,11 @@ class LeonardoServiceSpec
 
     finalQueueSize shouldBe 1
 
-    val message = queue.dequeue1.unsafeRunSync()
-    message.isInstanceOf[StopUpdateMessage] shouldBe true
+    val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdateMessage]
 
-    val castMessage = message.asInstanceOf[StopUpdateMessage]
-    castMessage.messageType shouldBe "stopUpdate"
-    castMessage.updatedMachineConfig shouldBe newConfig
-    castMessage.clusterId shouldBe clusterCreateResponse.id
+    message.messageType shouldBe "stopUpdate"
+    message.updatedMachineConfig shouldBe newConfig
+    message.clusterId shouldBe clusterCreateResponse.id
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {

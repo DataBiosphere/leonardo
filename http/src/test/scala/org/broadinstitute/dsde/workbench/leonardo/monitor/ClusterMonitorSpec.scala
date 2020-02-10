@@ -20,20 +20,14 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataRespon
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GcsEntity,
-  GcsObjectName,
-  GoogleProject,
-  ServiceAccountKeyId
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
