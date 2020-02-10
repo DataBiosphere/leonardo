@@ -46,6 +46,19 @@ function log() {
   echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
 }
 
+display_time() {
+  local T=$1
+  local D=$((T/60/60/24))
+  local H=$((T/60/60%24))
+  local M=$((T/60%60))
+  local S=$((T%60))
+  (( $D > 0 )) && printf '%d days ' $D
+  (( $H > 0 )) && printf '%d hours ' $H
+  (( $M > 0 )) && printf '%d minutes ' $M
+  (( $D > 0 || $H > 0 || $M > 0 )) && printf 'and '
+  printf '%d seconds\n' $S
+}
+
 #####################################################################################################
 # Main starts here. It is composed of three sections:
 #   1. Set up that is NOT specific to GCE_OPERATION
@@ -70,12 +83,12 @@ function log() {
 # .. after jupyter notebook start
 # END
 
+# Note the start time so we can display the elapsed time at the end
+START_TIME=$(date +%s)
 
 #####################################################################################################
 # Set up that is NOT specific to GCE_OPERATION
 #####################################################################################################
-STEP_TIMINGS=($(date +%s))
-
 GCE_OPERATION=$(gceOperation)
 JUPYTER_HOME=/etc/jupyter
 
@@ -141,8 +154,6 @@ if [[ "$GCE_OPERATION" == 'creating' ]]; then
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
-
-    STEP_TIMINGS+=($(date +%s))
 
     log 'Copying secrets from GCS...'
 
@@ -223,8 +234,6 @@ END
       gcloud --quiet auth configure-docker
     fi
 
-    STEP_TIMINGS+=($(date +%s))
-
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose for each specified compose file.
@@ -248,8 +257,6 @@ END
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
-
-    STEP_TIMINGS+=($(date +%s))
 
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
@@ -275,8 +282,6 @@ END
       log 'Starting Welder file synchronization service...'
       retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
-
-    STEP_TIMINGS+=($(date +%s))
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
@@ -311,8 +316,6 @@ END
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
       fi
 
-      STEP_TIMINGS+=($(date +%s))
-
       # Install NbExtensions
       if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
@@ -334,8 +337,6 @@ END
         done
       fi
 
-      STEP_TIMINGS+=($(date +%s))
-
       # Install serverExtensions
       if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
@@ -351,8 +352,6 @@ END
           fi
         done
       fi
-
-      STEP_TIMINGS+=($(date +%s))
 
       # Install combined extensions
       if [ ! -z "$JUPYTER_COMBINED_EXTENSIONS"  ] ; then
@@ -370,8 +369,6 @@ END
           fi
         done
       fi
-
-      STEP_TIMINGS+=($(date +%s))
 
       # If a Jupyter user script was specified, copy it into the jupyter docker container and execute it.
       if [ ! -z "$JUPYTER_USER_SCRIPT_URI" ] ; then
@@ -424,8 +421,6 @@ END
         fi
       fi
 
-      STEP_TIMINGS+=($(date +%s))
-
       # Install lab extensions
       # Note: lab extensions need to installed as jupyter user, not root
       if [ ! -z "$JUPYTER_LAB_EXTENSIONS" ] ; then
@@ -449,20 +444,14 @@ END
         done
       fi
 
-      STEP_TIMINGS+=($(date +%s))
-
       # fix for https://broadworkbench.atlassian.net/browse/IA-1453
       # TODO: remove this when we stop supporting the legacy docker image
       if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
       fi
 
-      STEP_TIMINGS+=($(date +%s))
-
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
-
-      STEP_TIMINGS+=($(date +%s))
     fi
 
     # Remove any unneeded cached images to save disk space.
@@ -524,4 +513,8 @@ else
 fi
 
 log 'All done!'
-log "Timings: ${STEP_TIMINGS[@]}"
+
+END_TIME=$(date +%s)
+ELAPSED_TIME=$(($END_TIME - $START_TIME))
+log "gce-init.sh took "
+display_time $ELAPSED_TIME
