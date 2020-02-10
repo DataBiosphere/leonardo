@@ -287,8 +287,10 @@ object Boot extends IOApp {
   }
 
   private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
-    val config = as.settings.config.getConfig("akka.ssl-config")
-    val sslConfigSettings = SSLConfigFactory.parse(config)
+    val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")
+    val defaults = as.settings.config.getConfig("ssl-config")
+
+    val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults))
     val keyManagerAlgorithm = new DefaultKeyManagerFactoryWrapper(sslConfigSettings.keyManagerConfig.algorithm)
     val trustManagerAlgorithm = new DefaultTrustManagerFactoryWrapper(sslConfigSettings.trustManagerConfig.algorithm)
 
