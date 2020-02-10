@@ -421,6 +421,7 @@ elif [[ "$GCE_OPERATION" == 'restarting' ]]; then
       gcloud auth configure-docker
       docker-compose -f /etc/welder-docker-compose.yaml stop
       docker-compose -f /etc/welder-docker-compose.yaml rm -f
+      retry 5 docker-compose -f /etc/welder-docker-compose.yaml pull
       docker-compose -f /etc/welder-docker-compose.yaml up -d
   fi
 
