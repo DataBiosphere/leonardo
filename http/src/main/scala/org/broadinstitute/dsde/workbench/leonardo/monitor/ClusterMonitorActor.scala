@@ -265,7 +265,7 @@ class ClusterMonitorActor(
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction { clusterQuery.setToRunning(cluster.id, publicIp, now) }
       // Record metrics in NewRelic
-      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster), cluster.status, ClusterStatus.Running)
+      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster.labels), cluster.status, ClusterStatus.Running)
       _ <- if (cluster.status == ClusterStatus.Creating)
         recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.clusterImages)
       else IO.unit
@@ -297,7 +297,7 @@ class ClusterMonitorActor(
       ).parSequence_
 
       // Record metrics in NewRelic
-      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster), cluster.status, ClusterStatus.Error)
+      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster.labels), cluster.status, ClusterStatus.Error)
 
       now <- IO(Instant.now)
 
@@ -384,7 +384,7 @@ class ClusterMonitorActor(
         .updateDataprocImageGroupMembership(cluster.googleProject, createCluster = false)
 
       // Record metrics in NewRelic
-      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster), cluster.status, ClusterStatus.Deleted)
+      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster.labels), cluster.status, ClusterStatus.Deleted)
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
@@ -411,7 +411,7 @@ class ClusterMonitorActor(
         ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped), Some(traceId))
       )
       // Record metrics in NewRelic
-      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster), cluster.status, ClusterStatus.Stopped)
+      _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster.labels), cluster.status, ClusterStatus.Stopped)
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 

@@ -161,9 +161,9 @@ object ClusterUI {
   final case object Other extends ClusterUI {
     override def asString: String = "Other"
   }
-  def getClusterUI(cluster: Cluster): ClusterUI =
-    if (cluster.labels.contains(Config.uiConfig.terraLabel)) ClusterUI.Terra
-    else if (cluster.labels.contains(Config.uiConfig.allOfUsLabel)) ClusterUI.AoU
+  def getClusterUI(labels: LabelMap): ClusterUI =
+    if (labels.contains(Config.uiConfig.terraLabel)) ClusterUI.Terra
+    else if (labels.contains(Config.uiConfig.allOfUsLabel)) ClusterUI.AoU
     else ClusterUI.Other
 }
 
