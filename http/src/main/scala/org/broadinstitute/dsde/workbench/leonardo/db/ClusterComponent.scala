@@ -553,53 +553,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None, dateAccessed)
 
-  def listByLabelsQuery(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None): Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
-    val clusterStatusQuery =
-      if (includeDeleted) clusterLabelQuery else clusterLabelQuery.filterNot { _._1.status === "Deleted" }
-    val clusterStatusQueryByProject = googleProjectOpt match {
-      case Some(googleProject) => clusterStatusQuery.filter { _._1.googleProject === googleProject }
-      case None                => clusterStatusQuery
-    }
-    if (labelMap.isEmpty) {
-      clusterStatusQueryByProject
-    } else {
-      // The trick is to find all clusters that have _at least_ all the labels in labelMap.
-      // In other words, for a given cluster, the labels provided in the query string must be
-      // a subset of its labels in the DB. The following SQL achieves this:
-      //
-      // select c.*, l.*
-      // from cluster c
-      // left join label l on l.clusterId = c.id
-      // where (
-      //   select count(*) from label
-      //   where clusterId = c.id and (key, value) in ${labelMap}
-      // ) = ${labelMap.size}
-      //
-      clusterStatusQueryByProject.filter {
-        case (cluster, _) =>
-          labelQuery
-            .filter {
-              _.clusterId === cluster.id
-            }
-            // The following confusing line is equivalent to the much simpler:
-            // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
-            // Unfortunately slick doesn't support inSet/inSetBind for tuples.
-            // https://github.com/slick/slick/issues/517
-            .filter { lbl =>
-              labelMap.map { case (k, v) => lbl.key === k && lbl.value === v }.reduce(_ || _)
-            }
-            .length === labelMap.size
-      }
-    }
-  }
-
-  def listByLabels(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
-    implicit ec: ExecutionContext
-  ): DBIO[Seq[Cluster]] = {
-    val query = listByLabelsQuery(labelMap, includeDeleted, googleProjectOpt)
-    query.result.map(unmarshalMinimalCluster)
-  }
-
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
