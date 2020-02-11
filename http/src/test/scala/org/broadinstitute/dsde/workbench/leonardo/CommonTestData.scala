@@ -95,7 +95,9 @@ object CommonTestData {
     Some(clusterDefaultsConfig.masterDiskSize)
   )
   val singleNodeDefaultMachineConfig =
-    singleNodeDefaultMachineConfigRequest.toRuntimeConfigDataprocConfig(MachineConfigOps.createFromDefaults(clusterDefaultsConfig))
+    singleNodeDefaultMachineConfigRequest.toRuntimeConfigDataprocConfig(
+      MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
+    )
 
   val testClusterRequest = ClusterRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),

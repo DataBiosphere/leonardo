@@ -90,11 +90,11 @@ class ZombieClusterMonitorSpec
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
 
-          c1.status shouldBe ClusterStatus.Deleted
-          c1.auditInfo.destroyedDate shouldBe 'defined
-          c1.errors.size shouldBe 1
-          c1.errors.head.errorCode shouldBe -1
-          c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
+        c1.status shouldBe ClusterStatus.Deleted
+        c1.auditInfo.destroyedDate shouldBe 'defined
+        c1.errors.size shouldBe 1
+        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
   }

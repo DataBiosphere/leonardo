@@ -61,9 +61,8 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
   override def notifyClusterCreated(internalId: ClusterInternalId,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
-                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = {
+                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
-  }
 
   override def notifyClusterDeleted(internalId: ClusterInternalId,
                                     userEmail: WorkbenchEmail,
