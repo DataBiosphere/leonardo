@@ -148,6 +148,25 @@ object ClusterContainerServiceType extends Enum[ClusterContainerServiceType] {
   }
 }
 
+sealed trait ClusterUI extends Product with Serializable {
+  def asString: String
+}
+object ClusterUI {
+  final case object Terra extends ClusterUI {
+    override def asString: String = "Terra"
+  }
+  final case object AoU extends ClusterUI {
+    override def asString: String = "AoU"
+  }
+  final case object Other extends ClusterUI {
+    override def asString: String = "Other"
+  }
+  def getClusterUI(labels: LabelMap): ClusterUI =
+    if (labels.contains(Config.uiConfig.terraLabel)) ClusterUI.Terra
+    else if (labels.contains(Config.uiConfig.allOfUsLabel)) ClusterUI.AoU
+    else ClusterUI.Other
+}
+
 sealed trait ClusterImageType extends EnumEntry with Serializable with Product
 object ClusterImageType extends Enum[ClusterImageType] {
   val values = findValues
