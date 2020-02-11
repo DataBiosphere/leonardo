@@ -13,7 +13,7 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
     val machineConfig = Some(RuntimeConfig.DataprocConfig(
       0,
       masterMachineType = newMasterMachineType,
-      30
+      500
     ))
 
     val originalCluster = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
