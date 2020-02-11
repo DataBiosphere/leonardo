@@ -48,7 +48,11 @@ object RuntimeConfigQueries {
 
   def getClustersByLabelsWithRuntimeConfig(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(implicit ec: ExecutionContext): DBIO[List[ListClusterResponse]] = {
     val clusterStatusQuery =
-      if (includeDeleted) clusterLabelRuntimeConfigQuery else clusterLabelRuntimeConfigQuery.filterNot { x => x._1._1.status === "Deleted" }
+      if (includeDeleted) clusterLabelRuntimeConfigQuery else {
+        val clusterTableQuery = clusterQuery.filterNot(_.status === "Deleted")
+        clusterTableQuery.joinLeft(labelQuery).on(_.id === _.clusterId)
+          .joinLeft(runtimeConfigs).on(_._1.runtimeConfigId === _.id)
+      }
 
     val clusterStatusQueryByProject = googleProjectOpt match {
       case Some(googleProject) => clusterStatusQuery.filter {
