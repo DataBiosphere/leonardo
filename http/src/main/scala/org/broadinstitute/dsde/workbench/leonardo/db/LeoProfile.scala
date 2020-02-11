@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, Go
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
 
-private[db] object LeoProfile extends MySQLProfile {
+private[leonardo] object LeoProfile extends MySQLProfile {
   final val dummyDate: Instant = Instant.ofEpochMilli(1000)
 
   // We use dummyDate when we don't have a destroyedDate but we need to insert something

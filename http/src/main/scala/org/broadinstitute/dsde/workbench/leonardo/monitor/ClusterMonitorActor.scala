@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataRespon
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, Queries, UpdateAsyncClusterCreationFields, clusterErrorQuery, clusterImageQuery, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, UpdateAsyncClusterCreationFields, clusterErrorQuery, clusterImageQuery, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
@@ -206,7 +206,7 @@ class ClusterMonitorActor(
         if (cluster.status == Starting) {
           for {
             _ <- persistInstances(cluster, googleInstances)
-            runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(cluster.runtimeConfigId))
+            runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId))
             _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
             now <- IO(Instant.now)
             _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
@@ -409,7 +409,7 @@ class ClusterMonitorActor(
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] = {
     val createCluster = for {
       _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google..."))
-      runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(cluster.runtimeConfigId))
+      runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId))
       clusterResult <- clusterHelper.createCluster(cluster, runtimeConfig)
       now <- IO(Instant.now)
       updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(

@@ -583,3 +583,5 @@ object LeonardoJsonSupport extends DefaultJsonProtocol {
 
   implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
 }
+
+final case class ClusterProjectAndName(googleProject: GoogleProject, clusterName: ClusterName)

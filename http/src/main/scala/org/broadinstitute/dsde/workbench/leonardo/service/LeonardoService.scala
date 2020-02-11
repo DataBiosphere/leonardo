@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, Wel
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, Queries, SaveCluster, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, SaveCluster, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -39,7 +39,6 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
@@ -168,27 +167,28 @@ class LeonardoService(
   // If the cluster really exists and you're OK with the user knowing that, set throw403 = true.
   protected def checkClusterPermission(userInfo: UserInfo,
                                        action: NotebookClusterAction,
-                                       cluster: Cluster,
+                                       clusterInternalId: ClusterInternalId,
+                                       clusterProjectAndName: ClusterProjectAndName,
                                        throw403: Boolean = false)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       traceId <- ev.ask
-      hasPermission <- authProvider.hasNotebookClusterPermission(cluster.internalId,
+      hasPermission <- authProvider.hasNotebookClusterPermission(clusterInternalId,
                                                                  userInfo,
                                                                  action,
-                                                                 cluster.googleProject,
-                                                                 cluster.clusterName)
+                                                                 clusterProjectAndName.googleProject,
+                                                                 clusterProjectAndName.clusterName)
       _ <- hasPermission match {
         case false =>
           log
             .warn(
               s"${traceId} | User ${userInfo.userEmail} does not have the notebook permission ${action} for " +
-                s"${cluster.googleProject}/${cluster.clusterName}"
+                s"${clusterProjectAndName.googleProject}/${clusterProjectAndName.clusterName}"
             )
             .flatMap { _ =>
               if (throw403)
                 IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
               else
-                IO.raiseError(ClusterNotFoundException(cluster.googleProject, cluster.clusterName))
+                IO.raiseError(ClusterNotFoundException(clusterProjectAndName.googleProject, clusterProjectAndName.clusterName))
             }
         case true => IO.unit
       }
@@ -217,8 +217,7 @@ class LeonardoService(
         internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
       )(c => IO.raiseError(ClusterAlreadyExistsException(googleProject, clusterName, c.status)))
 
-      runtimeConfig <- Queries.getRuntime(cluster.runtimeConfigId).transaction
-    } yield CreateClusterAPIResponse.fromCluster(cluster, runtimeConfig)
+    } yield cluster
 
   private def internalCreateCluster(
     userEmail: WorkbenchEmail,
@@ -226,7 +225,7 @@ class LeonardoService(
     googleProject: GoogleProject,
     clusterName: ClusterName,
     clusterRequest: ClusterRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateClusterAPIResponse] =
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     for {
@@ -275,7 +274,7 @@ class LeonardoService(
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
-    } yield cluster
+    } yield CreateClusterAPIResponse.fromCluster(cluster, machineConfig)
 
   // throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(
@@ -283,7 +282,7 @@ class LeonardoService(
   ): IO[Cluster] =
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, GetClusterStatus, cluster) //throws 404 if no auth
+      _ <- checkClusterPermission(userInfo, GetClusterStatus, cluster.internalId, ClusterProjectAndName(cluster.googleProject, cluster.clusterName)) //throws 404 if no auth
     } yield cluster
 
   // throws 404 if nonexistent or no permissions
@@ -291,9 +290,9 @@ class LeonardoService(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[GetClusterResponse] =
     for {
-      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if nonexistent
-      runtimeConfig <- Queries.getRuntime(cluster.runtimeConfigId).transaction
-    } yield GetClusterResponse.fromCluster(cluster, runtimeConfig)
+      resp <- LeonardoServiceDbQueries.getGetClusterResponse(googleProject, clusterName).transaction //throws 404 if nonexistent
+      _ <- checkClusterPermission(userInfo, GetClusterStatus, resp.internalId, ClusterProjectAndName(resp.googleProject, resp.clusterName)) //throws 404 if no auth
+    } yield resp
 
   private def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): IO[Cluster] =
     clusterQuery.getActiveClusterByName(googleProject, clusterName).transaction.flatMap {
@@ -308,13 +307,13 @@ class LeonardoService(
     for {
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if nonexistent or no auth
       updatedCluster <- internalUpdateCluster(cluster, clusterRequest)
-      runtimeConfig <- Queries.getRuntime(updatedCluster.runtimeConfigId).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntime(updatedCluster.runtimeConfigId).transaction
     } yield UpdateClusterResponse.fromCluster(updatedCluster, runtimeConfig)
 
   def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] = {
     if (existingCluster.status.isUpdatable) {
       for {
-        existingRuntimeConfig <- Queries.getRuntime(existingCluster.runtimeConfigId).transaction
+        existingRuntimeConfig <- RuntimeConfigQueries.getRuntime(existingCluster.runtimeConfigId).transaction
 
         autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster,
                                                           clusterRequest.autopause,
@@ -478,13 +477,13 @@ class LeonardoService(
           now <- IO(Instant.now)
           _ <- dbRef.inTransaction {
             updatedNumWorkersAndPreemptibles.fold(
-              a => Queries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
-              a => Queries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(a), now),
+              a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
+              a => RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(a), now),
               (a, b) =>
-                Queries
+                RuntimeConfigQueries
                   .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
                   .flatMap(
-                    _ => Queries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(b), now)
+                    _ => RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(b), now)
                   )
             )
           }
@@ -545,7 +544,7 @@ class LeonardoService(
           _ <- clusterHelper.updateMasterDiskSize(existingCluster, updatedMasterDiskSize)
           // Update the DB
           now <- IO(Instant.now)
-          _ <- Queries.updateDiskSize(existingCluster.runtimeConfigId, updatedMasterDiskSize, now).transaction
+          _ <- RuntimeConfigQueries.updateDiskSize(existingCluster.runtimeConfigId, updatedMasterDiskSize, now).transaction
         } yield UpdateResult(true, None)
 
       case Some(_) =>
@@ -564,7 +563,7 @@ class LeonardoService(
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually destroy it
-      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster, throw403 = true)
+      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster.internalId, ClusterProjectAndName(cluster.googleProject, cluster.clusterName), throw403 = true)
 
       _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield ()
@@ -613,9 +612,9 @@ class LeonardoService(
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
+      _ <- checkClusterPermission(userInfo, StopStartCluster,  cluster.internalId, ClusterProjectAndName(cluster.googleProject, cluster.clusterName), throw403 = true)
 
-      runtimeConfig <- Queries.getRuntime(cluster.runtimeConfigId).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
       _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
     } yield ()
 
@@ -629,7 +628,7 @@ class LeonardoService(
             .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
         } else IO.unit
 
-        runtimeConfig <- Queries.getRuntime(cluster.runtimeConfigId).transaction
+        runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
         // Stop the cluster in Google
         _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
 
@@ -648,7 +647,7 @@ class LeonardoService(
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
+      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster.internalId, ClusterProjectAndName(cluster.googleProject, cluster.clusterName), throw403 = true)
 
       now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
       _ <- clusterHelper.internalStartCluster(cluster, Instant.ofEpochMilli(now))
@@ -659,7 +658,7 @@ class LeonardoService(
   ): IO[Vector[ListClusterResponse]] = {
     for {
       paramMap <- IO.fromEither(processListClustersParameters(params))
-      clusters <- Queries.getClustersByLabelsWithRuntimeConfig(paramMap._1, paramMap._2, googleProjectOpt).transaction
+      clusters <- RuntimeConfigQueries.getClustersByLabelsWithRuntimeConfig(paramMap._1, paramMap._2, googleProjectOpt).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
     } yield {

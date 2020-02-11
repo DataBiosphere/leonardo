@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelder
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterQuery,
   DbSingleton,
-  Queries,
+  RuntimeConfigQueries,
   TestComponent,
   UpdateAsyncClusterCreationFields
 }
@@ -275,7 +275,7 @@ class AuthProviderSpec
       // list should work for this user
       //list all clusters should be fine, but empty
       leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(
-        _.toListClusterResp(dbFutureValue(Queries.getRuntime(savedCluster.runtimeConfigId)))
+        _.toListClusterResp(dbFutureValue(RuntimeConfigQueries.getRuntime(savedCluster.runtimeConfigId)))
       )
 
       //connect should 401

@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig._
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -165,7 +164,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           runtimeConfigId
         )
     }, { c: ClusterRecord =>
-      def mc(_mc: DataprocConfig) = DataprocConfig.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       def ai(_ai: AuditInfo) = (
         _ai.creator,
@@ -269,7 +267,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def save(saveCluster: SaveCluster)(implicit ec: ExecutionContext): DBIO[Cluster] =
     for {
-      runtimeConfigId <- Queries.upsertRuntime(saveCluster.runtimeConfig, saveCluster.now)
+      runtimeConfigId <- RuntimeConfigQueries.insertRuntime(saveCluster.runtimeConfig, saveCluster.now)
       cluster = LeoLenses.clusterToRuntimeConfigId.modify(_ => runtimeConfigId)(saveCluster.cluster) // update runtimeConfigId
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
         saveCluster.initBucket.map(_.toUri),
@@ -674,7 +672,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
   }
 
-  private def unmarshalFullCluster(
+
+  private[leonardo] def unmarshalFullCluster(
     clusterRecords: Seq[
       (ClusterRecord,
        Option[InstanceRecord],

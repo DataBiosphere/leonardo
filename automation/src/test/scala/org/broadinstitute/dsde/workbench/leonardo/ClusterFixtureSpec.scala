@@ -36,7 +36,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       ClusterName(clusterName),
       GoogleProject(googleProject),
       ServiceAccountInfo(None, None),
-      RuntimeConfig.DataprocConfig(0, "", 5),
+      RuntimeConfig.DataprocConfig(numberOfWorkers = 0, masterMachineType = "n1-standard-4", masterDiskSize = 5),
       ClusterStatus.Running,
       WorkbenchEmail(""),
       Map(),

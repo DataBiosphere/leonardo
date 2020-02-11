@@ -1066,7 +1066,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Updating)
 
     //check that the machine config has been updated
-    dbFutureValue { Queries.getRuntime(dbCluster.get.runtimeConfigId) }
+    dbFutureValue { RuntimeConfigQueries.getRuntime(dbCluster.get.runtimeConfigId) }
       .asInstanceOf[RuntimeConfig.DataprocConfig]
       .numberOfWorkers shouldBe 2
   }
@@ -1131,7 +1131,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Stopped)
 
     //check that the machine config has been updated
-    dbFutureValue { Queries.getRuntime(dbCluster.get.runtimeConfigId) }
+    dbFutureValue { RuntimeConfigQueries.getRuntime(dbCluster.get.runtimeConfigId) }
       .asInstanceOf[RuntimeConfig.DataprocConfig]
       .masterMachineType shouldBe newMachineType
   }
@@ -1289,7 +1289,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { Queries.getRuntime(dbCluster.get.runtimeConfigId) }
+    dbFutureValue { RuntimeConfigQueries.getRuntime(dbCluster.get.runtimeConfigId) }
       .asInstanceOf[RuntimeConfig.DataprocConfig]
       .masterDiskSize shouldBe newDiskSize
   }
@@ -1478,7 +1478,7 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { Queries.getRuntime(dbCluster.get.runtimeConfigId) }.diskSize shouldBe newDiskSize
+    dbFutureValue { RuntimeConfigQueries.getRuntime(dbCluster.get.runtimeConfigId) }.diskSize shouldBe newDiskSize
   }
 
   it should "extract labels properly" in {
