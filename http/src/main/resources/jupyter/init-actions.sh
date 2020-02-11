@@ -86,7 +86,7 @@ ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 # This overrides the credentials on the metadata server.
 # This needs to happen on master and worker nodes.
 SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
-if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS}" ] ; then
+if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
   gsutil cp ${SERVICE_ACCOUNT_CREDENTIALS} /etc
   SERVICE_ACCOUNT_CREDENTIALS=`basename ${SERVICE_ACCOUNT_CREDENTIALS}`
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
