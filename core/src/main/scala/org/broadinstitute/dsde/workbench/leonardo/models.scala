@@ -3,11 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 
+import ca.mrvisser.sealerate
 import cats.implicits._
+import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, parseGcsPath}
-import enumeratum.{Enum, EnumEntry}
-import ca.mrvisser.sealerate
 
 import scala.collection.immutable
 import scala.util.matching.Regex
@@ -89,7 +89,7 @@ final case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = 
                                       combinedExtensions: Map[String, String] = Map.empty,
                                       labExtensions: Map[String, String] = Map.empty) {
 
-  def asLabels: LabelMap =
+  def asLabels: Map[String, String] =
     nbExtensions ++ serverExtensions ++ combinedExtensions ++ labExtensions
 }
 

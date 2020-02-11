@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ListClusterResponse
 import org.broadinstitute.dsde.workbench.leonardo.model._

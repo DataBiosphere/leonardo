@@ -16,12 +16,22 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, Queries, RuntimeConfigId, TestComponent, clusterQuery, followupQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  followupQuery,
+  DbSingleton,
+  Queries,
+  RuntimeConfigId,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{ClusterInvalidState, ClusterNotStopped}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  ClusterInvalidState,
+  ClusterNotStopped
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.mockito.Mockito
 import org.scalatest.concurrent._
@@ -164,7 +174,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    val process = fs2.Stream(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance ,consumer)) through leoSubscriber.messageHandler
+    val process = fs2.Stream(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance, consumer)) through leoSubscriber.messageHandler
     val res = process.compile.drain
 
     res.attempt.unsafeRunSync().isRight shouldBe true //messageHandler will never throw exception
@@ -254,9 +264,8 @@ class LeoPubsubMessageSubscriberSpec
     val followupDetails = ClusterFollowupDetails(cluster.id, ClusterStatus.Stopped)
 
     dbRef
-      .inTransaction(
-        followupQuery.save(followupDetails, Some(newMachineType)
-      )).unsafeRunSync()
+      .inTransaction(followupQuery.save(followupDetails, Some(newMachineType)))
+      .unsafeRunSync()
 
     val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupDetails, None)
 

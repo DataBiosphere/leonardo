@@ -4,12 +4,11 @@ import java.net.URL
 import java.time.Instant
 
 import cats.implicits._
+import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.google.parseGcsPath
-import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
 
 object JsonCodec {
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)

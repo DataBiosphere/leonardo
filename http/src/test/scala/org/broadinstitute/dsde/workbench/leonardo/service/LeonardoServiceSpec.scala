@@ -340,7 +340,9 @@ class LeonardoServiceSpec
     val singleNodeDefinedMachineConfigReq =
       RuntimeConfigRequest.DataprocConfig(Some(0), Some("test-master-machine-type2"), Some(200))
     val singleNodeDefinedMachineConfig =
-      singleNodeDefinedMachineConfigReq.toRuntimeConfigDataprocConfig(MachineConfigOps.createFromDefaults(clusterDefaultsConfig))
+      singleNodeDefinedMachineConfigReq.toRuntimeConfigDataprocConfig(
+        MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
+      )
     val clusterRequestWithMachineConfig =
       testClusterRequest.copy(runtimeConfig = Some(singleNodeDefinedMachineConfigReq))
 
@@ -406,7 +408,9 @@ class LeonardoServiceSpec
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
-    clusterCreateResponse.runtimeConfig shouldEqual machineConfig.toRuntimeConfigDataprocConfig(MachineConfigOps.createFromDefaults(clusterDefaultsConfig))
+    clusterCreateResponse.runtimeConfig shouldEqual machineConfig.toRuntimeConfigDataprocConfig(
+      MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
+    )
   }
 
   it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
@@ -576,11 +580,13 @@ class LeonardoServiceSpec
       .map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyClusterDeleted(ClusterInternalId(mockitoEq(cluster.internalId.asString)),
-                                                    mockitoEq(userInfo.userEmail),
-                                                    mockitoEq(userInfo.userEmail),
-                                                    mockitoEq(project),
-                                                    mockitoEq(name1))(any[ApplicativeAsk[IO, TraceId]])
+    verify(spyProvider, never).notifyClusterDeleted(
+      ClusterInternalId(mockitoEq(cluster.internalId.asString)),
+      mockitoEq(userInfo.userEmail),
+      mockitoEq(userInfo.userEmail),
+      mockitoEq(project),
+      mockitoEq(name1)
+    )(any[ApplicativeAsk[IO, TraceId]])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
@@ -633,11 +639,13 @@ class LeonardoServiceSpec
       .map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyClusterDeleted(ClusterInternalId(mockitoEq(cluster.internalId.asString)),
-                                                    mockitoEq(userInfo.userEmail),
-                                                    mockitoEq(userInfo.userEmail),
-                                                    mockitoEq(project),
-                                                    mockitoEq(name1))(any[ApplicativeAsk[IO, TraceId]])
+    verify(spyProvider, never).notifyClusterDeleted(
+      ClusterInternalId(mockitoEq(cluster.internalId.asString)),
+      mockitoEq(userInfo.userEmail),
+      mockitoEq(userInfo.userEmail),
+      mockitoEq(project),
+      mockitoEq(name1)
+    )(any[ApplicativeAsk[IO, TraceId]])
   }
 
   it should "delete a cluster's instances" in isolatedDbTest {
@@ -1185,7 +1193,10 @@ class LeonardoServiceSpec
                                   queue)
     val clusterCreateResponse =
       leo
-        .createCluster(userInfo, project, name1, testClusterRequest.copy(runtimeConfig = Some(defaultRuntimeConfigRequest)))
+        .createCluster(userInfo,
+                       project,
+                       name1,
+                       testClusterRequest.copy(runtimeConfig = Some(defaultRuntimeConfigRequest)))
         .unsafeToFuture
         .futureValue
 
@@ -1207,7 +1218,9 @@ class LeonardoServiceSpec
 
     // populate some instances for the cluster
     val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
-    val getClusterIdKey = GetClusterKey(clusterCreateResponse.googleProject, clusterCreateResponse.clusterName, clusterCreateResponse.auditInfo.destroyedDate)
+    val getClusterIdKey = GetClusterKey(clusterCreateResponse.googleProject,
+                                        clusterCreateResponse.clusterName,
+                                        clusterCreateResponse.auditInfo.destroyedDate)
     dbFutureValue {
       instanceQuery.saveAllForCluster(getClusterId(getClusterIdKey), clusterInstances)
     }
@@ -1235,10 +1248,9 @@ class LeonardoServiceSpec
 
     val castMessage = message.asInstanceOf[StopUpdateMessage]
     castMessage.messageType shouldBe "stopUpdate"
-    castMessage.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(
-      defaultRuntimeConfig.numberOfWorkers,
-      newMachineType,
-      defaultRuntimeConfig.masterDiskSize)
+    castMessage.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
+                                                                           newMachineType,
+                                                                           defaultRuntimeConfig.masterDiskSize)
     castMessage.clusterId shouldBe clusterCreateResponse.id
   }
 

@@ -2,7 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package api
 
 import io.circe.parser.decode
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{emptyMasterMachineType, negativeNumberDecodingFailure, oneWorkerSpecifiedDecodingFailure}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  emptyMasterMachineType,
+  negativeNumberDecodingFailure,
+  oneWorkerSpecifiedDecodingFailure
+}
 import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, RuntimeConfigRequest}
@@ -139,49 +143,50 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
   }
 
   it should "decode CreateClusterRequest properly" in {
-     val inputString = """
-            |{ "id": 0,
-            |  "internalId": "067e2867-5d4a-47f3-a53c-fd711529b287",
-            |  "clusterName": "clustername1",
-            |  "googleId": "4ba97751-026a-4555-961b-89ae6ce78df4",
-            |  "googleProject": "dsp-leo-test",
-            |  "serviceAccountInfo": {
-            |    "clusterServiceAccount": "testClusterServiceAccount@example.com",
-            |    "notebookServiceAccount": "testNotebookServiceAccount@example.com"
-            |    },
-            |  "machineConfig": {
-            |    "numberOfWorkers": 0,
-            |    "masterMachineType": "machineType",
-            |    "masterDiskSize": 500
-            |    },
-            |  "clusterUrl": "http://leonardo/proxy/dsp-leo-test/clustername1/jupyter",
-            |  "operationName": "operationName1",
-            |  "status": "Unknown",
-            |  "hostIp": "numbers.and.dots",
-            |  "creator": "user1@example.com",
-            |  "createdDate": "2018-08-07T10:12:35Z",
-            |  "labels": {},
-            |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
-            |  "stagingBucket": "stagingbucketname1",
-            |  "errors": [],
-            |  "instances": [],
-            |  "dateAccessed": "2018-08-07T10:12:35Z",
-            |  "autopauseThreshold": 30,
-            |  "defaultClientId": "defaultClientId",
-            |  "stopAfterCreation": true,
-            |  "clusterImages": [
-            |    { "imageType": "Jupyter",
-            |      "imageUrl": "jupyter/jupyter-base:latest",
-            |      "timestamp": "2018-08-07T10:12:35Z"
-            |      },
-            |    { "imageType": "Welder",
-            |      "imageUrl": "welder/welder:latest",
-            |      "timestamp": "2018-08-07T10:12:35Z"
-            |      }
-            |    ],
-            |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"],
-            |  "enableWelder": true
-            |}
+    val inputString =
+      """
+        |{ "id": 0,
+        |  "internalId": "067e2867-5d4a-47f3-a53c-fd711529b287",
+        |  "clusterName": "clustername1",
+        |  "googleId": "4ba97751-026a-4555-961b-89ae6ce78df4",
+        |  "googleProject": "dsp-leo-test",
+        |  "serviceAccountInfo": {
+        |    "clusterServiceAccount": "testClusterServiceAccount@example.com",
+        |    "notebookServiceAccount": "testNotebookServiceAccount@example.com"
+        |    },
+        |  "machineConfig": {
+        |    "numberOfWorkers": 0,
+        |    "masterMachineType": "machineType",
+        |    "masterDiskSize": 500
+        |    },
+        |  "clusterUrl": "http://leonardo/proxy/dsp-leo-test/clustername1/jupyter",
+        |  "operationName": "operationName1",
+        |  "status": "Unknown",
+        |  "hostIp": "numbers.and.dots",
+        |  "creator": "user1@example.com",
+        |  "createdDate": "2018-08-07T10:12:35Z",
+        |  "labels": {},
+        |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
+        |  "stagingBucket": "stagingbucketname1",
+        |  "errors": [],
+        |  "instances": [],
+        |  "dateAccessed": "2018-08-07T10:12:35Z",
+        |  "autopauseThreshold": 30,
+        |  "defaultClientId": "defaultClientId",
+        |  "stopAfterCreation": true,
+        |  "clusterImages": [
+        |    { "imageType": "Jupyter",
+        |      "imageUrl": "jupyter/jupyter-base:latest",
+        |      "timestamp": "2018-08-07T10:12:35Z"
+        |      },
+        |    { "imageType": "Welder",
+        |      "imageUrl": "welder/welder:latest",
+        |      "timestamp": "2018-08-07T10:12:35Z"
+        |      }
+        |    ],
+        |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"],
+        |  "enableWelder": true
+        |}
           """.stripMargin
 
     val res = decode[ClusterRequest](inputString)
@@ -190,11 +195,13 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
       None,
       None,
-      Some(RuntimeConfigRequest.DataprocConfig(
-        Some(0),
-        Some("machineType"),
-        Some(500)
-      )),
+      Some(
+        RuntimeConfigRequest.DataprocConfig(
+          Some(0),
+          Some("machineType"),
+          Some(500)
+        )
+      ),
       Map.empty,
       Some(true),
       false,
@@ -205,14 +212,16 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       None,
       None,
       None,
-      Set("https://www.googleapis.com/auth/userinfo.email",
+      Set(
+        "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/bigquery",
-        "https://www.googleapis.com/auth/source.read_only"),
+        "https://www.googleapis.com/auth/source.read_only"
+      ),
       Some(true),
       Map.empty
     )
-    res shouldBe(Right(expected))
+    res shouldBe (Right(expected))
 
   }
 }

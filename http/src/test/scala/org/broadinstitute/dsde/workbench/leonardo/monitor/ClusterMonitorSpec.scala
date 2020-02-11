@@ -27,7 +27,13 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, 
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GcsBucketName,
+  GcsEntity,
+  GcsObjectName,
+  GoogleProject,
+  ServiceAccountKeyId
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._

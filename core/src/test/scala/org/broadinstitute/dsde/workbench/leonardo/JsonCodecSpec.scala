@@ -19,9 +19,15 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
 
     val res = decode[RuntimeConfig](inputString)
     val expected = RuntimeConfig.DataprocConfig(
-      10,  "n1-standard-8", 500, None, None, None, Some(-1)
+      10,
+      "n1-standard-8",
+      500,
+      None,
+      None,
+      None,
+      Some(-1)
     )
-    res shouldBe(Right(expected))
+    res shouldBe (Right(expected))
   }
 
   it should "decode GCEConfig properly" in {
@@ -36,8 +42,9 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
 
     val res = decode[RuntimeConfig](inputString)
     val expected = RuntimeConfig.GceConfig(
-      MachineType("n1-standard-8"), 500
+      MachineType("n1-standard-8"),
+      500
     )
-    res shouldBe(Right(expected))
+    res shouldBe (Right(expected))
   }
 }
