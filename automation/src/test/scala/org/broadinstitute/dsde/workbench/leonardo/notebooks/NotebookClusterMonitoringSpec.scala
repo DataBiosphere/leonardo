@@ -73,7 +73,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         cluster =>
           // update the cluster to add another worker node and increase the master disk
           val newMachineConfig =
-            RuntimeConfig.DataprocConfig(numberOfWorkers = 3, masterDiskSize = 100, masterMachineType = "")
+            RuntimeConfig.DataprocConfig(numberOfWorkers = 3, masterDiskSize = 100, masterMachineType = "n1-standard-2")
           Leonardo.cluster.update(billingProject,
                                   cluster.clusterName,
                                   ClusterRequest(machineConfig = Option(newMachineConfig)))
@@ -99,7 +99,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
           // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
           val twoWorkersConfig =
-            newMachineConfig.copy(numberOfWorkers = 2, masterDiskSize = 500, masterMachineType = "")
+            newMachineConfig.copy(numberOfWorkers = 2, masterDiskSize = 500, masterMachineType = "n1-standard-2")
           Leonardo.cluster.update(billingProject,
                                   cluster.clusterName,
                                   ClusterRequest(machineConfig = Option(twoWorkersConfig)))
@@ -126,7 +126,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           // finally, change the master machine type
           // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
           val newMachineTypeConfig =
-            twoWorkersConfig.copy(masterMachineType = "n1-standard-4", masterDiskSize = 500, numberOfWorkers = 0)
+            twoWorkersConfig.copy(masterMachineType = "n1-standard-4", masterDiskSize = 500, numberOfWorkers = 2)
           withRestartCluster(cluster) { cluster =>
             Leonardo.cluster.update(billingProject,
                                     cluster.clusterName,
@@ -170,7 +170,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
               // need at least 2 regular workers to enable preemptibles
               numberOfWorkers = 2,
               masterDiskSize = 500,
-              masterMachineType = "",
+              masterMachineType = "n1-standard-4",
               numberOfPreemptibleWorkers = Some(10)
             )
           ),
