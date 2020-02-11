@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.ExecutionContext
 
-object Queries {
+object RuntimeConfigQueries {
   type ClusterJoinLabelJoinRuntimeConfig = Query[((ClusterTable, Rep[Option[LabelTable]]), Rep[Option[RuntimeConfigTable]]), ((ClusterRecord, Option[LabelRecord]), Option[RuntimeConfigRecord]), Seq]
 
   val runtimeConfigs = TableQuery[RuntimeConfigTable]
@@ -31,8 +31,8 @@ object Queries {
   /**
     * return DB generated id
    */
-  def upsertRuntime(runtimeConfig: RuntimeConfig, dateAccessed: Instant): DBIO[RuntimeConfigId] =  {
-    (runtimeConfigs.returning(runtimeConfigs.map(_.id)) += RuntimeConfigRecord(RuntimeConfigId(0), runtimeConfig, dateAccessed))
+  def insertRuntime(runtimeConfig: RuntimeConfig, dateAccessed: Instant): DBIO[RuntimeConfigId] =  {
+    runtimeConfigs.returning(runtimeConfigs.map(_.id)) += RuntimeConfigRecord(RuntimeConfigId(0), runtimeConfig, dateAccessed)
   }
 
   def getRuntime(id: RuntimeConfigId)(implicit ec: ExecutionContext): DBIO[RuntimeConfig] =  {

@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, Queries, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
@@ -292,7 +292,7 @@ class ClusterHelper(
         _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
           dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") }.void else IO.unit
 
-        runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(cluster.runtimeConfigId))
+        runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId))
         // Start the cluster in Google
         _ <- startCluster(updatedCluster, welderAction, runtimeConfig)
 
@@ -368,7 +368,7 @@ class ClusterHelper(
       // Update the DB
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction {
-        Queries.updateMachineType(existingCluster.runtimeConfigId, machineType, now)
+        RuntimeConfigQueries.updateMachineType(existingCluster.runtimeConfigId, machineType, now)
       }
     } yield ()
 

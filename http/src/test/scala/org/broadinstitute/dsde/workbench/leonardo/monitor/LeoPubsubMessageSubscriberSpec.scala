@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterQuery,
   followupQuery,
   DbSingleton,
-  Queries,
+  RuntimeConfigQueries,
   RuntimeConfigId,
   TestComponent
 }
@@ -233,7 +233,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val cluster = dbFutureValue { clusterQuery.getClusterById(clusterId) }.get
     cluster.status shouldBe ClusterStatus.Running
-    dbFutureValue(Queries.getRuntime(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
+    dbFutureValue(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
   }
 
   //gracefully handle transition finished with no follow-up action saved
@@ -250,7 +250,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val cluster = dbFutureValue { clusterQuery.getClusterById(clusterId) }.get
     cluster.status shouldBe ClusterStatus.Stopped
-    dbFutureValue { Queries.getRuntime(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig
+    dbFutureValue { RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig
   }
 
   //handle transition finished message with follow-up action saved
@@ -278,7 +278,7 @@ class LeoPubsubMessageSubscriberSpec
     eventually {
       dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.status shouldBe ClusterStatus.Starting
 
-      dbFutureValue { Queries.getRuntime(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig.copy(
+      dbFutureValue { RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig.copy(
         masterMachineType = newMachineType.value
       )
     }

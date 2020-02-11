@@ -10,7 +10,7 @@ import fs2.{Pipe, Stream}
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, Queries, clusterQuery, followupQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
@@ -87,7 +87,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             _ <- dbRef.inTransaction(
               followupQuery.save(followupDetails, Some(message.updatedMachineConfig.machineType))
             )
-            runtimeConfig <- dbRef.inTransaction(Queries.getRuntime(resolvedCluster.runtimeConfigId))
+            runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(resolvedCluster.runtimeConfigId))
             _ <- Async[F].liftIO(clusterHelper.stopCluster(resolvedCluster, runtimeConfig))
           } yield ()
         case Some(resolvedCluster) =>

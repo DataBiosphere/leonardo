@@ -334,9 +334,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
       )
 
     val newMachineType = MachineType("this-is-a-new-machine-type")
-    dbFutureValue { Queries.updateMachineType(savedCluster1.runtimeConfigId, newMachineType, Instant.now) }
+    dbFutureValue { RuntimeConfigQueries.updateMachineType(savedCluster1.runtimeConfigId, newMachineType, Instant.now) }
 
-    dbFutureValue { Queries.getRuntime(savedCluster1.runtimeConfigId) }.machineType shouldBe
+    dbFutureValue { RuntimeConfigQueries.getRuntime(savedCluster1.runtimeConfigId) }.machineType shouldBe
       newMachineType
   }
 
@@ -352,9 +352,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     )
 
     val newDiskSize = 1000
-    dbFutureValue { Queries.updateDiskSize(savedCluster1.runtimeConfigId, newDiskSize, Instant.now) }
+    dbFutureValue { RuntimeConfigQueries.updateDiskSize(savedCluster1.runtimeConfigId, newDiskSize, Instant.now) }
 
-    dbFutureValue { Queries.getRuntime(savedCluster1.runtimeConfigId) }.diskSize shouldBe
+    dbFutureValue { RuntimeConfigQueries.getRuntime(savedCluster1.runtimeConfigId) }.diskSize shouldBe
       newDiskSize
   }
 
@@ -393,6 +393,6 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     val savedCluster = makeCluster(1)
       .saveWithRuntimeConfig(runtimeConfig)
 
-    dbFutureValue { Queries.getRuntime(savedCluster.runtimeConfigId) } shouldBe runtimeConfig
+    dbFutureValue { RuntimeConfigQueries.getRuntime(savedCluster.runtimeConfigId) } shouldBe runtimeConfig
   }
 }

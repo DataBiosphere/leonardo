@@ -57,9 +57,9 @@ object DbReference extends LazyLogging {
     for {
       db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
       dbConnection <- Resource.make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
-      initLiquidbase = if (config.initWithLiquibase) Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
+      initLiquibase = if (config.initWithLiquibase) Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
       else Async[F].unit
-      _ <- Resource.liftF(initLiquidbase)
+      _ <- Resource.liftF(initLiquibase)
     } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
   }
 }
@@ -110,7 +110,7 @@ final class DataAccess(blocker: Blocker) {
       TableQuery[ScopeTable].delete andThen
       TableQuery[FollowupTable].delete andThen
       TableQuery[ClusterTable].delete andThen
-      Queries.runtimeConfigs.delete
+      RuntimeConfigQueries.runtimeConfigs.delete
 
   def sqlDBStatus() =
     sql"select version()".as[String]
