@@ -6,17 +6,12 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
-  clusterEq,
-  clusterSeqEq,
-  clusterSetEq,
-  stripFieldsForListCluster
-}
-import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.FlatSpecLike
 import org.scalatest.concurrent.ScalaFutures
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils with ScalaFutures {
@@ -141,56 +136,6 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     cluster3status.dataprocInfo.flatMap(_.hostIp) shouldBe None
   }
 
-  it should "get by labels" in isolatedDbTest {
-
-    val savedCluster1 =
-      makeCluster(1).copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")).save(Some(serviceAccountKey.id))
-
-    val savedCluster2 = makeCluster(2).copy(status = ClusterStatus.Running).save(Some(serviceAccountKey.id))
-
-    val savedCluster3 =
-      makeCluster(3).copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes")).save()
-
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(savedCluster1, savedCluster2)
-      .map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1).map(
-      stripFieldsForListCluster
-    )
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(
-      stripFieldsForListCluster(savedCluster1)
-    )
-    dbFutureValue { clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set
-      .empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set
-      .empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3).map(
-      stripFieldsForListCluster
-    )
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set
-      .empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
-  }
-
   it should "stop and start a cluster" in isolatedDbTest {
     val dateAccessed = Instant.now()
     val initialCluster = makeCluster(1).copy(status = ClusterStatus.Running).save()
@@ -265,47 +210,6 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     autoFreezeList should not contain stoppedCluster
     autoFreezeList should not contain runningCluster2
     autoFreezeList should not contain autopauseDisabledCluster
-  }
-
-  it should "list by labels and project" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1)
-      .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
-      .save(Some(serviceAccountKey.id))
-
-    val savedCluster2 = makeCluster(2)
-      .copy(
-        status = ClusterStatus.Running,
-        clusterName = name2,
-        googleProject = project2,
-        clusterUrl = Cluster.getClusterUrl(project2, name2, Set(jupyterImage), Map("bam" -> "yes")),
-        labels = Map("bam" -> "yes")
-      )
-      .save(Some(serviceAccountKey.id))
-
-    val savedCluster3 = makeCluster(3)
-      .copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes"))
-      .save()
-
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1)
-      .map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, true, Some(project)) }.toSet shouldEqual Set(
-      savedCluster1,
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
-      .map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes"), true, Some(project)) }.toSet shouldEqual Set(
-      savedCluster1,
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes"), false, Some(project2)) }.toSet shouldEqual Set(
-      savedCluster2
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set
-      .empty[Cluster]
   }
 
   it should "get for dns cache" in isolatedDbTest {

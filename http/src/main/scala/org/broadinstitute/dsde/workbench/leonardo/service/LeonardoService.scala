@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, Wel
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, SaveCluster, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, LeonardoServiceDbQueries, RuntimeConfigQueries, SaveCluster, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -39,6 +39,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
@@ -658,7 +659,7 @@ class LeonardoService(
   ): IO[Vector[ListClusterResponse]] = {
     for {
       paramMap <- IO.fromEither(processListClustersParameters(params))
-      clusters <- RuntimeConfigQueries.getClustersByLabelsWithRuntimeConfig(paramMap._1, paramMap._2, googleProjectOpt).transaction
+      clusters <- LeonardoServiceDbQueries.getClustersByLabelsWithRuntimeConfig(paramMap._1, paramMap._2, googleProjectOpt).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
     } yield {

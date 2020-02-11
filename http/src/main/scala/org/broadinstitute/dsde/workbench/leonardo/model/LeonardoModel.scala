@@ -140,15 +140,6 @@ object ClusterUI {
     else ClusterUI.Other
 }
 
-sealed trait ClusterImageType extends EnumEntry with Serializable with Product
-object ClusterImageType extends Enum[ClusterImageType] {
-  val values = findValues
-
-  case object Jupyter extends ClusterImageType
-  case object RStudio extends ClusterImageType
-  case object Welder extends ClusterImageType
-  case object CustomDataProc extends ClusterImageType
-}
 case class ClusterImage(imageType: ClusterImageType, imageUrl: String, timestamp: Instant)
 
 final case class RunningCluster(googleProject: GoogleProject,
@@ -261,7 +252,7 @@ object Cluster {
       .filterNot(Set(Welder, CustomDataProc).contains)
       .headOption
       .orElse(labels.get("tool").flatMap(ClusterImageType.withNameInsensitiveOption))
-      .flatMap(ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get)
+      .flatMap(t=>ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(t))
       .headOption
       .getOrElse(JupyterService)
 
