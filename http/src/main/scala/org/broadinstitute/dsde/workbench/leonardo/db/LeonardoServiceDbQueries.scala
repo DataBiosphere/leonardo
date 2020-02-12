@@ -14,13 +14,20 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, IP, OperationName}
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, DataprocInfo}
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterInternalId, LabelMap, RuntimeConfig, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
 import scala.concurrent.ExecutionContext
 
 object LeonardoServiceDbQueries {
+
+  type ClusterJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
+
+  def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
+    for {
+      (cluster, label) <- baseQuery.joinLeft(labelQuery).on(_.id === _.clusterId)
+    } yield (cluster, label)
+
   def getGetClusterResponse(googleProject: GoogleProject, clusterName: ClusterName)(
     implicit executionContext: ExecutionContext
   ): DBIO[GetClusterResponse] = {
@@ -40,33 +47,21 @@ object LeonardoServiceDbQueries {
   def listClusters(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ec: ExecutionContext
   ): DBIO[List[ListClusterResponse]] = {
-    val clusterStatusQuery =
-      if (includeDeleted) clusterLabelRuntimeConfigQuery
-      else {
-        val clusterTableQuery = clusterQuery.filterNot(_.status === "Deleted")
-        clusterTableQuery
-          .joinLeft(labelQuery)
-          .on(_.id === _.clusterId)
-          .joinLeft(runtimeConfigs)
-          .on(_._1.runtimeConfigId === _.id)
-      }
+    val clusterQueryFilteredByDeletion =
+      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === "Deleted")
+    val clusterQueryFilteredByProject = googleProjectOpt.fold(clusterQueryFilteredByDeletion)(
+      p => clusterQueryFilteredByDeletion.filter(_.googleProject === p)
+    )
+    val clusterQueryJoinedWithLabel = clusterLabelQuery(clusterQueryFilteredByProject)
 
-    val clusterStatusQueryByProject = googleProjectOpt match {
-      case Some(googleProject) =>
-        clusterStatusQuery.filter {
-          _._1._1.googleProject === googleProject
-        }
-      case None => clusterStatusQuery
-    }
-
-    val res = if (labelMap.isEmpty) {
-      clusterStatusQueryByProject
+    val clusterQueryFilteredByLabel = if (labelMap.isEmpty) {
+      clusterQueryJoinedWithLabel
     } else {
-      clusterStatusQueryByProject.filter {
-        case (clusterAndLabel, _) =>
+      clusterQueryJoinedWithLabel.filter {
+        case (clusterRec, _) =>
           labelQuery
             .filter {
-              _.clusterId === clusterAndLabel._1.id
+              _.clusterId === clusterRec.id
             }
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
@@ -79,54 +74,50 @@ object LeonardoServiceDbQueries {
       }
     }
 
-    res.result.map { x =>
+    val clusterQueryFilteredByLabelAndJoinedWithRuntime = clusterLabelRuntimeConfigQuery(clusterQueryFilteredByLabel)
+
+    clusterQueryFilteredByLabelAndJoinedWithRuntime.result.map { x =>
       val clusterLabelMap: Map[(ClusterRecord, Option[RuntimeConfig]), Map[String, Chain[String]]] = x.toList.foldMap {
-        case (clusterRecordAndLabel, runTimeConfig) =>
-          val labelMap = clusterRecordAndLabel._2.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
-          Map((clusterRecordAndLabel._1, runTimeConfig.map(_.runtimeConfig)) -> labelMap)
+        case ((clusterRec, labelRecOpt), runTimeConfigRecOpt) =>
+          val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
+          Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig)) -> labelMap)
       }
 
       clusterLabelMap.map {
-        case (clusterAndRuntimeConfig, labelMp) =>
-          val lmp = labelMp.mapValues(_.toList.toSet.head)
-          val dataprocInfo = (clusterAndRuntimeConfig._1.googleId,
-                              clusterAndRuntimeConfig._1.operationName,
-                              clusterAndRuntimeConfig._1.stagingBucket).mapN {
+        case ((clusterRec, runTimeConfigRecOpt), labelMap) =>
+          val lmp = labelMap.mapValues(_.toList.toSet.head)
+          val dataprocInfo = (clusterRec.googleId, clusterRec.operationName, clusterRec.stagingBucket).mapN {
             (googleId, operationName, stagingBucket) =>
               DataprocInfo(googleId,
                            OperationName(operationName),
                            GcsBucketName(stagingBucket),
-                           clusterAndRuntimeConfig._1.hostIp map IP)
+                           clusterRec.hostIp map IP)
           }
 
           val serviceAccountInfo = ServiceAccountInfo(
-            clusterAndRuntimeConfig._1.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
-            clusterAndRuntimeConfig._1.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
+            clusterRec.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
+            clusterRec.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
           )
           ListClusterResponse(
-            clusterAndRuntimeConfig._1.id,
-            ClusterInternalId(clusterAndRuntimeConfig._1.internalId),
-            clusterAndRuntimeConfig._1.clusterName,
-            clusterAndRuntimeConfig._1.googleProject,
+            clusterRec.id,
+            ClusterInternalId(clusterRec.internalId),
+            clusterRec.clusterName,
+            clusterRec.googleProject,
             serviceAccountInfo,
             dataprocInfo,
-            clusterAndRuntimeConfig._1.auditInfo,
-            clusterAndRuntimeConfig._2.getOrElse(
-              throw new Exception(s"no runtimeConfig found for ${clusterAndRuntimeConfig._1.id}")
-            ), //In theory, the exeception should never happen because it's enforced by db foreign key
-            Cluster.getClusterUrl(clusterAndRuntimeConfig._1.googleProject,
-                                  clusterAndRuntimeConfig._1.clusterName,
-                                  Set.empty,
-                                  lmp), //TODO: remove clusterImages field
-            ClusterStatus.withName(clusterAndRuntimeConfig._1.status),
+            clusterRec.auditInfo,
+            runTimeConfigRecOpt
+              .getOrElse(throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")), //In theory, the exception should never happen because it's enforced by db foreign key
+            Cluster.getClusterUrl(clusterRec.googleProject, clusterRec.clusterName, Set.empty, lmp), //TODO: remove clusterImages field
+            ClusterStatus.withName(clusterRec.status),
             lmp,
-            clusterAndRuntimeConfig._1.jupyterExtensionUri,
-            clusterAndRuntimeConfig._1.jupyterUserScriptUri,
+            clusterRec.jupyterExtensionUri,
+            clusterRec.jupyterUserScriptUri,
             Set.empty, //TODO: remove instances from ListResponse
-            clusterAndRuntimeConfig._1.autopauseThreshold,
-            clusterAndRuntimeConfig._1.defaultClientId,
-            clusterAndRuntimeConfig._1.stopAfterCreation,
-            clusterAndRuntimeConfig._1.welderEnabled
+            clusterRec.autopauseThreshold,
+            clusterRec.defaultClientId,
+            clusterRec.stopAfterCreation,
+            clusterRec.welderEnabled
           )
       }.toList
     }

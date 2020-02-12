@@ -5,6 +5,7 @@ import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeonardoServiceDbQueries.ClusterJoinLabel
 
 import scala.concurrent.ExecutionContext
 
@@ -16,15 +17,12 @@ object RuntimeConfigQueries {
 
   val runtimeConfigs = TableQuery[RuntimeConfigTable]
 
-  val clusterLabelRuntimeConfigQuery: ClusterJoinLabelJoinRuntimeConfig = {
+  def clusterLabelRuntimeConfigQuery(baseQuery: ClusterJoinLabel): ClusterJoinLabelJoinRuntimeConfig =
     for {
-      (cluster, label) <- clusterQuery
-        .joinLeft(labelQuery)
-        .on(_.id === _.clusterId)
+      ((cluster, label), runTimeConfig) <- baseQuery
         .joinLeft(runtimeConfigs)
         .on(_._1.runtimeConfigId === _.id)
-    } yield (cluster, label)
-  }
+    } yield ((cluster, label), runTimeConfig)
 
   /**
    * return DB generated id
