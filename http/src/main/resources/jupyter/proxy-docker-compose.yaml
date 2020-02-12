@@ -9,7 +9,6 @@ services:
     - /certs/jupyter-server.key:/etc/ssl/private/server.key:ro
     - /certs/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
     - /etc/cluster-site.conf:/etc/apache2/sites-enabled/site.conf
-    - /auth_openidc.conf:/etc/apache2/mods-enabled/auth_openidc.conf
     restart: always
     environment:
       HTTPD_PORT: '80'
