@@ -15,5 +15,5 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   customEnvVarsConfigUri: ClusterResource)
 
 object ClusterResourcesConfig {
-  val basePath = "init-bucket"
+  val basePath = "jupyter"
 }
