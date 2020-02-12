@@ -270,8 +270,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtimeConfigId <- RuntimeConfigQueries.insertRuntime(saveCluster.runtimeConfig, saveCluster.now)
       cluster = LeoLenses.clusterToRuntimeConfigId.modify(_ => runtimeConfigId)(saveCluster.cluster) // update runtimeConfigId
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
-        saveCluster.initBucket.map(_.toUri),
-        saveCluster.serviceAccountKeyId)
+                                                                                   saveCluster.initBucket.map(_.toUri),
+                                                                                   saveCluster.serviceAccountKeyId)
       _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
       _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -387,7 +387,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   // Convenience method for tests, in several of which we define a cluster and later on need
   // to retrieve its updated status, etc. but don't know its id to look up
-  private[leonardo] def getClusterByUniqueKey(getClusterId: GetClusterKey)(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
+  private[leonardo] def getClusterByUniqueKey(
+    getClusterId: GetClusterKey
+  )(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
     getClusterByUniqueKey(getClusterId.googleProject, getClusterId.clusterName, getClusterId.destroyedDate)
 
   private[leonardo] def getClusterByUniqueKey(
@@ -474,7 +476,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def updateClusterHostIp(id: Long, hostIp: Option[IP], dateAccessed: Instant): DBIO[Int] =
     clusterQuery
-      .filter { x => x.id === id }
+      .filter { x =>
+        x.id === id
+      }
       .map(c => (c.hostIp, c.dateAccessed))
       .update((hostIp.map(_.value), dateAccessed))
 
@@ -625,7 +629,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
   }
 
-
   private[leonardo] def unmarshalFullCluster(
     clusterRecords: Seq[
       (ClusterRecord,
@@ -731,9 +734,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   }
 }
 
-final case class GetClusterKey(googleProject: GoogleProject,
-                               clusterName: ClusterName,
-                               destroyedDate: Option[Instant])
+final case class GetClusterKey(googleProject: GoogleProject, clusterName: ClusterName, destroyedDate: Option[Instant])
 
 final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   serviceAccountKey: Option[ServiceAccountKey],
@@ -745,5 +746,4 @@ final case class SaveCluster(cluster: Cluster,
                              initBucket: Option[GcsPath] = None,
                              serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
                              runtimeConfig: RuntimeConfig,
-                             now: Instant
-                            )
+                             now: Instant)

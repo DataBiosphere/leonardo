@@ -9,7 +9,12 @@ import cats.implicits._
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.{ConfigSSLContextBuilder, DefaultKeyManagerFactoryWrapper, DefaultTrustManagerFactoryWrapper, SSLConfigFactory}
+import com.typesafe.sslconfig.ssl.{
+  ConfigSSLContextBuilder,
+  DefaultKeyManagerFactoryWrapper,
+  DefaultTrustManagerFactoryWrapper,
+  SSLConfigFactory
+}
 import fs2.{Pipe, Stream}
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
@@ -17,7 +22,13 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.circe.syntax._
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
-import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleStorageDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO,
+  HttpGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.google2.{Event, GooglePublisher, GoogleStorageService, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -162,7 +173,7 @@ object Boot extends IOApp {
           )
       } else Stream.eval(logger.info(s"Not starting subscriber in boot"))
 
-      val startSubscriber = if(leoExecutionModeConfig.backLeo) {
+      val startSubscriber = if (leoExecutionModeConfig.backLeo) {
         Stream.eval(appDependencies.subscriber.start)
       } else Stream.eval(IO.unit)
 
@@ -296,8 +307,8 @@ object Boot extends IOApp {
 
     new ConfigSSLContextBuilder(new AkkaLoggerFactory(as),
                                 sslConfigSettings,
-      keyManagerAlgorithm,
-      trustManagerAlgorithm).build()
+                                keyManagerAlgorithm,
+                                trustManagerAlgorithm).build()
   }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)

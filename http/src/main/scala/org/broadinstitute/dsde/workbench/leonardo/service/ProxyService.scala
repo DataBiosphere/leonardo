@@ -20,7 +20,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._

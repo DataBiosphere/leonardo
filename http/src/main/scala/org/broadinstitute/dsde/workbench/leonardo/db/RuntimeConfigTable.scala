@@ -22,65 +22,58 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
     (
       id,
       (cloudService,
-      numberOfWorkers,
-      machineType,
-      diskSize,
-      workerMachineType,
-      workerDiskSize,
-      numberOfWorkerLocalSSDs,
-      numberOfPreemptibleWorkers),
-      dateAccessed,
+       numberOfWorkers,
+       machineType,
+       diskSize,
+       workerMachineType,
+       workerDiskSize,
+       numberOfWorkerLocalSSDs,
+       numberOfPreemptibleWorkers),
+      dateAccessed
     ).shaped <> ({
       case (id,
-      (cloudService,
-      numberOfWorkers,
-      machineType,
-      diskSize,
-      workerMachineType,
-      workerDiskSize,
-      numberOfWorkerLocalSSDs,
-      numberOfPreemptibleWorkers),
-      dateAccessed) =>
-      val r = cloudService match {
-        case CloudService.GCE =>
-          RuntimeConfig.GceConfig(machineType, diskSize)
+            (cloudService,
+             numberOfWorkers,
+             machineType,
+             diskSize,
+             workerMachineType,
+             workerDiskSize,
+             numberOfWorkerLocalSSDs,
+             numberOfPreemptibleWorkers),
+            dateAccessed) =>
+        val r = cloudService match {
+          case CloudService.GCE =>
+            RuntimeConfig.GceConfig(machineType, diskSize)
 
-        case CloudService.Dataproc =>
-          RuntimeConfig.DataprocConfig(
-            numberOfWorkers,
-            machineType.value,
-            diskSize,
-            workerMachineType.map(_.value),
-            workerDiskSize,
-            numberOfWorkerLocalSSDs,
-            numberOfPreemptibleWorkers)
-      }
+          case CloudService.Dataproc =>
+            RuntimeConfig.DataprocConfig(numberOfWorkers,
+                                         machineType.value,
+                                         diskSize,
+                                         workerMachineType.map(_.value),
+                                         workerDiskSize,
+                                         numberOfWorkerLocalSSDs,
+                                         numberOfPreemptibleWorkers)
+        }
         RuntimeConfigRecord(id, r, dateAccessed)
     }, { x: RuntimeConfigRecord =>
       x.runtimeConfig match {
         case r: RuntimeConfig.GceConfig =>
           Some(x.id,
-            (CloudService.GCE: CloudService,
-            0,
-            r.machineType,
-            r.diskSize,
-            None,
-            None,
-            None,
-            None),
+               (CloudService.GCE: CloudService, 0, r.machineType, r.diskSize, None, None, None, None),
+               x.dateAccessed)
+        case r: RuntimeConfig.DataprocConfig =>
+          Some(
+            x.id,
+            (CloudService.Dataproc: CloudService,
+             r.numberOfWorkers,
+             MachineType(r.masterMachineType),
+             r.masterDiskSize,
+             r.workerMachineType.map(MachineType),
+             r.workerDiskSize,
+             r.numberOfWorkerLocalSSDs,
+             r.numberOfPreemptibleWorkers),
             x.dateAccessed
           )
-        case r: RuntimeConfig.DataprocConfig =>
-          Some(x.id,
-            (CloudService.Dataproc: CloudService,
-            r.numberOfWorkers,
-            MachineType(r.masterMachineType),
-            r.masterDiskSize,
-            r.workerMachineType.map(MachineType),
-            r.workerDiskSize,
-            r.numberOfWorkerLocalSSDs,
-            r.numberOfPreemptibleWorkers),
-            x.dateAccessed)
       }
     })
 }

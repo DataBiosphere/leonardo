@@ -11,8 +11,14 @@ import com.google.api.client.http.HttpResponseException
 import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.Metadata.Items
-import com.google.api.services.compute.model.{DisksResizeRequest, Firewall, InstancesSetMachineTypeRequest, Metadata, Instance => GoogleInstance}
-import com.google.api.services.compute.{Compute, ComputeScopes, model}
+import com.google.api.services.compute.model.{
+  DisksResizeRequest,
+  Firewall,
+  InstancesSetMachineTypeRequest,
+  Metadata,
+  Instance => GoogleInstance
+}
+import com.google.api.services.compute.{model, Compute, ComputeScopes}
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.MachineType
@@ -141,7 +147,9 @@ class HttpGoogleComputeDAO(
     val request = compute.firewalls().insert(googleProject.value, googleFirewall)
 
     //This can be simplified if its too verbose
-    logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' and VPCConfig ${firewallRule.network} in project ${googleProject.value}. Firewall rule details: ${firewallRule}")
+    logger.info(
+      s"Creating firewall rule with name '${firewallRule.name.value}' and VPCConfig ${firewallRule.network} in project ${googleProject.value}. Firewall rule details: ${firewallRule}"
+    )
     retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void
   }
 

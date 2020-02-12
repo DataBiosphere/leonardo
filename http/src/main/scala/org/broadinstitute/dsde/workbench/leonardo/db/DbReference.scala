@@ -49,15 +49,16 @@ object DbReference extends LazyLogging {
     }
 
   def init[F[_]: Async: ContextShift: Logger](config: LiquibaseConfig,
-                                      concurrentDbAccessPermits: Semaphore[F],
-                                      blocker: Blocker): Resource[F, DbReference[F]] = {
+                                              concurrentDbAccessPermits: Semaphore[F],
+                                              blocker: Blocker): Resource[F, DbReference[F]] = {
     val dbConfig =
       DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
 
     for {
       db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
       dbConnection <- Resource.make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
-      initLiquibase = if (config.initWithLiquibase) Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
+      initLiquibase = if (config.initWithLiquibase)
+        Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
       else Async[F].unit
       _ <- Resource.liftF(initLiquibase)
     } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
