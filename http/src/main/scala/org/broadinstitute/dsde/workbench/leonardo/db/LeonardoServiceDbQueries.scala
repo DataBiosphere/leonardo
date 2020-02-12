@@ -32,7 +32,7 @@ object LeonardoServiceDbQueries {
   }
 
 
-  def getClustersByLabelsWithRuntimeConfig(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(implicit ec: ExecutionContext): DBIO[List[ListClusterResponse]] = {
+  def listClusters(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(implicit ec: ExecutionContext): DBIO[List[ListClusterResponse]] = {
     val clusterStatusQuery =
       if (includeDeleted) clusterLabelRuntimeConfigQuery else {
         val clusterTableQuery = clusterQuery.filterNot(_.status === "Deleted")

@@ -21,44 +21,44 @@ class LeonardoServiceDbQueriesSpec extends TestComponent with FlatSpecLike with 
     val savedCluster3 =
       makeCluster(3).copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes")).save()
 
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map.empty, false) }.toSet shouldEqual Set(savedCluster1, savedCluster2)
+    dbFutureValue { listClusters(Map.empty, false) }.toSet shouldEqual Set(savedCluster1, savedCluster2)
       .map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1).map(
+    dbFutureValue { listClusters(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1).map(
       _.toListClusterResp(defaultRuntimeConfig)
     )
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
+    dbFutureValue { listClusters(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(
       savedCluster1.toListClusterResp(defaultRuntimeConfig)
     )
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(
       savedCluster1
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(
       savedCluster1.toListClusterResp(defaultRuntimeConfig)
     )
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set
+    dbFutureValue { listClusters(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
+    dbFutureValue { listClusters(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set
       .empty[Cluster]
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set
+    dbFutureValue { listClusters(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set
       .empty[Cluster]
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(
       savedCluster1
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(
       savedCluster1
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(
       savedCluster1
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3).map(
+    dbFutureValue { listClusters(Map("a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3).map(
       _.toListClusterResp(defaultRuntimeConfig)
     )
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(
       savedCluster3
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set
+    dbFutureValue { listClusters(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set
       .empty[Cluster]
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
+    dbFutureValue { listClusters(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
   }
 
   it should "list by labels and project" in isolatedDbTest {
@@ -80,25 +80,25 @@ class LeonardoServiceDbQueriesSpec extends TestComponent with FlatSpecLike with 
       .copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes"))
       .save()
 
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { listClusters(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1)
       .map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map.empty, true, Some(project)) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map.empty, true, Some(project)) }.toSet shouldEqual Set(
       savedCluster1,
       savedCluster3
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map.empty, false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
+    dbFutureValue { listClusters(Map.empty, false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
       .map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes"), true, Some(project)) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("bam" -> "yes"), true, Some(project)) }.toSet shouldEqual Set(
       savedCluster1,
       savedCluster3
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("bam" -> "yes"), false, Some(project2)) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("bam" -> "yes"), false, Some(project2)) }.toSet shouldEqual Set(
       savedCluster2
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(
+    dbFutureValue { listClusters(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(
       savedCluster3
     ).map(_.toListClusterResp(defaultRuntimeConfig))
-    dbFutureValue { getClustersByLabelsWithRuntimeConfig(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set
+    dbFutureValue { listClusters(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set
       .empty[Cluster]
   }
 }
