@@ -63,6 +63,12 @@
         <update tableName="CLUSTER">
             <column name="runtimeConfigId" valueComputed="(select RUNTIME_CONFIG.id from RUNTIME_CONFIG where CLUSTER.id=RUNTIME_CONFIG.clusterId)"/>
         </update>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" id="cleanup_after_migration" author="qi">
+        <preConditions onFail="HALT">
+            <sqlCheck expectedResult="0">select count(id) from CLUSTER where NOT EXISTS (SELECT `clusterId` FROM RUNTIME_CONFIG)</sqlCheck>
+        </preConditions>
 
         <!--  Add foreignkey reference for runtimeConfigId  -->
         <createIndex indexName="FK_CLUSTER_RUNTIME_CONFIG_ID" tableName="CLUSTER">
@@ -80,5 +86,4 @@
         <dropColumn tableName="CLUSTER" columnName="numberOfWorkerLocalSSDs"/>
         <dropColumn tableName="CLUSTER" columnName="numberOfPreemptibleWorkers"/>
     </changeSet>
-
 </databaseChangeLog>
