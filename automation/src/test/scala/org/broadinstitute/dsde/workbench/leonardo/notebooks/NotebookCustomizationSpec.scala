@@ -187,7 +187,9 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       }
     }
 
-    "should recover from out-of-memory errors" in { billingProject =>
+    // TODO: This test has flaky selenium logic, ignoring for now. More details in:
+    // https://broadworkbench.atlassian.net/browse/QA-1027
+    "should recover from out-of-memory errors" ignore { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a cluster with smaller memory size
