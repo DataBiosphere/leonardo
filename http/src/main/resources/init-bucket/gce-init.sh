@@ -130,7 +130,7 @@ if [[ "$GCE_OPERATION" == 'creating' ]]; then
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
     ROOT_CA=$(rootCaPem)
-    JUPYTER_DOCKER_COMPOSE=$(jupyterDockerComposeGce)
+    JUPYTER_DOCKER_COMPOSE_GCE=$(jupyterDockerComposeGce)
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
     WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
@@ -156,13 +156,10 @@ if [[ "$GCE_OPERATION" == 'creating' ]]; then
     gsutil cp ${SERVER_KEY} /certs
     gsutil cp ${ROOT_CA} /certs
     gsutil cp ${PROXY_SITE_CONF} /etc
-    gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
+    gsutil cp ${JUPYTER_DOCKER_COMPOSE_GCE} /etc
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
     gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
-
-    # Needed because docker-compose can't handle symlinks
-    touch /hadoop_gcs_connector_metadata_cache
 
     # Not all images have the directory used for Stackdriver configs. If so, create it
     mkdir -p /etc/google-fluentd/config.d
@@ -227,8 +224,8 @@ END
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
     cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
-      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
+      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
+      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
     fi
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
@@ -254,7 +251,7 @@ END
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
       log 'Installing Jupydocker kernelspecs...'
 
-      # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
+      # Install kernelspecs inside the Jupyter container
       # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
 
