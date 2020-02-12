@@ -659,7 +659,7 @@ class LeonardoService(
   ): IO[Vector[ListClusterResponse]] = {
     for {
       paramMap <- IO.fromEither(processListClustersParameters(params))
-      clusters <- LeonardoServiceDbQueries.getClustersByLabelsWithRuntimeConfig(paramMap._1, paramMap._2, googleProjectOpt).transaction
+      clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProjectOpt).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
     } yield {
