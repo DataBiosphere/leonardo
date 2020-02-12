@@ -23,13 +23,17 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{ClusterCannotBeStartedException, ClusterCannotBeStoppedException, ClusterOutOfDateException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  ClusterCannotBeStartedException,
+  ClusterCannotBeStoppedException,
+  ClusterOutOfDateException
+}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -167,8 +171,9 @@ class ClusterHelper(
                 retryResult <- IO.fromFuture(
                   IO(
                     retryExponentially(whenGoogleZoneCapacityIssue,
-                      "Cluster creation failed because zone with adequate resources was not found") { () =>
-                      gdDAO.createCluster(cluster.googleProject, cluster.clusterName, createClusterConfig)
+                                       "Cluster creation failed because zone with adequate resources was not found") {
+                      () =>
+                        gdDAO.createCluster(cluster.googleProject, cluster.clusterName, createClusterConfig)
                     }
                   )
                 )
@@ -181,7 +186,7 @@ class ClusterHelper(
                   case Left(errors) =>
                     metrics
                       .incrementCounter("zoneCapacityClusterCreationFailure",
-                        errors.filter(whenGoogleZoneCapacityIssue).length)
+                                        errors.filter(whenGoogleZoneCapacityIssue).length)
                       .flatMap(_ => IO.raiseError(errors.head))
                 }
 
@@ -193,10 +198,10 @@ class ClusterHelper(
 
         ioResult.handleErrorWith { throwable =>
           cleanUpGoogleResourcesOnError(cluster.googleProject,
-            cluster.clusterName,
-            initBucketName,
-            cluster.serviceAccountInfo,
-            serviceAccountKeyOpt) >> IO.raiseError(throwable)
+                                        cluster.clusterName,
+                                        initBucketName,
+                                        cluster.serviceAccountInfo,
+                                        serviceAccountKeyOpt) >> IO.raiseError(throwable)
         }
     }
   }
@@ -230,7 +235,7 @@ class ClusterHelper(
 
       // First remove all its preemptible instances, if any
       _ <- runtimeConfig match {
-        case x: RuntimeConfig.DataprocConfig if(x.numberOfPreemptibleWorkers.exists(_ > 0) ) =>
+        case x: RuntimeConfig.DataprocConfig if (x.numberOfPreemptibleWorkers.exists(_ > 0)) =>
           IO.fromFuture(IO(gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))))
         case _ => IO.unit
       }
@@ -253,12 +258,12 @@ class ClusterHelper(
 
       // Add back the preemptible instances, if any
       _ <- runtimeConfig match {
-        case x: RuntimeConfig.DataprocConfig if (x.numberOfPreemptibleWorkers.exists(_ > 0) )=>
+        case x: RuntimeConfig.DataprocConfig if (x.numberOfPreemptibleWorkers.exists(_ > 0)) =>
           IO.fromFuture(
             IO(
               gdDAO.resizeCluster(cluster.googleProject,
-                cluster.clusterName,
-                numPreemptibles = x.numberOfPreemptibleWorkers)
+                                  cluster.clusterName,
+                                  numPreemptibles = x.numberOfPreemptibleWorkers)
             )
           )
         case _ => IO.unit
@@ -290,7 +295,8 @@ class ClusterHelper(
           case ClusterOutOfDate                 => IO.raiseError(ClusterOutOfDateException())
         }
         _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
-          dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") }.void else IO.unit
+          dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") }.void
+        else IO.unit
 
         runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId))
         // Start the cluster in Google
@@ -513,7 +519,8 @@ class ClusterHelper(
     }
   }
 
-  private[leonardo] def getClusterResourceContraints(cluster: Cluster, runtimeConfig: RuntimeConfig): IO[ClusterResourceConstraints] = {
+  private[leonardo] def getClusterResourceContraints(cluster: Cluster,
+                                                     runtimeConfig: RuntimeConfig): IO[ClusterResourceConstraints] = {
     val totalMemory = for {
       // Find a zone in which to query the machine type: either the configured zone or
       // an arbitrary zone in the configured region.

@@ -22,7 +22,11 @@ import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.{listClusterResponseWriter, clusterRequestDecoder, _}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.{
+  listClusterResponseWriter,
+  clusterRequestDecoder,
+  _
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException, RequestValidationError}

@@ -27,9 +27,9 @@ sealed trait RuntimeConfigRequest extends Product with Serializable {
 }
 object RuntimeConfigRequest {
   final case class GceConfig(
-                              machineType: Option[MachineType],
-                              diskSize: Option[Int]
-                            ) extends RuntimeConfigRequest {
+    machineType: Option[MachineType],
+    diskSize: Option[Int]
+  ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
 
@@ -40,7 +40,8 @@ object RuntimeConfigRequest {
                                   workerMachineType: Option[String] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                                  numberOfPreemptibleWorkers: Option[Int] = None) extends RuntimeConfigRequest {
+                                  numberOfPreemptibleWorkers: Option[Int] = None)
+      extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
 
     def toRuntimeConfigDataprocConfig(default: RuntimeConfig.DataprocConfig): RuntimeConfig.DataprocConfig = {
@@ -147,33 +148,34 @@ final case class RunningCluster(googleProject: GoogleProject,
                                 containers: List[ClusterContainerServiceType])
 
 // The cluster itself
-final case class Cluster(id: Long = 0, // DB AutoInc
-                         internalId: ClusterInternalId,
-                         clusterName: ClusterName,
-                         googleProject: GoogleProject,
-                         serviceAccountInfo: ServiceAccountInfo,
-                         dataprocInfo: Option[DataprocInfo],
-                         auditInfo: AuditInfo,
-                         properties: Map[String, String],
-                         clusterUrl: URL,
-                         status: ClusterStatus,
-                         labels: LabelMap,
-                         jupyterExtensionUri: Option[GcsPath],
-                         jupyterUserScriptUri: Option[UserScriptPath],
-                         jupyterStartUserScriptUri: Option[UserScriptPath],
-                         errors: List[ClusterError],
-                         instances: Set[Instance],
-                         userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                         autopauseThreshold: Int,
-                         defaultClientId: Option[String],
-                         stopAfterCreation: Boolean,
-                         allowStop: Boolean,
-                         clusterImages: Set[ClusterImage],
-                         scopes: Set[String],
-                         welderEnabled: Boolean,
-                         customClusterEnvironmentVariables: Map[String, String],
-                         runtimeConfigId: RuntimeConfigId = RuntimeConfigId(-1) //TODO: remove default value once we migrate data
-                        ) {
+final case class Cluster(
+  id: Long = 0, // DB AutoInc
+  internalId: ClusterInternalId,
+  clusterName: ClusterName,
+  googleProject: GoogleProject,
+  serviceAccountInfo: ServiceAccountInfo,
+  dataprocInfo: Option[DataprocInfo],
+  auditInfo: AuditInfo,
+  properties: Map[String, String],
+  clusterUrl: URL,
+  status: ClusterStatus,
+  labels: LabelMap,
+  jupyterExtensionUri: Option[GcsPath],
+  jupyterUserScriptUri: Option[UserScriptPath],
+  jupyterStartUserScriptUri: Option[UserScriptPath],
+  errors: List[ClusterError],
+  instances: Set[Instance],
+  userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+  autopauseThreshold: Int,
+  defaultClientId: Option[String],
+  stopAfterCreation: Boolean,
+  allowStop: Boolean,
+  clusterImages: Set[ClusterImage],
+  scopes: Set[String],
+  welderEnabled: Boolean,
+  customClusterEnvironmentVariables: Map[String, String],
+  runtimeConfigId: RuntimeConfigId = RuntimeConfigId(-1) //TODO: remove default value once we migrate data
+) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
   def toListClusterResp(runtimeConfig: RuntimeConfig): ListClusterResponse =
@@ -252,7 +254,7 @@ object Cluster {
       .filterNot(Set(Welder, CustomDataProc).contains)
       .headOption
       .orElse(labels.get("tool").flatMap(ClusterImageType.withNameInsensitiveOption))
-      .flatMap(t=>ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(t))
+      .flatMap(t => ClusterContainerServiceType.imageTypeToClusterContainerServiceType.get(t))
       .headOption
       .getOrElse(JupyterService)
 
@@ -280,15 +282,16 @@ object MachineConfigOps {
         StatusCodes.BadRequest
       )
 
-  def createFromDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): RuntimeConfig.DataprocConfig = RuntimeConfig.DataprocConfig(
-    clusterDefaultsConfig.numberOfWorkers,
-    clusterDefaultsConfig.masterMachineType,
-    clusterDefaultsConfig.masterDiskSize,
-    Some(clusterDefaultsConfig.workerMachineType),
-    Some(clusterDefaultsConfig.workerDiskSize),
-    Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
-    Some(clusterDefaultsConfig.numberOfPreemptibleWorkers)
-  )
+  def createFromDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): RuntimeConfig.DataprocConfig =
+    RuntimeConfig.DataprocConfig(
+      clusterDefaultsConfig.numberOfWorkers,
+      clusterDefaultsConfig.masterMachineType,
+      clusterDefaultsConfig.masterDiskSize,
+      Some(clusterDefaultsConfig.workerMachineType),
+      Some(clusterDefaultsConfig.workerDiskSize),
+      Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
+      Some(clusterDefaultsConfig.numberOfPreemptibleWorkers)
+    )
 }
 
 // Fields that must be templated into cluster resources (e.g. the init script).

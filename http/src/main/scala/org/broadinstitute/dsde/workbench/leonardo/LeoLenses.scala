@@ -13,49 +13,59 @@ object LeoLenses {
 
   val clusterToRuntimeConfigId: Lens[Cluster, RuntimeConfigId] = GenLens[Cluster](_.runtimeConfigId)
 
-  val createClusterAPIRespToGetClusterKey = Lens[CreateClusterAPIResponse, GetClusterKey](x =>
-    GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate))(x =>
-    a => a.copy(googleProject = x.googleProject, clusterName = x.clusterName, auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate)))
+  val createClusterAPIRespToGetClusterKey = Lens[CreateClusterAPIResponse, GetClusterKey](
+    x => GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
+  )(
+    x =>
+      a =>
+        a.copy(googleProject = x.googleProject,
+               clusterName = x.clusterName,
+               auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate))
+  )
 
   val createClusterAPIRespToListClusterResp = Lens[CreateClusterAPIResponse, ListClusterResponse](
     x =>
       ListClusterResponse(
-      x.id,
-      x.internalId,
-      x.clusterName,
-      x.googleProject,
-      x.serviceAccountInfo,
-      x.dataprocInfo,
-      x.auditInfo,
-      x.runtimeConfig,
-      x.clusterUrl,
-      x.status,
-      x.labels,
-      x.jupyterExtensionUri,
-      x.jupyterUserScriptUri,
-      x.instances,
-      x.autopauseThreshold,
-      x.defaultClientId,
-      x.stopAfterCreation,
-      x.welderEnabled
-    )
-  )(x => c => c.copy(
-    id = x.id,
-    internalId = x.internalId,
-    clusterName = x.clusterName,
-    googleProject = x.googleProject,
-    serviceAccountInfo = x.serviceAccountInfo,
-    dataprocInfo = x.dataprocInfo,
-    auditInfo = x.auditInfo,
-    clusterUrl = x.clusterUrl,
-    status = x.status,
-    labels = x.labels,
-    jupyterExtensionUri = x.jupyterExtensionUri,
-    jupyterUserScriptUri = x.jupyterUserScriptUri,
-    instances = x.instances,
-    autopauseThreshold = x.autopauseThreshold,
-    defaultClientId = x.defaultClientId,
-    stopAfterCreation = x.stopAfterCreation,
-    welderEnabled = x.welderEnabled
-  ))
+        x.id,
+        x.internalId,
+        x.clusterName,
+        x.googleProject,
+        x.serviceAccountInfo,
+        x.dataprocInfo,
+        x.auditInfo,
+        x.runtimeConfig,
+        x.clusterUrl,
+        x.status,
+        x.labels,
+        x.jupyterExtensionUri,
+        x.jupyterUserScriptUri,
+        x.instances,
+        x.autopauseThreshold,
+        x.defaultClientId,
+        x.stopAfterCreation,
+        x.welderEnabled
+      )
+  )(
+    x =>
+      c =>
+        c.copy(
+          id = x.id,
+          internalId = x.internalId,
+          clusterName = x.clusterName,
+          googleProject = x.googleProject,
+          serviceAccountInfo = x.serviceAccountInfo,
+          dataprocInfo = x.dataprocInfo,
+          auditInfo = x.auditInfo,
+          clusterUrl = x.clusterUrl,
+          status = x.status,
+          labels = x.labels,
+          jupyterExtensionUri = x.jupyterExtensionUri,
+          jupyterUserScriptUri = x.jupyterUserScriptUri,
+          instances = x.instances,
+          autopauseThreshold = x.autopauseThreshold,
+          defaultClientId = x.defaultClientId,
+          stopAfterCreation = x.stopAfterCreation,
+          welderEnabled = x.welderEnabled
+        )
+  )
 }

@@ -17,22 +17,41 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, ImageConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  ClusterBucketConfig,
+  DataprocConfig,
+  ImageConfig,
+  MonitorConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, UpdateAsyncClusterCreationFields, clusterErrorQuery, clusterImageQuery, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterErrorQuery,
+  clusterImageQuery,
+  clusterQuery,
+  DbReference,
+  RuntimeConfigQueries,
+  UpdateAsyncClusterCreationFields
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{ClusterFollowupDetails, ClusterTransitionFinishedMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
+  ClusterDeleted,
+  ClusterSupervisorMessage,
+  RemoveFromList
+}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  ClusterFollowupDetails,
+  ClusterTransitionFinishedMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
+import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -692,7 +711,9 @@ class ClusterMonitorActor(
       )
     } yield cluster
 
-  private def recordStatusTransitionMetrics(clusterUI: ClusterUI, origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] =
+  private def recordStatusTransitionMetrics(clusterUI: ClusterUI,
+                                            origStatus: ClusterStatus,
+                                            finalStatus: ClusterStatus): IO[Unit] =
     for {
       endTime <- IO(System.currentTimeMillis)
       baseName = s"ClusterMonitor/${clusterUI.asString}/${origStatus}->${finalStatus}"

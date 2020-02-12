@@ -20,8 +20,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterQuery,
   followupQuery,
   DbSingleton,
-  RuntimeConfigQueries,
   RuntimeConfigId,
+  RuntimeConfigQueries,
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider

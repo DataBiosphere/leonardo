@@ -6,7 +6,11 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
+  clusterEq,
+  clusterSeqEq,
+  stripFieldsForListCluster
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.FlatSpecLike
