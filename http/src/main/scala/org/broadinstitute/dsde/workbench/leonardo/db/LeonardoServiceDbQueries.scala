@@ -85,7 +85,7 @@ object LeonardoServiceDbQueries {
 
       clusterLabelMap.map {
         case ((clusterRec, runTimeConfigRecOpt), labelMap) =>
-          val lmp = labelMap.mapValues(_.toList.toSet.head)
+          val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
           val dataprocInfo = (clusterRec.googleId, clusterRec.operationName, clusterRec.stagingBucket).mapN {
             (googleId, operationName, stagingBucket) =>
               DataprocInfo(googleId,
