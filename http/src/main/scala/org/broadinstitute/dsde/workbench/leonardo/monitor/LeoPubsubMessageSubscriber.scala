@@ -33,6 +33,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         handleStopUpdateMessage(msg)
       case msg: ClusterTransitionFinishedMessage =>
         handleClusterTransitionFinished(msg)
+      case msg: CreateCluster =>
+        handleClusterTransitionFinished(msg)
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
@@ -159,6 +161,11 @@ object LeoPubsubMessage {
   case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType = "transitionFinished"
+  }
+
+  case class CreateCluster(cluster: Cluster, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType = "createCluster"
   }
 
   final case class ClusterFollowupDetails(clusterId: Long, clusterStatus: ClusterStatus)

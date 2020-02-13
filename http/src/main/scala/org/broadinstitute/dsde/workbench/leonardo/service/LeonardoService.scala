@@ -284,6 +284,7 @@ class LeonardoService(
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
+      _ <- publisherQueue.enqueue1(LeoPubsubMessage.CreateCluster(cluster, Some(traceId)))
     } yield CreateClusterAPIResponse.fromCluster(cluster, machineConfig)
 
   // throws 404 if nonexistent or no permissions

@@ -470,9 +470,7 @@ class ClusterMonitorActor(
       dbCluster <- getDbCluster
       next <- dbCluster.status match {
         case status if status.isMonitored =>
-          if (dbCluster.dataprocInfo.isDefined) {
-            IO.fromFuture(IO(checkClusterInGoogle(dbCluster)))
-          } else createClusterInGoogle(dbCluster)
+          IO.fromFuture(IO(checkClusterInGoogle(dbCluster)))
         case status =>
           IO(logger.info(s"Stopping monitoring of cluster ${dbCluster.projectNameString} in status ${status}")) >>
             IO.pure(ShutdownActor(RemoveFromList(dbCluster)))
