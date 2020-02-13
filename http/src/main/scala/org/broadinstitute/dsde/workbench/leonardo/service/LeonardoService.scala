@@ -483,7 +483,7 @@ class LeonardoService(
     updatedNumWorkersAndPreemptiblesOpt match {
       case Some(updatedNumWorkersAndPreemptibles) =>
         for {
-          _ <- log.info(s"New machine config present. Resizing cluster ${existingCluster.projectNameString}...")
+          _ <- log.info(s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}...")
           // Resize the cluster
           _ <- clusterHelper.resizeCluster(existingCluster,
                                            updatedNumWorkersAndPreemptibles.left,
@@ -575,7 +575,7 @@ class LeonardoService(
       case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>
         for {
           _ <- log.info(
-            s"New machine config present. Changing master disk size to $updatedMasterDiskSize GB for cluster ${existingCluster.projectNameString}..."
+            s"New target machine size present. Changing master disk size to $updatedMasterDiskSize GB for cluster ${existingCluster.projectNameString}..."
           )
           // Update the disk in Google
           _ <- clusterHelper.updateMasterDiskSize(existingCluster, updatedMasterDiskSize)

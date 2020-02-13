@@ -82,6 +82,13 @@ Once you're done, tear down MySQL.
 
 Do `docker restart leonardo-mysql` if you see `java.sql.SQLNonTransientConnectionException: Too many connections` error
 
+* Running tests against FIAB
+Checking FIAB mysql (fina password in /etc/leonardo.conf in firecloud_leonardo-app_1 container)
+```bash
+docker exec -it firecloud_leonardo-mysql_1 bash
+root@2f5efbd4f138:/# mysql -u leonardo -p
+```
+
 ## Run scalafmt
 Learn more about [scalafmt](https://scalameta.org/scalafmt/docs/installation.html)
 - Format main code `sbt scalafmt`
