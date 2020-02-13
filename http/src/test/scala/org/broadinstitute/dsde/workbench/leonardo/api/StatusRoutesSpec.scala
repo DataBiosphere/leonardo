@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
@@ -6,14 +8,13 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
+import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.service.StatusService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, ValueObject, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
@@ -23,7 +24,6 @@ import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
-import CommonTestData._
 
 /**
  * Created by rtitle on 10/26/17.
@@ -64,7 +64,7 @@ class StatusRoutesSpec
         IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
 
       override def hasResourcePermission(
-        resourceId: ValueObject,
+        resourceId: String,
         action: String,
         resourceTypeName: ResourceTypeName,
         authHeader: Authorization

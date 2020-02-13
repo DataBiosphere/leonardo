@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.model
+package org.broadinstitute.dsde.workbench.leonardo
+package model
 
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName

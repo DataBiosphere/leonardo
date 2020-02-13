@@ -6,7 +6,6 @@ import java.util.UUID
 
 import cats.data.Chain
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -22,7 +21,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
-
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -38,7 +36,6 @@ final case class ClusterRecord(id: Long,
                                jupyterStartUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfo,
-                               machineConfig: MachineConfigRecord,
                                properties: Map[String, String],
                                serviceAccountInfo: ServiceAccountInfoRecord,
                                stagingBucket: Option[String],
@@ -46,15 +43,8 @@ final case class ClusterRecord(id: Long,
                                defaultClientId: Option[String],
                                stopAfterCreation: Boolean,
                                welderEnabled: Boolean,
-                               customClusterEnvironmentVariables: Map[String, String])
-
-final case class MachineConfigRecord(numberOfWorkers: Int,
-                                     masterMachineType: String,
-                                     masterDiskSize: Int,
-                                     workerMachineType: Option[String],
-                                     workerDiskSize: Option[Int],
-                                     numberOfWorkerLocalSsds: Option[Int],
-                                     numberOfPreemptibleWorkers: Option[Int])
+                               customClusterEnvironmentVariables: Map[String, String],
+                               runtimeConfigId: RuntimeConfigId)
 
 final case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
                                           notebookServiceAccount: Option[String],
@@ -68,13 +58,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
   def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
   def notebookServiceAccount = column[Option[String]]("notebookServiceAccount", O.Length(254))
-  def numberOfWorkers = column[Int]("numberOfWorkers")
-  def masterMachineType = column[String]("masterMachineType", O.Length(254))
-  def masterDiskSize = column[Int]("masterDiskSize")
-  def workerMachineType = column[Option[String]]("workerMachineType", O.Length(254))
-  def workerDiskSize = column[Option[Int]]("workerDiskSize")
-  def numberOfWorkerLocalSSDs = column[Option[Int]]("numberOfWorkerLocalSSDs")
-  def numberOfPreemptibleWorkers = column[Option[Int]]("numberOfPreemptibleWorkers")
   def operationName = column[Option[String]]("operationName", O.Length(254))
   def status = column[String]("status", O.Length(254))
   def hostIp = column[Option[String]]("hostIp", O.Length(254))
@@ -93,6 +76,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
   def stopAfterCreation = column[Boolean]("stopAfterCreation")
   def welderEnabled = column[Boolean]("welderEnabled")
+  def runtimeConfigId = column[RuntimeConfigId]("runtimeConfigId")
   def properties = column[Option[Map[String, String]]]("properties")
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
 
@@ -117,13 +101,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       jupyterStartUserScriptUri,
       initBucket,
       (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
-      (numberOfWorkers,
-       masterMachineType,
-       masterDiskSize,
-       workerMachineType,
-       workerDiskSize,
-       numberOfWorkerLocalSSDs,
-       numberOfPreemptibleWorkers),
       (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId),
       stagingBucket,
       autopauseThreshold,
@@ -131,7 +108,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       stopAfterCreation,
       welderEnabled,
       properties,
-      customClusterEnvironmentVariables
+      customClusterEnvironmentVariables,
+      runtimeConfigId
     ).shaped <> ({
       case (id,
             internalId,
@@ -146,7 +124,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             jupyterStartUserScriptUri,
             initBucket,
             auditInfo,
-            machineConfig,
             serviceAccountInfo,
             stagingBucket,
             autopauseThreshold,
@@ -154,7 +131,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             stopAfterCreation,
             welderEnabled,
             properties,
-            customClusterEnvironmentVariables) =>
+            customClusterEnvironmentVariables,
+            runtimeConfigId) =>
         ClusterRecord(
           id,
           internalId,
@@ -175,7 +153,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             auditInfo._4,
             auditInfo._5
           ),
-          MachineConfigRecord.tupled.apply(machineConfig),
           properties.getOrElse(Map.empty),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
           stagingBucket,
@@ -183,10 +160,10 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           defaultClientId,
           stopAfterCreation,
           welderEnabled,
-          customClusterEnvironmentVariables.getOrElse(Map.empty)
+          customClusterEnvironmentVariables.getOrElse(Map.empty),
+          runtimeConfigId
         )
     }, { c: ClusterRecord =>
-      def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       def ai(_ai: AuditInfo) = (
         _ai.creator,
@@ -210,7 +187,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.jupyterStartUserScriptUri,
           c.initBucket,
           ai(c.auditInfo),
-          mc(c.machineConfig),
           sa(c.serviceAccountInfo),
           c.stagingBucket,
           c.autopauseThreshold,
@@ -218,14 +194,14 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.stopAfterCreation,
           c.welderEnabled,
           if (c.properties.isEmpty) None else Some(c.properties),
-          if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables)
+          if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables),
+          c.runtimeConfigId
         )
       )
     })
 }
 
 object clusterQuery extends TableQuery(new ClusterTable(_)) {
-
   // just clusters and labels: no instances, extensions, etc.
   //   select * from cluster c
   //   left join label l on c.id = l.clusterId
@@ -289,13 +265,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   private def findByIdQuery(id: Long): Query[ClusterTable, ClusterRecord, Seq] =
     clusterQuery.filter { _.id === id }
 
-  def save(cluster: Cluster,
-           initBucket: Option[GcsPath] = None,
-           serviceAccountKeyId: Option[ServiceAccountKeyId] = None)(implicit ec: ExecutionContext): DBIO[Cluster] =
+  def save(saveCluster: SaveCluster)(implicit ec: ExecutionContext): DBIO[Cluster] =
     for {
+      runtimeConfigId <- RuntimeConfigQueries.insertRuntime(saveCluster.runtimeConfig, saveCluster.now)
+      cluster = LeoLenses.clusterToRuntimeConfigId.modify(_ => runtimeConfigId)(saveCluster.cluster) // update runtimeConfigId
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
-                                                                                   initBucket.map(_.toUri),
-                                                                                   serviceAccountKeyId)
+                                                                                   saveCluster.initBucket.map(_.toUri),
+                                                                                   saveCluster.serviceAccountKeyId)
       _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
       _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -372,7 +348,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter(_.clusterName === name)
       .filter(_.destroyedDate === dummyDate)
       .result
-    java.sql.Timestamp.valueOf(" 1970-01-01 00:00:01")
 
     res.map { recs =>
       recs.headOption.map { clusterRec =>
@@ -412,8 +387,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   // Convenience method for tests, in several of which we define a cluster and later on need
   // to retrieve its updated status, etc. but don't know its id to look up
-  private[leonardo] def getClusterByUniqueKey(cluster: Cluster)(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
-    getClusterByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
+  private[leonardo] def getClusterByUniqueKey(
+    getClusterId: GetClusterKey
+  )(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
+    getClusterByUniqueKey(getClusterId.googleProject, getClusterId.clusterName, getClusterId.destroyedDate)
 
   private[leonardo] def getClusterByUniqueKey(
     googleProject: GoogleProject,
@@ -499,24 +476,23 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def updateClusterHostIp(id: Long, hostIp: Option[IP], dateAccessed: Instant): DBIO[Int] =
     clusterQuery
-      .filter { _.id === id }
+      .filter { x =>
+        x.id === id
+      }
       .map(c => (c.hostIp, c.dateAccessed))
       .update((hostIp.map(_.value), dateAccessed))
 
-  def updateAsyncClusterCreationFields(initBucket: Option[GcsPath],
-                                       serviceAccountKey: Option[ServiceAccountKey],
-                                       cluster: Cluster,
-                                       dateAccessed: Instant): DBIO[Int] =
-    findByIdQuery(cluster.id)
+  def updateAsyncClusterCreationFields(updateAsyncClusterCreationFields: UpdateAsyncClusterCreationFields): DBIO[Int] =
+    findByIdQuery(updateAsyncClusterCreationFields.clusterId)
       .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
       .update(
         (
-          initBucket.map(_.toUri),
-          serviceAccountKey.map(_.id.value),
-          cluster.dataprocInfo.map(_.googleId),
-          cluster.dataprocInfo.map(_.operationName.value),
-          cluster.dataprocInfo.map(_.stagingBucket.value),
-          dateAccessed
+          updateAsyncClusterCreationFields.initBucket.map(_.toUri),
+          updateAsyncClusterCreationFields.serviceAccountKey.map(_.id.value),
+          updateAsyncClusterCreationFields.dataprocInfo.map(_.googleId),
+          updateAsyncClusterCreationFields.dataprocInfo.map(_.operationName.value),
+          updateAsyncClusterCreationFields.dataprocInfo.map(_.stagingBucket.value),
+          updateAsyncClusterCreationFields.dateAccessed
         )
       )
 
@@ -567,26 +543,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(c => (c.autopauseThreshold, c.dateAccessed))
       .update((autopauseThreshold, dateAccessed))
 
-  def updateNumberOfWorkers(id: Long, numberOfWorkers: Int, dateAccessed: Instant): DBIO[Int] =
-    findByIdQuery(id)
-      .map(c => (c.numberOfWorkers, c.dateAccessed))
-      .update((numberOfWorkers, dateAccessed))
-
-  def updateNumberOfPreemptibleWorkers(id: Long,
-                                       numberOfPreemptibleWorkers: Option[Int],
-                                       dateAccessed: Instant): DBIO[Int] =
-    findByIdQuery(id)
-      .map(c => (c.numberOfPreemptibleWorkers, c.dateAccessed))
-      .update((numberOfPreemptibleWorkers, dateAccessed))
-
-  def updateMasterMachineType(id: Long, newMachineType: MachineType, dateAccessed: Instant): DBIO[Int] =
-    findByIdQuery(id)
-      .map(c => (c.masterMachineType, c.dateAccessed))
-      .update((newMachineType.value, dateAccessed))
-
-  def updateMasterDiskSize(id: Long, newSizeGb: Int, dateAccessed: Instant): DBIO[Int] =
-    findByIdQuery(id).map(c => (c.masterDiskSize, c.dateAccessed)).update((newSizeGb, dateAccessed))
-
   def updateWelder(id: Long, welderImage: ClusterImage, dateAccessed: Instant)(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
@@ -601,49 +557,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None, dateAccessed)
 
-  def listByLabels(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
-    implicit ec: ExecutionContext
-  ): DBIO[Seq[Cluster]] = {
-    val clusterStatusQuery =
-      if (includeDeleted) clusterLabelQuery else clusterLabelQuery.filterNot { _._1.status === "Deleted" }
-    val clusterStatusQueryByProject = googleProjectOpt match {
-      case Some(googleProject) => clusterStatusQuery.filter { _._1.googleProject === googleProject }
-      case None                => clusterStatusQuery
-    }
-    val query = if (labelMap.isEmpty) {
-      clusterStatusQueryByProject
-    } else {
-      // The trick is to find all clusters that have _at least_ all the labels in labelMap.
-      // In other words, for a given cluster, the labels provided in the query string must be
-      // a subset of its labels in the DB. The following SQL achieves this:
-      //
-      // select c.*, l.*
-      // from cluster c
-      // left join label l on l.clusterId = c.id
-      // where (
-      //   select count(*) from label
-      //   where clusterId = c.id and (key, value) in ${labelMap}
-      // ) = ${labelMap.size}
-      //
-      clusterStatusQueryByProject.filter {
-        case (cluster, _) =>
-          labelQuery
-            .filter {
-              _.clusterId === cluster.id
-            }
-            // The following confusing line is equivalent to the much simpler:
-            // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
-            // Unfortunately slick doesn't support inSet/inSetBind for tuples.
-            // https://github.com/slick/slick/issues/517
-            .filter { lbl =>
-              labelMap.map { case (k, v) => lbl.key === k && lbl.value === v }.reduce(_ || _)
-            }
-            .length === labelMap.size
-      }
-    }
-    query.result.map(unmarshalMinimalCluster)
-  }
-
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
@@ -652,7 +565,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                              serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
-      cluster.internalId.value,
+      cluster.internalId.asString,
       cluster.clusterName,
       cluster.dataprocInfo.map(_.googleId),
       cluster.googleProject,
@@ -664,15 +577,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       cluster.jupyterStartUserScriptUri,
       initBucket,
       cluster.auditInfo,
-      MachineConfigRecord(
-        cluster.machineConfig.numberOfWorkers.get, //a cluster should always have numberOfWorkers defined
-        cluster.machineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined
-        cluster.machineConfig.masterDiskSize.get, //a cluster should always have masterDiskSize defined
-        cluster.machineConfig.workerMachineType,
-        cluster.machineConfig.workerDiskSize,
-        cluster.machineConfig.numberOfWorkerLocalSSDs,
-        cluster.machineConfig.numberOfPreemptibleWorkers
-      ),
       cluster.properties,
       ServiceAccountInfoRecord(
         cluster.serviceAccountInfo.clusterServiceAccount.map(_.value),
@@ -684,7 +588,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       cluster.defaultClientId,
       cluster.stopAfterCreation,
       cluster.welderEnabled,
-      cluster.customClusterEnvironmentVariables
+      cluster.customClusterEnvironmentVariables,
+      cluster.runtimeConfigId
     )
 
   private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
@@ -724,7 +629,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
   }
 
-  private def unmarshalFullCluster(
+  private[leonardo] def unmarshalFullCluster(
     clusterRecords: Seq[
       (ClusterRecord,
        Option[InstanceRecord],
@@ -788,15 +693,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                scopes: List[ScopeRecord]): Cluster = {
     val name = clusterRecord.clusterName
     val project = clusterRecord.googleProject
-    val machineConfig = MachineConfig(
-      Some(clusterRecord.machineConfig.numberOfWorkers),
-      Some(clusterRecord.machineConfig.masterMachineType),
-      Some(clusterRecord.machineConfig.masterDiskSize),
-      clusterRecord.machineConfig.workerMachineType,
-      clusterRecord.machineConfig.workerDiskSize,
-      clusterRecord.machineConfig.numberOfWorkerLocalSsds,
-      clusterRecord.machineConfig.numberOfPreemptibleWorkers
-    )
     val serviceAccountInfo = ServiceAccountInfo(
       clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
       clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
@@ -815,7 +711,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       serviceAccountInfo,
       dataprocInfo,
       clusterRecord.auditInfo,
-      machineConfig,
       clusterRecord.properties,
       Cluster.getClusterUrl(project, name, clusterImages, labels),
       ClusterStatus.withName(clusterRecord.status),
@@ -833,7 +728,22 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterImages,
       scopeQuery.unmarshallScopes(scopes),
       clusterRecord.welderEnabled,
-      clusterRecord.customClusterEnvironmentVariables
+      clusterRecord.customClusterEnvironmentVariables,
+      clusterRecord.runtimeConfigId
     )
   }
 }
+
+final case class GetClusterKey(googleProject: GoogleProject, clusterName: ClusterName, destroyedDate: Option[Instant])
+
+final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
+                                                  serviceAccountKey: Option[ServiceAccountKey],
+                                                  clusterId: Long,
+                                                  dataprocInfo: Option[DataprocInfo],
+                                                  dateAccessed: Instant)
+
+final case class SaveCluster(cluster: Cluster,
+                             initBucket: Option[GcsPath] = None,
+                             serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
+                             runtimeConfig: RuntimeConfig,
+                             now: Instant)

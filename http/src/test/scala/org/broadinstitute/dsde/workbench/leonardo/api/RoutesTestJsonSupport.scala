@@ -1,120 +1,136 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  AuditInfo,
-  Cluster,
-  ClusterImage,
-  ClusterInternalId,
-  DataprocInfo,
-  UserJupyterExtensionConfig,
-  UserScriptPath
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, IP, Instance, OperationName}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
 import cats.implicits._
-import spray.json._
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _, _}
-import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.ListClusterResponse
+import io.circe.syntax._
+import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ListClusterResponse
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.model.{AuditInfo, ClusterRequest, DataprocInfo, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
 import spray.json.DefaultJsonProtocol
 
 object RoutesTestJsonSupport extends DefaultJsonProtocol {
-  implicit val clusterReaderJsonReader: RootJsonReader[Cluster] = (json: JsValue) =>
-    json match {
-      case JsObject(fields: Map[String, JsValue]) =>
-        Cluster(
-          fields.getOrElse("id", JsNull).convertTo[Long],
-          fields.getOrElse("internalId", JsNull).convertTo[ClusterInternalId],
-          fields.getOrElse("clusterName", JsNull).convertTo[ClusterName],
-          fields.getOrElse("googleProject", JsNull).convertTo[GoogleProject],
-          fields.getOrElse("serviceAccountInfo", JsNull).convertTo[ServiceAccountInfo],
-          (fields.get("googleId"), fields.get("operationName"), fields.get("stagingBucket")).mapN {
-            (googleId, operationName, stagingBucket) =>
-              DataprocInfo(
-                googleId.convertTo[UUID],
-                operationName.convertTo[OperationName],
-                stagingBucket.convertTo[GcsBucketName],
-                fields.getOrElse("hostIp", JsNull).convertTo[Option[IP]]
-              )
-          },
-          AuditInfo(
-            fields.getOrElse("creator", JsNull).convertTo[WorkbenchEmail],
-            fields.getOrElse("createdDate", JsNull).convertTo[Instant],
-            fields.getOrElse("destroyedDate", JsNull).convertTo[Option[Instant]],
-            fields.getOrElse("dateAccessed", JsNull).convertTo[Instant],
-            fields.getOrElse("kernelFoundBusyDate", JsNull).convertTo[Option[Instant]]
-          ),
-          fields.getOrElse("machineConfig", JsNull).convertTo[MachineConfig],
-          fields.getOrElse("properties", JsNull).convertTo[Option[Map[String, String]]].getOrElse(Map.empty),
-          fields.getOrElse("clusterUrl", JsNull).convertTo[URL],
-          fields.getOrElse("status", JsNull).convertTo[ClusterStatus],
-          fields.getOrElse("labels", JsNull).convertTo[LabelMap],
-          fields.getOrElse("jupyterExtensionUri", JsNull).convertTo[Option[GcsPath]],
-          fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[UserScriptPath]],
-          fields.getOrElse("jupyterStartUserScriptUri", JsNull).convertTo[Option[UserScriptPath]],
-          fields.getOrElse("errors", JsNull).convertTo[List[ClusterError]],
-          fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
-          fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
-          fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
-          fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
-          fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
-          fields.getOrElse("allowStop", JsNull).convertTo[Boolean],
-          fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],
-          fields.getOrElse("scopes", JsNull).convertTo[Set[String]],
-          fields.getOrElse("welderEnabled", JsNull).convertTo[Boolean],
-          fields
-            .getOrElse("customClusterEnvironmentVariables", JsNull)
-            .convertTo[Option[Map[String, String]]]
-            .getOrElse(Map.empty)
-        )
-      case _ => deserializationError("Cluster expected as a JsObject")
-    }
+  implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
+  implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
 
-  implicit val listClusterResponseReaderJsonReader: RootJsonReader[ListClusterResponse] = (json: JsValue) =>
-    json match {
-      case JsObject(fields: Map[String, JsValue]) =>
-        ListClusterResponse(
-          fields.getOrElse("id", JsNull).convertTo[Long],
-          fields.getOrElse("internalId", JsNull).convertTo[ClusterInternalId],
-          fields.getOrElse("clusterName", JsNull).convertTo[ClusterName],
-          fields.getOrElse("googleProject", JsNull).convertTo[GoogleProject],
-          fields.getOrElse("serviceAccountInfo", JsNull).convertTo[ServiceAccountInfo],
-          (fields.get("googleId"), fields.get("operationName"), fields.get("stagingBucket")).mapN {
-            (googleId, operationName, stagingBucket) =>
-              DataprocInfo(
-                googleId.convertTo[UUID],
-                operationName.convertTo[OperationName],
-                stagingBucket.convertTo[GcsBucketName],
-                fields.getOrElse("hostIp", JsNull).convertTo[Option[IP]]
-              )
-          },
-          AuditInfo(
-            fields.getOrElse("creator", JsNull).convertTo[WorkbenchEmail],
-            fields.getOrElse("createdDate", JsNull).convertTo[Instant],
-            fields.getOrElse("destroyedDate", JsNull).convertTo[Option[Instant]],
-            fields.getOrElse("dateAccessed", JsNull).convertTo[Instant],
-            fields.getOrElse("kernelFoundBusyDate", JsNull).convertTo[Option[Instant]]
-          ),
-          fields.getOrElse("machineConfig", JsNull).convertTo[MachineConfig],
-          fields.getOrElse("clusterUrl", JsNull).convertTo[URL],
-          fields.getOrElse("status", JsNull).convertTo[ClusterStatus],
-          fields.getOrElse("labels", JsNull).convertTo[LabelMap],
-          fields.getOrElse("jupyterExtensionUri", JsNull).convertTo[Option[GcsPath]],
-          fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[UserScriptPath]],
-          fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
-          fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
-          fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
-          fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
-          fields.getOrElse("welderEnabled", JsNull).convertTo[Boolean]
-        )
-      case _ => deserializationError("Cluster expected as a JsObject")
+  implicit val listClusterResponseDecoder: Decoder[ListClusterResponse] = Decoder.instance { x =>
+    for {
+      id <- x.downField("id").as[Long]
+      internalId <- x.downField("internalId").as[ClusterInternalId]
+      clusterName <- x.downField("clusterName").as[ClusterName]
+      googleProject <- x.downField("googleProject").as[GoogleProject]
+      serviceAccountInfo <- x.downField("serviceAccountInfo").as[ServiceAccountInfo]
+      dataprocInfo <- for {
+        googleId <- x.downField("googleId").as[Option[UUID]]
+        operationName <- x.downField("operationName").as[Option[OperationName]]
+        stagingBucket <- x.downField("stagingBucket").as[Option[GcsBucketName]]
+        hostIp <- x.downField("hostIp").as[Option[IP]]
+      } yield {
+        (googleId, operationName, stagingBucket).mapN((x, y, z) => DataprocInfo(x, y, z, hostIp))
+      }
+      machineConfig <- x.downField("machineConfig").as[RuntimeConfig]
+      clusterUrl <- x.downField("clusterUrl").as[URL]
+//      status <- x.downField("status").as[ClusterStatus]
+      creator <- x.downField("creator").as[WorkbenchEmail]
+      createdDate <- x.downField("createdDate").as[Instant]
+      destroyedDate <- x.downField("destroyedDate").as[Option[Instant]]
+      kernelFoundBusyDate <- x.downField("kernelFoundBusyDate").as[Option[Instant]]
+      labels <- x.downField("labels").as[LabelMap]
+      jupyterExtensionUri <- x.downField("jupyterExtensionUri").as[Option[GcsPath]]
+      jupyterUserScriptUri <- x.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
+      dateAccessed <- x.downField("dateAccessed").as[Instant]
+      autopauseThreshold <- x.downField("autopauseThreshold").as[Int]
+      defaultClientId <- x.downField("defaultClientId").as[Option[String]]
+      stopAfterCreation <- x.downField("stopAfterCreation").as[Boolean]
+      welderEnabled <- x.downField("welderEnabled").as[Boolean]
+    } yield ListClusterResponse(
+      id,
+      internalId,
+      clusterName,
+      googleProject,
+      serviceAccountInfo,
+      dataprocInfo,
+      AuditInfo(creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
+      machineConfig,
+      clusterUrl,
+      ClusterStatus.Running, //TODO: fill real value when this field is needed in test
+      labels,
+      jupyterExtensionUri,
+      jupyterUserScriptUri,
+      Set.empty, //TODO: do this when this field is needed
+      autopauseThreshold,
+      defaultClientId,
+      stopAfterCreation,
+      welderEnabled
+    )
+  }
+
+  implicit val clusterNameDecoder: Decoder[ClusterName] = Decoder.decodeString.map(ClusterName)
+
+  implicit val dataprocConfigEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct7(
+    "numberOfWorkers",
+    "masterMachineType",
+    "masterDiskSize",
+    // worker settings are None when numberOfWorkers is 0
+    "workerMachineType",
+    "workerDiskSize",
+    "numberOfWorkerLocalSSDs",
+    "numberOfPreemptibleWorkers"
+  )(
+    x =>
+      (x.numberOfWorkers,
+       x.masterMachineType,
+       x.masterDiskSize,
+       x.workerMachineType,
+       x.workerDiskSize,
+       x.numberOfWorkerLocalSSDs,
+       x.numberOfPreemptibleWorkers)
+  )
+  implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct2(
+    "machineType",
+    "diskSize"
+  )(x => (x.machineType, x.diskSize))
+
+  implicit val runtimeConfigRequestEncoder: Encoder[RuntimeConfigRequest] = Encoder.instance { x =>
+    x match {
+      case x: RuntimeConfigRequest.DataprocConfig => x.asJson
+      case x: RuntimeConfigRequest.GceConfig      => x.asJson
     }
+  }
+  implicit val clusterRequestEncoder: Encoder[ClusterRequest] = Encoder.forProduct18(
+    "labels",
+    "jupyterExtensionUri",
+    "jupyterUserScriptUri",
+    "jupyterStartUserScriptUri",
+    "runtimeConfig",
+    "properties",
+    "stopAfterCreation",
+    "allowStop",
+    "userJupyterExtensionConfig",
+    "autopause",
+    "autopauseThreshold",
+    "defaultClientId",
+    "jupyterDockerImage",
+    "toolDockerImage",
+    "welderDockerImage",
+    "scopes",
+    "enableWelder",
+    "customClusterEnvironmentVariables"
+  )(x => ClusterRequest.unapply(x).get)
+
+  implicit val getClusterResponseTestDecoder: Decoder[GetClusterResponseTest] = Decoder.forProduct4(
+    "id",
+    "clusterName",
+    "serviceAccountInfo",
+    "jupyterExtensionUri"
+  )(GetClusterResponseTest.apply)
 }

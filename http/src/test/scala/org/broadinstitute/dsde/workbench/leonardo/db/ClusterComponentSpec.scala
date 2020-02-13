@@ -6,24 +6,23 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-import CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
   clusterEq,
   clusterSeqEq,
-  clusterSetEq,
   stripFieldsForListCluster
 }
-import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.FlatSpecLike
 import org.scalatest.concurrent.ScalaFutures
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils with ScalaFutures {
   "ClusterComponent" should "save cluster with properties properly" in isolatedDbTest {
     val cluster = makeCluster(1).copy(properties = Map("spark:spark.executor.memory" -> "10g"))
     val savedCluster = cluster.save()
-    savedCluster shouldEqual (cluster)
+    savedCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual (cluster) //input cluster's runtimeConfigId is fake -1
   }
 
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
@@ -44,13 +43,6 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     val cluster2 = makeCluster(2).copy(status = ClusterStatus.Creating)
 
     val cluster3 = makeCluster(3).copy(
-      machineConfig = MachineConfig(Some(3),
-                                    Some("test-master-machine-type"),
-                                    Some(500),
-                                    Some("test-worker-machine-type"),
-                                    Some(200),
-                                    Some(2),
-                                    Some(1)),
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       status = ClusterStatus.Running
     )
@@ -58,13 +50,21 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     val cluster4 = makeCluster(4).copy(clusterName = cluster1.clusterName, googleProject = cluster1.googleProject)
 
     val savedCluster1 = cluster1.save(None)
-    savedCluster1 shouldEqual cluster1
+    savedCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster1
 
     val savedCluster2 = cluster2.save()
-    savedCluster2 shouldEqual cluster2
+    savedCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster2
 
-    val savedCluster3 = cluster3.save()
-    savedCluster3 shouldEqual cluster3
+    val savedCluster3 = cluster3.saveWithRuntimeConfig(
+      RuntimeConfig.DataprocConfig(3,
+                                   "test-master-machine-type",
+                                   500,
+                                   Some("test-worker-machine-type"),
+                                   Some(200),
+                                   Some(2),
+                                   Some(1))
+    )
+    savedCluster3.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster3
 
     // instances are returned by list* methods
     val expectedClusters123 = Seq(savedCluster1, savedCluster2, savedCluster3).map(_.copy(instances = Set.empty))
@@ -84,7 +84,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     )
 
     dbFutureValue { clusterErrorQuery.save(savedCluster1.id, err1) }
-    val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id, stopAfterCreation = true)
+    val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id,
+                                                         stopAfterCreation = true,
+                                                         runtimeConfigId = savedCluster1.runtimeConfigId)
 
     dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) } shouldEqual Some(cluster1WithErrAssignedId)
     dbFutureValue { clusterQuery.getClusterById(savedCluster2.id) } shouldEqual Some(savedCluster2)
@@ -102,13 +104,18 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     dbFutureValue { clusterQuery.countActiveByProject(project) } shouldEqual 3
 
     // (project, name) unique key test
-
-    dbFailure { clusterQuery.save(cluster4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[
+    val saveCluster = SaveCluster(cluster4,
+                                  Some(gcsPath("gs://bucket3")),
+                                  Some(serviceAccountKey.id),
+                                  defaultRuntimeConfig,
+                                  Instant.now())
+    dbFailure { clusterQuery.save(saveCluster) } shouldBe a[
       SQLException
     ]
 
     dbFutureValue { clusterQuery.markPendingDeletion(savedCluster1.id, Instant.now) } shouldEqual 1
-    dbFutureValue { clusterQuery.listActiveWithLabels } should contain theSameElementsAs Seq(cluster2, cluster3)
+    dbFutureValue { clusterQuery.listActiveWithLabels }
+      .map(x => x.copy(runtimeConfigId = RuntimeConfigId(-1))) should contain theSameElementsAs Seq(cluster2, cluster3)
       .map(stripFieldsForListCluster)
 
     val cluster1status = dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }.get
@@ -118,7 +125,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     cluster1status.instances shouldBe cluster1.instances
 
     dbFutureValue { clusterQuery.markPendingDeletion(savedCluster2.id, Instant.now) } shouldEqual 1
-    dbFutureValue { clusterQuery.listActiveWithLabels } shouldEqual Seq(cluster3).map(stripFieldsForListCluster)
+    dbFutureValue { clusterQuery.listActiveWithLabels }
+      .map(_.copy(runtimeConfigId = RuntimeConfigId(-1))) shouldEqual Seq(cluster3).map(stripFieldsForListCluster)
     val cluster2status = dbFutureValue { clusterQuery.getClusterById(savedCluster2.id) }.get
     cluster2status.status shouldEqual ClusterStatus.Deleting
     cluster2status.auditInfo.destroyedDate shouldBe None
@@ -130,56 +138,6 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     cluster3status.status shouldEqual ClusterStatus.Deleting
     cluster3status.auditInfo.destroyedDate shouldBe None
     cluster3status.dataprocInfo.flatMap(_.hostIp) shouldBe None
-  }
-
-  it should "get by labels" in isolatedDbTest {
-
-    val savedCluster1 =
-      makeCluster(1).copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")).save(Some(serviceAccountKey.id))
-
-    val savedCluster2 = makeCluster(2).copy(status = ClusterStatus.Running).save(Some(serviceAccountKey.id))
-
-    val savedCluster3 =
-      makeCluster(3).copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes")).save()
-
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(savedCluster1, savedCluster2)
-      .map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1).map(
-      stripFieldsForListCluster
-    )
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(
-      stripFieldsForListCluster(savedCluster1)
-    )
-    dbFutureValue { clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set
-      .empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set
-      .empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(
-      savedCluster1
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3).map(
-      stripFieldsForListCluster
-    )
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set
-      .empty[Cluster]
-    dbFutureValue { clusterQuery.listByLabels(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
   }
 
   it should "stop and start a cluster" in isolatedDbTest {
@@ -258,47 +216,6 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     autoFreezeList should not contain autopauseDisabledCluster
   }
 
-  it should "list by labels and project" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1)
-      .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
-      .save(Some(serviceAccountKey.id))
-
-    val savedCluster2 = makeCluster(2)
-      .copy(
-        status = ClusterStatus.Running,
-        clusterName = name2,
-        googleProject = project2,
-        clusterUrl = Cluster.getClusterUrl(project2, name2, Set(jupyterImage), Map("bam" -> "yes")),
-        labels = Map("bam" -> "yes")
-      )
-      .save(Some(serviceAccountKey.id))
-
-    val savedCluster3 = makeCluster(3)
-      .copy(status = ClusterStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes"))
-      .save()
-
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1)
-      .map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, true, Some(project)) }.toSet shouldEqual Set(
-      savedCluster1,
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map.empty, false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
-      .map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes"), true, Some(project)) }.toSet shouldEqual Set(
-      savedCluster1,
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("bam" -> "yes"), false, Some(project2)) }.toSet shouldEqual Set(
-      savedCluster2
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(
-      savedCluster3
-    ).map(stripFieldsForListCluster)
-    dbFutureValue { clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set
-      .empty[Cluster]
-  }
-
   it should "get for dns cache" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
       .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
@@ -314,43 +231,39 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
 
   it should "update master machine type" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
-      .copy(
-        machineConfig = MachineConfig(Some(3),
-                                      Some("test-master-machine-type"),
-                                      Some(500),
-                                      Some("test-worker-machine-type"),
-                                      Some(200),
-                                      Some(2),
-                                      Some(1))
+      .saveWithRuntimeConfig(
+        RuntimeConfig.DataprocConfig(3,
+                                     "test-master-machine-type",
+                                     500,
+                                     Some("test-worker-machine-type"),
+                                     Some(200),
+                                     Some(2),
+                                     Some(1))
       )
-      .save()
 
     val newMachineType = MachineType("this-is-a-new-machine-type")
-    dbFutureValue { clusterQuery.updateMasterMachineType(savedCluster1.id, newMachineType, Instant.now) }
+    dbFutureValue { RuntimeConfigQueries.updateMachineType(savedCluster1.runtimeConfigId, newMachineType, Instant.now) }
 
-    dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }
-      .flatMap(_.machineConfig.masterMachineType) shouldBe
-      Option(newMachineType.value)
+    dbFutureValue { RuntimeConfigQueries.getRuntime(savedCluster1.runtimeConfigId) }.machineType shouldBe
+      newMachineType
   }
 
   it should "update master disk size" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1)
-      .copy(
-        machineConfig = MachineConfig(Some(3),
-                                      Some("test-master-machine-type"),
-                                      Some(500),
-                                      Some("test-worker-machine-type"),
-                                      Some(200),
-                                      Some(2),
-                                      Some(1))
-      )
-      .save()
+    val savedCluster1 = makeCluster(1).saveWithRuntimeConfig(
+      RuntimeConfig.DataprocConfig(3,
+                                   "test-master-machine-type",
+                                   500,
+                                   Some("test-worker-machine-type"),
+                                   Some(200),
+                                   Some(2),
+                                   Some(1))
+    )
 
     val newDiskSize = 1000
-    dbFutureValue { clusterQuery.updateMasterDiskSize(savedCluster1.id, newDiskSize, Instant.now) }
+    dbFutureValue { RuntimeConfigQueries.updateDiskSize(savedCluster1.runtimeConfigId, newDiskSize, Instant.now) }
 
-    dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }.flatMap(_.machineConfig.masterDiskSize) shouldBe
-      Option(newDiskSize)
+    dbFutureValue { RuntimeConfigQueries.getRuntime(savedCluster1.runtimeConfigId) }.diskSize shouldBe
+      newDiskSize
   }
 
   it should "list monitored clusters" in isolatedDbTest {
@@ -374,5 +287,20 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathU
     retrievedCluster shouldBe 'defined
     retrievedCluster.get.customClusterEnvironmentVariables shouldBe expectedEvs
     retrievedCluster.get shouldBe savedCluster
+  }
+
+  it should "persist runtimeConfig properly" in isolatedDbTest {
+    val runtimeConfig = RuntimeConfig.DataprocConfig(3,
+                                                     "test-master-machine-type",
+                                                     500,
+                                                     Some("test-worker-machine-type"),
+                                                     Some(200),
+                                                     Some(2),
+                                                     Some(1))
+
+    val savedCluster = makeCluster(1)
+      .saveWithRuntimeConfig(runtimeConfig)
+
+    dbFutureValue { RuntimeConfigQueries.getRuntime(savedCluster.runtimeConfigId) } shouldBe runtimeConfig
   }
 }

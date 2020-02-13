@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="qi" id="cluster_table_gce_refactor">
+        <preConditions onFail="HALT">
+            <not>
+                <tableExists tableName="RUNTIME_CONFIG"/>
+            </not>
+        </preConditions>
+
+        <dropNotNullConstraint columnName="masterMachineType" tableName="CLUSTER" columnDataType="varchar(256)"/>
+        <dropNotNullConstraint columnName="masterDiskSize" tableName="CLUSTER" columnDataType="INT"/>
+        <dropNotNullConstraint columnName="numberOfWorkers" tableName="CLUSTER" columnDataType="INT"/>
+
+<!--                  Create RUNTIME_CONFIG table   -->
+        <createTable tableName="RUNTIME_CONFIG">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="clusterId" type="BIGINT"></column>
+            <column name="cloudService" type="ENUM('DATAPROC', 'GCE')" defaultValue="DATAPROC">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="machineType" type="varchar(256)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- This might change when we move to PD -->
+            <column name="diskSize" type="INT" defaultValue="500">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- dataproc only -->
+            <column name="numberOfWorkers" type="INT" defaultValue="0">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- dataproc only -->
+            <column name="workerMachineType" type="varchar(256)" defaultValue="NULL" />
+
+            <!-- dataproc only -->
+            <column name="workerDiskSize" type="INT" defaultValue="NULL" />
+
+            <!-- dataproc only -->
+            <column name="numberOfWorkerLocalSSDs" type="INT" defaultValue="NULL" />
+
+            <!-- dataproc only -->
+            <column name="numberOfPreemptibleWorkers" type="INT" defaultValue="NULL"/>
+
+            <column name="dateAccessed" type="TIMESTAMP(6)"/>
+        </createTable>
+
+        <sql>insert into RUNTIME_CONFIG (`clusterId`, `machineType`, `diskSize`, `numberOfWorkers`, `workerMachineType`, `workerDiskSize`, `numberOfWorkerLocalSSDs`, `numberOfPreemptibleWorkers`) select id, masterMachineType, masterDiskSize, numberOfWorkers, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers from CLUSTER</sql>
+
+        <!--  Add runtimeConfigId column to CLUSTER table  -->
+        <addColumn tableName="CLUSTER">
+            <column name="runtimeConfigId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <update tableName="CLUSTER">
+            <column name="runtimeConfigId" valueComputed="(select RUNTIME_CONFIG.id from RUNTIME_CONFIG where CLUSTER.id=RUNTIME_CONFIG.clusterId)"/>
+        </update>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" id="cleanup_after_migration" author="qi">
+        <preConditions onFail="HALT">
+            <sqlCheck expectedResult="0">select count(id) from CLUSTER where NOT EXISTS (SELECT `clusterId` FROM RUNTIME_CONFIG)</sqlCheck>
+        </preConditions>
+
+        <!--  Add foreignkey reference for runtimeConfigId  -->
+        <createIndex indexName="FK_CLUSTER_RUNTIME_CONFIG_ID" tableName="CLUSTER">
+            <column name="runtimeConfigId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="runtimeConfigId" baseTableName="CLUSTER" constraintName="FK_CLUSTER_RUNTIME_CONFIG_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="RUNTIME_CONFIG"/>
+
+
+        <dropColumn tableName="RUNTIME_CONFIG" columnName="clusterId"/>
+        <dropColumn tableName="CLUSTER" columnName="masterMachineType"/>
+        <dropColumn tableName="CLUSTER" columnName="masterDiskSize"/>
+        <dropColumn tableName="CLUSTER" columnName="numberOfWorkers"/>
+        <dropColumn tableName="CLUSTER" columnName="workerMachineType"/>
+        <dropColumn tableName="CLUSTER" columnName="workerDiskSize"/>
+        <dropColumn tableName="CLUSTER" columnName="numberOfWorkerLocalSSDs"/>
+        <dropColumn tableName="CLUSTER" columnName="numberOfPreemptibleWorkers"/>
+    </changeSet>
+</databaseChangeLog>

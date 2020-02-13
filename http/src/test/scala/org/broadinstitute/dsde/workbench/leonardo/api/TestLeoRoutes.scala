@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import java.io.ByteArrayInputStream
 
@@ -16,8 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelder
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
@@ -66,8 +67,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
   val bucketHelper =
     new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, mockGoogle2StorageDAO, serviceAccountProvider)(cs)
   val clusterHelper =
-    new ClusterHelper(DbSingleton.dbRef,
-                      dataprocConfig,
+    new ClusterHelper(dataprocConfig,
                       imageConfig,
                       googleGroupsConfig,
                       proxyConfig,

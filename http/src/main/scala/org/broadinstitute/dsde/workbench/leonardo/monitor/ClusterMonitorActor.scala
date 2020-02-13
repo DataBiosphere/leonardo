@@ -25,7 +25,14 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterImageQuery, clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterErrorQuery,
+  clusterImageQuery,
+  clusterQuery,
+  DbReference,
+  RuntimeConfigQueries,
+  UpdateAsyncClusterCreationFields
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
@@ -218,7 +225,8 @@ class ClusterMonitorActor(
         if (cluster.status == Starting) {
           for {
             _ <- persistInstances(cluster, googleInstances)
-            _ <- clusterHelper.stopCluster(cluster)
+            runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId))
+            _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
             now <- IO(Instant.now)
             _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
           } yield ScheduleMonitorPass
@@ -420,15 +428,18 @@ class ClusterMonitorActor(
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] = {
     val createCluster = for {
       _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google..."))
-      clusterResult <- clusterHelper.createCluster(cluster)
+      runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId))
+      clusterResult <- clusterHelper.createCluster(cluster, runtimeConfig)
       now <- IO(Instant.now)
+      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
+        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
+        clusterResult.serviceAccountKey,
+        clusterResult.cluster.id,
+        clusterResult.cluster.dataprocInfo,
+        now
+      )
       _ <- dbRef.inTransaction {
-        clusterQuery.updateAsyncClusterCreationFields(
-          Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
-          clusterResult.serviceAccountKey,
-          clusterResult.cluster,
-          now
-        )
+        clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
       }
       clusterImage = ClusterImage(ClusterImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
       // Save dataproc image in the database
@@ -700,7 +711,9 @@ class ClusterMonitorActor(
       )
     } yield cluster
 
-  private def recordStatusTransitionMetrics(clusterUI: ClusterUI, origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] =
+  private def recordStatusTransitionMetrics(clusterUI: ClusterUI,
+                                            origStatus: ClusterStatus,
+                                            finalStatus: ClusterStatus): IO[Unit] =
     for {
       endTime <- IO(System.currentTimeMillis)
       baseName = s"ClusterMonitor/${clusterUI.asString}/${origStatus}->${finalStatus}"

@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao.google
+package org.broadinstitute.dsde.workbench.leonardo
+package dao.google
 
 import com.google.api.services.compute.model
 import org.broadinstitute.dsde.workbench.leonardo.model.google._

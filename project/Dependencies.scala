@@ -3,8 +3,8 @@ import sbt._
 object Dependencies {
   val scalaV = "2.12"
 
-  val akkaV = "2.5.22"
-  val akkaHttpV = "10.1.8"
+  val akkaV = "2.6.1"
+  val akkaHttpV = "10.1.11"
   val jacksonV = "2.9.9"
   val jacksonDatabindV = "2.9.9.2" // jackson-databind has a security patch on the 2.9.9 branch
   val googleV = "1.23.0"
@@ -24,6 +24,8 @@ object Dependencies {
   val workbenchNewRelicV = "0.3-8bae8e8"
 
   val excludeAkkaActor = ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
+  val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
+  val excludeAkkaHttpSprayJson = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http-spray-json_2.12")
   val excludeGuavaJDK5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeGuava = ExclusionRule(organization = "com.google.guava", name = "guava")
   val excludeWorkbenchUtil = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-util_2.12")
@@ -57,12 +59,11 @@ object Dependencies {
   val ravenLogback: ModuleID =    "com.getsentry.raven"         % "raven-logback"   % "8.0.3" excludeAll (excludeJacksonCore, excludeSlf4j, excludeLogbackCore, excludeLogbackClassic)
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "2.2.5"
-  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.4.3"
+  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.4.7"
   val httpClient: ModuleID =      "org.apache.httpcomponents"   % "httpclient"      % "4.5.5" // upgrading a transitive dependency to avoid security warnings
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.5.13"
 
   val akkaActor: ModuleID =         "com.typesafe.akka" %% "akka-actor"           % akkaV excludeAll (excludeTypesafeSslConfig)
-  val akkaContrib: ModuleID =       "com.typesafe.akka" %% "akka-contrib"         % akkaV excludeAll (excludeTypesafeConfig)
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV excludeAll (excludeAkkaActor)
   val akkaHttpSprayJson: ModuleID = "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV
@@ -75,7 +76,7 @@ object Dependencies {
   val googleSourceRepositories: ModuleID =  "com.google.apis" % "google-api-services-sourcerepo"  % s"v1-rev21-$googleV" excludeAll (excludeGuavaJDK5)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV  % "test"
-  val mockito: ModuleID =   "org.mockito"   % "mockito-core"  % "2.18.3"    % "test"
+  val mockito: ModuleID =   "org.mockito"   % "mockito-core"  % "3.2.4"    % "test"
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -91,8 +92,8 @@ object Dependencies {
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
-  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.11"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.5.3"
+  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.18"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.8.5"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.5"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % "test" // brought in for FakeStorageInterpreter
 
@@ -110,7 +111,9 @@ object Dependencies {
     workbenchGoogle2Test,
     workbenchNewRelic,
     workbenchNewRelicTest,
-    "net.logstash.logback" % "logstash-logback-encoder" % "6.2" // for structured logging in logback
+    "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
+    sealerate,
+    enumeratum
   )
 
   val rootDependencies = Seq(
@@ -131,7 +134,6 @@ object Dependencies {
     httpClient,
     enumeratum,
     akkaActor,
-    akkaContrib,
     akkaSlf4j,
     akkaHttp,
     akkaHttpSprayJson,
@@ -142,20 +144,20 @@ object Dependencies {
     googleOAuth2,
     googleSourceRepositories,
     mockito,
-    slick,
     hikariCP,
-    mysql,
-    liquibase,
     workbenchUtil,
     workbenchGoogle,
     workbenchGoogleTest,
     workbenchMetrics,
-    sealerate,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
     googleCloudNio,
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
-    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV
+    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
+    slick,
+    mysql,
+    liquibase,
+    "de.heikoseeberger" %% "akka-http-circe" % "1.30.0"
   )
 
   val serviceTestV = "0.16-e6493d5"
@@ -164,7 +166,7 @@ object Dependencies {
   val excludeGoogleJsr305 = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeWorkbenchGoogle = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_" + scalaV)
 
-  val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeWorkbenchGoogle, excludeGuava)
+  val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeWorkbenchGoogle, excludeGuava, excludeAkkaHttpSprayJson)
 
   val automationDependencies = List(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
@@ -199,6 +201,7 @@ object Dependencies {
     workbenchGoogle2,
     workbenchServiceTest,
     googleCloudNio,
+    akkaHttpSprayJson,
     // required by workbenchGoogle
     "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.6" % "provided"
   )

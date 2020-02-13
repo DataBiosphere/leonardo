@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, Moc
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeConfigId, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
@@ -42,10 +42,10 @@ class ZombieClusterMonitorSpec
 
     // create 2 running clusters in the same project
     val savedTestCluster1 = testCluster1.save()
-    savedTestCluster1 shouldEqual testCluster1
+    savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     val savedTestCluster2 = testCluster2.save()
-    savedTestCluster2 shouldEqual testCluster2
+    savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster2
 
     // stub GoogleProjectDAO to make the project inactive
     val googleProjectDAO = new MockGoogleProjectDAO {
@@ -74,7 +74,7 @@ class ZombieClusterMonitorSpec
 
     // create a running cluster
     val savedTestCluster1 = testCluster1.save()
-    savedTestCluster1 shouldEqual testCluster1
+    savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     // stub GoogleProjectDAO to make the project throw an error
     val googleProjectDAO = new MockGoogleProjectDAO {
@@ -90,11 +90,11 @@ class ZombieClusterMonitorSpec
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
 
-          c1.status shouldBe ClusterStatus.Deleted
-          c1.auditInfo.destroyedDate shouldBe 'defined
-          c1.errors.size shouldBe 1
-          c1.errors.head.errorCode shouldBe -1
-          c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
+        c1.status shouldBe ClusterStatus.Deleted
+        c1.auditInfo.destroyedDate shouldBe 'defined
+        c1.errors.size shouldBe 1
+        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
   }
@@ -104,10 +104,10 @@ class ZombieClusterMonitorSpec
 
     // create 2 running clusters in the same project
     val savedTestCluster1 = testCluster1.save()
-    savedTestCluster1 shouldEqual testCluster1
+    savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     val savedTestCluster2 = testCluster2.save()
-    savedTestCluster2 shouldEqual testCluster2
+    savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster2
 
     // stub GoogleProjectDAO to make the project inactive
     val googleProjectDAO = new MockGoogleProjectDAO {
@@ -136,10 +136,10 @@ class ZombieClusterMonitorSpec
 
     // create 2 running clusters in the same project
     val savedTestCluster1 = testCluster1.save()
-    savedTestCluster1 shouldEqual testCluster1
+    savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     val savedTestCluster2 = testCluster2.save()
-    savedTestCluster2 shouldEqual testCluster2
+    savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster2
 
     // stub GoogleDataprocDAO to flag cluster2 as deleted
     val gdDAO = new MockGoogleDataprocDAO {
@@ -176,11 +176,11 @@ class ZombieClusterMonitorSpec
 
     // create a Running and a Creating cluster in the same project
     val savedTestCluster1 = testCluster1.save()
-    savedTestCluster1 shouldEqual testCluster1
+    savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
     val savedTestCluster2 = creatingTestCluster.save()
-    savedTestCluster2 shouldEqual creatingTestCluster
+    savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual creatingTestCluster
 
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
@@ -225,7 +225,7 @@ class ZombieClusterMonitorSpec
 
     val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
     val savedTestCluster2 = creatingTestCluster.save()
-    savedTestCluster2 shouldEqual creatingTestCluster
+    savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual creatingTestCluster
 
     val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
     // stub GoogleDataprocDAO to flag both clusters as deleted
@@ -250,17 +250,17 @@ class ZombieClusterMonitorSpec
     // running cluster in "bad" project - should not get zombified
     val clusterBadProject = testCluster1.copy(googleProject = GoogleProject("bad-project"))
     val savedClusterBadProject = clusterBadProject.save()
-    savedClusterBadProject shouldEqual clusterBadProject
+    savedClusterBadProject.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual clusterBadProject
 
     // running "bad" cluster - should not get zombified
     val badCluster = testCluster2.copy(clusterName = ClusterName("bad-cluster"))
     val savedBadCluster = badCluster.save()
-    savedBadCluster shouldEqual badCluster
+    savedBadCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual badCluster
 
     // running "good" cluster - should get zombified
     val goodCluster = testCluster3.copy(clusterName = ClusterName("good-cluster"))
     val savedGoodCluster = goodCluster.save()
-    savedGoodCluster shouldEqual goodCluster
+    savedGoodCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual goodCluster
 
     // stub GoogleProjectDAO to return an error for the bad project
     val googleProjectDAO = new MockGoogleProjectDAO {

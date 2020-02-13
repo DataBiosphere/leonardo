@@ -24,14 +24,14 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, ValueObject, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
+import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
-import org.http4s._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -66,7 +66,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
     )(onError)
 
-  def hasResourcePermission(resourceId: ValueObject,
+  def hasResourcePermission(resourceId: String,
                             action: String,
                             resourceTypeName: ResourceTypeName,
                             authHeader: Authorization)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
@@ -75,7 +75,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         Request[F](
           method = Method.GET,
           uri = config.samUri
-            .withPath(s"/api/resources/v1/${resourceTypeName.toString}/${resourceId.value}/action/${action}"),
+            .withPath(s"/api/resources/v1/${resourceTypeName.toString}/${resourceId}/action/${action}"),
           headers = Headers.of(authHeader)
         )
       )(onError)
@@ -127,7 +127,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         Request[F](
           method = Method.POST,
           uri = config.samUri
-            .withPath(s"/api/resources/v1/${ResourceTypeName.NotebookCluster.toString}/${internalId.value}"),
+            .withPath(s"/api/resources/v1/${ResourceTypeName.NotebookCluster.toString}/${internalId.asString}"),
           headers = Headers.of(authHeader)
         )
       ) { resp =>
@@ -169,7 +169,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         Request[F](
           method = Method.DELETE,
           uri = config.samUri
-            .withPath(s"/api/resources/v1/${ResourceTypeName.NotebookCluster.toString}/${internalId.value}"),
+            .withPath(s"/api/resources/v1/${ResourceTypeName.NotebookCluster.toString}/${internalId.asString}"),
           headers = Headers.of(authHeader)
         )
       ) { resp =>
@@ -265,7 +265,6 @@ object HttpSamDAO {
 
   implicit val accessPolicyNameDecoder: Decoder[AccessPolicyName] =
     Decoder.decodeString.map(s => AccessPolicyName.stringToAccessPolicyName.getOrElse(s, AccessPolicyName.Other(s)))
-  implicit val clusterInternalDecoder: Decoder[ClusterInternalId] = Decoder.decodeString.map(ClusterInternalId)
   implicit val samResourcePolicyDecoder: Decoder[SamNotebookClusterPolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]

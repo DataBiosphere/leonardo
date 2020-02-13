@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.db
+package org.broadinstitute.dsde.workbench.leonardo
+package db
 
 import java.sql.{Connection, SQLTimeoutException}
 
@@ -6,14 +7,17 @@ import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, IO, Resource}
 import com.google.common.base.Throwables
 import com.typesafe.scalalogging.LazyLogging
-import liquibase.database.jvm.JdbcConnection
-import liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
-import liquibase.{Contexts, Liquibase}
+import _root_.liquibase.database.jvm.JdbcConnection
+import _root_.liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
+import _root_.liquibase.{Contexts, Liquibase}
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import slick.basic.DatabaseConfig
 import slick.jdbc.{JdbcBackend, JdbcProfile, TransactionIsolation}
 import sun.security.provider.certpath.SunCertPathBuilderException
 import LeoProfile.api._
+import io.chrisdavenport.log4cats.Logger
+import cats.implicits._
+
 import scala.concurrent.Future
 
 object DbReference extends LazyLogging {
@@ -44,18 +48,19 @@ object DbReference extends LazyLogging {
         throw e
     }
 
-  def init[F[_]: Async: ContextShift](config: LiquibaseConfig,
-                                      concurrentDbAccessPermits: Semaphore[F],
-                                      blocker: Blocker): Resource[F, DbReference[F]] = {
+  def init[F[_]: Async: ContextShift: Logger](config: LiquibaseConfig,
+                                              concurrentDbAccessPermits: Semaphore[F],
+                                              blocker: Blocker): Resource[F, DbReference[F]] = {
     val dbConfig =
       DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
 
     for {
       db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
       dbConnection <- Resource.make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
-      initLiquidbase = if (config.initWithLiquibase) Async[F].delay(initWithLiquibase(dbConnection, config))
+      initLiquibase = if (config.initWithLiquibase)
+        Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
       else Async[F].unit
-      _ <- Resource.liftF(initLiquidbase)
+      _ <- Resource.liftF(initLiquibase)
     } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
   }
 }
@@ -105,7 +110,8 @@ final class DataAccess(blocker: Blocker) {
       TableQuery[ClusterImageTable].delete andThen
       TableQuery[ScopeTable].delete andThen
       TableQuery[FollowupTable].delete andThen
-      TableQuery[ClusterTable].delete
+      TableQuery[ClusterTable].delete andThen
+      RuntimeConfigQueries.runtimeConfigs.delete
 
   def sqlDBStatus() =
     sql"select version()".as[String]

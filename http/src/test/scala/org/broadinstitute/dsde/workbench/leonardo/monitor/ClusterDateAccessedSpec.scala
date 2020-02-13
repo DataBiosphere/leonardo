@@ -6,11 +6,12 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, RuntimeConfigId, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class ClusterDateAccessedSpec
@@ -31,7 +32,7 @@ class ClusterDateAccessedSpec
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     val savedTestCluster1 = testCluster1.save()
-    savedTestCluster1 shouldEqual testCluster1
+    savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     val currentTime = Instant.now()
     val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, DbSingleton.dbRef))
