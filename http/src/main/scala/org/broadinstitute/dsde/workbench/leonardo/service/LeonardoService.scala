@@ -328,16 +328,15 @@ class LeonardoService(
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateClusterResponse] =
     for {
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if nonexistent or no auth
-      updatedCluster <- internalUpdateCluster(cluster, clusterRequest)
-      runtimeConfig <- RuntimeConfigQueries.getRuntime(updatedCluster.runtimeConfigId).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
+      updatedCluster <- internalUpdateCluster(cluster, clusterRequest, runtimeConfig)
     } yield UpdateClusterResponse.fromCluster(updatedCluster, runtimeConfig)
 
   def internalUpdateCluster(existingCluster: Cluster,
-                            clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
+                            clusterRequest: ClusterRequest,
+                            existingRuntimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
     if (existingCluster.status.isUpdatable) {
       for {
-        existingRuntimeConfig <- RuntimeConfigQueries.getRuntime(existingCluster.runtimeConfigId).transaction
-
         autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster,
                                                           clusterRequest.autopause,
                                                           clusterRequest.autopauseThreshold).attempt
@@ -355,18 +354,15 @@ class LeonardoService(
                       )
                     ) //TODO: use better exception
                   case x: RuntimeConfigRequest.DataprocConfig =>
-                    val defaultRuntimeConfig = MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
-                    val rt = x.toRuntimeConfigDataprocConfig(defaultRuntimeConfig)
-
                     for {
-                      clusterResized <- maybeResizeCluster(existingCluster, existingRuntimeConfig, Some(rt)).attempt
+                      clusterResized <- maybeResizeCluster(existingCluster, existingRuntimeConfig, x.numberOfWorkers, x.numberOfPreemptibleWorkers).attempt
                       masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster,
                                                                                existingRuntimeConfig,
-                                                                               Some(rt),
+                                                                               x.masterMachineType.map(MachineType),
                                                                                clusterRequest.allowStop).attempt
                       masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster,
                                                                          existingRuntimeConfig,
-                                                                         Some(rt)).attempt
+                                                                         x.masterDiskSize).attempt
                     } yield {
                       val res = List(
                         autopauseChanged.map(_ => false),
@@ -473,15 +469,16 @@ class LeonardoService(
   //returns true if cluster was resized, otherwise returns false
   def maybeResizeCluster(existingCluster: Cluster,
                          existingRuntimeConfig: RuntimeConfig.DataprocConfig,
-                         machineConfigOpt: Option[RuntimeConfig.DataprocConfig]): IO[UpdateResult] = {
+                         targetNumberOfWorkers: Option[Int],
+                         targetNumberOfPreemptibleWorkers: Option[Int]
+                        ): IO[UpdateResult] = {
     //machineConfig.numberOfPreemtible undefined, and a 0 is passed in
-    val updatedNumWorkersAndPreemptiblesOpt = machineConfigOpt.flatMap { machineConfig =>
+    val updatedNumWorkersAndPreemptiblesOpt =
       Ior.fromOptions(
-        getUpdatedValueIfChanged(Some(existingRuntimeConfig.numberOfWorkers), Some(machineConfig.numberOfWorkers)),
+        getUpdatedValueIfChanged(Some(existingRuntimeConfig.numberOfWorkers), targetNumberOfWorkers),
         getUpdatedValueIfChanged(existingRuntimeConfig.numberOfPreemptibleWorkers,
-                                 machineConfig.numberOfPreemptibleWorkers)
+          targetNumberOfPreemptibleWorkers)
       )
-    }
 
     updatedNumWorkersAndPreemptiblesOpt match {
       case Some(updatedNumWorkersAndPreemptibles) =>
@@ -531,10 +528,10 @@ class LeonardoService(
 
   def maybeChangeMasterMachineType(existingCluster: Cluster,
                                    existingRuntimeConfig: RuntimeConfig,
-                                   machineConfigOpt: Option[RuntimeConfig],
+                                   targetMachineType: Option[MachineType],
                                    allowStop: Boolean): IO[UpdateResult] = {
     val updatedMasterMachineTypeOpt =
-      getUpdatedValueIfChanged(Some(existingRuntimeConfig.machineType), machineConfigOpt.map(x => x.machineType))
+      getUpdatedValueIfChanged(Some(existingRuntimeConfig.machineType), targetMachineType)
 
     updatedMasterMachineTypeOpt match {
       // Note: instance must be stopped in order to change machine type
@@ -544,8 +541,8 @@ class LeonardoService(
         } yield UpdateResult(true, None)
 
       case Some(updatedMasterMachineType) =>
-        machineConfigOpt match {
-          case Some(x: RuntimeConfig.DataprocConfig) =>
+        existingRuntimeConfig match {
+          case x: RuntimeConfig.DataprocConfig =>
             logger.debug("in stop and update case of maybeChangeMasterMachineType")
             val updatedConfig = x.copy(masterMachineType = updatedMasterMachineType.value)
 
@@ -556,8 +553,7 @@ class LeonardoService(
               )
               IO.pure(UpdateResult(false, Some(transition)))
             } else IO.raiseError(ClusterMachineTypeCannotBeChangedException(existingCluster))
-          case Some(_: RuntimeConfig.GceConfig) => IO.raiseError(new NotImplementedError("GCE is not implemented"))
-          case None                             => IO.pure(UpdateResult(false, None))
+          case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedError("GCE is not implemented"))
         }
 
       case None =>
@@ -568,10 +564,9 @@ class LeonardoService(
 
   def maybeChangeMasterDiskSize(existingCluster: Cluster,
                                 existingRuntimeConfig: RuntimeConfig,
-                                machineConfigOpt: Option[RuntimeConfig]): IO[UpdateResult] = {
-    val updatedMasterDiskSizeOpt = machineConfigOpt.flatMap { machineConfig =>
-      getUpdatedValueIfChanged(Some(existingRuntimeConfig.diskSize), Some(machineConfig.diskSize))
-    }
+                                targetMachineSize: Option[Int]): IO[UpdateResult] = {
+    val updatedMasterDiskSizeOpt =
+      getUpdatedValueIfChanged(Some(existingRuntimeConfig.diskSize), targetMachineSize)
 
     // Note: GCE allows you to increase a persistent disk, but not decrease. Throw an exception if the user tries to decrease their disk.
     val diskSizeIncreased = (newSize: Int) => existingRuntimeConfig.diskSize < newSize
