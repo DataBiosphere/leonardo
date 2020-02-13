@@ -3,5 +3,9 @@
 
     <changeSet logicalFilePath="leonardo" author="qi" id="populate_date-accessed">
         <sql>UPDATE RUNTIME_CONFIG r set r.dateAccessed = NOW() where r.dateAccessed is NULL</sql>
+
+        <addNotNullConstraint columnDataType="TIMESTAMP(6)"
+                              columnName="dateAccessed"
+                              tableName="RUNTIME_CONFIG"/>
     </changeSet>
 </databaseChangeLog>
