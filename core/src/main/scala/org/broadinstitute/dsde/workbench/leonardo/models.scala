@@ -143,4 +143,14 @@ object ClusterImageType extends Enum[ClusterImageType] {
   case object RStudio extends ClusterImageType
   case object Welder extends ClusterImageType
   case object CustomDataProc extends ClusterImageType
+
+  def stringToClusterImageType: Map[String, ClusterImageType] = values.map(c => c.toString -> c).toMap
 }
+
+final case class ClusterImage(imageType: ClusterImageType, imageUrl: String, timestamp: Instant)
+
+final case class AuditInfo(creator: WorkbenchEmail,
+                     createdDate: Instant,
+                     destroyedDate: Option[Instant],
+                     dateAccessed: Instant,
+                     kernelFoundBusyDate: Option[Instant])

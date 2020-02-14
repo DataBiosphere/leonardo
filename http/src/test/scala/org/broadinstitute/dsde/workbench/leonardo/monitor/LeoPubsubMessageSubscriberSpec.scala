@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
@@ -16,22 +18,12 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  followupQuery,
-  DbSingleton,
-  RuntimeConfigId,
-  RuntimeConfigQueries,
-  TestComponent
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{RuntimeConfigId, RuntimeConfigQueries, TestComponent, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  ClusterInvalidState,
-  ClusterNotStopped
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{ClusterInvalidState, ClusterNotStopped}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
 import org.mockito.Mockito
 import org.scalatest.concurrent._
@@ -57,6 +49,7 @@ class LeoPubsubMessageSubscriberSpec
   val iamDAO = new MockGoogleIamDAO
   val projectDAO = new MockGoogleProjectDAO
   val authProvider = mock[LeoAuthProvider[IO]]
+  val currentTime = Instant.now
 
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     new MockGoogleStorageDAO
@@ -113,7 +106,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync() shouldBe None
 
-    leoSubscriber.messageResponder(message).unsafeRunSync()
+    leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
 
     val postStorage = dbRef
       .inTransaction(
@@ -151,7 +144,7 @@ class LeoPubsubMessageSubscriberSpec
       .unsafeRunSync()
 
     the[ClusterNotStopped] thrownBy {
-      leoSubscriber.messageResponder(message).unsafeRunSync()
+      leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
     }
 
     dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe ClusterStatus.Running
@@ -197,7 +190,7 @@ class LeoPubsubMessageSubscriberSpec
       .unsafeRunSync() shouldBe None
 
     the[ClusterInvalidState] thrownBy {
-      leoSubscriber.messageResponder(message).unsafeRunSync()
+      leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
     }
 
     dbRef
@@ -227,7 +220,7 @@ class LeoPubsubMessageSubscriberSpec
     val transitionFinishedMessage =
       ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Creating), None)
 
-    leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
+    leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
     val postStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupDetails)).unsafeRunSync()
     postStorage shouldBe Some(newMachineType)
 
@@ -246,7 +239,7 @@ class LeoPubsubMessageSubscriberSpec
     val followupKey = ClusterFollowupDetails(clusterId, ClusterStatus.Stopped)
     val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupKey, None)
 
-    leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
+    leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
 
     val cluster = dbFutureValue { clusterQuery.getClusterById(clusterId) }.get
     cluster.status shouldBe ClusterStatus.Stopped
@@ -269,7 +262,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val transitionFinishedMessage = ClusterTransitionFinishedMessage(followupDetails, None)
 
-    leoSubscriber.messageResponder(transitionFinishedMessage).unsafeRunSync()
+    leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
 
     //we should consume the followup data and clean up the db
     val postStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupDetails)).unsafeRunSync()
@@ -339,7 +332,7 @@ class LeoPubsubMessageSubscriberSpec
   def makeLeoSubscriber(queue: InspectableQueue[IO, Event[LeoPubsubMessage]]) = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](googleSubscriber, clusterHelper, DbSingleton.dbRef)
+    new LeoPubsubMessageSubscriber[IO](googleSubscriber, clusterHelper)
   }
 
 }

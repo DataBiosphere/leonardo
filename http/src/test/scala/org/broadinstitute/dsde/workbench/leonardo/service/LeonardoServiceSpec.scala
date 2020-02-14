@@ -1227,10 +1227,6 @@ class LeonardoServiceSpec
     computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
     computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
-    val initialQueueSize = queue.getSize.unsafeRunSync()
-
-    initialQueueSize shouldBe 0
-
     leo
       .updateCluster(
         userInfo,
@@ -1242,8 +1238,9 @@ class LeonardoServiceSpec
 
     val finalQueueSize = queue.getSize.unsafeRunSync()
 
-    finalQueueSize shouldBe 1
+    finalQueueSize shouldBe 2 //one message for creating cluster, one message for updating cluster
 
+    queue.dequeue1.unsafeRunSync() //discard createCluster message
     val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdateMessage]
 
     val castMessage = message.asInstanceOf[StopUpdateMessage]

@@ -146,8 +146,8 @@ class ClusterMonitorSupervisor(
       startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
-      val traceId = UUID.randomUUID()
-      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
+      val traceId = TraceId(UUID.randomUUID())
+      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](traceId)
 
       val res = if (monitorConfig.recreateCluster) {
         logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
@@ -156,6 +156,8 @@ class ClusterMonitorSupervisor(
           now <- IO(Instant.now)
           _ <- (clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
             clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating, now)).transaction
+          runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction[IO]
+          _ <- publisherQueue.enqueue1(cluster.toCreateCluster(runtimeConfig, Some(traceId)))
         } yield ()
       } else {
         IO(

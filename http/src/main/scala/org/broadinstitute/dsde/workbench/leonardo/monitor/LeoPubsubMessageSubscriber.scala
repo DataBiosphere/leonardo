@@ -4,43 +4,44 @@ package monitor
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import cats.effect.{Async, Concurrent, ContextShift, Timer}
+import cats.effect.{Async, Concurrent, ContextShift, IO, Timer}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
 import fs2.{Pipe, Stream}
-import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, UpdateAsyncClusterCreationFields, clusterErrorQuery, clusterImageQuery, clusterQuery, followupQuery}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
+import cats.mtl.ApplicativeAsk
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import scala.concurrent.ExecutionContext
-import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  clusterHelper: ClusterHelper,
-  dbRef: DbReference[F]
-)(implicit executionContext: ExecutionContext, logger: StructuredLogger[F]) {
-  private[monitor] def messageResponder(message: LeoPubsubMessage): F[Unit] =
+  clusterHelper: ClusterHelper
+)(implicit executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F]) {
+  private[monitor] def messageResponder(message: LeoPubsubMessage, now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
       case msg: StopUpdateMessage =>
         handleStopUpdateMessage(msg)
       case msg: ClusterTransitionFinishedMessage =>
         handleClusterTransitionFinished(msg)
       case msg: CreateCluster =>
-        handleClusterTransitionFinished(msg)
+        handleCreateCluster(msg, now)
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
     in.evalMap { event =>
+      implicit val traceId = ApplicativeAsk.const[F, TraceId](event.traceId.getOrElse(TraceId("None")))
+
+      val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
       val res = for {
-        res <- messageResponder(event.msg).attempt
+        res <- messageResponder(event.msg, now).attempt
         _ <- res match {
           case Left(e) =>
             e match {
@@ -145,101 +146,40 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       case _ => Async[F].unit
     }
 
-}
+  private[monitor] def handleCreateCluster(msg: CreateCluster, now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] = {
+    val createCluster = for {
+      traceIdValue <- traceId.ask
+      traceIdIO = ApplicativeAsk.const[IO, TraceId](traceIdValue)
+      _ <- logger.info(s"Attempting to create cluster ${msg.clusterProjectAndName} in Google...")
+      clusterResult <- Async[F].liftIO(clusterHelper.createCluster(msg)(traceIdIO))
+      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
+        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
+        clusterResult.serviceAccountKey,
+        msg.id,
+        Some(clusterResult.dataprocInfo),
+        now
+      )
+      _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
+      clusterImage = ClusterImage(ClusterImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
+      // Save dataproc image in the database
+      _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
+      _ <- logger.info(
+          s"Cluster ${msg.clusterProjectAndName} was successfully created. Will monitor the creation process."
+        )
+    } yield ()
 
-sealed trait LeoPubsubMessage {
-  def traceId: Option[TraceId]
-  def messageType: String
-}
-
-object LeoPubsubMessage {
-  final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, clusterId: Long, traceId: Option[TraceId])
-      extends LeoPubsubMessage {
-    val messageType = "stopUpdate"
-  }
-
-  case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails, traceId: Option[TraceId])
-      extends LeoPubsubMessage {
-    val messageType = "transitionFinished"
-  }
-
-  case class CreateCluster(cluster: Cluster, traceId: Option[TraceId])
-      extends LeoPubsubMessage {
-    val messageType = "createCluster"
-  }
-
-  final case class ClusterFollowupDetails(clusterId: Long, clusterStatus: ClusterStatus)
-      extends Product
-      with Serializable
-}
-
-final case class PubsubException(message: String) extends Exception
-
-object LeoPubsubCodec {
-  implicit val stopUpdateMessageDecoder: Decoder[StopUpdateMessage] =
-    Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdateMessage.apply)
-
-  implicit val clusterFollowupDetailsDecoder: Decoder[ClusterFollowupDetails] =
-    Decoder.forProduct2("clusterId", "clusterStatus")(ClusterFollowupDetails.apply)
-
-  implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransitionFinishedMessage] =
-    Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransitionFinishedMessage.apply)
-
-  implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
-    for {
-      messageType <- message.downField("messageType").as[String]
-      value <- messageType match {
-        case "stopUpdate"         => message.as[StopUpdateMessage]
-        case "transitionFinished" => message.as[ClusterTransitionFinishedMessage]
-        case other                => Left(DecodingFailure(s"found a message with an unknown type when decoding: ${other}", List.empty))
-      }
-    } yield value
-  }
-
-  implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
-    Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(
-      x => (x.messageType, x.updatedMachineConfig, x.clusterId)
-    )
-
-  implicit val clusterFollowupDetailsEncoder: Encoder[ClusterFollowupDetails] =
-    Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.clusterId, x.clusterStatus))
-
-  implicit val clusterTransitionFinishedEncoder: Encoder[ClusterTransitionFinishedMessage] =
-    Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.clusterFollowupDetails))
-
-  implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
-    message match {
-      case m: StopUpdateMessage                => stopUpdateMessageEncoder(m)
-      case m: ClusterTransitionFinishedMessage => clusterTransitionFinishedEncoder(m)
+    createCluster.handleErrorWith {
+      case e =>
+        for {
+          _ <- logger.error(e)(s"Failed to create cluster ${msg.clusterProjectAndName} in Google")
+          errorMessage = e match {
+            case leoEx: LeoException =>
+              ErrorReport.loggableString(leoEx.toErrorReport)
+            case _ =>
+              s"Failed to create cluster ${msg.clusterProjectAndName} due to ${e.toString}"
+          }
+          _ <- clusterErrorQuery.save(msg.id, ClusterError(errorMessage, -1, now)).transaction[F]
+        } yield ()
     }
-  }
-}
-
-sealed trait PubsubHandleMessageError extends NoStackTrace {
-  def isRetryable: Boolean
-}
-object PubsubHandleMessageError {
-  final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
-    val isRetryable: Boolean = false
-  }
-  final case class ClusterNotStopped(clusterId: Long,
-                                     projectName: String,
-                                     clusterStatus: ClusterStatus,
-                                     message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
-    val isRetryable: Boolean = false
-  }
-  final case class ClusterInvalidState(clusterId: Long,
-                                       projectName: String,
-                                       cluster: Cluster,
-                                       message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
-    val isRetryable: Boolean = false
   }
 }
