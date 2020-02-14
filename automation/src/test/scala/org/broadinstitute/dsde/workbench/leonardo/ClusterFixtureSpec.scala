@@ -12,7 +12,7 @@ import cats.implicits._
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries {
+abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries with GPAllocBeforeAndAfterAll {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
@@ -43,7 +43,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       None,
       List(),
       Instant.now(),
-      false
+      false,
+      0
     )
 
   /**
