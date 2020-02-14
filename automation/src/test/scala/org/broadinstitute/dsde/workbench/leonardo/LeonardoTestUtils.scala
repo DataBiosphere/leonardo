@@ -282,7 +282,10 @@ trait LeonardoTestUtils
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
-    saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "delete")
+    //we cannot save the log if the cluster isn't running
+    if (Leonardo.cluster.get(googleProject, clusterName).status == ClusterStatus.Running) {
+      saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "delete")
+    }
     try {
       Leonardo.cluster.delete(googleProject, clusterName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."
