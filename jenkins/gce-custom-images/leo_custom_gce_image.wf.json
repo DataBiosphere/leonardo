@@ -27,7 +27,8 @@
                 {
                     "Name": "disk-install",
                     "SourceImage": "${base_image}",
-                    "Type": "pd-ssd"
+                    "Type": "pd-ssd",
+                    "SizeGb": "100"
                 }
             ]
         },
