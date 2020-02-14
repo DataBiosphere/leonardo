@@ -126,7 +126,7 @@ object AutomationTestJsonCodec {
                                                                        Option[List[ClusterError]],
                                                                        Instant,
                                                                        Boolean,
-                                                                        Int](
+                                                                       Int](
     "clusterName",
     "googleProject",
     "serviceAccountInfo",

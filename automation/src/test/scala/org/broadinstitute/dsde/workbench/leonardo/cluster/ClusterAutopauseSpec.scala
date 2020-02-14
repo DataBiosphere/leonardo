@@ -8,7 +8,9 @@ import org.scalatest.DoNotDiscover
 class ClusterAutopauseSpec extends ClusterFixtureSpec with LeonardoTestUtils {
 
   "patch autopause then pause properly" in { clusterFixture =>
-    Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName).autopauseThreshold shouldBe 0
+    Leonardo.cluster
+      .get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+      .autopauseThreshold shouldBe 0
 
     Leonardo.cluster.update(
       clusterFixture.cluster.googleProject,
