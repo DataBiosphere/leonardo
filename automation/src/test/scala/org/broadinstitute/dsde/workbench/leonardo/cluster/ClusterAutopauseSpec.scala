@@ -18,7 +18,7 @@ class ClusterAutopauseSpec extends ClusterFixtureSpec with LeonardoTestUtils {
       clusterRequest = defaultClusterRequest.copy(autopause = Some(true), autopauseThreshold = Some(1))
     )
 
-    eventually(timeout(Span(5, Minutes)), interval(Span(10, Seconds))) {
+    eventually(timeout(Span(90, Seconds)), interval(Span(10, Seconds))) {
       val cluster = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       cluster.autopauseThreshold shouldBe 1
       cluster.status shouldBe ClusterStatus.Stopping
