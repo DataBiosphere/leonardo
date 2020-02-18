@@ -1098,6 +1098,13 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.autopauseThreshold shouldBe 7
   }
 
+  it should "calculate autopause threshold properly" in {
+    leo.calculateAutopauseThreshold(None, None) shouldBe 0
+    leo.calculateAutopauseThreshold(Some(false), None) shouldBe autoPauseOffValue
+    leo.calculateAutopauseThreshold(Some(true), None) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    leo.calculateAutopauseThreshold(Some(true), Some(30)) shouldBe Some(30)
+  }
+
   it should "update the master machine type for a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
@@ -1491,4 +1498,5 @@ class LeonardoServiceSpec
     val duplicateLabel = Map("_labels" -> "foo=bar,foo=biz")
     LeonardoService.processLabelMap(duplicateLabel) shouldBe (Right(Map("foo" -> "biz")))
   }
+
 }
