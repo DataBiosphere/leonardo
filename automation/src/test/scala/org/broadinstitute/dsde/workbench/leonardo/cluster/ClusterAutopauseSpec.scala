@@ -1,27 +1,31 @@
 package org.broadinstitute.dsde.workbench.leonardo.cluster
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, ClusterStatus, Leonardo, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, ClusterStatus, GPAllocFixtureSpec, Leonardo, LeonardoTestUtils}
 import org.scalatest.time.{Minutes, Seconds, Span}
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 @DoNotDiscover
-class ClusterAutopauseSpec extends ClusterFixtureSpec with LeonardoTestUtils {
+//class ClusterAutopauseSpec extends ClusterFixtureSpec with LeonardoTestUtils {
+class ClusterAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
 
-  "patch autopause then pause properly" in { clusterFixture =>
-    Leonardo.cluster
-      .get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-      .autopauseThreshold shouldBe 0
+  implicit val ronToken: AuthToken = ronAuthToken
 
-    Leonardo.cluster.update(
-      clusterFixture.cluster.googleProject,
-      clusterFixture.cluster.clusterName,
-      clusterRequest = defaultClusterRequest.copy(autopause = Some(true), autopauseThreshold = Some(1))
-    )
+  "autopause should work" in { billingProject =>
 
-    eventually(timeout(Span(90, Seconds)), interval(Span(10, Seconds))) {
-      val cluster = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-      cluster.autopauseThreshold shouldBe 1
-      cluster.status shouldBe ClusterStatus.Stopping
+    val clusterName = randomClusterName
+    val clusterRequest = defaultClusterRequest.copy(autopause = Some(true), autopauseThreshold = Some(1))
+
+    withNewCluster(billingProject, clusterName, clusterRequest) { cluster =>
+      Leonardo.cluster
+        .get(cluster.googleProject, cluster.clusterName)
+        .autopauseThreshold shouldBe 1
+
+      eventually(timeout(Span(90, Seconds)), interval(Span(10, Seconds))) {
+        val dbCluster = Leonardo.cluster.get(cluster.googleProject, cluster.clusterName)
+        dbCluster.autopauseThreshold shouldBe 1
+        dbCluster.status shouldBe ClusterStatus.Stopping
+      }
     }
 
   }

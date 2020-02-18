@@ -1099,10 +1099,10 @@ class LeonardoServiceSpec
   }
 
   it should "calculate autopause threshold properly" in {
-    leo.calculateAutopauseThreshold(None, None) shouldBe 0
+    leo.calculateAutopauseThreshold(None, None) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
     leo.calculateAutopauseThreshold(Some(false), None) shouldBe autoPauseOffValue
     leo.calculateAutopauseThreshold(Some(true), None) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-    leo.calculateAutopauseThreshold(Some(true), Some(30)) shouldBe Some(30)
+    leo.calculateAutopauseThreshold(Some(true), Some(30)) shouldBe 30
   }
 
   it should "update the master machine type for a cluster" in isolatedDbTest {
