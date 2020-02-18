@@ -114,7 +114,7 @@ object AutomationTestJsonCodec {
   implicit val clusterStatusDecoder: Decoder[ClusterStatus] =
     Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"Invalid cluster status ${s}"))
 
-  implicit val clusterDecoder: Decoder[Cluster] = Decoder.forProduct11[Cluster,
+  implicit val clusterDecoder: Decoder[Cluster] = Decoder.forProduct12[Cluster,
                                                                        ClusterName,
                                                                        GoogleProject,
                                                                        ServiceAccountInfo,
@@ -125,7 +125,8 @@ object AutomationTestJsonCodec {
                                                                        Option[GcsBucketName],
                                                                        Option[List[ClusterError]],
                                                                        Instant,
-                                                                       Boolean](
+                                                                       Boolean,
+                                                                       Int](
     "clusterName",
     "googleProject",
     "serviceAccountInfo",
@@ -136,9 +137,10 @@ object AutomationTestJsonCodec {
     "stagingBucket",
     "errors",
     "dateAccessed",
-    "stopAfterCreation"
-  ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc) =>
-    Cluster(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc)
+    "stopAfterCreation",
+    "autopauseThreshold"
+  ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc, at) =>
+    Cluster(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at)
   }
 }
 

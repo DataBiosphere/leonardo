@@ -723,7 +723,7 @@ class LeonardoService(
         .toVector
     }
 
-  private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int =
+  private[service] def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int =
     autopause match {
       case None =>
         autoFreezeConfig.autoFreezeAfter.toMinutes.toInt

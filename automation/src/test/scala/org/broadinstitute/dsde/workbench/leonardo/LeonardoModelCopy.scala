@@ -22,7 +22,8 @@ case class Cluster(clusterName: ClusterName,
                    stagingBucket: Option[GcsBucketName],
                    errors: List[ClusterError],
                    dateAccessed: Instant,
-                   stopAfterCreation: Boolean) {
+                   stopAfterCreation: Boolean,
+                   autopauseThreshold: Int) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
