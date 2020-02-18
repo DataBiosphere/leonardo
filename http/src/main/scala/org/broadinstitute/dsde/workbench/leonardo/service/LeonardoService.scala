@@ -38,7 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.{Stopped, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdate
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
@@ -430,7 +430,7 @@ class LeonardoService(
           traceId <- ev.ask
           _ <- metrics.incrementCounter(s"pubsub/LeonardoService/StopStartTransition")
           //sends a message with the config to google pub/sub queue for processing by back leo
-          _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id, Some(traceId)))
+          _ <- publisherQueue.enqueue1(StopUpdate(machineConfig, existingCluster.id, Some(traceId)))
         } yield ()
 
       //TODO: we currently do not support this

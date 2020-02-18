@@ -1,6 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
+import scala.util.control.NoStackTrace
+
+
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
@@ -27,9 +31,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
 )(implicit executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage, now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
-      case msg: StopUpdateMessage =>
+      case msg: StopUpdate =>
         handleStopUpdateMessage(msg)
-      case msg: ClusterTransitionFinishedMessage =>
+      case msg: ClusterTransition =>
         handleClusterTransitionFinished(msg)
       case msg: CreateCluster =>
         handleCreateCluster(msg, now)
@@ -75,7 +79,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       event.consumer.ack()
     )
 
-  private def handleStopUpdateMessage(message: StopUpdateMessage): F[Unit] =
+  private def handleStopUpdateMessage(message: StopUpdate): F[Unit] =
     dbRef
       .inTransaction { clusterQuery.getClusterById(message.clusterId) }
       .flatMap {
@@ -101,7 +105,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
           Async[F].raiseError(PubsubHandleMessageError.ClusterNotFound(message.clusterId, message))
       }
 
-  private def handleClusterTransitionFinished(message: ClusterTransitionFinishedMessage): F[Unit] =
+  private def handleClusterTransitionFinished(message: ClusterTransition): F[Unit] =
     message.clusterFollowupDetails.clusterStatus match {
       case Stopped =>
         for {
@@ -181,5 +185,34 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
           _ <- clusterErrorQuery.save(msg.id, ClusterError(errorMessage, -1, now)).transaction[F]
         } yield ()
     }
+  }
+}
+
+sealed trait PubsubHandleMessageError extends NoStackTrace {
+  def isRetryable: Boolean
+}
+object PubsubHandleMessageError {
+  final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
+    val isRetryable: Boolean = false
+  }
+  final case class ClusterNotStopped(clusterId: Long,
+                                     projectName: String,
+                                     clusterStatus: ClusterStatus,
+                                     message: LeoPubsubMessage)
+    extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
+    val isRetryable: Boolean = false
+  }
+  final case class ClusterInvalidState(clusterId: Long,
+                                       projectName: String,
+                                       cluster: Cluster,
+                                       message: LeoPubsubMessage)
+    extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
+    val isRetryable: Boolean = false
   }
 }

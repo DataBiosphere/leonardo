@@ -44,7 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   ClusterFollowupDetails,
-  ClusterTransitionFinishedMessage
+  ClusterTransition
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
@@ -415,7 +415,7 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
       traceId = TraceId(UUID.randomUUID())
       _ <- publisherQueue.enqueue1(
-        ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped), Some(traceId))
+        ClusterTransition(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped), Some(traceId))
       )
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster.labels), cluster.status, ClusterStatus.Stopped)

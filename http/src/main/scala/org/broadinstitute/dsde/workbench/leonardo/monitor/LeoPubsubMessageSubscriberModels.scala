@@ -7,12 +7,10 @@ import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, IP, OperationName}
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterProjectAndName, DataprocInfo}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterProjectAndName, DataprocInfo}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
-
-import scala.util.control.NoStackTrace
 
 sealed trait LeoPubsubMessage {
   def traceId: Option[TraceId]
@@ -20,12 +18,12 @@ sealed trait LeoPubsubMessage {
 }
 
 object LeoPubsubMessage {
-  final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, clusterId: Long, traceId: Option[TraceId])
+  final case class StopUpdate(updatedMachineConfig: RuntimeConfig, clusterId: Long, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType = "stopUpdate"
   }
 
-  case class ClusterTransitionFinishedMessage(clusterFollowupDetails: ClusterFollowupDetails, traceId: Option[TraceId])
+  case class ClusterTransition(clusterFollowupDetails: ClusterFollowupDetails, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType = "transitionFinished"
   }
@@ -59,14 +57,14 @@ object LeoPubsubMessage {
 final case class PubsubException(message: String) extends Exception
 
 object LeoPubsubCodec {
-  implicit val stopUpdateMessageDecoder: Decoder[StopUpdateMessage] =
-    Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdateMessage.apply)
+  implicit val stopUpdateMessageDecoder: Decoder[StopUpdate] =
+    Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdate.apply)
 
   implicit val clusterFollowupDetailsDecoder: Decoder[ClusterFollowupDetails] =
     Decoder.forProduct2("clusterId", "clusterStatus")(ClusterFollowupDetails.apply)
 
-  implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransitionFinishedMessage] =
-    Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransitionFinishedMessage.apply)
+  implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransition] =
+    Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransition.apply)
 
   implicit val clusterNameDecoder: Decoder[ClusterName] = Decoder.decodeString.map(ClusterName)
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
@@ -105,15 +103,15 @@ object LeoPubsubCodec {
     for {
       messageType <- message.downField("messageType").as[String]
       value <- messageType match {
-        case "stopUpdate"         => message.as[StopUpdateMessage]
-        case "transitionFinished" => message.as[ClusterTransitionFinishedMessage]
+        case "stopUpdate"         => message.as[StopUpdate]
+        case "transitionFinished" => message.as[ClusterTransition]
         case "createCluster" => message.as[CreateCluster]
         case other                => Left(DecodingFailure(s"invalid message type: ${other}", List.empty))
       }
     } yield value
   }
 
-  implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
+  implicit val stopUpdateMessageEncoder: Encoder[StopUpdate] =
     Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(
       x => (x.messageType, x.updatedMachineConfig, x.clusterId)
     )
@@ -121,7 +119,7 @@ object LeoPubsubCodec {
   implicit val clusterFollowupDetailsEncoder: Encoder[ClusterFollowupDetails] =
     Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.clusterId, x.clusterStatus))
 
-  implicit val clusterTransitionFinishedEncoder: Encoder[ClusterTransitionFinishedMessage] =
+  implicit val clusterTransitionFinishedEncoder: Encoder[ClusterTransition] =
     Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.clusterFollowupDetails))
 
   //TODO: These google specific models json codec should be moved to a better place once Rob's GCE PR is in
@@ -178,38 +176,9 @@ object LeoPubsubCodec {
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
     message match {
-      case m: StopUpdateMessage                => m.asJson
-      case m: ClusterTransitionFinishedMessage => m.asJson
+      case m: StopUpdate                => m.asJson
+      case m: ClusterTransition => m.asJson
       case m: CreateCluster => m.asJson
     }
-  }
-}
-
-sealed trait PubsubHandleMessageError extends NoStackTrace {
-  def isRetryable: Boolean
-}
-object PubsubHandleMessageError {
-  final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
-    val isRetryable: Boolean = false
-  }
-  final case class ClusterNotStopped(clusterId: Long,
-                                     projectName: String,
-                                     clusterStatus: ClusterStatus,
-                                     message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
-    val isRetryable: Boolean = false
-  }
-  final case class ClusterInvalidState(clusterId: Long,
-                                       projectName: String,
-                                       cluster: Cluster,
-                                       message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
-    val isRetryable: Boolean = false
   }
 }
