@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.config
+package org.broadinstitute.dsde.workbench.leonardo
+package config
 
 import java.io.File
 import java.nio.file.{Path, Paths}
@@ -16,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -281,6 +281,7 @@ object Config {
 
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
+
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val gceConfig = config.as[GceConfig]("gce")
   val imageConfig = config.as[ImageConfig]("image")
@@ -300,7 +301,6 @@ object Config {
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
   val uiConfig = config.as[ClusterUIConfig]("ui")
   val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
-  val leoServiceAccountJsonFile = config.as[String]("application.leoServiceAccountJsonFile")
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
@@ -310,9 +310,11 @@ object Config {
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
 
   val topicName = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
-  val subscriberConfig: SubscriberConfig = SubscriberConfig(leoServiceAccountJsonFile, topicName, 1 minute, None)
+  val subscriberConfig: SubscriberConfig =
+    SubscriberConfig(applicationConfig.leoServiceAccountJsonFile.toString, topicName, 1 minute, None)
 
   private val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
-  val publisherConfig: PublisherConfig = PublisherConfig(leoServiceAccountJsonFile, topic, retryConfig)
+  val publisherConfig: PublisherConfig =
+    PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic, retryConfig)
 }

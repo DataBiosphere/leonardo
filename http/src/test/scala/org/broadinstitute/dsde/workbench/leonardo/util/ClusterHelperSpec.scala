@@ -327,7 +327,7 @@ class ClusterHelperSpec
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
     var invocationCount = 0
     override def createCluster(googleProject: GoogleProject,
-                               clusterName: ClusterName,
+                               clusterName: RuntimeName,
                                config: CreateClusterConfig): Future[Operation] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory

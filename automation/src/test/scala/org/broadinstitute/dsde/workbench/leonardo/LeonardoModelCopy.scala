@@ -19,7 +19,7 @@ case class ClusterCopy(clusterName: RuntimeName,
                        creator: WorkbenchEmail,
                        labels: LabelMap,
                        stagingBucket: Option[GcsBucketName],
-                       errors: List[ClusterError],
+                       errors: List[RuntimeError],
                        dateAccessed: Instant,
                        stopAfterCreation: Boolean,
                        autopauseThreshold: Int) {

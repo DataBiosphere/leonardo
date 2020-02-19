@@ -17,7 +17,7 @@ import scala.collection.mutable
 
 class MockSamDAO extends SamDAO[IO] {
   val billingProjects: mutable.Map[(GoogleProject, Authorization), Set[String]] = new TrieMap()
-  val notebookClusters: mutable.Map[(ClusterInternalId, Authorization), Set[String]] = new TrieMap()
+  val notebookClusters: mutable.Map[(RuntimeInternalId, Authorization), Set[String]] = new TrieMap()
   val projectOwners: mutable.Map[Authorization, Set[SamProjectPolicy]] = new TrieMap()
   val clusterCreators: mutable.Map[Authorization, Set[SamNotebookClusterPolicy]] = new TrieMap()
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
@@ -53,10 +53,10 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(projectOwners.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
     }
 
-  override def createClusterResource(internalId: ClusterInternalId,
+  override def createClusterResource(internalId: RuntimeInternalId,
                                      creatorEmail: WorkbenchEmail,
                                      googleProject: GoogleProject,
-                                     clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                     clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO(
       notebookClusters += (internalId, userEmailToAuthorization(creatorEmail)) -> Set("status",
                                                                                       "connect",
@@ -65,11 +65,11 @@ class MockSamDAO extends SamDAO[IO] {
                                                                                       "read_policies")
     )
 
-  override def deleteClusterResource(internalId: ClusterInternalId,
+  override def deleteClusterResource(internalId: RuntimeInternalId,
                                      userEmail: WorkbenchEmail,
                                      creatorEmail: WorkbenchEmail,
                                      googleProject: GoogleProject,
-                                     clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                     clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO(notebookClusters.remove((internalId, userEmailToAuthorization(userEmail))))
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(

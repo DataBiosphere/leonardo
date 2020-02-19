@@ -13,7 +13,6 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -68,28 +67,28 @@ class ProxyRoutesSpec
 
   for (prefix <- pathPrefixes) {
     "ProxyRoutes" should s"listen on /$prefix/{project}/{name}/... ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.OK
         validateCors()
       }
-      Get(s"/$prefix/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.OK
         validateCors()
       }
       val newName = "aDifferentClusterName"
       proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)), Some(internalId))
-      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.NotFound
         validateCors()
       }
 
-      Get(s"/$prefix/").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         handled shouldBe false
       }
-      Get(s"/api/$prefix").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/api/$prefix").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         handled shouldBe false
       }
     }
@@ -97,12 +96,12 @@ class ProxyRoutesSpec
     it should s"404 for non-existent clusters ($prefix)" in {
       val newName = "aDifferentClusterName"
       // should 404 since the internal id cannot be looked up
-      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
       // should still 404 even if a cache entry is present
       proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)), Some(internalId))
-      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
@@ -110,7 +109,7 @@ class ProxyRoutesSpec
     it should s"set CORS headers in proxy requests ($prefix)" in {
       Get(s"/$prefix/$googleProject/$clusterName")
         .addHeader(Cookie(tokenCookie))
-        .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+        .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.OK
         validateCors(origin = Some("http://example.com"))
@@ -118,7 +117,7 @@ class ProxyRoutesSpec
     }
 
     it should s"reject non-cookied requests ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName") ~> httpRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.Unauthorized
       }
@@ -126,42 +125,42 @@ class ProxyRoutesSpec
 
     it should s"404 when using a non-white-listed user ($prefix)" in {
       Get(s"/$prefix/$googleProject/$clusterName")
-        .addHeader(Cookie(unauthorizedTokenCookie)) ~> leoRoutes.route ~> check {
+        .addHeader(Cookie(unauthorizedTokenCookie)) ~> httpRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     it should s"401 when using an expired token ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(expiredTokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(expiredTokenCookie)) ~> httpRoutes.route ~> check {
         status shouldEqual StatusCodes.Unauthorized
       }
     }
 
     it should s"pass through paths ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Data].path shouldEqual s"/$prefix/$googleProject/$clusterName"
       }
     }
 
     it should s"pass through query string params ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         responseAs[Data].qs shouldBe None
       }
       Get(s"/$prefix/$googleProject/$clusterName?foo=bar&baz=biz")
-        .addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+        .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
       }
     }
 
     it should s"pass through http methods ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         responseAs[Data].method shouldBe "GET"
       }
-      Post(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Post(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         responseAs[Data].method shouldBe "POST"
       }
-      Put(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Put(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         responseAs[Data].method shouldBe "PUT"
       }
     }
@@ -170,7 +169,7 @@ class ProxyRoutesSpec
       Get(s"/$prefix/$googleProject/$clusterName")
         .addHeader(Cookie(tokenCookie))
         .addHeader(RawHeader("foo", "bar"))
-        .addHeader(RawHeader("baz", "biz")) ~> leoRoutes.route ~> check {
+        .addHeader(RawHeader("baz", "biz")) ~> proxyRoutes.route ~> check {
         responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
       }
     }
@@ -178,7 +177,7 @@ class ProxyRoutesSpec
     it should s"remove utf-8'' from content-disposition header filenames ($prefix)" in {
       // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
       Get(s"/$prefix/$googleProject/$clusterName/content-disposition-test")
-        .addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+        .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
         responseAs[HttpResponse].headers should contain(
           `Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb"))
         )
@@ -227,7 +226,7 @@ class ProxyRoutesSpec
       // login request with Authorization header should succeed and return a Set-Cookie header
       Get(s"/$prefix/$googleProject/$clusterName/setCookie")
         .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+        .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
         validateRawCookie(setCookie = header("Set-Cookie"), age = 3600)
         status shouldEqual StatusCodes.NoContent
         validateCors(origin = Some("http://example.com"))
@@ -240,7 +239,7 @@ class ProxyRoutesSpec
     it should s"handle preflight OPTIONS requests ($prefix)" in {
       Options(s"/$prefix/$googleProject/$clusterName/setCookie")
         .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+        .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.NoContent
         header[`Set-Cookie`] shouldBe None
@@ -250,7 +249,7 @@ class ProxyRoutesSpec
 
     it should s"401 when not given an Authorization header ($prefix)" in {
       Get(s"/$prefix/$googleProject/$clusterName/setCookie")
-        .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+        .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.Unauthorized
       }
@@ -259,7 +258,7 @@ class ProxyRoutesSpec
     it should s"404 when using a non-white-listed user ($prefix)" in {
       Get(s"/$prefix/$googleProject/$clusterName/setCookie")
         .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+        .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
@@ -267,7 +266,7 @@ class ProxyRoutesSpec
     it should s"401 when using an expired token ($prefix)" in {
       Get(s"/$prefix/$googleProject/$clusterName")
         .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+        .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
         status shouldEqual StatusCodes.Unauthorized
       }
     }
@@ -277,7 +276,7 @@ class ProxyRoutesSpec
       proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
 
       // regular request with a cookie should succeed but NOT return a Set-Cookie header
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.OK
         header[`Set-Cookie`] shouldBe None
@@ -287,7 +286,7 @@ class ProxyRoutesSpec
       proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
 
       // log out, passing a cookie
-      Get(s"/$prefix/invalidateToken").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/invalidateToken").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.OK
         header[`Set-Cookie`] shouldBe None
@@ -303,7 +302,7 @@ class ProxyRoutesSpec
    * So for websocket tests, manually create a server binding on port 9000 for the proxy.
    */
   def withWebsocketProxy[T](testCode: => T): T = {
-    val bindingFuture = Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 9000)
+    val bindingFuture = Http().bindAndHandle(proxyRoutes.route, "0.0.0.0", 9000)
     try {
       testCode
     } finally {

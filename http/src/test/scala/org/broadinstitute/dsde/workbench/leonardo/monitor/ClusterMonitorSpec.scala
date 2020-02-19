@@ -746,7 +746,7 @@ class ClusterMonitorSpec
     when {
       dao.getClusterInstances(mockitoEq(deletingCluster.googleProject),
                               RuntimeName(mockitoEq(deletingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(Map.empty[DataprocRole, Set[InstanceKey]])
+    } thenReturn Future.successful(Map.empty[DataprocRole, Set[DataprocInstanceKey]])
 
     val computeDAO = mock[GoogleComputeService[IO]]
     val projectDAO = mock[GoogleProjectDAO]

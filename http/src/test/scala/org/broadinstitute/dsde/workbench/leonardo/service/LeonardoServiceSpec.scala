@@ -1091,7 +1091,7 @@ class LeonardoServiceSpec
 
   it should "throw an exception when trying to resize a stopped cluster" in isolatedDbTest {
     // create a stopped cluster record cluster
-    val stoppedCluster: Cluster = makeCluster(3).copy(status = RuntimeStatus.Stopped).save()
+    val stoppedCluster: Runtime = makeCluster(3).copy(status = RuntimeStatus.Stopped).save()
 
     // check that the cluster is stopped
     val dbCluster = dbFutureValue { clusterQuery.getClusterById(stoppedCluster.id) }
@@ -1145,10 +1145,10 @@ class LeonardoServiceSpec
   }
 
   it should "calculate autopause threshold properly" in {
-    leo.calculateAutopauseThreshold(None, None) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-    leo.calculateAutopauseThreshold(Some(false), None) shouldBe autoPauseOffValue
-    leo.calculateAutopauseThreshold(Some(true), None) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-    leo.calculateAutopauseThreshold(Some(true), Some(30)) shouldBe 30
+    LeonardoService.calculateAutopauseThreshold(None, None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    LeonardoService.calculateAutopauseThreshold(Some(false), None, autoFreezeConfig) shouldBe autoPauseOffValue
+    LeonardoService.calculateAutopauseThreshold(Some(true), None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    LeonardoService.calculateAutopauseThreshold(Some(true), Some(30), autoFreezeConfig) shouldBe 30
   }
 
   it should "update the master machine type for a cluster" in isolatedDbTest {
@@ -1296,12 +1296,11 @@ class LeonardoServiceSpec
     queue.dequeue1.unsafeRunSync() //discard createCluster message
     val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdate]
 
-    val castMessage = message.asInstanceOf[StopUpdate]
-    castMessage.messageType shouldBe "stopUpdate"
-    castMessage.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
-                                                                           newMachineType,
-                                                                           defaultRuntimeConfig.masterDiskSize)
-    castMessage.clusterId shouldBe clusterCreateResponse.id
+    message.messageType shouldBe "stopUpdate"
+    message.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
+                                                                       newMachineType,
+                                                                       defaultRuntimeConfig.masterDiskSize)
+    message.clusterId shouldBe clusterCreateResponse.id
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {

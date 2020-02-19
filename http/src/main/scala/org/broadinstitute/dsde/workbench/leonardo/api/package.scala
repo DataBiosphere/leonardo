@@ -5,7 +5,9 @@ import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.server.directives.OnSuccessMagnet
 import akka.http.scaladsl.server.util.Tupler
 import cats.effect.IO
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import spray.json._
+import akka.http.scaladsl.server.PathMatchers.Segment
 
 import scala.concurrent.Future
 
@@ -24,6 +26,8 @@ package object api {
         case JsArray(elements) => elements.map(_.convertTo[T])(collection.breakOut)
         case x                 => deserializationError("Expected List as JsArray, but got " + x)
       }
+
+  val googleProjectSegment = Segment.map(GoogleProject)
 }
 
 object ImplicitConversions {

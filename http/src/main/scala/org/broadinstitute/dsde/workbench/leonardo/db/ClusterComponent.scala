@@ -25,7 +25,7 @@ import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
                                internalId: String,
-                               clusterName: ClusterName,
+                               clusterName: RuntimeName,
                                googleId: Option[UUID],
                                googleProject: GoogleProject,
                                operationName: Option[String],
@@ -221,7 +221,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   }
 
   def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
-                                  clusterName: ClusterName,
+                                  clusterName: RuntimeName,
                                   destroyedDateOpt: Option[Instant]) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery
@@ -265,7 +265,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   private def findByIdQuery(id: Long): Query[ClusterTable, ClusterRecord, Seq] =
     clusterQuery.filter { _.id === id }
 
-  def save(saveCluster: SaveCluster)(implicit ec: ExecutionContext): DBIO[Cluster] =
+  def save(saveCluster: SaveCluster)(implicit ec: ExecutionContext): DBIO[Runtime] =
     for {
       runtimeConfigId <- RuntimeConfigQueries.insertRuntimeConfig(saveCluster.runtimeConfig, saveCluster.now)
       cluster = LeoLenses.runtimeToRuntimeConfigId.modify(_ => runtimeConfigId.value)(saveCluster.cluster) // update runtimeConfigId
@@ -279,7 +279,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       _ <- scopeQuery.saveAllForCluster(clusterId, cluster.scopes)
     } yield cluster.copy(id = clusterId)
 
-  def mergeInstances(cluster: Cluster)(implicit ec: ExecutionContext): DBIO[Cluster] =
+  def mergeInstances(cluster: Runtime)(implicit ec: ExecutionContext): DBIO[Runtime] =
     clusterQuery.filter(_.id === cluster.id).result.headOption.flatMap {
       case Some(rec) => instanceQuery.mergeForCluster(rec.id, cluster.dataprocInstances.toSeq).map(_ => cluster)
       case None      => DBIO.successful(cluster)
@@ -287,20 +287,20 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   // note: list* methods don't query the INSTANCE table
 
-  def listWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] =
+  def listWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterLabelQuery.result.map(unmarshalMinimalCluster)
 
-  def listActiveWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] =
+  def listActiveWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterLabelQuery.filter { _._1.status inSetBind RuntimeStatus.activeStatuses.map(_.toString) }.result map { recs =>
       unmarshalMinimalCluster(recs)
     }
 
-  def listMonitoredClusterOnly(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] =
+  def listMonitoredClusterOnly(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterQuery.filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
       recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
     }
 
-  def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] =
+  def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterLabelQuery.filter { _._1.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }.result map {
       recs =>
         unmarshalMinimalCluster(recs)
@@ -328,13 +328,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   // find* and get* methods do query the INSTANCE table
 
   def getActiveClusterByName(project: GoogleProject,
-                             name: ClusterName)(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
+                             name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).result map { recs =>
       unmarshalFullCluster(recs).headOption
     }
 
   def getDeletingClusterByName(project: GoogleProject,
-                               name: ClusterName)(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
+                               name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).filter {
       _._1.status === RuntimeStatus.Deleting.toString
     }.result map { recs =>
@@ -342,7 +342,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
 
   def getActiveClusterByNameMinimal(project: GoogleProject,
-                                    name: ClusterName)(implicit ec: ExecutionContext): DBIO[Option[Cluster]] = {
+                                    name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] = {
     val res = clusterQuery
       .filter(_.googleProject === project)
       .filter(_.clusterName === name)
@@ -356,14 +356,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
   }
 
-  def getClusterById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
+  def getClusterById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryById(id).result map { recs =>
       unmarshalFullCluster(recs).headOption
     }
 
-  def getActiveClusterInternalIdByName(project: GoogleProject, name: ClusterName)(
+  def getActiveClusterInternalIdByName(project: GoogleProject, name: RuntimeName)(
     implicit ec: ExecutionContext
-  ): DBIO[Option[ClusterInternalId]] =
+  ): DBIO[Option[RuntimeInternalId]] =
     clusterQuery
       .filter { _.googleProject === project }
       .filter { _.clusterName === name }
@@ -375,12 +375,12 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         }
       }
 
-  private[leonardo] def getIdByUniqueKey(cluster: Cluster)(implicit ec: ExecutionContext): DBIO[Option[Long]] =
+  private[leonardo] def getIdByUniqueKey(cluster: Runtime)(implicit ec: ExecutionContext): DBIO[Option[Long]] =
     getIdByUniqueKey(cluster.googleProject, cluster.runtimeName, cluster.auditInfo.destroyedDate)
 
   private[leonardo] def getIdByUniqueKey(
     googleProject: GoogleProject,
-    clusterName: ClusterName,
+    clusterName: RuntimeName,
     destroyedDateOpt: Option[Instant]
   )(implicit ec: ExecutionContext): DBIO[Option[Long]] =
     getClusterByUniqueKey(googleProject, clusterName, destroyedDateOpt).map(_.map(_.id))
@@ -389,19 +389,19 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   // to retrieve its updated status, etc. but don't know its id to look up
   private[leonardo] def getClusterByUniqueKey(
     getClusterId: GetClusterKey
-  )(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
+  )(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     getClusterByUniqueKey(getClusterId.googleProject, getClusterId.clusterName, getClusterId.destroyedDate)
 
   private[leonardo] def getClusterByUniqueKey(
     googleProject: GoogleProject,
-    clusterName: ClusterName,
+    clusterName: RuntimeName,
     destroyedDateOpt: Option[Instant]
-  )(implicit ec: ExecutionContext): DBIO[Option[Cluster]] =
+  )(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt).result map { recs =>
       unmarshalFullCluster(recs).headOption
     }
 
-  def getInitBucket(project: GoogleProject, name: ClusterName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
+  def getInitBucket(project: GoogleProject, name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
     clusterQuery
       .filter { _.googleProject === project }
       .filter { _.clusterName === name }
@@ -412,7 +412,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       }
 
   def getStagingBucket(project: GoogleProject,
-                       name: ClusterName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
+                       name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
     clusterQuery
       .filter { _.googleProject === project }
       .filter { _.clusterName === name }
@@ -424,7 +424,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       }
 
   def getServiceAccountKeyId(project: GoogleProject,
-                             name: ClusterName)(implicit ec: ExecutionContext): DBIO[Option[ServiceAccountKeyId]] =
+                             name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[ServiceAccountKeyId]] =
     clusterQuery
       .filter { _.googleProject === project }
       .filter { _.clusterName === name }
@@ -439,7 +439,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       statusOpt map RuntimeStatus.withName
     }
 
-  def getClustersReadyToAutoFreeze(implicit ec: ExecutionContext): DBIO[Seq[Cluster]] = {
+  def getClustersReadyToAutoFreeze(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
     val minute = SimpleLiteral[String]("MINUTE")
@@ -496,7 +496,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         )
       )
 
-  def clearAsyncClusterCreationFields(cluster: Cluster, dateAccessed: Instant): DBIO[Int] =
+  def clearAsyncClusterCreationFields(cluster: Runtime, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(cluster.id)
       .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
       .update((None, None, None, None, None, dateAccessed))
@@ -514,7 +514,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(_.dateAccessed)
       .update(dateAccessed)
 
-  def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant)(
+  def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: RuntimeName, dateAccessed: Instant)(
     implicit ec: ExecutionContext
   ): DBIO[Int] =
     clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
@@ -531,7 +531,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .update((Some(kernelFoundBusyDate), dateAccessed))
 
   def clearKernelFoundBusyDateByProjectAndName(googleProject: GoogleProject,
-                                               clusterName: ClusterName,
+                                               clusterName: RuntimeName,
                                                dateAccessed: Instant)(implicit ec: ExecutionContext): DBIO[Int] =
     clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
       case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id, dateAccessed)
@@ -560,7 +560,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
-  private def marshalCluster(cluster: Cluster,
+  private def marshalCluster(cluster: Runtime,
                              initBucket: Option[String],
                              serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord =
     ClusterRecord(
@@ -592,7 +592,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       cluster.runtimeConfigId
     )
 
-  private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
+  private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Runtime] = {
     // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
@@ -639,7 +639,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
        Option[ClusterImageRecord],
        Option[ScopeRecord])
     ]
-  ): Seq[Cluster] = {
+  ): Seq[Runtime] = {
     // Call foldMap to aggregate a flat sequence of (cluster, instance, label) triples returned by the query
     // to a grouped (cluster -> (instances, labels)) structure.
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
@@ -690,7 +690,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                labels: LabelMap,
                                userJupyterExtensionConfig: List[ExtensionRecord],
                                clusterImageRecords: List[ClusterImageRecord],
-                               scopes: List[ScopeRecord]): Cluster = {
+                               scopes: List[ScopeRecord]): Runtime = {
     val name = clusterRecord.clusterName
     val project = clusterRecord.googleProject
     val serviceAccountInfo = ServiceAccountInfo(
@@ -737,7 +737,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   }
 }
 
-final case class GetClusterKey(googleProject: GoogleProject, clusterName: ClusterName, destroyedDate: Option[Instant])
+final case class GetClusterKey(googleProject: GoogleProject, clusterName: RuntimeName, destroyedDate: Option[Instant])
 
 final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   serviceAccountKey: Option[ServiceAccountKey],
@@ -745,7 +745,7 @@ final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   asyncRuntimeFields: Option[AsyncRuntimeFields],
                                                   dateAccessed: Instant)
 
-final case class SaveCluster(cluster: Cluster,
+final case class SaveCluster(cluster: Runtime,
                              initBucket: Option[GcsPath] = None,
                              serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
                              runtimeConfig: RuntimeConfig,

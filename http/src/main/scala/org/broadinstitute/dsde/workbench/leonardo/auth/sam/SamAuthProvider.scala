@@ -115,11 +115,11 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
    * @return If the userEmail has permission on this individual notebook cluster to perform this action
    */
   override def hasNotebookClusterPermission(
-    internalId: ClusterInternalId,
+    internalId: RuntimeInternalId,
     userInfo: UserInfo,
     action: NotebookClusterActions.NotebookClusterAction,
     googleProject: GoogleProject,
-    clusterName: ClusterName
+    clusterName: RuntimeName
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     // Consult the notebook auth cache if enabled
@@ -138,11 +138,11 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
   }
 
   private def checkNotebookClusterPermissionWithProjectFallback(
-    internalId: ClusterInternalId,
+    internalId: RuntimeInternalId,
     authorization: Authorization,
     action: NotebookClusterActions.NotebookClusterAction,
     googleProject: GoogleProject,
-    clusterName: ClusterName
+    clusterName: RuntimeName
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
       traceId <- ev.ask
@@ -175,7 +175,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     } yield res
 
   private def hasNotebookClusterPermissionInternal(
-    clusterInternalId: ClusterInternalId,
+    clusterInternalId: RuntimeInternalId,
     action: LeoAuthAction,
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
@@ -195,9 +195,9 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
    * @param clusters All non-deleted clusters from the database
    * @return         Filtered list of clusters that the user is allowed to see
    */
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, ClusterInternalId)]] = {
+  ): F[List[(GoogleProject, RuntimeInternalId)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       projectPolicies <- samDao.getResourcePolicies[SamProjectPolicy](authHeader, ResourceTypeName.BillingProject)
@@ -226,10 +226,10 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
    * @param clusterName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  override def notifyClusterCreated(internalId: ClusterInternalId,
+  override def notifyClusterCreated(internalId: RuntimeInternalId,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
-                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                                    clusterName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.createClusterResource(internalId, creatorEmail, googleProject, clusterName)
 
   /**
@@ -244,18 +244,18 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
    * @param clusterName      The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  override def notifyClusterDeleted(internalId: ClusterInternalId,
+  override def notifyClusterDeleted(internalId: RuntimeInternalId,
                                     userEmail: WorkbenchEmail,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
-                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                                    clusterName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteClusterResource(internalId, userEmail, creatorEmail, googleProject, clusterName)
 }
 final case class SamAuthProviderConfig(notebookAuthCacheEnabled: Boolean,
                                        notebookAuthCacheMaxSize: Int = 1000,
                                        notebookAuthCacheExpiryTime: FiniteDuration = 15 minutes)
-private[sam] case class NotebookAuthCacheKey(internalId: ClusterInternalId,
+private[sam] case class NotebookAuthCacheKey(internalId: RuntimeInternalId,
                                              authorization: Authorization,
                                              action: NotebookClusterAction,
                                              googleProject: GoogleProject,
-                                             clusterName: ClusterName)
+                                             clusterName: RuntimeName)

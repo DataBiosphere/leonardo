@@ -4,7 +4,6 @@ package api
 
 import java.util.UUID
 
-import akka.actor.ActorSystem
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
@@ -23,21 +22,17 @@ import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
 
-import scala.concurrent.ExecutionContext
-
-trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper { self: LazyLogging =>
-  val proxyService: ProxyService
-  implicit val system: ActorSystem
-  implicit val materializer: Materializer
-  implicit val cs: ContextShift[IO]
-  implicit val executionContext: ExecutionContext
-
-  protected val proxyRoutes: Route =
+class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
+  implicit materializer: Materializer,
+  cs: ContextShift[IO]
+) extends CookieHelper
+    with LazyLogging {
+  val route: Route =
     //note that the "notebooks" path prefix is deprecated
     pathPrefix("proxy" | "notebooks") {
       implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
-      corsHandler {
+      corsSupport.corsHandler {
 
         pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
           val googleProject = GoogleProject(googleProjectParam)

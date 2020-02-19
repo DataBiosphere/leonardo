@@ -108,7 +108,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
 
-  override def createChildActor(cluster: Cluster): ActorRef = {
+  override def createChildActor(cluster: Runtime): ActorRef = {
     val child = super.createChildActor(cluster)
     childActors = child +: childActors
     testKit watch child

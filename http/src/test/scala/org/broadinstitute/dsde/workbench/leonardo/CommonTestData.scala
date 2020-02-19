@@ -158,7 +158,7 @@ object CommonTestData {
   val defaultRuntimeConfig = RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), 500)
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0), Some(MachineTypeName("n1-standard-4")), Some(500))
-  def makeCluster(index: Int): Cluster = {
+  def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
       id = -1,
@@ -190,7 +190,7 @@ object CommonTestData {
     )
   }
 
-  val testCluster = new Cluster(
+  val testCluster = new Runtime(
     id = -1,
     runtimeName = name1,
     internalId = internalId,
@@ -265,9 +265,9 @@ object CommonTestData {
     createdDate = Instant.now()
   )
 
-  def modifyInstance(instance: Instance): Instance =
+  def modifyInstance(instance: DataprocInstance): DataprocInstance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
-  def modifyInstanceKey(instanceKey: InstanceKey): InstanceKey =
+  def modifyInstanceKey(instanceKey: DataprocInstanceKey): DataprocInstanceKey =
     instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
 }
 

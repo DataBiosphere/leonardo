@@ -9,10 +9,8 @@ import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 
-trait SwaggerRoutes {
+class SwaggerRoutes(swaggerConfig: SwaggerConfig) {
   private val swaggerUiPath = "META-INF/resources/webjars/swagger-ui/2.2.5"
-
-  val swaggerConfig: SwaggerConfig
 
   val swaggerRoutes: server.Route = {
     path("") {

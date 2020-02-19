@@ -34,19 +34,19 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
-final case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName)
+final case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: RuntimeName)
     extends LeoException(
       s"Cluster ${googleProject.value}/${clusterName.asString} is not ready yet. It may be updating, try again later",
       StatusCodes.Locked
     )
 
-final case class ClusterPausedException(googleProject: GoogleProject, clusterName: ClusterName)
+final case class ClusterPausedException(googleProject: GoogleProject, clusterName: RuntimeName)
     extends LeoException(
       s"Cluster ${googleProject.value}/${clusterName.asString} is stopped. Start your cluster before proceeding.",
       StatusCodes.UnprocessableEntity
     )
 
-final case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
+final case class ProxyException(googleProject: GoogleProject, clusterName: RuntimeName)
     extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.asString}",
                          StatusCodes.InternalServerError)
 
@@ -105,8 +105,8 @@ class ProxyService(
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
-      new CacheLoader[(GoogleProject, ClusterName), Option[ClusterInternalId]] {
-        def load(key: (GoogleProject, ClusterName)): Option[ClusterInternalId] = {
+      new CacheLoader[(GoogleProject, RuntimeName), Option[RuntimeInternalId]] {
+        def load(key: (GoogleProject, RuntimeName)): Option[RuntimeInternalId] = {
           val (googleProject, clusterName) = key
           clusterQuery
             .getActiveClusterInternalIdByName(googleProject, clusterName)
@@ -116,9 +116,9 @@ class ProxyService(
       }
     )
 
-  def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName)(
+  def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: RuntimeName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[ClusterInternalId] =
+  ): IO[RuntimeInternalId] =
     blocker.blockOn(IO(clusterInternalIdCache.get((googleProject, clusterName)))).flatMap {
       case Some(clusterInternalId) => IO.pure(clusterInternalId)
       case None =>
@@ -126,7 +126,7 @@ class ProxyService(
           logger.error(
             s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.asString}"
           )
-        ) >> IO.raiseError[ClusterInternalId](RuntimeNotFoundException(googleProject, clusterName))
+        ) >> IO.raiseError[RuntimeInternalId](RuntimeNotFoundException(googleProject, clusterName))
     }
 
   /*
@@ -135,7 +135,7 @@ class ProxyService(
   private[leonardo] def authCheck(
     userInfo: UserInfo,
     googleProject: GoogleProject,
-    clusterName: ClusterName,
+    clusterName: RuntimeName,
     notebookAction: NotebookClusterAction
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
@@ -152,7 +152,7 @@ class ProxyService(
       } else IO.unit
     } yield ()
 
-  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest)(
+  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[HttpResponse] =
     for {
@@ -175,7 +175,7 @@ class ProxyService(
    * @return HttpResponse future representing the proxied response, or NotFound if a notebook
    *         server IP could not be found.
    */
-  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest)(
+  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[HttpResponse] =
     for {
@@ -184,11 +184,11 @@ class ProxyService(
       r <- proxyInternal(googleProject, clusterName, request, Instant.ofEpochMilli(now))
     } yield r
 
-  def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): IO[HostStatus] =
+  def getTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
     Proxy.getTargetHost[IO](clusterDnsCache, googleProject, clusterName)
 
   private def proxyInternal(googleProject: GoogleProject,
-                            clusterName: ClusterName,
+                            clusterName: RuntimeName,
                             request: HttpRequest,
                             now: Instant) = {
     logger.debug(

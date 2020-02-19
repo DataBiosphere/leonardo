@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 /**
  * Created by rtitle on 10/16/17.
  */
-trait StandardUserInfoDirectives extends UserInfoDirectives {
+object StandardUserInfoDirectives extends UserInfoDirectives {
   override def requireUserInfo: Directive1[UserInfo] =
     (headerValueByName("OIDC_access_token") &
       headerValueByName("OIDC_CLAIM_user_id") &

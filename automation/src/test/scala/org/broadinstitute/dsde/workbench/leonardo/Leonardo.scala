@@ -121,7 +121,7 @@ object AutomationTestJsonCodec {
                                                                            WorkbenchEmail,
                                                                            LabelMap,
                                                                            Option[GcsBucketName],
-                                                                           Option[List[ClusterError]],
+                                                                           Option[List[RuntimeError]],
                                                                            Instant,
                                                                            Boolean,
                                                                            Int](

@@ -169,21 +169,30 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       traceIdValue <- traceId.ask
       traceIdIO = ApplicativeAsk.const[IO, TraceId](traceIdValue)
       _ <- logger.info(s"Attempting to create cluster ${msg.clusterProjectAndName} in Google...")
-      clusterResult <- Async[F].liftIO(clusterHelper.createCluster(msg)(traceIdIO))
-      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
-        clusterResult.serviceAccountKey,
-        msg.id,
-        Some(clusterResult.asyncRuntimeFields),
-        now
-      )
-      _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
-      clusterImage = RuntimeImage(RuntimeImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
-      // Save dataproc image in the database
-      _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
-      _ <- logger.info(
-        s"Cluster ${msg.clusterProjectAndName} was successfully created. Will monitor the creation process."
-      )
+      _ <- msg.runtimeConfig.cloudService match {
+        case CloudService.Dataproc =>
+          for {
+            clusterResult <- Async[F].liftIO(clusterHelper.createCluster(msg)(traceIdIO))
+            updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
+              Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
+              clusterResult.serviceAccountKey,
+              msg.id,
+              Some(clusterResult.asyncRuntimeFields),
+              now
+            )
+            _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
+            clusterImage = RuntimeImage(RuntimeImageType.CustomDataProc,
+                                        clusterResult.customDataprocImage.asString,
+                                        now)
+            // Save dataproc image in the database
+            _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
+            _ <- logger.info(
+              s"Cluster ${msg.clusterProjectAndName} was successfully created. Will monitor the creation process."
+            )
+          } yield ()
+        case CloudService.GCE =>
+          Async[F].unit //TODO: Rob will replace this with appropriate implementation
+      }
     } yield ()
 
     createCluster.handleErrorWith {
@@ -223,7 +232,7 @@ object PubsubHandleMessageError {
   }
   final case class ClusterInvalidState(clusterId: Long,
                                        projectName: String,
-                                       cluster: Cluster,
+                                       cluster: Runtime,
                                        message: LeoPubsubMessage)
       extends PubsubHandleMessageError {
     override def getMessage: String =

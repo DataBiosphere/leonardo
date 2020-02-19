@@ -16,11 +16,8 @@ object BuildTimeVersion {
   val versionJson = JsObject(Map("version" -> JsString(version.getOrElse("n/a"))))
 }
 
-trait StatusRoutes {
-  val statusService: StatusService
-  implicit val executionContext: ExecutionContext
-
-  def statusRoutes: server.Route =
+class StatusRoutes(statusService: StatusService)(implicit executionContext: ExecutionContext) {
+  val route: server.Route =
     pathPrefix("status") {
       pathEndOrSingleSlash {
         get {

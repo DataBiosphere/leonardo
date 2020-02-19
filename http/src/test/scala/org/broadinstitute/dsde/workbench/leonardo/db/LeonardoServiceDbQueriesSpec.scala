@@ -25,7 +25,7 @@ class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with 
     dbFutureValue { listClusters(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1).map(
       r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig)
     )
-    dbFutureValue { listClusters(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
+    dbFutureValue { listClusters(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Runtime]
     dbFutureValue { listClusters(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(
       ListRuntimeResponse.fromRuntime(savedCluster1, defaultRuntimeConfig)
     )
@@ -35,11 +35,11 @@ class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with 
     dbFutureValue { listClusters(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(
       ListRuntimeResponse.fromRuntime(savedCluster1, defaultRuntimeConfig)
     )
-    dbFutureValue { listClusters(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
+    dbFutureValue { listClusters(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Runtime]
     dbFutureValue { listClusters(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set
-      .empty[Cluster]
+      .empty[Runtime]
     dbFutureValue { listClusters(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set
-      .empty[Cluster]
+      .empty[Runtime]
     dbFutureValue { listClusters(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(
       savedCluster1
     ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
@@ -56,8 +56,8 @@ class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with 
       savedCluster3
     ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
     dbFutureValue { listClusters(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set
-      .empty[Cluster]
-    dbFutureValue { listClusters(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
+      .empty[Runtime]
+    dbFutureValue { listClusters(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Runtime]
   }
 
   it should "list by labels and project" in isolatedDbTest {
@@ -98,6 +98,6 @@ class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with 
       savedCluster3
     ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
     dbFutureValue { listClusters(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set
-      .empty[Cluster]
+      .empty[Runtime]
   }
 }
