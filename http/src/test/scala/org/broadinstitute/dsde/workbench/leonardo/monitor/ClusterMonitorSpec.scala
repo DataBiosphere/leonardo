@@ -192,7 +192,7 @@ class ClusterMonitorSpec
                                           projectDAO,
                                           MockWelderDAO,
                                           blocker)
-    val supervisorActor = system.actorOf(
+    system.actorOf(
       TestClusterSupervisorActor.props(
         monitorConfig,
         dataprocConfig,
@@ -213,8 +213,6 @@ class ClusterMonitorSpec
         queue
       )
     )
-
-    supervisorActor
   }
 
   def withClusterSupervisor[T](
@@ -909,6 +907,7 @@ class ClusterMonitorSpec
       )(any[ApplicativeAsk[IO, TraceId]])
     } thenReturn IO.unit
 
+    val publisherQueue = QueueFactory.makePublisherQueue()
     withClusterSupervisor(gdDAO,
                           computeDAO,
                           iamDAO,
@@ -919,35 +918,21 @@ class ClusterMonitorSpec
                           MockJupyterDAO,
                           MockRStudioDAO,
                           MockWelderDAO,
-                          false) { _ =>
+                          false,
+                          queue = publisherQueue) { _ =>
       eventually {
         val newCluster = dbFutureValue {
           clusterQuery.getClusterById(savedCreatingCluster.id)
         }
-        val newClusterBucket = dbFutureValue {
-          clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName)
-        }
-        newCluster shouldBe 'defined
-        newClusterBucket shouldBe 'defined
-        newCluster.flatMap(_.dataprocInfo.map(_.googleId)) shouldBe Some(newClusterId)
-        newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
-        newCluster.flatMap(_.dataprocInfo.flatMap(_.hostIp)) shouldBe Some(IP("1.2.3.4"))
-        newCluster.map(_.instances.count(_.status == InstanceStatus.Running)) shouldBe Some(3)
-        newCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
 
-        verify(storageDAO, never).deleteBucket(mockitoEq(newClusterBucket.get.bucketName), any[Boolean])
+        newCluster.get.status shouldBe(ClusterStatus.Creating)
+        // Since creating cluster is now initiated by pubsub message, we're only validating that we've published the right message
+        val createClusterMsg = publisherQueue.dequeue1.unsafeRunSync().asInstanceOf[LeoPubsubMessage.CreateCluster]
+        val expectedMsg = creatingCluster.toCreateCluster(CommonTestData.defaultRuntimeConfig, None)
+
+        createClusterMsg.copy(traceId = None, scopes = Set.empty, id = 0) shouldBe(expectedMsg.copy(scopes = Set.empty))
+        createClusterMsg.scopes should contain theSameElementsAs(expectedMsg.scopes)
       }
-      // should only add/remove the dataproc.worker role 1 time
-      val dpWorkerTimes =
-        if (clusterServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never()
-      verify(iamDAO, dpWorkerTimes).addIamRoles(any[GoogleProject],
-                                                any[WorkbenchEmail],
-                                                mockitoEq(MemberType.ServiceAccount),
-                                                mockitoEq(Set("roles/dataproc.worker")))
-      verify(iamDAO, dpWorkerTimes).removeIamRoles(any[GoogleProject],
-                                                   any[WorkbenchEmail],
-                                                   mockitoEq(MemberType.ServiceAccount),
-                                                   mockitoEq(Set("roles/dataproc.worker")))
       // no longer adding/removing compute.imageUser role
       verify(iamDAO, never()).addIamRoles(any[GoogleProject],
                                           any[WorkbenchEmail],

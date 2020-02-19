@@ -5,7 +5,6 @@ import java.time.Instant
 
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImage
 import slick.lifted.ProvenShape
 
 import scala.concurrent.ExecutionContext

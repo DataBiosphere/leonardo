@@ -41,7 +41,7 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdate
 
 class LeonardoServiceSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -1234,10 +1234,6 @@ class LeonardoServiceSpec
     computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
     computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
-    val initialQueueSize = queue.getSize.unsafeRunSync()
-
-    initialQueueSize shouldBe 0
-
     leo
       .updateCluster(
         userInfo,
@@ -1249,11 +1245,12 @@ class LeonardoServiceSpec
 
     val finalQueueSize = queue.getSize.unsafeRunSync()
 
-    finalQueueSize shouldBe 1
+    finalQueueSize shouldBe 2 //one message for creating cluster, one message for updating cluster
 
-    val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdateMessage]
+    queue.dequeue1.unsafeRunSync() //discard createCluster message
+    val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdate]
 
-    val castMessage = message.asInstanceOf[StopUpdateMessage]
+    val castMessage = message.asInstanceOf[StopUpdate]
     castMessage.messageType shouldBe "stopUpdate"
     castMessage.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
                                                                            newMachineType,

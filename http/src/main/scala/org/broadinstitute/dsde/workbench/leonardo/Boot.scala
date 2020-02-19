@@ -166,7 +166,7 @@ object Boot extends IOApp {
 
       val messageProcessorStream = if (leoExecutionModeConfig.backLeo) {
         val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
-          new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
+          new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper)
         Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName} in boot")) ++ pubsubSubscriber.process
           .handleErrorWith(
             error => Stream.eval(logger.error(error)("Failed to initialize message processor in Boot. "))

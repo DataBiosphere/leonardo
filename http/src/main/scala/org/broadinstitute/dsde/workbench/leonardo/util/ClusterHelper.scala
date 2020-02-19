@@ -23,17 +23,14 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  ClusterCannotBeStartedException,
-  ClusterCannotBeStoppedException,
-  ClusterOutOfDateException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{ClusterCannotBeStartedException, ClusterCannotBeStoppedException, ClusterOutOfDateException}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -53,9 +50,9 @@ final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: 
 final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
 
-final case class ClusterResourceConstaintsException(cluster: Cluster, machineType: MachineType)
+final case class ClusterResourceConstaintsException(clusterProjectAndName: ClusterProjectAndName, machineType: MachineType)
     extends LeoException(
-      s"Unable to calculate memory constraints for cluster ${cluster.projectNameString} with master machine type ${machineType}"
+      s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.clusterName} with master machine type ${machineType}"
     )
 
 class ClusterHelper(
@@ -87,54 +84,53 @@ class ClusterHelper(
   import dbRef._
 
   def createCluster(
-    cluster: Cluster,
-    runtimeConfig: RuntimeConfig
+    params: CreateCluster
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateClusterResponse] = {
-    val initBucketName = generateUniqueBucketName("leoinit-" + cluster.clusterName.value)
-    val stagingBucketName = generateUniqueBucketName("leostaging-" + cluster.clusterName.value)
+    val initBucketName = generateUniqueBucketName("leoinit-" + params.clusterProjectAndName.clusterName.value)
+    val stagingBucketName = generateUniqueBucketName("leostaging-" + params.clusterProjectAndName.clusterName.value)
 
     // Generate a service account key for the notebook service account (if present) to localize on the cluster.
     // We don't need to do this for the cluster service account because its credentials are already
     // on the metadata server.
-    generateServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount).flatMap {
+    generateServiceAccountKey(params.clusterProjectAndName.googleProject, params.serviceAccountInfo.notebookServiceAccount).flatMap {
       serviceAccountKeyOpt =>
         val ioResult = for {
           // get VPC settings
           projectLabels <- if (dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined) {
-            IO.fromFuture(IO(googleProjectDAO.getLabels(cluster.googleProject.value)))
+            IO.fromFuture(IO(googleProjectDAO.getLabels(params.clusterProjectAndName.googleProject.value)))
           } else IO.pure(Map.empty[String, String])
           clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
-          resourceConstraints <- getClusterResourceContraints(cluster, runtimeConfig)
+          resourceConstraints <- getClusterResourceContraints(params.clusterProjectAndName, params.runtimeConfig.machineType)
 
           // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
           _ <- IO.fromFuture(
-            IO(googleComputeDAO.updateFirewallRule(cluster.googleProject, getFirewallRule(clusterVPCSettings)))
+            IO(googleComputeDAO.updateFirewallRule(params.clusterProjectAndName.googleProject, getFirewallRule(clusterVPCSettings)))
           )
 
           // Set up IAM roles necessary to create a cluster.
-          _ <- createClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo)
+          _ <- createClusterIamRoles(params.clusterProjectAndName.googleProject, params.serviceAccountInfo)
 
           // Add member to the Google Group that has the IAM role to pull the Dataproc image
-          _ <- updateDataprocImageGroupMembership(cluster.googleProject, createCluster = true)
+          _ <- updateDataprocImageGroupMembership(params.clusterProjectAndName.googleProject, createCluster = true)
 
           // Create the bucket in the cluster's google project and populate with initialization files.
           // ACLs are granted so the cluster service account can access the files at initialization time.
           _ <- bucketHelper
-            .createInitBucket(cluster.googleProject, initBucketName, cluster.serviceAccountInfo)
+            .createInitBucket(params.clusterProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
             .compile
             .drain
 
           // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
           _ <- bucketHelper
-            .createStagingBucket(cluster.auditInfo.creator,
-                                 cluster.googleProject,
+            .createStagingBucket(params.auditInfo.creator,
+                                 params.clusterProjectAndName.googleProject,
                                  stagingBucketName,
-                                 cluster.serviceAccountInfo)
+                                 params.serviceAccountInfo)
             .compile
             .drain
 
-          _ <- initializeBucketObjects(cluster,
+          _ <- initializeBucketObjects(params,
                                        initBucketName,
                                        stagingBucketName,
                                        serviceAccountKeyOpt,
@@ -143,27 +139,27 @@ class ClusterHelper(
           // build cluster configuration
           initScriptResources = List(clusterResourcesConfig.initActionsScript)
           initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
-          credentialsFileName = cluster.serviceAccountInfo.notebookServiceAccount
+          credentialsFileName = params.serviceAccountInfo.notebookServiceAccount
             .map(_ => s"/etc/${ClusterTemplateValues.serviceAccountCredentialsFilename}")
 
           // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
           // we will use the new custom dataproc image
-          dataprocImage = if (cluster.clusterImages.exists(_.imageUrl == imageConfig.legacyJupyterImage))
+          dataprocImage = if (params.clusterImages.exists(_.imageUrl == imageConfig.legacyJupyterImage))
             dataprocConfig.legacyCustomDataprocImage
           else dataprocConfig.customDataprocImage
 
-          res <- runtimeConfig match {
+          res <- params.runtimeConfig match {
             case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedException)
             case x: RuntimeConfig.DataprocConfig =>
               val createClusterConfig = CreateClusterConfig(
                 x,
                 initScripts,
-                cluster.serviceAccountInfo.clusterServiceAccount,
+                params.serviceAccountInfo.clusterServiceAccount,
                 credentialsFileName,
                 stagingBucketName,
-                cluster.scopes,
+                params.scopes,
                 clusterVPCSettings,
-                cluster.properties,
+                params.properties,
                 dataprocImage,
                 monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, 1 hour)
               )
@@ -173,7 +169,7 @@ class ClusterHelper(
                     retryExponentially(whenGoogleZoneCapacityIssue,
                                        "Cluster creation failed because zone with adequate resources was not found") {
                       () =>
-                        gdDAO.createCluster(cluster.googleProject, cluster.clusterName, createClusterConfig)
+                        gdDAO.createCluster(params.clusterProjectAndName.googleProject, params.clusterProjectAndName.clusterName, createClusterConfig)
                     }
                   )
                 )
@@ -190,17 +186,16 @@ class ClusterHelper(
                       .flatMap(_ => IO.raiseError(errors.head))
                 }
 
-                finalCluster = Cluster.addDataprocFields(cluster, operation, stagingBucketName)
-
-              } yield CreateClusterResponse(finalCluster, initBucketName, serviceAccountKeyOpt, dataprocImage)
+                dataprocInfo = DataprocInfo(operation.uuid, operation.name, stagingBucketName, None)
+              } yield CreateClusterResponse(dataprocInfo, initBucketName, serviceAccountKeyOpt, dataprocImage)
           }
         } yield res
 
         ioResult.handleErrorWith { throwable =>
-          cleanUpGoogleResourcesOnError(cluster.googleProject,
-                                        cluster.clusterName,
+          cleanUpGoogleResourcesOnError(params.clusterProjectAndName.googleProject,
+                                        params.clusterProjectAndName.clusterName,
                                         initBucketName,
-                                        cluster.serviceAccountInfo,
+                                        params.serviceAccountInfo,
                                         serviceAccountKeyOpt) >> IO.raiseError(throwable)
         }
     }
@@ -519,8 +514,8 @@ class ClusterHelper(
     }
   }
 
-  private[leonardo] def getClusterResourceContraints(cluster: Cluster,
-                                                     runtimeConfig: RuntimeConfig): IO[ClusterResourceConstraints] = {
+  private[leonardo] def getClusterResourceContraints(clusterProjectAndName: ClusterProjectAndName,
+                                                     machineType: MachineType): IO[ClusterResourceConstraints] = {
     val totalMemory = for {
       // Find a zone in which to query the machine type: either the configured zone or
       // an arbitrary zone in the configured region.
@@ -528,9 +523,9 @@ class ClusterHelper(
         val configuredZone = OptionT.fromOption[IO](dataprocConfig.dataprocZone.map(ZoneUri))
         val zoneList = for {
           zones <- IO.fromFuture(
-            IO(googleComputeDAO.getZones(cluster.googleProject, dataprocConfig.dataprocDefaultRegion))
+            IO(googleComputeDAO.getZones(clusterProjectAndName.googleProject, dataprocConfig.dataprocDefaultRegion))
           )
-          _ <- log.debug(s"List of zones in project ${cluster.googleProject}: ${zones}")
+          _ <- log.debug(s"List of zones in project ${clusterProjectAndName.googleProject}: ${zones}")
         } yield zones
 
         configuredZone orElse OptionT(zoneList.map(_.headOption))
@@ -538,15 +533,15 @@ class ClusterHelper(
       _ <- OptionT.liftF(log.debug(s"Using zone ${zoneUri} to resolve machine type"))
 
       // Resolve the master machine type in Google to get the total memory.
-      machineType <- OptionT.pure[IO](runtimeConfig.machineType)
+      machineType <- OptionT.pure[IO](machineType)
       resolvedMachineType <- OptionT(
-        IO.fromFuture(IO(googleComputeDAO.getMachineType(cluster.googleProject, zoneUri, machineType)))
+        IO.fromFuture(IO(googleComputeDAO.getMachineType(clusterProjectAndName.googleProject, zoneUri, machineType)))
       )
       _ <- OptionT.liftF(log.debug(s"Resolved machine type: ${resolvedMachineType.toPrettyString}"))
     } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
 
     totalMemory.value.flatMap {
-      case None        => IO.raiseError(ClusterResourceConstaintsException(cluster, runtimeConfig.machineType))
+      case None        => IO.raiseError(ClusterResourceConstaintsException(clusterProjectAndName, machineType))
       case Some(total) =>
         // total - dataproc allocated - welder allocated
         val dataprocAllocated = dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
@@ -558,15 +553,15 @@ class ClusterHelper(
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[leonardo] def initializeBucketObjects(
-    cluster: Cluster,
+    createCluster: CreateCluster,
     initBucketName: GcsBucketName,
     stagingBucketName: GcsBucketName,
     serviceAccountKey: Option[ServiceAccountKey],
     clusterResourceConstraints: ClusterResourceConstraints
   ): Stream[IO, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements = ClusterTemplateValues(
-      cluster,
+    val replacements = ClusterTemplateValues.fromCreateCluster(
+      createCluster,
       Some(initBucketName),
       Some(stagingBucketName),
       serviceAccountKey,
@@ -583,7 +578,7 @@ class ClusterHelper(
     //     var1=value1
     //     var2=value2
     // etc. We're building a string of that format here.
-    val customEnvVars = cluster.customClusterEnvironmentVariables.foldLeft("")({
+    val customEnvVars = createCluster.customClusterEnvironmentVariables.foldLeft("")({
       case (memo, (key, value)) => memo + s"$key=$value\n"
     })
 
@@ -836,7 +831,7 @@ class ClusterHelper(
 
 }
 
-final case class CreateClusterResponse(cluster: Cluster,
+final case class CreateClusterResponse(dataprocInfo: DataprocInfo,
                                        initBucket: GcsBucketName,
                                        serviceAccountKey: Option[ServiceAccountKey],
                                        customDataprocImage: CustomDataprocImage)

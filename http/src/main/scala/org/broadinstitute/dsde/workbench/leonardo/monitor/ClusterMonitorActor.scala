@@ -30,8 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterImageQuery,
   clusterQuery,
   DbReference,
-  RuntimeConfigQueries,
-  UpdateAsyncClusterCreationFields
+  RuntimeConfigQueries
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
@@ -45,11 +44,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   ClusterFollowupDetails,
-  ClusterTransitionFinishedMessage
+  ClusterTransition
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
-import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsObjectName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId}
+import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
@@ -416,63 +415,19 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
       traceId = TraceId(UUID.randomUUID())
       _ <- publisherQueue.enqueue1(
-        ClusterTransitionFinishedMessage(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped), Some(traceId))
+        ClusterTransition(ClusterFollowupDetails(clusterId, ClusterStatus.Stopped), Some(traceId))
       )
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(ClusterUI.getClusterUI(cluster.labels), cluster.status, ClusterStatus.Stopped)
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
-  private def createClusterInGoogle(
-    cluster: Cluster
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] = {
-    val createCluster = for {
-      _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google..."))
-      runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId))
-      clusterResult <- clusterHelper.createCluster(cluster, runtimeConfig)
-      now <- IO(Instant.now)
-      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
-        clusterResult.serviceAccountKey,
-        clusterResult.cluster.id,
-        clusterResult.cluster.dataprocInfo,
-        now
-      )
-      _ <- dbRef.inTransaction {
-        clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
-      }
-      clusterImage = ClusterImage(ClusterImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
-      // Save dataproc image in the database
-      _ <- dbRef.inTransaction(clusterImageQuery.save(cluster.id, clusterImage))
-      _ <- IO(
-        logger.info(
-          s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process."
-        )
-      )
-    } yield NotReadyCluster(cluster, cluster.status, Set.empty)
-
-    createCluster.handleErrorWith {
-      case e =>
-        for {
-          _ <- IO(logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e))
-          errorMessage = e match {
-            case leoEx: LeoException =>
-              ErrorReport.loggableString(leoEx.toErrorReport)
-            case _ =>
-              s"Failed to create cluster ${cluster.projectNameString} due to ${e.toString}"
-          }
-        } yield FailedCluster(cluster, ClusterErrorDetails(-1, Some(errorMessage)), Set.empty)
-    }
-  }
-
-  private def checkCluster(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] =
+  private def checkCluster: IO[ClusterMonitorMessage] =
     for {
       dbCluster <- getDbCluster
       next <- dbCluster.status match {
         case status if status.isMonitored =>
-          if (dbCluster.dataprocInfo.isDefined) {
-            IO.fromFuture(IO(checkClusterInGoogle(dbCluster)))
-          } else createClusterInGoogle(dbCluster)
+          IO.fromFuture(IO(checkClusterInGoogle(dbCluster)))
         case status =>
           IO(logger.info(s"Stopping monitoring of cluster ${dbCluster.projectNameString} in status ${status}")) >>
             IO.pure(ShutdownActor(RemoveFromList(dbCluster)))

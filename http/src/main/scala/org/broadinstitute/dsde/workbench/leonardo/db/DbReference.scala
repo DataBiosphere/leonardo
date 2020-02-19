@@ -4,7 +4,7 @@ package db
 import java.sql.{Connection, SQLTimeoutException}
 
 import cats.effect.concurrent.Semaphore
-import cats.effect.{Async, Blocker, ContextShift, IO, Resource}
+import cats.effect.{Async, Blocker, ContextShift, Resource}
 import com.google.common.base.Throwables
 import com.typesafe.scalalogging.LazyLogging
 import _root_.liquibase.database.jvm.JdbcConnection
@@ -118,8 +118,8 @@ final class DataAccess(blocker: Blocker) {
 }
 
 final class DBIOOps[A](private val dbio: DBIO[A]) extends AnyVal {
-  def transaction(implicit dbRef: DbReference[IO]): IO[A] = dbRef.inTransaction(dbio)
-  def transaction(isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead)(
-    implicit dbRef: DbReference[IO]
-  ): IO[A] = dbRef.inTransaction(dbio, isolationLevel)
+  def transaction[F[_]](implicit dbRef: DbReference[F]): F[A] = dbRef.inTransaction(dbio)
+  def transaction[F[_]](isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead)(
+    implicit dbRef: DbReference[F]
+  ): F[A] = dbRef.inTransaction(dbio, isolationLevel)
 }
