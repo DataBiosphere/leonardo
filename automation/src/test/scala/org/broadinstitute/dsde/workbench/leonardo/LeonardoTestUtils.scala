@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
@@ -283,7 +282,10 @@ trait LeonardoTestUtils
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
-    saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "delete")
+    //we cannot save the log if the cluster isn't running
+    if (Leonardo.cluster.get(googleProject, clusterName).status == ClusterStatus.Running) {
+      saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "delete")
+    }
     try {
       Leonardo.cluster.delete(googleProject, clusterName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."

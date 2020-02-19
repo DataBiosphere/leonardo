@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
@@ -10,8 +12,8 @@ import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy
-import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
+import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy
+import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures

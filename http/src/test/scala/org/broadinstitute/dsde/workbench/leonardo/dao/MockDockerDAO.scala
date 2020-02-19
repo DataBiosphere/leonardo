@@ -1,9 +1,9 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImageType.Jupyter
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImageType, ContainerImage}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.Jupyter
 import org.broadinstitute.dsde.workbench.model.TraceId
 
 class MockDockerDAO(tool: ClusterImageType = Jupyter) extends DockerDAO[IO] {

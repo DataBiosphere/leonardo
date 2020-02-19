@@ -47,7 +47,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig,
 
   override def preStart(): Unit = {
     super.preStart()
-    timers.startPeriodicTimer(TimerKey, DetectZombieClusters, config.zombieCheckPeriod)
+    timers.startTimerWithFixedDelay(TimerKey, DetectZombieClusters, config.zombieCheckPeriod)
   }
 
   override def receive: Receive = {

@@ -37,16 +37,12 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
       clusters += clusterName -> operation
 
       val masterInstance = Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance")))
-      val workerInstances = config.machineConfig.numberOfWorkers
-        .map(
-          num =>
-            List
-              .tabulate(num) { i =>
-                InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i"))
-              }
-              .toSet
-        )
-        .getOrElse(Set.empty)
+      val workerInstances =
+        List
+          .tabulate(config.machineConfig.numberOfWorkers) { i =>
+            InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i"))
+          }
+          .toSet
       val secondaryWorkerInstances = config.machineConfig.numberOfPreemptibleWorkers
         .map(
           num =>

@@ -54,7 +54,7 @@ class ClusterToolMonitor(
 
   override def preStart(): Unit = {
     super.preStart()
-    timers.startPeriodicTimer(TimerKey, DetectClusterStatus, config.pollPeriod)
+    timers.startTimerWithFixedDelay(TimerKey, DetectClusterStatus, config.pollPeriod)
   }
 
   override def receive: Receive = {

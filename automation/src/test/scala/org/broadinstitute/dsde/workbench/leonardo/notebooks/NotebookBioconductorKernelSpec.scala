@@ -32,11 +32,11 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.bioconductorImageUrl)
   "NotebookBioconductorKernelSpec" - {
 
-    "should use Bioconductor version 3.9" in { clusterFixture =>
+    "should use Bioconductor version 3.10" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           // Make sure BiocManager has the correct version of Bioconductor
-          notebookPage.executeCell("""BiocManager::version() == "3.9"""")
+          notebookPage.executeCell("""BiocManager::version() == "3.10"""")
         }
       }
     }

@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package api
 
 import java.util.UUID
@@ -6,38 +7,35 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
-import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.http.scaladsl.server._
+import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.stream.Materializer
 import akka.stream.scaladsl._
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoServiceJsonCodec.listClusterResponseWriter
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException, RequestValidationError}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.{
+  listClusterResponseWriter,
+  clusterRequestDecoder,
+  _
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{
-  ErrorReport,
-  TraceId,
-  WorkbenchEmail,
-  WorkbenchException,
-  WorkbenchExceptionWithErrorReport
-}
-import LeoRoutes._
-import cats.effect.{ContextShift, IO}
-import cats.mtl.ApplicativeAsk
+import org.broadinstitute.dsde.workbench.model._
 
 import scala.concurrent.{ExecutionContext, Future}
-
 case class AuthenticationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
                          StatusCodes.Unauthorized)
@@ -121,7 +119,7 @@ abstract class LeoRoutes(
                     get {
                       complete {
                         leonardoService
-                          .getActiveClusterDetails(userInfo, GoogleProject(googleProject), clusterName)
+                          .getClusterAPI(userInfo, GoogleProject(googleProject), clusterName)
                           .map { clusterDetails =>
                             StatusCodes.OK -> clusterDetails
                           }
@@ -248,7 +246,7 @@ object LeoRoutes {
       case clusterNameReg(_) => Right(ClusterName(clusterNameString))
       case _ =>
         Left(
-          new RequestValidationError(
+          RequestValidationError(
             s"invalid cluster name ${clusterNameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name"
           )
         )

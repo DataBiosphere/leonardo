@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
-package model.google
+package model
+package google
 
 import java.time.Instant
 import java.util.UUID
@@ -18,10 +19,9 @@ import scala.concurrent.duration.FiniteDuration
 case class ClusterName(value: String) extends ValueObject
 case class InstanceName(value: String) extends ValueObject
 case class ZoneUri(value: String) extends ValueObject
-case class MachineType(value: String) extends ValueObject
 
 final case class CreateClusterConfig(
-  machineConfig: MachineConfig,
+  machineConfig: RuntimeConfig.DataprocConfig,
   initScripts: List[GcsPath],
   clusterServiceAccount: Option[WorkbenchEmail],
   credentialsFileName: Option[String],
@@ -158,10 +158,7 @@ object GoogleJsonSupport extends DefaultJsonProtocol {
   }
 
   implicit val ClusterNameFormat = ValueObjectFormat(ClusterName)
-  implicit val MachineTypeFormat = ValueObjectFormat(MachineType)
   implicit val ZoneUriFormat = ValueObjectFormat(ZoneUri)
-
-  implicit val MachineConfigFormat = jsonFormat7(MachineConfig.apply)
 
   implicit val OperationNameFormat = ValueObjectFormat(OperationName)
   implicit val OperationFormat = jsonFormat2(Operation)

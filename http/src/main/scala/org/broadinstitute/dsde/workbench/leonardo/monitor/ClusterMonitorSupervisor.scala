@@ -4,6 +4,7 @@ package monitor
 import java.time.{Duration, Instant}
 import java.util.UUID
 
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.{ContextShift, IO}
@@ -15,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterContainerServiceType, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
@@ -121,10 +122,10 @@ class ClusterMonitorSupervisor(
   override def preStart(): Unit = {
     super.preStart()
 
-    timers.startPeriodicTimer(CheckClusterTimerKey, CheckForClusters, monitorConfig.pollPeriod)
+    timers.startTimerWithFixedDelay(CheckClusterTimerKey, CheckForClusters, monitorConfig.pollPeriod)
 
     if (autoFreezeConfig.enableAutoFreeze)
-      timers.startPeriodicTimer(AutoFreezeTimerKey, AutoFreezeClusters, autoFreezeConfig.autoFreezeCheckScheduler)
+      timers.startTimerWithFixedDelay(AutoFreezeTimerKey, AutoFreezeClusters, autoFreezeConfig.autoFreezeCheckScheduler)
   }
 
   override def receive: Receive = {
@@ -145,8 +146,8 @@ class ClusterMonitorSupervisor(
       startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
-      val traceId = UUID.randomUUID()
-      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
+      val traceId = TraceId(UUID.randomUUID())
+      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](traceId)
 
       val res = if (monitorConfig.recreateCluster) {
         logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
@@ -155,6 +156,8 @@ class ClusterMonitorSupervisor(
           now <- IO(Instant.now)
           _ <- (clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
             clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating, now)).transaction
+          runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction[IO]
+          _ <- publisherQueue.enqueue1(cluster.toCreateCluster(runtimeConfig, Some(traceId)))
         } yield ()
       } else {
         IO(
@@ -294,8 +297,9 @@ class ClusterMonitorSupervisor(
           .handleError(e => logger.error(s"Failed to flush welder cache for ${cluster.projectNameString}", e))
       } else IO.unit
 
+      runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
-      _ <- clusterHelper.stopCluster(cluster)
+      _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
 
       // Update the cluster status to Stopping
       _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }

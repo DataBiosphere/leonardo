@@ -1,18 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
-import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
+import com.typesafe.sslconfig.ssl.{
+  ConfigSSLContextBuilder,
+  DefaultKeyManagerFactoryWrapper,
+  DefaultTrustManagerFactoryWrapper,
+  SSLConfigFactory
+}
+import fs2.{Pipe, Stream}
+import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import io.circe.syntax._
+import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{
   GoogleStorageDAO,
@@ -22,37 +30,26 @@ import org.broadinstitute.dsde.workbench.google.{
   HttpGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.google2.{Event, GooglePublisher, GoogleStorageService, GoogleSubscriber}
-import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{LeoRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  ClusterDateAccessedActor,
-  ClusterMonitorSupervisor,
-  ClusterToolMonitor,
-  LeoPubsubMessage,
-  LeoPubsubMessageSubscriber,
-  ZombieClusterMonitor
-}
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import fs2.concurrent.InspectableQueue
-import fs2.{Pipe, Stream}
-import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
@@ -60,7 +57,6 @@ object Boot extends IOApp {
   private def startup(): IO[Unit] = {
     // We need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
-    implicit val materializer = ActorMaterializer()
     import system.dispatcher
 
     val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
@@ -82,8 +78,7 @@ object Boot extends IOApp {
                                           appDependencies.google2StorageDao,
                                           appDependencies.serviceAccountProvider)
 
-      val clusterHelper = new ClusterHelper(appDependencies.dbReference,
-                                            dataprocConfig,
+      val clusterHelper = new ClusterHelper(dataprocConfig,
                                             imageConfig,
                                             googleGroupsConfig,
                                             proxyConfig,
@@ -171,14 +166,14 @@ object Boot extends IOApp {
 
       val messageProcessorStream = if (leoExecutionModeConfig.backLeo) {
         val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
-          new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper, appDependencies.dbReference)
+          new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper)
         Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName} in boot")) ++ pubsubSubscriber.process
           .handleErrorWith(
             error => Stream.eval(logger.error(error)("Failed to initialize message processor in Boot. "))
           )
       } else Stream.eval(logger.info(s"Not starting subscriber in boot"))
 
-      val startSubscriber = if(leoExecutionModeConfig.backLeo) {
+      val startSubscriber = if (leoExecutionModeConfig.backLeo) {
         Stream.eval(appDependencies.subscriber.start)
       } else Stream.eval(IO.unit)
 
@@ -239,7 +234,7 @@ object Boot extends IOApp {
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
-      sslContext = getSSLContext
+      sslContext = getSSLContext()
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
@@ -302,14 +297,18 @@ object Boot extends IOApp {
     )
   }
 
-  private def getSSLContext(implicit actorSystem: ActorSystem) = {
-    val akkaSSLConfig = AkkaSSLConfig()
-    val config = akkaSSLConfig.config
-    val logger = new AkkaLoggerFactory(actorSystem)
-    new ConfigSSLContextBuilder(logger,
-                                config,
-                                akkaSSLConfig.buildKeyManagerFactory(config),
-                                akkaSSLConfig.buildTrustManagerFactory(config)).build()
+  private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
+    val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")
+    val defaults = as.settings.config.getConfig("ssl-config")
+
+    val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults))
+    val keyManagerAlgorithm = new DefaultKeyManagerFactoryWrapper(sslConfigSettings.keyManagerConfig.algorithm)
+    val trustManagerAlgorithm = new DefaultTrustManagerFactoryWrapper(sslConfigSettings.trustManagerConfig.algorithm)
+
+    new ConfigSSLContextBuilder(new AkkaLoggerFactory(as),
+                                sslConfigSettings,
+                                keyManagerAlgorithm,
+                                trustManagerAlgorithm).build()
   }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)

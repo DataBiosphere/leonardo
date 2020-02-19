@@ -111,14 +111,42 @@ object Config {
   }
 
   implicit val clusterDefaultConfigReader: ValueReader[ClusterDefaultsConfig] = ValueReader.relative { config =>
+    val numberOfWorkersInput = config.getInt("numberOfWorkers")
+    val numberOfWorkers =
+      if (numberOfWorkersInput < 0)
+        throw new Exception("Invalid numberOfWorkers config value. Needs to be positive number")
+      else if (numberOfWorkersInput == 1)
+        throw new Exception(
+          "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more."
+        )
+      else numberOfWorkersInput
+
+    val numberOfWorkerLocalSSDsInput = config.getInt("numberOfWorkerLocalSSDs")
+    val numberOfWorkerLocalSSDs =
+      if (numberOfWorkerLocalSSDsInput < 0)
+        throw new Exception("Invalid numberOfWorkers config value. Needs to be positive number")
+      else numberOfWorkerLocalSSDsInput
+
+    val numberOfPreemptibleWorkersInput = config.getInt("numberOfPreemptibleWorkers")
+    val numberOfPreemptibleWorkers =
+      if (numberOfPreemptibleWorkersInput < 0)
+        throw new Exception("Invalid numberOfWorkers config value. Needs to be positive number")
+      else numberOfPreemptibleWorkersInput
+
+    val masterMachineTypeInput = config.getString("masterMachineType")
+    val masterMachineType =
+      if (masterMachineTypeInput.isEmpty)
+        throw new Exception("masterMachineType can not be empty String")
+      else masterMachineTypeInput
+
     ClusterDefaultsConfig(
-      config.getInt("numberOfWorkers"),
-      config.getString("masterMachineType"),
+      numberOfWorkers,
+      masterMachineType,
       config.getInt("masterDiskSize"),
       config.getString("workerMachineType"),
       config.getInt("workerDiskSize"),
-      config.getInt("numberOfWorkerLocalSSDs"),
-      config.getInt("numberOfPreemptibleWorkers")
+      numberOfWorkerLocalSSDs,
+      numberOfPreemptibleWorkers
     )
   }
 

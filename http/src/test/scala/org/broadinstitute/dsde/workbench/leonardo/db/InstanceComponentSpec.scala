@@ -16,7 +16,7 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with GcsPath
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
     val savedCluster1 = cluster1.save()
-    savedCluster1 shouldEqual cluster1
+    savedCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster1
 
     dbFutureValue { instanceQuery.save(savedCluster1.id, masterInstance) } shouldEqual 1
     dbFutureValue { instanceQuery.getInstanceByKey(masterInstance.key) } shouldEqual Some(masterInstance)
@@ -25,7 +25,7 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with GcsPath
 
   it should "update status and ip" in isolatedDbTest {
     val savedCluster1 = cluster1.save()
-    savedCluster1 shouldEqual cluster1
+    savedCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster1
 
     dbFutureValue { instanceQuery.save(savedCluster1.id, masterInstance) } shouldEqual 1
     dbFutureValue {
@@ -39,7 +39,7 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with GcsPath
 
   it should "merge instances" in isolatedDbTest {
     val savedCluster1 = cluster1.save()
-    savedCluster1 shouldEqual cluster1
+    savedCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster1
     dbFutureValue { instanceQuery.save(savedCluster1.id, masterInstance) } shouldEqual 1
 
     val addedWorkers = Seq(masterInstance, workerInstance1, workerInstance2)

@@ -36,14 +36,15 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       ClusterName(clusterName),
       GoogleProject(googleProject),
       ServiceAccountInfo(None, None),
-      MachineConfig(),
+      RuntimeConfig.DataprocConfig(numberOfWorkers = 0, masterMachineType = "n1-standard-4", masterDiskSize = 5),
       ClusterStatus.Running,
       WorkbenchEmail(""),
       Map(),
       None,
       List(),
       Instant.now(),
-      false
+      false,
+      0
     )
 
   /**
@@ -91,8 +92,10 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   def getClusterRequest(): ClusterRequest = {
     val machineConfig = Some(
-      MachineConfig(
-        masterMachineType = Some("n1-standard-8"),
+      RuntimeConfig.DataprocConfig(
+        numberOfWorkers = 0,
+        masterDiskSize = 500,
+        masterMachineType = "n1-standard-8",
         workerMachineType = Some("n1-standard-8")
       )
     )

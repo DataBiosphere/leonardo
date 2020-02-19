@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.auth
+package org.broadinstitute.dsde.workbench.leonardo
+package auth
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk

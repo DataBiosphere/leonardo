@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.model.headers._

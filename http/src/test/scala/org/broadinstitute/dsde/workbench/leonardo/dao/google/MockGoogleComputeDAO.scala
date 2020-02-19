@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.google
 import com.google.api.services.compute.model
+import org.broadinstitute.dsde.workbench.leonardo.MachineType
 import org.broadinstitute.dsde.workbench.leonardo.model.google.InstanceStatus.{Running, Stopped}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail

@@ -1,14 +1,14 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import java.util.UUID
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, ValueObject, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, EntityDecoder}
@@ -24,20 +24,20 @@ class MockSamDAO extends SamDAO[IO] {
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
-  override def hasResourcePermission(resourceId: ValueObject,
+  override def hasResourcePermission(resourceId: String,
                                      action: String,
                                      resourceTypeName: ResourceTypeName,
                                      authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     resourceTypeName match {
       case ResourceTypeName.BillingProject =>
         val res = billingProjects
-          .get((resourceId.asInstanceOf[GoogleProject], authHeader)) //look it up: Option[Set]
+          .get((GoogleProject(resourceId), authHeader)) //look it up: Option[Set]
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
           .getOrElse(false) //unpack the resulting option and handle the project never having existed
         IO.pure(res)
       case ResourceTypeName.NotebookCluster =>
         val res = notebookClusters
-          .get((resourceId.asInstanceOf[ClusterInternalId], authHeader)) //look it up: Option[Set]
+          .get((ClusterInternalId(resourceId), authHeader)) //look it up: Option[Set]
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
           .getOrElse(false) //unpack the resulting option and handle the project never having existed
         IO.pure(res)
