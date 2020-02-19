@@ -102,7 +102,7 @@ final class LeonardoSuite
       new LeoPubsubSpec,
       new ClusterPatchSpec
 //      ,
-//      new ClusterAutopauseSpec TODO: re-enable this test once it's not flaky
+//      new ClusterAutopauseSpec TODO: re-enable this test once it's not flaky; https://broadworkbench.atlassian.net/browse/IA-982
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
