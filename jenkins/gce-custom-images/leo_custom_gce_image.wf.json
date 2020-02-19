@@ -32,7 +32,7 @@
                 }
             ]
         },
-        "create-inst-install": {
+        "create-instance": {
             "CreateInstances": [
                 {
                     "Name": "inst-install",
@@ -42,7 +42,7 @@
                 }
             ]
         },
-        "wait-for-inst-install": {
+        "wait-for-instance": {
             "TimeOut": "1h",
             "waitForInstancesSignal": [
                 {
@@ -68,9 +68,9 @@
         }
     },
     "Dependencies": {
-        "create-inst-install": ["create-disks"],
-        "wait-for-inst-install": ["create-inst-install"],
-        "create-image": ["wait-for-inst-install"],
+        "create-instance": ["create-disks"],
+        "wait-for-instance": ["create-instance"],
+        "create-image": ["wait-for-instance"],
         "delete-inst-install": ["create-image"]
     }
 }
