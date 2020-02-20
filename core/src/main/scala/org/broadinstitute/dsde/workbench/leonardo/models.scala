@@ -7,11 +7,10 @@ import ca.mrvisser.sealerate
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath}
 
 import scala.collection.immutable
 import scala.util.matching.Regex
-
 
 final case class MachineType(value: String) extends AnyVal
 
@@ -20,7 +19,7 @@ sealed trait CloudService extends EnumEntry with Product with Serializable {
 
   override def toString: String = asString //Enumeratum's withName function uses `toString` as key for lookup
 }
-object CloudService extends Enum[CloudService]{
+object CloudService extends Enum[CloudService] {
   case object Dataproc extends CloudService {
     val asString: String = "DATAPROC"
   }
@@ -40,9 +39,9 @@ sealed trait RuntimeConfig extends Product with Serializable {
 }
 object RuntimeConfig {
   final case class GceConfig(
-                              machineType: MachineType,
-                              diskSize: Int
-                            ) extends RuntimeConfig {
+    machineType: MachineType,
+    diskSize: Int
+  ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
 
@@ -53,7 +52,8 @@ object RuntimeConfig {
                                   workerMachineType: Option[String] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                                  numberOfPreemptibleWorkers: Option[Int] = None) extends RuntimeConfig {
+                                  numberOfPreemptibleWorkers: Option[Int] = None)
+      extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineType = MachineType(masterMachineType)
     val diskSize: Int = masterDiskSize
@@ -85,9 +85,9 @@ object UserScriptPath {
 }
 
 final case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map.empty,
-                                      serverExtensions: Map[String, String] = Map.empty,
-                                      combinedExtensions: Map[String, String] = Map.empty,
-                                      labExtensions: Map[String, String] = Map.empty) {
+                                            serverExtensions: Map[String, String] = Map.empty,
+                                            combinedExtensions: Map[String, String] = Map.empty,
+                                            labExtensions: Map[String, String] = Map.empty) {
 
   def asLabels: Map[String, String] =
     nbExtensions ++ serverExtensions ++ combinedExtensions ++ labExtensions
@@ -150,7 +150,7 @@ object ClusterImageType extends Enum[ClusterImageType] {
 final case class ClusterImage(imageType: ClusterImageType, imageUrl: String, timestamp: Instant)
 
 final case class AuditInfo(creator: WorkbenchEmail,
-                     createdDate: Instant,
-                     destroyedDate: Option[Instant],
-                     dateAccessed: Instant,
-                     kernelFoundBusyDate: Option[Instant])
+                           createdDate: Instant,
+                           destroyedDate: Option[Instant],
+                           dateAccessed: Instant,
+                           kernelFoundBusyDate: Option[Instant])

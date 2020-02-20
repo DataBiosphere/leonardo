@@ -429,15 +429,15 @@ object ClusterTemplateValues {
     )
 
   def fromCreateCluster(createCluster: CreateCluster,
-            initBucketName: Option[GcsBucketName],
-            stagingBucketName: Option[GcsBucketName],
-            serviceAccountKey: Option[ServiceAccountKey],
-            dataprocConfig: DataprocConfig,
-            welderConfig: WelderConfig,
-            proxyConfig: ProxyConfig,
-            clusterFilesConfig: ClusterFilesConfig,
-            clusterResourcesConfig: ClusterResourcesConfig,
-            clusterResourceConstraints: Option[ClusterResourceConstraints]): ClusterTemplateValues =
+                        initBucketName: Option[GcsBucketName],
+                        stagingBucketName: Option[GcsBucketName],
+                        serviceAccountKey: Option[ServiceAccountKey],
+                        dataprocConfig: DataprocConfig,
+                        welderConfig: WelderConfig,
+                        proxyConfig: ProxyConfig,
+                        clusterFilesConfig: ClusterFilesConfig,
+                        clusterResourcesConfig: ClusterResourcesConfig,
+                        clusterResourceConstraints: Option[ClusterResourceConstraints]): ClusterTemplateValues =
     ClusterTemplateValues(
       createCluster.clusterProjectAndName.googleProject.value,
       createCluster.clusterProjectAndName.clusterName.value,

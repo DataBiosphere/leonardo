@@ -23,13 +23,17 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{ClusterCannotBeStartedException, ClusterCannotBeStoppedException, ClusterOutOfDateException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  ClusterCannotBeStartedException,
+  ClusterCannotBeStoppedException,
+  ClusterOutOfDateException
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -50,7 +54,8 @@ final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: 
 final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
 
-final case class ClusterResourceConstaintsException(clusterProjectAndName: ClusterProjectAndName, machineType: MachineType)
+final case class ClusterResourceConstaintsException(clusterProjectAndName: ClusterProjectAndName,
+                                                    machineType: MachineType)
     extends LeoException(
       s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.clusterName} with master machine type ${machineType}"
     )
@@ -92,112 +97,118 @@ class ClusterHelper(
     // Generate a service account key for the notebook service account (if present) to localize on the cluster.
     // We don't need to do this for the cluster service account because its credentials are already
     // on the metadata server.
-    generateServiceAccountKey(params.clusterProjectAndName.googleProject, params.serviceAccountInfo.notebookServiceAccount).flatMap {
-      serviceAccountKeyOpt =>
-        val ioResult = for {
-          // get VPC settings
-          projectLabels <- if (dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined) {
-            IO.fromFuture(IO(googleProjectDAO.getLabels(params.clusterProjectAndName.googleProject.value)))
-          } else IO.pure(Map.empty[String, String])
-          clusterVPCSettings = getClusterVPCSettings(projectLabels)
+    generateServiceAccountKey(params.clusterProjectAndName.googleProject,
+                              params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
+      val ioResult = for {
+        // get VPC settings
+        projectLabels <- if (dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined) {
+          IO.fromFuture(IO(googleProjectDAO.getLabels(params.clusterProjectAndName.googleProject.value)))
+        } else IO.pure(Map.empty[String, String])
+        clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
-          resourceConstraints <- getClusterResourceContraints(params.clusterProjectAndName, params.runtimeConfig.machineType)
+        resourceConstraints <- getClusterResourceContraints(params.clusterProjectAndName,
+                                                            params.runtimeConfig.machineType)
 
-          // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
-          _ <- IO.fromFuture(
-            IO(googleComputeDAO.updateFirewallRule(params.clusterProjectAndName.googleProject, getFirewallRule(clusterVPCSettings)))
+        // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
+        _ <- IO.fromFuture(
+          IO(
+            googleComputeDAO.updateFirewallRule(params.clusterProjectAndName.googleProject,
+                                                getFirewallRule(clusterVPCSettings))
           )
+        )
 
-          // Set up IAM roles necessary to create a cluster.
-          _ <- createClusterIamRoles(params.clusterProjectAndName.googleProject, params.serviceAccountInfo)
+        // Set up IAM roles necessary to create a cluster.
+        _ <- createClusterIamRoles(params.clusterProjectAndName.googleProject, params.serviceAccountInfo)
 
-          // Add member to the Google Group that has the IAM role to pull the Dataproc image
-          _ <- updateDataprocImageGroupMembership(params.clusterProjectAndName.googleProject, createCluster = true)
+        // Add member to the Google Group that has the IAM role to pull the Dataproc image
+        _ <- updateDataprocImageGroupMembership(params.clusterProjectAndName.googleProject, createCluster = true)
 
-          // Create the bucket in the cluster's google project and populate with initialization files.
-          // ACLs are granted so the cluster service account can access the files at initialization time.
-          _ <- bucketHelper
-            .createInitBucket(params.clusterProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
-            .compile
-            .drain
+        // Create the bucket in the cluster's google project and populate with initialization files.
+        // ACLs are granted so the cluster service account can access the files at initialization time.
+        _ <- bucketHelper
+          .createInitBucket(params.clusterProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
+          .compile
+          .drain
 
-          // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-          _ <- bucketHelper
-            .createStagingBucket(params.auditInfo.creator,
-                                 params.clusterProjectAndName.googleProject,
-                                 stagingBucketName,
-                                 params.serviceAccountInfo)
-            .compile
-            .drain
+        // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
+        _ <- bucketHelper
+          .createStagingBucket(params.auditInfo.creator,
+                               params.clusterProjectAndName.googleProject,
+                               stagingBucketName,
+                               params.serviceAccountInfo)
+          .compile
+          .drain
 
-          _ <- initializeBucketObjects(params,
-                                       initBucketName,
-                                       stagingBucketName,
-                                       serviceAccountKeyOpt,
-                                       resourceConstraints).compile.drain
+        _ <- initializeBucketObjects(params,
+                                     initBucketName,
+                                     stagingBucketName,
+                                     serviceAccountKeyOpt,
+                                     resourceConstraints).compile.drain
 
-          // build cluster configuration
-          initScriptResources = List(clusterResourcesConfig.initActionsScript)
-          initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
-          credentialsFileName = params.serviceAccountInfo.notebookServiceAccount
-            .map(_ => s"/etc/${ClusterTemplateValues.serviceAccountCredentialsFilename}")
+        // build cluster configuration
+        initScriptResources = List(clusterResourcesConfig.initActionsScript)
+        initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
+        credentialsFileName = params.serviceAccountInfo.notebookServiceAccount
+          .map(_ => s"/etc/${ClusterTemplateValues.serviceAccountCredentialsFilename}")
 
-          // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
-          // we will use the new custom dataproc image
-          dataprocImage = if (params.clusterImages.exists(_.imageUrl == imageConfig.legacyJupyterImage))
-            dataprocConfig.legacyCustomDataprocImage
-          else dataprocConfig.customDataprocImage
+        // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
+        // we will use the new custom dataproc image
+        dataprocImage = if (params.clusterImages.exists(_.imageUrl == imageConfig.legacyJupyterImage))
+          dataprocConfig.legacyCustomDataprocImage
+        else dataprocConfig.customDataprocImage
 
-          res <- params.runtimeConfig match {
-            case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedException)
-            case x: RuntimeConfig.DataprocConfig =>
-              val createClusterConfig = CreateClusterConfig(
-                x,
-                initScripts,
-                params.serviceAccountInfo.clusterServiceAccount,
-                credentialsFileName,
-                stagingBucketName,
-                params.scopes,
-                clusterVPCSettings,
-                params.properties,
-                dataprocImage,
-                monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, 1 hour)
-              )
-              for { // Create the cluster
-                retryResult <- IO.fromFuture(
-                  IO(
-                    retryExponentially(whenGoogleZoneCapacityIssue,
-                                       "Cluster creation failed because zone with adequate resources was not found") {
-                      () =>
-                        gdDAO.createCluster(params.clusterProjectAndName.googleProject, params.clusterProjectAndName.clusterName, createClusterConfig)
-                    }
-                  )
+        res <- params.runtimeConfig match {
+          case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedException)
+          case x: RuntimeConfig.DataprocConfig =>
+            val createClusterConfig = CreateClusterConfig(
+              x,
+              initScripts,
+              params.serviceAccountInfo.clusterServiceAccount,
+              credentialsFileName,
+              stagingBucketName,
+              params.scopes,
+              clusterVPCSettings,
+              params.properties,
+              dataprocImage,
+              monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, 1 hour)
+            )
+            for { // Create the cluster
+              retryResult <- IO.fromFuture(
+                IO(
+                  retryExponentially(whenGoogleZoneCapacityIssue,
+                                     "Cluster creation failed because zone with adequate resources was not found") {
+                    () =>
+                      gdDAO.createCluster(params.clusterProjectAndName.googleProject,
+                                          params.clusterProjectAndName.clusterName,
+                                          createClusterConfig)
+                  }
                 )
-                operation <- retryResult match {
-                  case Right((errors, op)) if errors == List.empty => IO(op)
-                  case Right((errors, op)) =>
-                    metrics
-                      .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
-                      .as(op)
-                  case Left(errors) =>
-                    metrics
-                      .incrementCounter("zoneCapacityClusterCreationFailure",
-                                        errors.filter(whenGoogleZoneCapacityIssue).length)
-                      .flatMap(_ => IO.raiseError(errors.head))
-                }
+              )
+              operation <- retryResult match {
+                case Right((errors, op)) if errors == List.empty => IO(op)
+                case Right((errors, op)) =>
+                  metrics
+                    .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
+                    .as(op)
+                case Left(errors) =>
+                  metrics
+                    .incrementCounter("zoneCapacityClusterCreationFailure",
+                                      errors.filter(whenGoogleZoneCapacityIssue).length)
+                    .flatMap(_ => IO.raiseError(errors.head))
+              }
 
-                dataprocInfo = DataprocInfo(operation.uuid, operation.name, stagingBucketName, None)
-              } yield CreateClusterResponse(dataprocInfo, initBucketName, serviceAccountKeyOpt, dataprocImage)
-          }
-        } yield res
-
-        ioResult.handleErrorWith { throwable =>
-          cleanUpGoogleResourcesOnError(params.clusterProjectAndName.googleProject,
-                                        params.clusterProjectAndName.clusterName,
-                                        initBucketName,
-                                        params.serviceAccountInfo,
-                                        serviceAccountKeyOpt) >> IO.raiseError(throwable)
+              dataprocInfo = DataprocInfo(operation.uuid, operation.name, stagingBucketName, None)
+            } yield CreateClusterResponse(dataprocInfo, initBucketName, serviceAccountKeyOpt, dataprocImage)
         }
+      } yield res
+
+      ioResult.handleErrorWith { throwable =>
+        cleanUpGoogleResourcesOnError(params.clusterProjectAndName.googleProject,
+                                      params.clusterProjectAndName.clusterName,
+                                      initBucketName,
+                                      params.serviceAccountInfo,
+                                      serviceAccountKeyOpt) >> IO.raiseError(throwable)
+      }
     }
   }
 
@@ -560,18 +571,20 @@ class ClusterHelper(
     clusterResourceConstraints: ClusterResourceConstraints
   ): Stream[IO, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements = ClusterTemplateValues.fromCreateCluster(
-      createCluster,
-      Some(initBucketName),
-      Some(stagingBucketName),
-      serviceAccountKey,
-      dataprocConfig,
-      welderConfig,
-      proxyConfig,
-      clusterFilesConfig,
-      clusterResourcesConfig,
-      Some(clusterResourceConstraints)
-    ).toMap
+    val replacements = ClusterTemplateValues
+      .fromCreateCluster(
+        createCluster,
+        Some(initBucketName),
+        Some(stagingBucketName),
+        serviceAccountKey,
+        dataprocConfig,
+        welderConfig,
+        proxyConfig,
+        clusterFilesConfig,
+        clusterResourcesConfig,
+        Some(clusterResourceConstraints)
+      )
+      .toMap
 
     // Jupyter allows setting of arbitrary environment variables on cluster creation if they are passed in to
     // docker-compose as a file of format:

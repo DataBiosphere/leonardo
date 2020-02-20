@@ -29,22 +29,22 @@ object LeoPubsubMessage {
   }
 
   case class CreateCluster(id: Long,
-                            clusterProjectAndName: ClusterProjectAndName,
-                            serviceAccountInfo: ServiceAccountInfo,
-                            dataprocInfo: Option[DataprocInfo],
-                            auditInfo: AuditInfo,
-                            properties: Map[String, String],
-                            jupyterExtensionUri: Option[GcsPath],
-                            jupyterUserScriptUri: Option[UserScriptPath],
-                            jupyterStartUserScriptUri: Option[UserScriptPath],
-                            userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                            defaultClientId: Option[String],
-                            clusterImages: Set[ClusterImage],
-                            scopes: Set[String],
-                            welderEnabled: Boolean,
-                            customClusterEnvironmentVariables: Map[String, String],
-                            runtimeConfig: RuntimeConfig,
-                            traceId: Option[TraceId])
+                           clusterProjectAndName: ClusterProjectAndName,
+                           serviceAccountInfo: ServiceAccountInfo,
+                           dataprocInfo: Option[DataprocInfo],
+                           auditInfo: AuditInfo,
+                           properties: Map[String, String],
+                           jupyterExtensionUri: Option[GcsPath],
+                           jupyterUserScriptUri: Option[UserScriptPath],
+                           jupyterStartUserScriptUri: Option[UserScriptPath],
+                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                           defaultClientId: Option[String],
+                           clusterImages: Set[ClusterImage],
+                           scopes: Set[String],
+                           welderEnabled: Boolean,
+                           customClusterEnvironmentVariables: Map[String, String],
+                           runtimeConfig: RuntimeConfig,
+                           traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType = "createCluster"
   }
@@ -71,9 +71,7 @@ object LeoPubsubCodec {
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
 
   implicit val clusterProjectAndNameDecoder: Decoder[ClusterProjectAndName] =
-    Decoder.forProduct2(
-      "googleProject",
-      "clusterName")(ClusterProjectAndName.apply)
+    Decoder.forProduct2("googleProject", "clusterName")(ClusterProjectAndName.apply)
 
   implicit val dataprocInfoDecoder: Decoder[DataprocInfo] =
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(DataprocInfo.apply)
@@ -105,7 +103,7 @@ object LeoPubsubCodec {
       value <- messageType match {
         case "stopUpdate"         => message.as[StopUpdate]
         case "transitionFinished" => message.as[ClusterTransition]
-        case "createCluster" => message.as[CreateCluster]
+        case "createCluster"      => message.as[CreateCluster]
         case other                => Left(DecodingFailure(s"invalid message type: ${other}", List.empty))
       }
     } yield value
@@ -153,32 +151,34 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
-      "traceId")(x =>
-      (x.messageType,
-       x.id,
-       x.clusterProjectAndName,
-       x.serviceAccountInfo,
-       x.dataprocInfo,
-       x.auditInfo,
-       x.properties,
-       x.jupyterExtensionUri,
-       x.jupyterUserScriptUri,
-       x.jupyterStartUserScriptUri,
-       x.userJupyterExtensionConfig,
-       x.defaultClientId,
-       x.clusterImages,
-       x.scopes,
-       x.welderEnabled,
-       x.customClusterEnvironmentVariables,
-       x.runtimeConfig,
-       x.traceId
-      ))
+      "traceId"
+    )(
+      x =>
+        (x.messageType,
+         x.id,
+         x.clusterProjectAndName,
+         x.serviceAccountInfo,
+         x.dataprocInfo,
+         x.auditInfo,
+         x.properties,
+         x.jupyterExtensionUri,
+         x.jupyterUserScriptUri,
+         x.jupyterStartUserScriptUri,
+         x.userJupyterExtensionConfig,
+         x.defaultClientId,
+         x.clusterImages,
+         x.scopes,
+         x.welderEnabled,
+         x.customClusterEnvironmentVariables,
+         x.runtimeConfig,
+         x.traceId)
+    )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
     message match {
-      case m: StopUpdate                => m.asJson
+      case m: StopUpdate        => m.asJson
       case m: ClusterTransition => m.asJson
-      case m: CreateCluster => m.asJson
+      case m: CreateCluster     => m.asJson
     }
   }
 }

@@ -4,7 +4,6 @@ package monitor
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import scala.util.control.NoStackTrace
 
-
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
@@ -12,7 +11,15 @@ import cats.effect.{Async, Concurrent, ContextShift, IO, Timer}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
 import fs2.{Pipe, Stream}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, UpdateAsyncClusterCreationFields, clusterErrorQuery, clusterImageQuery, clusterQuery, followupQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterErrorQuery,
+  clusterImageQuery,
+  clusterQuery,
+  followupQuery,
+  DbReference,
+  RuntimeConfigQueries,
+  UpdateAsyncClusterCreationFields
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
@@ -29,7 +36,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   clusterHelper: ClusterHelper
 )(implicit executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F]) {
-  private[monitor] def messageResponder(message: LeoPubsubMessage, now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
+  private[monitor] def messageResponder(message: LeoPubsubMessage,
+                                        now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
       case msg: StopUpdate =>
         handleStopUpdateMessage(msg)
@@ -150,7 +158,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       case _ => Async[F].unit
     }
 
-  private[monitor] def handleCreateCluster(msg: CreateCluster, now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] = {
+  private[monitor] def handleCreateCluster(msg: CreateCluster,
+                                           now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] = {
     val createCluster = for {
       traceIdValue <- traceId.ask
       traceIdIO = ApplicativeAsk.const[IO, TraceId](traceIdValue)
@@ -168,8 +177,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       // Save dataproc image in the database
       _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
       _ <- logger.info(
-          s"Cluster ${msg.clusterProjectAndName} was successfully created. Will monitor the creation process."
-        )
+        s"Cluster ${msg.clusterProjectAndName} was successfully created. Will monitor the creation process."
+      )
     } yield ()
 
     createCluster.handleErrorWith {
@@ -201,7 +210,7 @@ object PubsubHandleMessageError {
                                      projectName: String,
                                      clusterStatus: ClusterStatus,
                                      message: LeoPubsubMessage)
-    extends PubsubHandleMessageError {
+      extends PubsubHandleMessageError {
     override def getMessage: String =
       s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
     val isRetryable: Boolean = false
@@ -210,7 +219,7 @@ object PubsubHandleMessageError {
                                        projectName: String,
                                        cluster: Cluster,
                                        message: LeoPubsubMessage)
-    extends PubsubHandleMessageError {
+      extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
     val isRetryable: Boolean = false
