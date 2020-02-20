@@ -1,0 +1,76 @@
+{
+    "Name": "custom-leonardo-gce-image-generator",
+    "Vars": {
+        "output_image": {
+            "Required": true,
+            "Description": "The name of the output image"
+        },
+        "base_image": {
+            "Required": true,
+            "Description": "The base image to add tools onto"
+        },
+        "installation_script_name": {
+            "Required": true,
+            "Description": "The script with the commands that set up GCE VMs spun off by Leonardo"
+        },
+        "installation_script_dir": {
+            "Required": true,
+            "Description": "The directory that contains the installation script"
+        }
+    },
+    "Sources": {
+        "${installation_script_name}": "${installation_script_dir}/${installation_script_name}"
+    },
+    "Steps": {
+        "create-disks": {
+            "CreateDisks": [
+                {
+                    "Name": "disk-install",
+                    "SourceImage": "${base_image}",
+                    "Type": "pd-ssd",
+                    "SizeGb": "100"
+                }
+            ]
+        },
+        "create-instance": {
+            "CreateInstances": [
+                {
+                    "Name": "inst-install",
+                    "Disks": [{"Source": "disk-install"}],
+                    "MachineType": "n1-standard-1",
+                    "StartupScript": "${installation_script_name}"
+                }
+            ]
+        },
+        "wait-for-instance": {
+            "TimeOut": "1h",
+            "waitForInstancesSignal": [
+                {
+                    "Name": "inst-install",
+                    "Stopped": true
+                }
+            ]
+        },
+        "create-image": {
+            "CreateImages": [
+                {
+                    "Name": "${output_image}",
+                    "SourceDisk": "disk-install",
+                    "NoCleanup": true,
+                    "ExactName": true
+                }
+            ]
+        },
+        "delete-inst-install": {
+            "DeleteResources": {
+                "Instances": ["inst-install"]
+            }
+        }
+    },
+    "Dependencies": {
+        "create-instance": ["create-disks"],
+        "wait-for-instance": ["create-instance"],
+        "create-image": ["wait-for-instance"],
+        "delete-inst-install": ["create-image"]
+    }
+}
