@@ -1078,8 +1078,7 @@ class LeonardoServiceSpec
     // check that the cluster is stopped
     val dbCluster = dbFutureValue { clusterQuery.getClusterById(stoppedCluster.id) }
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
-
-    //the below block will fail if the exception we expect isn't thrown. We
+    
     val caught = the[ClusterCannotBeUpdatedException] thrownBy {
       leo
         .updateCluster(
