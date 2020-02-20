@@ -1095,8 +1095,6 @@ class LeonardoServiceSpec
         )
         .unsafeRunSync()
     }
-
-    logger.info(s"exception: ${caught.getMessage()}")
   }
 
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
