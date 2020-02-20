@@ -11,7 +11,6 @@ class ClusterAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution
   implicit val ronToken: AuthToken = ronAuthToken
 
   "autopause should work" in { billingProject =>
-
     val clusterName = randomClusterName
     val clusterRequest = defaultClusterRequest.copy(autopause = Some(true), autopauseThreshold = Some(1))
 

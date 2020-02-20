@@ -42,10 +42,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
   ClusterSupervisorMessage,
   RemoveFromList
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  ClusterFollowupDetails,
-  ClusterTransition
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{ClusterFollowupDetails, ClusterTransition}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.TraceId

@@ -31,7 +31,9 @@ object LeonardoServiceDbQueries {
   def getGetClusterResponse(googleProject: GoogleProject, clusterName: ClusterName)(
     implicit executionContext: ExecutionContext
   ): DBIO[GetClusterResponse] = {
-    val activeCluster = fullClusterQueryByUniqueKey(googleProject, clusterName, None).joinLeft(runtimeConfigs).on(_._1.runtimeConfigId === _.id)
+    val activeCluster = fullClusterQueryByUniqueKey(googleProject, clusterName, None)
+      .joinLeft(runtimeConfigs)
+      .on(_._1.runtimeConfigId === _.id)
     activeCluster.result.flatMap { recs =>
       val clusterRecs = recs.map(_._1)
       val res = for {

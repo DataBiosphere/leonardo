@@ -121,12 +121,15 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     logger.info("beforeAll")
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
+        case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
+          clusterCreationFailureMsg = msg
         case Some(billingProject) =>
           Either.catchNonFatal(createRonCluster(GoogleProject(billingProject))).handleError { e =>
             clusterCreationFailureMsg = e.getMessage
             ronCluster = null
           }
-        case None => clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
+        case None =>
+          clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
       }
     }
 

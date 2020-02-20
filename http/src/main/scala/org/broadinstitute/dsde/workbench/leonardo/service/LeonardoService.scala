@@ -333,9 +333,11 @@ class LeonardoService(
       updatedCluster <- internalUpdateCluster(cluster, clusterRequest, runtimeConfig)
     } yield UpdateClusterResponse.fromCluster(updatedCluster, runtimeConfig)
 
-  def internalUpdateCluster(existingCluster: Cluster,
-                            clusterRequest: ClusterRequest,
-                            existingRuntimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
+  def internalUpdateCluster(
+    existingCluster: Cluster,
+    clusterRequest: ClusterRequest,
+    existingRuntimeConfig: RuntimeConfig
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] =
     if (existingCluster.status.isUpdatable) {
       for {
         autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster,
@@ -356,7 +358,10 @@ class LeonardoService(
                     ) //TODO: use better exception
                   case x: RuntimeConfigRequest.DataprocConfig =>
                     for {
-                      clusterResized <- maybeResizeCluster(existingCluster, existingRuntimeConfig, x.numberOfWorkers, x.numberOfPreemptibleWorkers).attempt
+                      clusterResized <- maybeResizeCluster(existingCluster,
+                                                           existingRuntimeConfig,
+                                                           x.numberOfWorkers,
+                                                           x.numberOfPreemptibleWorkers).attempt
                       masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster,
                                                                                existingRuntimeConfig,
                                                                                x.masterMachineType.map(MachineType),
@@ -401,9 +406,11 @@ class LeonardoService(
               handleClusterTransition(existingCluster, action, now)
             } else
               IO.raiseError(
-                ClusterCannotBeUpdatedException(existingCluster.projectNameString,
-                                                existingCluster.status,
-                                                "Please stop your runtime to perform this type of update.")
+                ClusterCannotBeUpdatedException(
+                  existingCluster.projectNameString,
+                  existingCluster.status,
+                  "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time."
+                )
               )
           case None =>
             IO(
@@ -471,20 +478,20 @@ class LeonardoService(
   def maybeResizeCluster(existingCluster: Cluster,
                          existingRuntimeConfig: RuntimeConfig.DataprocConfig,
                          targetNumberOfWorkers: Option[Int],
-                         targetNumberOfPreemptibleWorkers: Option[Int]
-                        ): IO[UpdateResult] = {
+                         targetNumberOfPreemptibleWorkers: Option[Int]): IO[UpdateResult] = {
     //machineConfig.numberOfPreemtible undefined, and a 0 is passed in
     val updatedNumWorkersAndPreemptiblesOpt =
       Ior.fromOptions(
         getUpdatedValueIfChanged(Some(existingRuntimeConfig.numberOfWorkers), targetNumberOfWorkers),
-        getUpdatedValueIfChanged(existingRuntimeConfig.numberOfPreemptibleWorkers,
-          targetNumberOfPreemptibleWorkers)
+        getUpdatedValueIfChanged(existingRuntimeConfig.numberOfPreemptibleWorkers, targetNumberOfPreemptibleWorkers)
       )
 
     updatedNumWorkersAndPreemptiblesOpt match {
       case Some(updatedNumWorkersAndPreemptibles) =>
         for {
-          _ <- log.info(s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}...")
+          _ <- log.info(
+            s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
+          )
           // Resize the cluster
           _ <- clusterHelper.resizeCluster(existingCluster,
                                            updatedNumWorkersAndPreemptibles.left,
