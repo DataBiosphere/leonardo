@@ -322,7 +322,7 @@ class ClusterMonitorSupervisor(
 
             case c if c.status == ClusterStatus.Updating => IO(self ! ClusterUpdated(c))
 
-            case c if c.status == ClusterStatus.Creating => IO(self ! ClusterCreated(c, c.stopAfterCreation))
+            case c if c.status == ClusterStatus.Creating && c.dataprocInfo.isDefined => IO(self ! ClusterCreated(c, c.stopAfterCreation))
 
             case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))
           }
