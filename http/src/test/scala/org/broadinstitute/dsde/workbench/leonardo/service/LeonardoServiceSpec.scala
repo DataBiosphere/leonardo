@@ -1071,6 +1071,34 @@ class LeonardoServiceSpec
       .numberOfWorkers shouldBe 2
   }
 
+  it should "throw an exception when trying to resize a stopped cluster" in isolatedDbTest {
+    // create the clusterx
+    val stoppedCluster: Cluster = makeCluster(3).copy(status = ClusterStatus.Stopped).save()
+//    val cluster =
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { clusterQuery.getClusterById(stoppedCluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
+
+    // set the cluster to Running
+
+    val caught = the[ClusterCannotBeUpdatedException] thrownBy {
+      leo
+        .updateCluster(
+          userInfo,
+          stoppedCluster.googleProject,
+          stoppedCluster.clusterName,
+          testClusterRequest.copy(
+            runtimeConfig = Some(
+              RuntimeConfigRequest.DataprocConfig(numberOfWorkers = Some(2), masterMachineType = None, masterDiskSize = None)
+            )
+          )
+        )
+        .unsafeRunSync()
+    }
+
+    logger.info(s"exception: ${caught.getMessage()}")
+  }
+
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
     // create the cluster
     val cluster =
