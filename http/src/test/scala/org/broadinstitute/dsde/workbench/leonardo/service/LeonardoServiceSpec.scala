@@ -1072,15 +1072,14 @@ class LeonardoServiceSpec
   }
 
   it should "throw an exception when trying to resize a stopped cluster" in isolatedDbTest {
-    // create the clusterx
+    // create a stopped cluster record cluster
     val stoppedCluster: Cluster = makeCluster(3).copy(status = ClusterStatus.Stopped).save()
-//    val cluster =
-    // check that the cluster was created
+
+    // check that the cluster is stopped
     val dbCluster = dbFutureValue { clusterQuery.getClusterById(stoppedCluster.id) }
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
 
-    // set the cluster to Running
-
+    //the below block will fail if the exception we expect isn't thrown. We
     val caught = the[ClusterCannotBeUpdatedException] thrownBy {
       leo
         .updateCluster(
@@ -1095,6 +1094,8 @@ class LeonardoServiceSpec
         )
         .unsafeRunSync()
     }
+
+    caught.getMessage should include("Please start your cluster to perform this action")
   }
 
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
