@@ -495,17 +495,17 @@ class LeonardoService(
             )
             // Resize the cluster
             _ <- clusterHelper.resizeCluster(existingCluster,
-              updatedNumWorkersAndPreemptibles.left,
-              updatedNumWorkersAndPreemptibles.right) recoverWith {
+                                             updatedNumWorkersAndPreemptibles.left,
+                                             updatedNumWorkersAndPreemptibles.right) recoverWith {
               case gjre: GoogleJsonResponseException =>
                 // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
                 // resize the cluster we need to revoke it manually here
                 for {
                   _ <- clusterHelper.removeClusterIamRoles(existingCluster.googleProject,
-                    existingCluster.serviceAccountInfo)
+                                                           existingCluster.serviceAccountInfo)
                   // Remove member from the Google Group that has the IAM role to pull the Dataproc image
                   _ <- clusterHelper.updateDataprocImageGroupMembership(existingCluster.googleProject,
-                    createCluster = false)
+                                                                        createCluster = false)
                   _ <- log.error(gjre)(s"Could not successfully update cluster ${existingCluster.projectNameString}")
                   _ <- IO.raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
                 } yield ()
@@ -517,20 +517,29 @@ class LeonardoService(
               updatedNumWorkersAndPreemptibles.fold(
                 a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
                 a =>
-                  RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(a), now),
+                  RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId,
+                                                                        Option(a),
+                                                                        now),
                 (a, b) =>
                   RuntimeConfigQueries
                     .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
                     .flatMap(
                       _ =>
                         RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId,
-                          Option(b),
-                          now)
+                                                                              Option(b),
+                                                                              now)
                     )
               )
             }
           } yield UpdateResult(true, None)
-        } else IO.raiseError(ClusterCannotBeUpdatedException(existingCluster.projectNameString, existingCluster.status, "You cannot update the number of workers in a stopped cluster. Please start your cluster to perform this action"))
+        } else
+          IO.raiseError(
+            ClusterCannotBeUpdatedException(
+              existingCluster.projectNameString,
+              existingCluster.status,
+              "You cannot update the number of workers in a stopped cluster. Please start your cluster to perform this action"
+            )
+          )
 
       case None => IO.pure(UpdateResult(false, None))
     }
