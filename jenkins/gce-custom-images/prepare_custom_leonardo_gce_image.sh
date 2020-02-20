@@ -34,9 +34,6 @@ anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconducto
 # the entry must match the var name above, which must correspond to a valid docker URI
 docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk openidc_proxy anvil_rstudio_base anvil_rstudio_bioconductor"
 
-# The version of python to install
-python_version="3.7.4"
-
 #
 # Functions
 #
