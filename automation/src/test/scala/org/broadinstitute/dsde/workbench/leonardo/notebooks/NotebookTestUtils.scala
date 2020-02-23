@@ -111,7 +111,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.string} for ${kernel}"
       )(30 seconds, 2 minutes) { () =>
         Future(
-          notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+          notebooksListPage.open.withNewNotebook(kernel, timeout) { notebookPage =>
             val res = testCode(notebookPage)
             notebookPage.saveAndCheckpoint()
             res
