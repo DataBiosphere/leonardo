@@ -9,17 +9,27 @@
             "Required": true,
             "Description": "The base image to add tools onto"
         },
+        "installation_script_dir": {
+            "Required": true,
+            "Description": "The directory that contains the installation script and related source files"
+        },
         "installation_script_name": {
             "Required": true,
             "Description": "The script with the commands that set up GCE VMs spun off by Leonardo"
         },
-        "installation_script_dir": {
+        "cis_hardening_playbook_config": {
             "Required": true,
-            "Description": "The directory that contains the installation script"
+            "Description": "The Ansible Playbook config"
+        },
+        "cis_hardening_playbook_requirements": {
+            "Required": true,
+            "Description": "The Ansible Playbook requirements"
         }
     },
     "Sources": {
-        "${installation_script_name}": "${installation_script_dir}/${installation_script_name}"
+        "${installation_script_name}": "${installation_script_dir}/${installation_script_name}",
+        "${cis_hardening_playbook_config}": "${installation_script_dir}/${cis_hardening_playbook_config}",
+        "${cis_hardening_playbook_requirements}": "${installation_script_dir}/${cis_hardening_playbook_requirements}"
     },
     "Steps": {
         "create-disks": {

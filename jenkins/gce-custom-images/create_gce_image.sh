@@ -8,7 +8,7 @@ set -e -x
 # It assumes that a Daisy image was pulled; e.g. docker pull gcr.io/compute-image-tools/daisy:latest
 
 # The date-time suffix is in the format yymmdd-hh-mm but it could be anything.
-OUTPUT_IMAGE_NAME="leo-custom-gce-image-200219-16-05"
+OUTPUT_IMAGE_NAME="leo-custom-gce-image-200224-11-17"
 
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="latest"
@@ -35,6 +35,8 @@ docker run -it --rm -v "$SOURCE_DIR":/daisy_source_files \
   -oauth /daisy_source_files/application_default_credentials.json \
   -var:base_image projects/debian-cloud/global/images/debian-9-stretch-v20200210 \
   -var:output_image "$OUTPUT_IMAGE_NAME" \
-  -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
   -var:installation_script_dir /daisy_source_files \
+  -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
+  -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
+  -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
   /daisy_source_files/leo_custom_gce_image.wf.json
