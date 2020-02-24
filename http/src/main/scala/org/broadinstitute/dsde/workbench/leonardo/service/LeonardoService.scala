@@ -409,7 +409,7 @@ class LeonardoService(
                 ClusterCannotBeUpdatedException(
                   existingCluster.projectNameString,
                   existingCluster.status,
-                  "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time."
+                  "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time. The number of workers will be updated."
                 )
               )
           case None =>
@@ -488,47 +488,58 @@ class LeonardoService(
 
     updatedNumWorkersAndPreemptiblesOpt match {
       case Some(updatedNumWorkersAndPreemptibles) =>
-        for {
-          _ <- log.info(
-            s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
-          )
-          // Resize the cluster
-          _ <- clusterHelper.resizeCluster(existingCluster,
-                                           updatedNumWorkersAndPreemptibles.left,
-                                           updatedNumWorkersAndPreemptibles.right) recoverWith {
-            case gjre: GoogleJsonResponseException =>
-              // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
-              // resize the cluster we need to revoke it manually here
-              for {
-                _ <- clusterHelper.removeClusterIamRoles(existingCluster.googleProject,
-                                                         existingCluster.serviceAccountInfo)
-                // Remove member from the Google Group that has the IAM role to pull the Dataproc image
-                _ <- clusterHelper.updateDataprocImageGroupMembership(existingCluster.googleProject,
-                                                                      createCluster = false)
-                _ <- log.error(gjre)(s"Could not successfully update cluster ${existingCluster.projectNameString}")
-                _ <- IO.raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
-              } yield ()
-          }
-
-          // Update the DB
-          now <- IO(Instant.now)
-          _ <- dbRef.inTransaction {
-            updatedNumWorkersAndPreemptibles.fold(
-              a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
-              a =>
-                RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(a), now),
-              (a, b) =>
-                RuntimeConfigQueries
-                  .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
-                  .flatMap(
-                    _ =>
-                      RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId,
-                                                                            Option(b),
-                                                                            now)
-                  )
+        if (existingCluster.status != ClusterStatus.Stopped) { //updating the number of workers in a stopped cluster can take forever, so we forbid it
+          for {
+            _ <- log.info(
+              s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
             )
-          }
-        } yield UpdateResult(true, None)
+            // Resize the cluster
+            _ <- clusterHelper.resizeCluster(existingCluster,
+                                             updatedNumWorkersAndPreemptibles.left,
+                                             updatedNumWorkersAndPreemptibles.right) recoverWith {
+              case gjre: GoogleJsonResponseException =>
+                // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
+                // resize the cluster we need to revoke it manually here
+                for {
+                  _ <- clusterHelper.removeClusterIamRoles(existingCluster.googleProject,
+                                                           existingCluster.serviceAccountInfo)
+                  // Remove member from the Google Group that has the IAM role to pull the Dataproc image
+                  _ <- clusterHelper.updateDataprocImageGroupMembership(existingCluster.googleProject,
+                                                                        createCluster = false)
+                  _ <- log.error(gjre)(s"Could not successfully update cluster ${existingCluster.projectNameString}")
+                  _ <- IO.raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
+                } yield ()
+            }
+
+            // Update the DB
+            now <- IO(Instant.now)
+            _ <- dbRef.inTransaction {
+              updatedNumWorkersAndPreemptibles.fold(
+                a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
+                a =>
+                  RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId,
+                                                                        Option(a),
+                                                                        now),
+                (a, b) =>
+                  RuntimeConfigQueries
+                    .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
+                    .flatMap(
+                      _ =>
+                        RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId,
+                                                                              Option(b),
+                                                                              now)
+                    )
+              )
+            }
+          } yield UpdateResult(true, None)
+        } else
+          IO.raiseError(
+            ClusterCannotBeUpdatedException(
+              existingCluster.projectNameString,
+              existingCluster.status,
+              "You cannot update the number of workers in a stopped cluster. Please start your cluster to perform this action"
+            )
+          )
 
       case None => IO.pure(UpdateResult(false, None))
     }
