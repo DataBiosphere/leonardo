@@ -277,8 +277,8 @@ class ClusterHelperSpec
     val runtimeConfig = RuntimeConfig.DataprocConfig(0, "", 500)
     val resourceConstraints = clusterHelper.getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType).unsafeRunSync()
 
-    // 7680m (in mock compute dao) - 6g (dataproc allocated) - 512m (welder allocated) = 1024m
-    resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(1024)
+    // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 1024m
+    resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(768)
   }
 
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
