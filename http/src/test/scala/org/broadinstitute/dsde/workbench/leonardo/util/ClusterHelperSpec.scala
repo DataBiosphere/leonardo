@@ -277,7 +277,7 @@ class ClusterHelperSpec
     val runtimeConfig = RuntimeConfig.DataprocConfig(0, "", 500)
     val resourceConstraints = clusterHelper.getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType).unsafeRunSync()
 
-    // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 1024m
+    // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m
     resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(768)
   }
 
