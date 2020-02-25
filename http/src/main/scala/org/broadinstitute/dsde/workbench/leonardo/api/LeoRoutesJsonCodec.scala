@@ -4,6 +4,7 @@ package api
 
 import cats.implicits._
 import io.circe.{Decoder, DecodingFailure}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
@@ -14,14 +15,14 @@ object LeoRoutesJsonCodec {
   implicit val dataprocConfigDecoder: Decoder[RuntimeConfigRequest.DataprocConfig] = Decoder.instance { c =>
     for {
       numberOfWorkersInput <- c.downField("numberOfWorkers").as[Option[Int]]
-      masterMachineType <- c.downField("masterMachineType").as[Option[String]]
-      _ <- if (masterMachineType.nonEmpty && masterMachineType.exists(_.isEmpty)) Left(emptyMasterMachineType)
+      masterMachineType <- c.downField("masterMachineType").as[Option[MachineTypeName]]
+      _ <- if (masterMachineType.nonEmpty && masterMachineType.exists(_.value.isEmpty)) Left(emptyMasterMachineType)
       else Right(())
       masterDiskSize <- c
         .downField("masterDiskSize")
         .as[Option[Int]]
         .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
-      workerMachineType <- c.downField("workerMachineType").as[Option[String]]
+      workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
       workerDiskSize <- c
         .downField("workerDiskSize")
         .as[Option[Int]]

@@ -159,16 +159,16 @@ object RuntimeConfig {
   }
 
   final case class DataprocConfig(numberOfWorkers: Int,
-                                  masterMachineType: String,
+                                  masterMachineType: MachineTypeName,
                                   masterDiskSize: Int, //min 10
                                   // worker settings are None when numberOfWorkers is 0
-                                  workerMachineType: Option[String] = None,
+                                  workerMachineType: Option[MachineTypeName] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
-    val machineType: MachineTypeName = MachineTypeName(masterMachineType)
+    val machineType: MachineTypeName = masterMachineType
     val diskSize: Int = masterDiskSize
   }
 }

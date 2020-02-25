@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.leonardo.{CustomDataprocImage, MemorySize}
+import org.broadinstitute.dsde.workbench.leonardo.{CustomDataprocImage, MemorySize, RuntimeConfig}
 
 final case class DataprocConfig(
   dataprocDefaultRegion: String,
@@ -8,5 +8,6 @@ final case class DataprocConfig(
   defaultScopes: Set[String],
   legacyCustomDataprocImage: CustomDataprocImage,
   customDataprocImage: CustomDataprocImage,
-  dataprocReservedMemory: Option[MemorySize]
+  dataprocReservedMemory: Option[MemorySize],
+  runtimeConfigDefaults: RuntimeConfig.DataprocConfig
 )

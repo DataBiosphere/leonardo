@@ -7,8 +7,19 @@ import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.google2.{GoogleTopicAdminInterpreter, PublisherConfig, SubscriberConfig}
-import org.broadinstitute.dsde.workbench.leonardo.{CustomDataprocImage, MemorySize, RuntimeResource, RuntimeStatus}
+import org.broadinstitute.dsde.workbench.google2.{
+  GoogleTopicAdminInterpreter,
+  MachineTypeName,
+  PublisherConfig,
+  SubscriberConfig
+}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  CustomDataprocImage,
+  MemorySize,
+  RuntimeConfig,
+  RuntimeResource,
+  RuntimeStatus
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
@@ -31,6 +42,25 @@ object Config {
     )
   }
 
+  implicit val dataprocRuntimeConfigReader: ValueReader[RuntimeConfig.DataprocConfig] = ValueReader.relative { config =>
+    RuntimeConfig.DataprocConfig(
+      config.getInt("numberOfWorkers"),
+      MachineTypeName(config.getString("masterMachineType")),
+      config.getInt("masterDiskSize"),
+      config.getAs[String]("workerMachineType").map(MachineTypeName),
+      config.getAs[Int]("workerDiskSize"),
+      config.getAs[Int]("numberOfWorkerLocalSSDs"),
+      config.getAs[Int]("numberOfPreemptibleWorkers")
+    )
+  }
+
+  implicit val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
+    RuntimeConfig.GceConfig(
+      MachineTypeName(config.getString("machineType")),
+      config.getInt("diskSize")
+    )
+  }
+
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getString("dataprocDefaultRegion"),
@@ -38,14 +68,16 @@ object Config {
       config.getStringList("defaultScopes").asScala.toSet,
       CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
       CustomDataprocImage(config.getString("customDataprocImage")),
-      config.getAs[MemorySize]("dataprocReservedMemory")
+      config.getAs[MemorySize]("dataprocReservedMemory"),
+      config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults")
     )
   }
 
   implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
       config.getStringList("defaultScopes").asScala.toSet,
-      config.getAs[MemorySize]("gceReservedMemory")
+      config.getAs[MemorySize]("gceReservedMemory"),
+      config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
     )
   }
 
@@ -107,46 +139,6 @@ object Config {
       new File(baseDir, config.getString("jupyterServerKey")),
       new File(baseDir, config.getString("jupyterRootCaPem")),
       new File(baseDir, config.getString("jupyterRootCaKey"))
-    )
-  }
-
-  implicit val clusterDefaultConfigReader: ValueReader[ClusterDefaultsConfig] = ValueReader.relative { config =>
-    val numberOfWorkersInput = config.getInt("numberOfWorkers")
-    val numberOfWorkers =
-      if (numberOfWorkersInput < 0)
-        throw new Exception("Invalid numberOfWorkers config value. Needs to be positive number")
-      else if (numberOfWorkersInput == 1)
-        throw new Exception(
-          "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more."
-        )
-      else numberOfWorkersInput
-
-    val numberOfWorkerLocalSSDsInput = config.getInt("numberOfWorkerLocalSSDs")
-    val numberOfWorkerLocalSSDs =
-      if (numberOfWorkerLocalSSDsInput < 0)
-        throw new Exception("Invalid numberOfWorkers config value. Needs to be positive number")
-      else numberOfWorkerLocalSSDsInput
-
-    val numberOfPreemptibleWorkersInput = config.getInt("numberOfPreemptibleWorkers")
-    val numberOfPreemptibleWorkers =
-      if (numberOfPreemptibleWorkersInput < 0)
-        throw new Exception("Invalid numberOfWorkers config value. Needs to be positive number")
-      else numberOfPreemptibleWorkersInput
-
-    val masterMachineTypeInput = config.getString("masterMachineType")
-    val masterMachineType =
-      if (masterMachineTypeInput.isEmpty)
-        throw new Exception("masterMachineType can not be empty String")
-      else masterMachineTypeInput
-
-    ClusterDefaultsConfig(
-      numberOfWorkers,
-      masterMachineType,
-      config.getInt("masterDiskSize"),
-      config.getString("workerMachineType"),
-      config.getInt("workerDiskSize"),
-      numberOfWorkerLocalSSDs,
-      numberOfPreemptibleWorkers
     )
   }
 
@@ -296,7 +288,6 @@ object Config {
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")

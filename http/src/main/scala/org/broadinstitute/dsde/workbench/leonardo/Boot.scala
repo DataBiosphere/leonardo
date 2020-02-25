@@ -64,17 +64,6 @@ object Boot extends IOApp {
     // We need an ActorSystem to host our application in
     implicit val system = ActorSystem(applicationConfig.applicationName)
     import system.dispatcher
-
-//    val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
-//      new HttpGoogleStorageDAO(applicationConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
-//    }
-//
-//    val json = Json(applicationConfig.leoServiceAccountJsonFile)
-//
-//    val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
-//    // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
-//    val pemWithServiceAccountUser =
-//      Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleGroupsConfig.googleAdminEmail))
     implicit def logger = Slf4jLogger.getLogger[IO]
 
     createDependencies(leoServiceAccountJsonFile).use { appDependencies =>
@@ -128,7 +117,6 @@ object Boot extends IOApp {
       val leonardoService = new LeonardoService(dataprocConfig,
                                                 imageConfig,
                                                 appDependencies.welderDAO,
-                                                clusterDefaultsConfig,
                                                 proxyConfig,
                                                 swaggerConfig,
                                                 autoFreezeConfig,
@@ -277,7 +265,6 @@ object Boot extends IOApp {
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
-      // TODO is this correct?
       credentialJson <- org.broadinstitute.dsde.workbench.util2
         .readFile(applicationConfig.leoServiceAccountJsonFile.getAbsolutePath)
         .map(_.toString)

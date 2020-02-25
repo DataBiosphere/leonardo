@@ -135,7 +135,6 @@ class LeonardoService(
   protected val dataprocConfig: DataprocConfig,
   protected val imageConfig: ImageConfig,
   protected val welderDao: WelderDAO[IO],
-  protected val clusterDefaultsConfig: ClusterDefaultsConfig,
   protected val proxyConfig: ProxyConfig,
   protected val swaggerConfig: SwaggerConfig,
   protected val autoFreezeConfig: AutoFreezeConfig,
@@ -366,7 +365,7 @@ class LeonardoService(
                                                            x.numberOfPreemptibleWorkers).attempt
                       masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster,
                                                                                existingRuntimeConfig,
-                                                                               x.masterMachineType.map(MachineTypeName),
+                                                                               x.masterMachineType,
                                                                                clusterRequest.allowStop).attempt
                       masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster,
                                                                          existingRuntimeConfig,
@@ -566,7 +565,7 @@ class LeonardoService(
         existingRuntimeConfig match {
           case x: RuntimeConfig.DataprocConfig =>
             logger.debug("in stop and update case of maybeChangeMasterMachineType")
-            val updatedConfig = x.copy(masterMachineType = updatedMasterMachineType.value)
+            val updatedConfig = x.copy(masterMachineType = updatedMasterMachineType)
 
             if (allowStop) {
               val transition = StopStartTransition(updatedConfig)

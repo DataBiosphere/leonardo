@@ -21,10 +21,10 @@ object RuntimeConfigRequest {
   }
 
   final case class DataprocConfig(numberOfWorkers: Option[Int],
-                                  masterMachineType: Option[String],
+                                  masterMachineType: Option[MachineTypeName],
                                   masterDiskSize: Option[Int], //min 10
                                   // worker settings are None when numberOfWorkers is 0
-                                  workerMachineType: Option[String] = None,
+                                  workerMachineType: Option[MachineTypeName] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None)

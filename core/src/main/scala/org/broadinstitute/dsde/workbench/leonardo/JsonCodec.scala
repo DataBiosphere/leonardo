@@ -150,9 +150,9 @@ object JsonCodec {
   implicit val rtDataprocConfigDecoder: Decoder[RuntimeConfig.DataprocConfig] = Decoder.instance { c =>
     for {
       numberOfWorkers <- c.downField("numberOfWorkers").as[Int]
-      masterMachineType <- c.downField("masterMachineType").as[String]
+      masterMachineType <- c.downField("masterMachineType").as[MachineTypeName]
       masterDiskSize <- c.downField("masterDiskSize").as[Int]
-      workerMachineType <- c.downField("workerMachineType").as[Option[String]]
+      workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
       workerDiskSize <- c.downField("workerDiskSize").as[Option[Int]]
       numberOfWorkerLocalSSDs <- c.downField("numberOfWorkerLocalSSDs").as[Option[Int]]
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
