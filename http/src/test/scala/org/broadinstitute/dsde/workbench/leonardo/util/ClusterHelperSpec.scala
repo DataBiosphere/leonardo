@@ -79,7 +79,8 @@ class ClusterHelperSpec
       .futureValue
 
   "ClusterHelper" should "create a google cluster" in isolatedDbTest {
-    val clusterCreationRes = clusterHelper.createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().futureValue
+    val clusterCreationRes =
+      clusterHelper.createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().futureValue
 
     // verify the mock dataproc DAO
     mockGoogleDataprocDAO.clusters.size shouldBe 1
@@ -116,7 +117,8 @@ class ClusterHelperSpec
           )
       )(testCluster)
 
-    val res = clusterHelper.createCluster(cluster.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().futureValue
+    val res =
+      clusterHelper.createCluster(cluster.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().futureValue
     res.customDataprocImage shouldBe Config.dataprocConfig.customDataprocImage
     val clusterWithLegacyImage = LeoLenses.clusterToClusterImages
       .modify(
@@ -129,7 +131,10 @@ class ClusterHelperSpec
       )(testCluster)
 
     val resForLegacyImage =
-      clusterHelper.createCluster(clusterWithLegacyImage.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().futureValue
+      clusterHelper
+        .createCluster(clusterWithLegacyImage.toCreateCluster(defaultRuntimeConfig, None))
+        .unsafeToFuture()
+        .futureValue
 
     resForLegacyImage.customDataprocImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
   }
@@ -154,7 +159,11 @@ class ClusterHelperSpec
                                                  blocker)
 
     val exception =
-      erroredClusterHelper.createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().failed.futureValue
+      erroredClusterHelper
+        .createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None))
+        .unsafeToFuture()
+        .failed
+        .futureValue
     exception shouldBe a[GoogleJsonResponseException]
 
     // verify Google DAOs have been cleaned up
@@ -186,7 +195,11 @@ class ClusterHelperSpec
                                                  blocker)
 
     val exception =
-      erroredClusterHelper.createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().failed.futureValue
+      erroredClusterHelper
+        .createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None))
+        .unsafeToFuture()
+        .failed
+        .futureValue
     exception shouldBe a[GoogleJsonResponseException]
 
     erroredDataprocDAO.invocationCount shouldBe 7
@@ -267,7 +280,11 @@ class ClusterHelperSpec
                                                  blocker)
 
     val exception =
-      erroredClusterHelper.createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None)).unsafeToFuture().failed.futureValue
+      erroredClusterHelper
+        .createCluster(testCluster.toCreateCluster(defaultRuntimeConfig, None))
+        .unsafeToFuture()
+        .failed
+        .futureValue
     exception shouldBe a[GoogleJsonResponseException]
 
     erroredIamDAO.invocationCount should be > 2
@@ -275,7 +292,9 @@ class ClusterHelperSpec
 
   it should "calculate cluster resource constraints" in isolatedDbTest {
     val runtimeConfig = RuntimeConfig.DataprocConfig(0, "", 500)
-    val resourceConstraints = clusterHelper.getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType).unsafeRunSync()
+    val resourceConstraints = clusterHelper
+      .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
+      .unsafeRunSync()
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 512m (welder allocated) = 1024m
     resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(1024)
