@@ -48,9 +48,9 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
 
           case CloudService.Dataproc =>
             RuntimeConfig.DataprocConfig(numberOfWorkers,
-                                         machineType.value,
+                                         machineType,
                                          diskSize,
-                                         workerMachineType.map(_.value),
+                                         workerMachineType,
                                          workerDiskSize,
                                          numberOfWorkerLocalSSDs,
                                          numberOfPreemptibleWorkers)
@@ -67,9 +67,9 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
             x.id,
             (CloudService.Dataproc: CloudService,
              r.numberOfWorkers,
-             MachineTypeName(r.masterMachineType),
+             r.masterMachineType,
              r.masterDiskSize,
-             r.workerMachineType.map(MachineTypeName),
+             r.workerMachineType,
              r.workerDiskSize,
              r.numberOfWorkerLocalSSDs,
              r.numberOfPreemptibleWorkers),
