@@ -57,7 +57,7 @@ class ZombieClusterMonitor(
   override def receive: Receive = {
     case DetectZombieClusters =>
       (for {
-        now <- IO(Instant.now)
+        start <- IO(Instant.now)
         semaphore <- Semaphore[IO](concurrency)
         // Get active clusters from the Leo DB, grouped by project
         clusterMap <- getActiveClustersFromDatabase
@@ -72,7 +72,7 @@ class ZombieClusterMonitor(
                 case true =>
                   // If the project is active, check each individual cluster
                   clusters.toList.traverseFilter { cluster =>
-                    isClusterActiveInGoogle(cluster, now).map {
+                    isClusterActiveInGoogle(cluster, start).map {
                       case true  => None
                       case false => Some(cluster)
                     }
@@ -83,11 +83,13 @@ class ZombieClusterMonitor(
               }
             )
         }
-        _ <- logger.info(
-          s"Detected ${zombies.size} zombie clusters in ${zombies.map(_.googleProject).toSet.size} projects."
-        )
         // Error out each detected zombie cluster
         _ <- zombies.parTraverse(handleZombieCluster)
+        end <- IO(Instant.now)
+        duration = Duration.between(start, end)
+        _ <- logger.info(
+          s"Detected ${zombies.size} zombie clusters in ${zombies.map(_.googleProject).toSet.size} projects. Elapsed = ${duration.getSeconds} seconds"
+        )
       } yield ()).unsafeRunSync
   }
 
