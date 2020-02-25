@@ -84,7 +84,7 @@ class ZombieClusterMonitor(
             )
         }
         _ <- logger.info(
-          s"Detected ${zombies.size} zombie clusters across ${zombies.map(_.googleProject).toSet.size} projects."
+          s"Detected ${zombies.size} zombie clusters in ${zombies.map(_.googleProject).toSet.size} projects."
         )
         // Error out each detected zombie cluster
         _ <- zombies.parTraverse(handleZombieCluster)
