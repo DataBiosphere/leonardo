@@ -1,12 +1,13 @@
-//Update the custom data proc image used in leo.  The name of the job contains the name of the dataproc image created. This job will fail if master of terra-docker has not been updated since the last run, as the git hash has not changed. This is a happy side-effect of the fact image names must be unique.
+// Update the custom data proc image used in leo.  The name of the job contains the name of the dataproc image created. This job will fail if master of terra-docker has not been updated since the last run, as the git hash has not changed. This is a happy side-effect of the fact image names must be unique.
 
-//Currently, this is referenced in a jenkins job with the following configuration:
+// Currently, this is referenced in a jenkins job with the following configuration:
 // Create a 'New Item' that is a Pipeline in Jenkins
 // Specify Pipeline script from SCM with the scm for leo and the appropriate branch
 // Script Path should be the location of this file relative to the repo root
 
-//populated by first step
-def ArrayList<String> images = []
+// Populated by first step
+ArrayList<String> dataprocImages = []
+ArrayList<String> gceImages = []
 def imageID = ""
 def prLink = ""
 
@@ -17,91 +18,87 @@ def LinkedHashMap<String, String> imageToParamMap = [:]
 def branchName = "automated-custom-image-hash-update-"
 
 def getShortHash(hash) {
-  def shortHash = hash.substring(0,7)
-  println("Short hash is $shortHash")
-  return shortHash
+    def shortHash = hash.substring(0,7)
+    println("Short hash is $shortHash")
+    return shortHash
 }
 
 def boolean hasHashChanges(ArrayList<String> images) {
-  def Set imagesChanged = []
+    def Set imagesChanged = []
 
-  def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
-  for (String configFile: configPaths) {
-    println("in change detection loop, before bash. File: $configFile")
-    def gitOutput = sh(
-      script: "git diff HEAD~1..HEAD $configFile",
-      returnStdout: true
-    ).trim()
+    def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+    for (String configFile: configPaths) {
+        println("in change detection loop, before bash. File: $configFile")
+        def gitOutput = sh(
+            script: "git diff HEAD~1..HEAD $configFile",
+            returnStdout: true
+        ).trim()
 
-      println("in change detection loop, after bash: $gitOutput")
+        println("in change detection loop, after bash: $gitOutput")
 
-    for (String image: images) {
-
-      if (gitOutput.contains(image)) {
-        println("detected changed image for $image")
-
-        imagesChanged.add(image)
-      }
+        for (String image: images) {
+            if (gitOutput.contains(image)) {
+                println("detected changed image for $image")
+                imagesChanged.add(image)
+            }
+        }
     }
-  }
 
-  return !imagesChanged.isEmpty()
+    return !imagesChanged.isEmpty()
 }
 
-//if an image is in imageNames but not the confFile, the returned version will be an empty string
+// If an image is in imageNames but not the confFile, the returned version will be an empty string
 def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames) {
-  def LinkedHashMap<String, String> tempVersionMap = [:]
-  def LinkedHashMap<String, String> finalVersionMap = [:]
+    def LinkedHashMap<String, String> tempVersionMap = [:]
+    def LinkedHashMap<String, String> finalVersionMap = [:]
 
-  def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
-  for (String configFile: configPaths) {
-
-    tempVersionMap = getVersionMap(imageNames, configFile)
-    for (String image in tempVersionMap.keySet()) {
-      if (finalVersionMap.keySet().contains(image) && !finalVersionMap[image].isEmpty()) {
-          //there is a nonempty version, we don't do anything here
-      } else {
-          finalVersionMap[image] = tempVersionMap[image]
-      }
+    def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+    for (String configFile: configPaths) {
+        tempVersionMap = getVersionMap(imageNames, configFile)
+        for (String image in tempVersionMap.keySet()) {
+            if (finalVersionMap.keySet().contains(image) && !finalVersionMap[image].isEmpty()) {
+                // there is a nonempty version, we don't do anything here
+            } else {
+                finalVersionMap[image] = tempVersionMap[image]
+            }
+        }
     }
-  }
-  return finalVersionMap
+    return finalVersionMap
 }
 
 def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, String configFile) {
-  def LinkedHashMap<String,String> versionMap = [:]
+    def LinkedHashMap<String,String> versionMap = [:]
 
-  //for example, if $image is 'welder-server', this line would isolate 'a4f0e04' from the line below in a $configFile
-  // welderDockerImage = "us.gcr.io/broad-dsp-gcr-public/welder-server:a4f0e04"
-  // the awk at the end ensures that the line can have comments or other whitespace after the terminating quote
-  for (String image: imageNames) {
-    def version = sh(
-      script: "cat $configFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' | awk '{print \$1}' ",
-      returnStdout: true
-    ).trim()
+    //for example, if $image is 'welder-server', this line would isolate 'a4f0e04' from the line below in a $configFile
+    // welderDockerImage = "us.gcr.io/broad-dsp-gcr-public/welder-server:a4f0e04"
+    // the awk at the end ensures that the line can have comments or other whitespace after the terminating quote
+    for (String image: imageNames) {
+        def version = sh(
+          script: "cat $configFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' | awk '{print \$1}' ",
+          returnStdout: true
+        ).trim()
 
-    versionMap[image] = version
-  }
+        versionMap[image] = version
+    }
 
-  return versionMap
+    return versionMap
 }
 
 def String getChangeDescription(LinkedHashMap<String,String> versionMap) {
-  def title = "[jenkins-generated-pr] Automated custom image hash update"
-  def body = "$title\n These are the images that are baked into this custom image:\n"
-  def version = ""
-  println("version map in getChangeDescription: " + versionMap.toString())
-  for (String image in versionMap.keySet()) {
-
-    if (versionMap[image].isEmpty()) {
-      continue;
+    def title = "[jenkins-generated-pr] Automated custom image hash update"
+    def body = "$title\n These are the images that are baked into this custom image:\n"
+    def version = ""
+    println("version map in getChangeDescription: " + versionMap.toString())
+    for (String image in versionMap.keySet()) {
+        if (versionMap[image].isEmpty()) {
+            continue;
+        }
+        version = versionMap[image]
+        println("updating body with $image: $version")
+        body = body + "\n- $image: $version"
     }
-    version = versionMap[image]
-    println("updating body with $image: $version")
-    body = body + "\n- $image: $version"
-  }
 
-  return body
+    return body
 }
 
 pipeline {
@@ -146,229 +143,235 @@ pipeline {
           description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
   }
 
-  stages {
-    stage('Terra docker image scan') {
-      steps {
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
+    stages {
+        stage('Terra docker image scan') {
+            steps {
+                git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'ky_ia_1596_jenkinsify_gce_image_creation'
 
-        script {
-          def temp = sh( 
-            script: "cat config/conf.json | jq -r '.image_data | .[] | select(.automated_flags.include_in_custom_dataproc == true) | select(.automated_flags.build == true) | .name'",
-            returnStdout: true
-          ).trim().split("\n")
+                script {
+                    ArrayList<String> nonTerraDockerImages = [
+                        'leonardo-jupyter', 'welder-server', 'openidc-proxy', 'anvil-rstudio-base', 'anvil-rstudio-bioconductor'
+                    ]
 
-          images = new ArrayList<String>(Arrays.asList(temp))
+                    String selectBuildableTerraDockerImagesQuery = "cat config/conf.json | jq -r '.image_data | .[] | select(.automated_flags.build == true)"
 
-          //non terra-docker images
-          images.add('leonardo-jupyter')
-          images.add('welder-server')
-          images.add('openidc-proxy')
-          images.add('anvil-rstudio-base')
-          images.add('anvil-rstudio-bioconductor')
+                    def terraDockerDataprocImageArray = sh(
+                        script: "$selectBuildableTerraDockerImagesQuery | select(.automated_flags.include_in_custom_dataproc == true) | .name'",
+                        returnStdout: true
+                    ).trim().split("\n")
+                    
+                    def terraDockerGceImageArray = sh(
+                        script: "$selectBuildableTerraDockerImagesQuery | select(.automated_flags.include_in_custom_gce == true) | .name'",
+                        returnStdout: true
+                    ).trim().split("\n")
 
-          println("Images to include in custom image found in image scan: $images")
-        }
-      }
-    }
+                    dataprocImages = terraDockerDataprocImageArray + nonTerraDockerImages
+                    gceImages = terraDockerGceImageArray + nonTerraDockerImages
 
-    stage('Leonardo Git') {
-      steps {
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
-      }
-    }
-
-    //create short hash properties file
-    stage('Set image ID') {
-      steps {
-        script {
-          if (useCustomImageIdentifier.equals("true")) {
-            imageID = "$custom_image_id"
-          } else {
-            imageID = getShortHash(sh (
-              script: "git rev-parse HEAD",
-              returnStdout: true
-            ))
-          }
-
-          currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$dataproc_versions-$imageID"
-        }
-      }
-    }
-
-    stage('Docker and Gcloud Auth') {
-      steps {
-        sh """
-          sudo chown -R jenkins:jenkins /home/jenkins/.config
-          docker run --rm  -v /etc/vault-token-dsde:/root/.vault-token:ro broadinstitute/dsde-toolbox:latest vault read --format=json secret/dsde/firecloud/common/image-build-account.json | jq .data > image-build-account.json
-          gcloud auth activate-service-account --key-file=image-build-account.json
-          gcloud auth configure-docker --quiet
-        """
-      }
-    }
-
-    stage ('Detect Hash Changes') {
-      when { expression { useCustomImages.equals("false") } }
-      steps {
-        script {
-          def shouldUpdate = hasHashChanges(images)
-          shouldAbortBuild = !shouldUpdate //set variable to control if future steps get run
-          versionMap = getVersionMap(images)
-
-          if (shouldUpdate) {
-            for (String image: images) {
-              if (image in versionMap.keySet() && !versionMap[image].isEmpty()) { //the version could be empty if the image from terra-docker is not in a leo conf yet
-                version = versionMap[image]
-                println("using version $version for $image in this build of custom dataproc image")
-
-                sh """
-                  sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                """
-              }
+                    println("dataprocImages: $dataprocImages")
+                    println("gceImages: $gceImages")
+                }
             }
-          }
         }
 
-        sh """
-          echo 'printing changed config'
-          cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-          git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-        """
-      }
-    }
-
-    stage ('Use manually specified hashes') {
-      when { expression { useCustomImages.equals("true") } }
-      steps {
-        script {
-          for(String image: images) {
-            def varName = image.replace("-","_") //needed because the env vars use _ in place of the - in the image name due to bash restrictions
-
-            //here we take advantage of the fact that the image names and jenkins version env variables have the same name to retrieve the versions
-            version = sh(
-              script: """
-                eval "echo \$$varName"
-              """,
-              returnStdout: true
-            ).trim()
-
-            println("Manually replacing line with $image with $image:$version")
-
-            sh (
-              script: """
-                sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-              """
-            )
-
-            versionMap[image] = version
-
-            //will print any changed lines via git diff
-            sh(
-              script: "cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh; git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh"
-            )
-          }
-        }
-      }
-    }
-
-      stage('Run build script') {
-        when { expression { !shouldAbortBuild } }
-        steps {
-          sh """
-              git submodule init && git submodule update
-          """
-          script {
-            for(String dp_version: dataproc_versions.trim().split(' ')) {
-              def dp_version_formatted = dp_version.replace(".","-")
-              // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
-              // Otherwise, a terra-docker image is used which must have python 3.7 installed
-              def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
-              println("Installing Python $python_version on Dataproc $dp_version")
-              sh (
-                script: """
-                  sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                  cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                  cd jenkins/dataproc-custom-images/dataproc-custom-images
-                  python generate_custom_image.py \
-                    --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
-                    --dataproc-version "$dp_version" \
-                    --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-                    --zone us-central1-a \
-                    --gcs-bucket $BUCKET_NAME \
-                    --project-id=$GOOGLE_PROJECT \
-                    --disk-size=50
-                """
-              )
-            }
-          }
-        }
-      }
-
-      stage('Update custom leo image in conf') {
-        when { expression { !shouldAbortBuild } }
-        steps {
-          script {
-            def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
-            for (String configFile: configPaths) {
-              for (String dp_version: dataproc_versions.trim().split(' ')) {
-                def dp_version_formatted = dp_version.replace(".","-")
-                sh (
-                    script: """
-                      sed -i "s/$IMAGE_BASE_NAME-$dp_version_formatted.*/$IMAGE_BASE_NAME-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
-                    """
-                )
-              }
-            }
-          }
-
-          sshagent(['jenkins-ssh-github']) {
-            sh """
-              git checkout -b $branchName$imageID
-              git commit -m "automated custom image hash updates"
-              git push origin $branchName$imageID
-            """
-          }
-
-        }
-      }
-
-      stage('Create PR') {
-        when { expression { !shouldAbortBuild } }
-        steps {
-          script {
-            def changeDescription = getChangeDescription(versionMap)
-            withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
-              sh """
-                docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
-
-                docker rm -f hub-runtime | true
-
-                docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
-
-                docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
-                docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
-
-              """
-            }
-
-            prLink = sh(
-              script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
-              returnStdout: true
-            ).trim()
-
-            sh """
-              docker stop hub-runtime
-              docker rm -f hub-runtime | true
-            """
-          }
-        }
-      }
-
-      stage('Notify Slack') {
-        when { expression { !shouldAbortBuild } }
-        steps {
-          slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built a custom leo dataproc images for dataproc versions $dataproc_versions with the name:  $IMAGE_BASE_NAME-$imageID. \nIf you would like to check the status of the PR, click: $prLink")
-        }
-      }
-
+//     stage('Leonardo Git') {
+//       steps {
+//         git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
+//       }
+//     }
+//
+//     //create short hash properties file
+//     stage('Set image ID') {
+//       steps {
+//         script {
+//           if (useCustomImageIdentifier.equals("true")) {
+//             imageID = "$custom_image_id"
+//           } else {
+//             imageID = getShortHash(sh (
+//               script: "git rev-parse HEAD",
+//               returnStdout: true
+//             ))
+//           }
+//
+//           currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$dataproc_versions-$imageID"
+//         }
+//       }
+//     }
+//
+//     stage('Docker and Gcloud Auth') {
+//       steps {
+//         sh """
+//           sudo chown -R jenkins:jenkins /home/jenkins/.config
+//           docker run --rm  -v /etc/vault-token-dsde:/root/.vault-token:ro broadinstitute/dsde-toolbox:latest vault read --format=json secret/dsde/firecloud/common/image-build-account.json | jq .data > image-build-account.json
+//           gcloud auth activate-service-account --key-file=image-build-account.json
+//           gcloud auth configure-docker --quiet
+//         """
+//       }
+//     }
+//
+//     stage ('Detect Hash Changes') {
+//       when { expression { useCustomImages.equals("false") } }
+//       steps {
+//         script {
+//           def shouldUpdate = hasHashChanges(images)
+//           shouldAbortBuild = !shouldUpdate //set variable to control if future steps get run
+//           versionMap = getVersionMap(images)
+//
+//           if (shouldUpdate) {
+//             for (String image: images) {
+//               if (image in versionMap.keySet() && !versionMap[image].isEmpty()) { //the version could be empty if the image from terra-docker is not in a leo conf yet
+//                 version = versionMap[image]
+//                 println("using version $version for $image in this build of custom dataproc image")
+//
+//                 sh """
+//                   sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//                 """
+//               }
+//             }
+//           }
+//         }
+//
+//         sh """
+//           echo 'printing changed config'
+//           cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//           git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//         """
+//       }
+//     }
+//
+//     stage ('Use manually specified hashes') {
+//       when { expression { useCustomImages.equals("true") } }
+//       steps {
+//         script {
+//           for(String image: images) {
+//             def varName = image.replace("-","_") //needed because the env vars use _ in place of the - in the image name due to bash restrictions
+//
+//             //here we take advantage of the fact that the image names and jenkins version env variables have the same name to retrieve the versions
+//             version = sh(
+//               script: """
+//                 eval "echo \$$varName"
+//               """,
+//               returnStdout: true
+//             ).trim()
+//
+//             println("Manually replacing line with $image with $image:$version")
+//
+//             sh (
+//               script: """
+//                 sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//               """
+//             )
+//
+//             versionMap[image] = version
+//
+//             //will print any changed lines via git diff
+//             sh(
+//               script: "cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh; git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh"
+//             )
+//           }
+//         }
+//       }
+//     }
+//
+//       stage('Run build script') {
+//         when { expression { !shouldAbortBuild } }
+//         steps {
+//           sh """
+//               git submodule init && git submodule update
+//           """
+//           script {
+//             for(String dp_version: dataproc_versions.trim().split(' ')) {
+//               def dp_version_formatted = dp_version.replace(".","-")
+//               // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
+//               // Otherwise, a terra-docker image is used which must have python 3.7 installed
+//               def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
+//               println("Installing Python $python_version on Dataproc $dp_version")
+//               sh (
+//                 script: """
+//                   sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//                   cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//                   cd jenkins/dataproc-custom-images/dataproc-custom-images
+//                   python generate_custom_image.py \
+//                     --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
+//                     --dataproc-version "$dp_version" \
+//                     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+//                     --zone us-central1-a \
+//                     --gcs-bucket $BUCKET_NAME \
+//                     --project-id=$GOOGLE_PROJECT \
+//                     --disk-size=50
+//                 """
+//               )
+//             }
+//           }
+//         }
+//       }
+//
+//       stage('Update custom leo image in conf') {
+//         when { expression { !shouldAbortBuild } }
+//         steps {
+//           script {
+//             def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+//             for (String configFile: configPaths) {
+//               for (String dp_version: dataproc_versions.trim().split(' ')) {
+//                 def dp_version_formatted = dp_version.replace(".","-")
+//                 sh (
+//                     script: """
+//                       sed -i "s/$IMAGE_BASE_NAME-$dp_version_formatted.*/$IMAGE_BASE_NAME-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+//                     """
+//                 )
+//               }
+//             }
+//           }
+//
+//           sshagent(['jenkins-ssh-github']) {
+//             sh """
+//               git checkout -b $branchName$imageID
+//               git commit -m "automated custom image hash updates"
+//               git push origin $branchName$imageID
+//             """
+//           }
+//
+//         }
+//       }
+//
+//       stage('Create PR') {
+//         when { expression { !shouldAbortBuild } }
+//         steps {
+//           script {
+//             def changeDescription = getChangeDescription(versionMap)
+//             withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
+//               sh """
+//                 docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
+//
+//                 docker rm -f hub-runtime | true
+//
+//                 docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
+//
+//                 docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
+//                 docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
+//
+//               """
+//             }
+//
+//             prLink = sh(
+//               script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
+//               returnStdout: true
+//             ).trim()
+//
+//             sh """
+//               docker stop hub-runtime
+//               docker rm -f hub-runtime | true
+//             """
+//           }
+//         }
+//       }
+//
+//       stage('Notify Slack') {
+//         when { expression { !shouldAbortBuild } }
+//         steps {
+//           slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built a custom leo dataproc images for dataproc versions $dataproc_versions with the name:  $IMAGE_BASE_NAME-$imageID. \nIf you would like to check the status of the PR, click: $prLink")
+//         }
+//       }
+//
   }
 }
