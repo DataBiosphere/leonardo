@@ -10,4 +10,6 @@ package object leonardo {
   type ClusterName = RuntimeName
   type ClusterInternalId = RuntimeInternalId
   type ClusterImage = RuntimeImage
+  type Instance = DataprocInstance
+  type InstanceKey = DataprocInstanceKey
 }

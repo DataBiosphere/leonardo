@@ -64,15 +64,6 @@ object LeoPubsubCodec {
   implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransition] =
     Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransition.apply)
 
-  implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
-  implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
-
-  implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =
-    Decoder.forProduct2("googleProject", "clusterName")(RuntimeProjectAndName.apply)
-
-  implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
-    Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
-
   implicit val createClusterDecoder: Decoder[CreateCluster] =
     Decoder.forProduct17(
       "id",
@@ -116,17 +107,6 @@ object LeoPubsubCodec {
 
   implicit val clusterTransitionFinishedEncoder: Encoder[ClusterTransition] =
     Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.clusterFollowupDetails))
-
-  //TODO: These google specific models json codec should be moved to a better place once Rob's GCE PR is in
-  implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
-  implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.value)
-  implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
-    Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
-
-  implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
-    "googleProject",
-    "clusterName"
-  )(x => RuntimeProjectAndName.unapply(x).get)
 
   implicit val createClusterEncoder: Encoder[CreateCluster] =
     Encoder.forProduct18(

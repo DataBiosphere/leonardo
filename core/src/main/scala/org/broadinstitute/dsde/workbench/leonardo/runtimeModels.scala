@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CustomDataProc, Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ValueObject, WorkbenchEmail}
 
 import scala.collection.immutable
@@ -18,37 +18,35 @@ import scala.collection.immutable
 /**
  * This file contains models for Leonardo runtimes.
  */
-
 /** The runtime itself */
 final case class Runtime(id: Long = 0, // DB AutoInc
-                          internalId: RuntimeInternalId,
-                          runtimeName: RuntimeName,
-                          googleProject: GoogleProject,
-                          serviceAccountInfo: ServiceAccountInfo,
-                          asyncRuntimeFields: Option[AsyncRuntimeFields],
-                          auditInfo: AuditInfo,
-                          properties: Map[String, String],
-                          clusterUrl: URL,
-                          status: RuntimeStatus,
-                          labels: LabelMap,
-                          jupyterExtensionUri: Option[GcsPath],
-                          jupyterUserScriptUri: Option[UserScriptPath],
-                          jupyterStartUserScriptUri: Option[UserScriptPath],
-                          errors: List[RuntimeCreationError],
-                          instances: Set[Instance],
-                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                          autopauseThreshold: Int,
-                          defaultClientId: Option[String],
-                          stopAfterCreation: Boolean,
-                          allowStop: Boolean,
-                          clusterImages: Set[RuntimeImage],
-                          scopes: Set[String],
-                          welderEnabled: Boolean,
-                          customClusterEnvironmentVariables: Map[String, String],
-                        // TODO use RuntimeConfigId
-                          runtimeConfigId: Long) {
+                         internalId: RuntimeInternalId,
+                         runtimeName: RuntimeName,
+                         googleProject: GoogleProject,
+                         serviceAccountInfo: ServiceAccountInfo,
+                         asyncRuntimeFields: Option[AsyncRuntimeFields],
+                         auditInfo: AuditInfo,
+                         dataprocProperties: Map[String, String],
+                         clusterUrl: URL,
+                         status: RuntimeStatus,
+                         labels: LabelMap,
+                         jupyterExtensionUri: Option[GcsPath],
+                         jupyterUserScriptUri: Option[UserScriptPath],
+                         jupyterStartUserScriptUri: Option[UserScriptPath],
+                         errors: List[RuntimeError],
+                         dataprocInstances: Set[DataprocInstance],
+                         userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                         autopauseThreshold: Int,
+                         defaultClientId: Option[String],
+                         stopAfterCreation: Boolean,
+                         allowStop: Boolean,
+                         clusterImages: Set[RuntimeImage],
+                         scopes: Set[String],
+                         welderEnabled: Boolean,
+                         customClusterEnvironmentVariables: Map[String, String],
+                         runtimeConfigId: RuntimeConfigId) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
-  def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole == SecondaryWorker)
+  def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
 
 object Runtime {
@@ -61,7 +59,7 @@ object Runtime {
                   googleProject: GoogleProject,
                   runtimeName: RuntimeName,
                   runtimeImages: Set[RuntimeImage],
-                    labels: Map[String, String]): URL = {
+                  labels: Map[String, String]): URL = {
     val tool = runtimeImages
       .map(_.imageType)
       .filterNot(Set(Welder, CustomDataProc).contains)
@@ -123,7 +121,10 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
 }
 
 /** Fields that are populated asynchronous to the runtime's creation */
-case class AsyncRuntimeFields(googleId: UUID, operationName: OperationName, stagingBucket: GcsBucketName, hostIp: Option[IP])
+case class AsyncRuntimeFields(googleId: UUID,
+                              operationName: OperationName,
+                              stagingBucket: GcsBucketName,
+                              hostIp: Option[IP])
 
 /** The cloud environment of the runtime, e.g. Dataproc, GCE. */
 sealed trait CloudService extends EnumEntry with Product with Serializable {
@@ -143,6 +144,7 @@ object CloudService extends Enum[CloudService] {
 }
 
 /** Configuration of the runtime such as machine types, disk size, etc */
+final case class RuntimeConfigId(id: Long) extends AnyVal
 sealed trait RuntimeConfig extends Product with Serializable {
   def cloudService: CloudService
   def machineType: MachineTypeName
@@ -150,9 +152,9 @@ sealed trait RuntimeConfig extends Product with Serializable {
 }
 object RuntimeConfig {
   final case class GceConfig(
-                              machineType: MachineTypeName,
-                              diskSize: Int
-                            ) extends RuntimeConfig {
+    machineType: MachineTypeName,
+    diskSize: Int
+  ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
 
@@ -164,7 +166,7 @@ object RuntimeConfig {
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None)
-    extends RuntimeConfig {
+      extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = MachineTypeName(masterMachineType)
     val diskSize: Int = masterDiskSize
@@ -322,8 +324,7 @@ final case class RunningRuntime(googleProject: GoogleProject,
 
 final case class RuntimeInternalId(asString: String) extends AnyVal
 final case class RuntimeName(asString: String) extends AnyVal
-// TODO this is used for more than just creation
-final case class RuntimeCreationError(errorMessage: String, errorCode: Int, timestamp: Instant)
+final case class RuntimeError(errorMessage: String, errorCode: Int, timestamp: Instant)
 final case class RuntimeErrorDetails(code: Int, message: Option[String])
 final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName: RuntimeName) {

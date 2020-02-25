@@ -79,5 +79,4 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
     })
 }
 
-final case class RuntimeConfigId(value: Long) extends AnyVal with MappedTo[Long]
 final case class RuntimeConfigRecord(id: RuntimeConfigId, runtimeConfig: RuntimeConfig, dateAccessed: Instant)

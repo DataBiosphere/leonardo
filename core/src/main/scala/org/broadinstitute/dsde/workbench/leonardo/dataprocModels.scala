@@ -5,28 +5,12 @@ import java.time.Instant
 import ca.mrvisser.sealerate
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
-
-import scala.concurrent.duration.FiniteDuration
-
-final case class CreateClusterConfig(
-                                      machineConfig: RuntimeConfig.DataprocConfig,
-                                      initScripts: List[GcsPath],
-                                      clusterServiceAccount: Option[WorkbenchEmail],
-                                      credentialsFileName: Option[String],
-                                      stagingBucket: GcsBucketName,
-                                      clusterScopes: Set[String],
-                                      clusterVPCSettings: Option[VPCConfig],
-                                      properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
-                                      dataprocCustomImage: CustomDataprocImage,
-                                      creationTimeout: FiniteDuration
-                                    )
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class CustomDataprocImage(asString: String) extends AnyVal
 
-// Instance status
-// See: https://cloud.google.com/compute/docs/instances/checking-instance-status
+/** Dataproc Instance Status
+ *  See: https://cloud.google.com/compute/docs/instances/checking-instance-status */
 sealed trait InstanceStatus extends EnumEntry
 object InstanceStatus extends Enum[InstanceStatus] {
   val values = findValues
@@ -42,16 +26,16 @@ object InstanceStatus extends Enum[InstanceStatus] {
   case object Terminated extends InstanceStatus
 }
 
-case class InstanceKey(project: GoogleProject, zone: ZoneName, name: InstanceName)
+/** An instance in a Dataproc cluster */
+case class DataprocInstanceKey(project: GoogleProject, zone: ZoneName, name: InstanceName)
+case class DataprocInstance(key: DataprocInstanceKey,
+                            googleId: BigInt,
+                            status: InstanceStatus,
+                            ip: Option[IP],
+                            dataprocRole: DataprocRole,
+                            createdDate: Instant)
 
-case class Instance(key: InstanceKey,
-                    googleId: BigInt,
-                    status: InstanceStatus,
-                    ip: Option[IP],
-                    dataprocRole: DataprocRole,
-                    createdDate: Instant)
-
-// Dataproc Role (master, worker, secondary worker)
+/** Dataproc Role (master, worker, secondary worker) */
 sealed trait DataprocRole extends EnumEntry with Product with Serializable
 object DataprocRole extends Enum[DataprocRole] {
   val values = findValues
@@ -61,6 +45,7 @@ object DataprocRole extends Enum[DataprocRole] {
   case object SecondaryWorker extends DataprocRole
 }
 
+/** Dataproc properties */
 sealed abstract class PropertyFilePrefix
 object PropertyFilePrefix {
   case object CapacityScheduler extends PropertyFilePrefix {

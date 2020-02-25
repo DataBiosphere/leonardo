@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleSt
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigId, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
@@ -156,7 +156,7 @@ class ClusterMonitorSupervisor(
           _ <- (clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
             clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Creating, now)).transaction
           runtimeConfig <- RuntimeConfigQueries
-            .getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId))
+            .getRuntimeConfig(cluster.runtimeConfigId)
             .transaction[IO]
           // TODO
           _ <- publisherQueue.enqueue1(null) //cluster.toCreateCluster(runtimeConfig, Some(traceId)))
@@ -304,7 +304,7 @@ class ClusterMonitorSupervisor(
           .handleError(e => logger.error(s"Failed to flush welder cache for ${cluster.projectNameString}", e))
       } else IO.unit
 
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId)).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
       _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
 

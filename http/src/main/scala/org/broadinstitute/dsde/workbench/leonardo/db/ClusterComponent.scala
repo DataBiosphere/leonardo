@@ -273,7 +273,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                                                                    saveCluster.initBucket.map(_.toUri),
                                                                                    saveCluster.serviceAccountKeyId)
       _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
-      _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
+      _ <- instanceQuery.saveAllForCluster(clusterId, cluster.dataprocInstances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
       _ <- clusterImageQuery.saveAllForCluster(clusterId, cluster.clusterImages.toSeq)
       _ <- scopeQuery.saveAllForCluster(clusterId, cluster.scopes)
@@ -281,7 +281,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def mergeInstances(cluster: Cluster)(implicit ec: ExecutionContext): DBIO[Cluster] =
     clusterQuery.filter(_.id === cluster.id).result.headOption.flatMap {
-      case Some(rec) => instanceQuery.mergeForCluster(rec.id, cluster.instances.toSeq).map(_ => cluster)
+      case Some(rec) => instanceQuery.mergeForCluster(rec.id, cluster.dataprocInstances.toSeq).map(_ => cluster)
       case None      => DBIO.successful(cluster)
     }
 
@@ -577,7 +577,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       cluster.jupyterStartUserScriptUri,
       initBucket,
       cluster.auditInfo,
-      cluster.properties,
+      cluster.dataprocProperties,
       ServiceAccountInfoRecord(
         cluster.serviceAccountInfo.clusterServiceAccount.map(_.value),
         cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
@@ -589,7 +589,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       cluster.stopAfterCreation,
       cluster.welderEnabled,
       cluster.customClusterEnvironmentVariables,
-      RuntimeConfigId(cluster.runtimeConfigId)
+      cluster.runtimeConfigId
     )
 
   private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {

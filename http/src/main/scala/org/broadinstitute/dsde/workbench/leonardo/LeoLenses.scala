@@ -10,7 +10,7 @@ object LeoLenses {
 
   val clusterToAuditInfo: Lens[Cluster, AuditInfo] = GenLens[Cluster](_.auditInfo)
 
-  val clusterToRuntimeConfigId: Lens[Cluster, Long] = GenLens[Cluster](x => x.runtimeConfigId)
+  val clusterToRuntimeConfigId: Lens[Cluster, RuntimeConfigId] = GenLens[Cluster](_.runtimeConfigId)
 
   val createClusterAPIRespToGetClusterKey = Lens[CreateRuntimeAPIResponse, GetClusterKey](
     x => GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
@@ -38,7 +38,7 @@ object LeoLenses {
         x.labels,
         x.jupyterExtensionUri,
         x.jupyterUserScriptUri,
-        x.instances,
+        x.dataprocInstances,
         x.autopauseThreshold,
         x.defaultClientId,
         x.stopAfterCreation,
@@ -60,7 +60,7 @@ object LeoLenses {
           labels = x.labels,
           jupyterExtensionUri = x.jupyterExtensionUri,
           jupyterUserScriptUri = x.jupyterUserScriptUri,
-          instances = x.instances,
+          dataprocInstances = x.dataprocInstances,
           autopauseThreshold = x.autopauseThreshold,
           defaultClientId = x.defaultClientId,
           stopAfterCreation = x.stopAfterCreation,

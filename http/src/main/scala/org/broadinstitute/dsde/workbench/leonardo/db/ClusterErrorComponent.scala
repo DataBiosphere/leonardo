@@ -28,14 +28,14 @@ class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTE
 
 object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
 
-  def save(clusterId: Long, clusterError: RuntimeCreationError): DBIO[Int] =
+  def save(clusterId: Long, clusterError: RuntimeError): DBIO[Int] =
     clusterErrorQuery += ClusterErrorRecord(0,
                                             clusterId,
                                             clusterError.errorMessage,
                                             clusterError.errorCode,
                                             Timestamp.from(clusterError.timestamp))
 
-  def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeCreationError]] =
+  def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeError]] =
     clusterErrorQuery.filter(_.clusterId === clusterId).result map { recs =>
       val errors = recs map { rec =>
         unmarshallClusterErrorRecord(rec)
@@ -43,9 +43,7 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
       errors.toList
     }
 
-  def unmarshallClusterErrorRecord(clusterErrorRecord: ClusterErrorRecord): RuntimeCreationError =
-    RuntimeCreationError(clusterErrorRecord.errorMessage,
-                         clusterErrorRecord.errorCode,
-                         clusterErrorRecord.timestamp.toInstant)
+  def unmarshallClusterErrorRecord(clusterErrorRecord: ClusterErrorRecord): RuntimeError =
+    RuntimeError(clusterErrorRecord.errorMessage, clusterErrorRecord.errorCode, clusterErrorRecord.timestamp.toInstant)
 
 }

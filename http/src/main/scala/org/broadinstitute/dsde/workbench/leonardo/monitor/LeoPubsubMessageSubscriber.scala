@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterQuery,
   followupQuery,
   DbReference,
-  RuntimeConfigId,
   RuntimeConfigQueries,
   UpdateAsyncClusterCreationFields
 }
@@ -104,7 +103,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
               followupQuery.save(followupDetails, Some(message.updatedMachineConfig.machineType))
             )
             runtimeConfig <- dbRef.inTransaction(
-              RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(resolvedCluster.runtimeConfigId))
+              RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
             )
             _ <- Async[F].liftIO(clusterHelper.stopCluster(resolvedCluster, runtimeConfig))
           } yield ()
@@ -197,7 +196,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             case _ =>
               s"Failed to create cluster ${msg.clusterProjectAndName} due to ${e.toString}"
           }
-          _ <- clusterErrorQuery.save(msg.id, RuntimeCreationError(errorMessage, -1, now)).transaction[F]
+          _ <- clusterErrorQuery.save(msg.id, RuntimeError(errorMessage, -1, now)).transaction[F]
         } yield ()
     }
   }

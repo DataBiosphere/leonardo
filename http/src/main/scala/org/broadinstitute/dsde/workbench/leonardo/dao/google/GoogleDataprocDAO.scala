@@ -4,24 +4,17 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
-import org.broadinstitute.dsde.workbench.leonardo.{
-  CreateClusterConfig,
-  DataprocRole,
-  InstanceKey,
-  Operation,
-  OperationName,
-  RuntimeErrorDetails,
-  RuntimeName,
-  RuntimeStatus
-}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 
 import scala.concurrent.Future
+import scala.concurrent.duration.FiniteDuration
 
 case class DataprocDisabledException(errorMsg: String) extends LeoException(s"${errorMsg}", StatusCodes.Forbidden)
 
+// TODO: use google2 DataprocService
 trait GoogleDataprocDAO {
   def createCluster(googleProject: GoogleProject,
                     clusterName: RuntimeName,
@@ -33,10 +26,11 @@ trait GoogleDataprocDAO {
 
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 
-  def getClusterMasterInstance(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[InstanceKey]]
+  def getClusterMasterInstance(googleProject: GoogleProject,
+                               clusterName: RuntimeName): Future[Option[DataprocInstanceKey]]
 
   def getClusterInstances(googleProject: GoogleProject,
-                          clusterName: RuntimeName): Future[Map[DataprocRole, Set[InstanceKey]]]
+                          clusterName: RuntimeName): Future[Map[DataprocRole, Set[DataprocInstanceKey]]]
 
   def getClusterStagingBucket(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[GcsBucketName]]
 
@@ -49,3 +43,16 @@ trait GoogleDataprocDAO {
 
   def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)]
 }
+
+final case class CreateClusterConfig(
+  machineConfig: RuntimeConfig.DataprocConfig,
+  initScripts: List[GcsPath],
+  clusterServiceAccount: Option[WorkbenchEmail],
+  credentialsFileName: Option[String],
+  stagingBucket: GcsBucketName,
+  clusterScopes: Set[String],
+  clusterVPCSettings: Option[VPCConfig],
+  properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+  dataprocCustomImage: CustomDataprocImage,
+  creationTimeout: FiniteDuration
+)

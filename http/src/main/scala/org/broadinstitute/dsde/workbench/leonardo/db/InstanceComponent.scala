@@ -112,8 +112,8 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
     )
 
   private[db] def unmarshalInstance(record: InstanceRecord): Instance =
-    Instance(
-      InstanceKey(
+    DataprocInstance(
+      DataprocInstanceKey(
         GoogleProject(record.googleProject),
         ZoneName(record.zone),
         InstanceName(record.name)

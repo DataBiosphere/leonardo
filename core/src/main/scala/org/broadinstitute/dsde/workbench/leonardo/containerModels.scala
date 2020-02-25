@@ -44,7 +44,7 @@ object ContainerImage {
       .find(image => image.regex.pattern.asPredicate().test(imageUrl))
       .map { dockerRegistry =>
         dockerRegistry match {
-          case ContainerRegistry.GCR => ContainerImage.GCR(imageUrl)
+          case ContainerRegistry.GCR       => ContainerImage.GCR(imageUrl)
           case ContainerRegistry.DockerHub => ContainerImage.DockerHub(imageUrl)
         }
       }

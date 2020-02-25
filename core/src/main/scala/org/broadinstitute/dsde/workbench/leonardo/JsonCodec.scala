@@ -8,9 +8,16 @@ import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{
+  parseGcsPath,
+  GcsBucketName,
+  GcsObjectName,
+  GcsPath,
+  GoogleProject
+}
 
 object JsonCodec {
+  // Errors
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)
   val oneWorkerSpecifiedDecodingFailure = DecodingFailure(
     "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more.",
@@ -18,6 +25,9 @@ object JsonCodec {
   )
   val emptyMasterMachineType = DecodingFailure("masterMachineType can not be an empty string", List.empty)
 
+  // Encoders
+  implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
+  implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.value)
   implicit val gcsBucketNameEncoder: Encoder[GcsBucketName] = Encoder.encodeString.contramap(_.value)
   implicit val workbenchEmailEncoder: Encoder[WorkbenchEmail] = Encoder.encodeString.contramap(_.value)
   implicit val gcsObjectNameEncoder: Encoder[GcsObjectName] = Encoder.encodeString.contramap(_.value)
@@ -72,7 +82,6 @@ object JsonCodec {
     "imageUrl",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(
     x =>
       x match {
@@ -86,7 +95,27 @@ object JsonCodec {
     "notebookServiceAccount"
   )(x => ServiceAccountInfo.unapply(x).get)
   implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
+  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct8(
+    "clusterName",
+    "googleProject",
+    "creator",
+    "clusterServiceAccount",
+    "notebookServiceAccount",
+    "notebookUserScript",
+    "notebookStartUserScript",
+    "tool"
+  )(x => DefaultLabels.unapply(x).get)
+  implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
+    Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
 
+  implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
+    "googleProject",
+    "clusterName"
+  )(x => RuntimeProjectAndName.unapply(x).get)
+
+  // Decoders
+  implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
+  implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
   implicit val containerImageDecoder: Decoder[ContainerImage] = Decoder.decodeString.emap(
     s => ContainerImage.stringToJupyterDockerImage(s).toRight(s"invalid container image ${s}")
   )
@@ -140,7 +169,6 @@ object JsonCodec {
     "machineType",
     "diskSize"
   )((mt, ds) => RuntimeConfig.GceConfig(mt, ds))
-
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
     for {
       cloudService <- x.downField("cloudService").as[CloudService]
@@ -152,17 +180,16 @@ object JsonCodec {
       }
     } yield r
   }
-
   implicit val serviceAccountInfoDecoder: Decoder[ServiceAccountInfo] = Decoder.forProduct2(
     "clusterServiceAccount",
     "notebookServiceAccount"
   )(ServiceAccountInfo.apply)
 
-  implicit val runtimeErrorDecoder: Decoder[RuntimeCreationError] = Decoder.forProduct3(
+  implicit val runtimeErrorDecoder: Decoder[RuntimeError] = Decoder.forProduct3(
     "errorMessage",
     "errorCode",
     "timestamp"
-  )(RuntimeCreationError.apply)
+  )(RuntimeError.apply)
   implicit val gcsPathDecoder: Decoder[GcsPath] = Decoder.decodeString.emap(s => parseGcsPath(s).leftMap(_.value))
   implicit val userScriptPathDecoder: Decoder[UserScriptPath] = Decoder.decodeString.emap { s =>
     UserScriptPath.stringToUserScriptPath(s).leftMap(_.getMessage)
@@ -173,15 +200,10 @@ object JsonCodec {
     "combinedExtensions",
     "labExtensions"
   )(UserJupyterExtensionConfig.apply)
+  implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =
+    Decoder.forProduct2("googleProject", "clusterName")(RuntimeProjectAndName.apply)
 
-  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct8(
-    "clusterName",
-    "googleProject",
-    "creator",
-    "clusterServiceAccount",
-    "notebookServiceAccount",
-    "notebookUserScript",
-    "notebookStartUserScript",
-    "tool"
-  )(x => DefaultLabels.unapply(x).get)
+  implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
+    Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
+
 }

@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterQuery,
   DbReference,
   LeonardoServiceDbQueries,
-  RuntimeConfigId,
   RuntimeConfigQueries,
   SaveCluster
 }
@@ -332,7 +331,7 @@ class LeonardoService(
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateRuntimeResponse] =
     for {
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if nonexistent or no auth
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId)).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       updatedCluster <- internalUpdateCluster(cluster, clusterRequest, runtimeConfig)
     } yield UpdateRuntimeResponse.fromCluster(updatedCluster, runtimeConfig)
 
@@ -518,18 +517,17 @@ class LeonardoService(
             now <- IO(Instant.now)
             _ <- dbRef.inTransaction {
               updatedNumWorkersAndPreemptibles.fold(
-                a =>
-                  RuntimeConfigQueries.updateNumberOfWorkers(RuntimeConfigId(existingCluster.runtimeConfigId), a, now),
+                a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
                 a =>
                   RuntimeConfigQueries
-                    .updateNumberOfPreemptibleWorkers(RuntimeConfigId(existingCluster.runtimeConfigId), Option(a), now),
+                    .updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(a), now),
                 (a, b) =>
                   RuntimeConfigQueries
-                    .updateNumberOfWorkers(RuntimeConfigId(existingCluster.runtimeConfigId), a, now)
+                    .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
                     .flatMap(
                       _ =>
                         RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(
-                          RuntimeConfigId(existingCluster.runtimeConfigId),
+                          existingCluster.runtimeConfigId,
                           Option(b),
                           now
                         )
@@ -606,7 +604,7 @@ class LeonardoService(
           // Update the DB
           now <- IO(Instant.now)
           _ <- RuntimeConfigQueries
-            .updateDiskSize(RuntimeConfigId(existingCluster.runtimeConfigId), updatedMasterDiskSize, now)
+            .updateDiskSize(existingCluster.runtimeConfigId, updatedMasterDiskSize, now)
             .transaction
         } yield UpdateResult(true, None)
 
@@ -686,7 +684,7 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId)).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
     } yield ()
 
@@ -700,7 +698,7 @@ class LeonardoService(
             .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
         } else IO.unit
 
-        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId)).transaction
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
         // Stop the cluster in Google
         _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
 

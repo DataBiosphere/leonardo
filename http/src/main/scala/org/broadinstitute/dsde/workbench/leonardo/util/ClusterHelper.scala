@@ -307,7 +307,7 @@ class ClusterHelper(
         else IO.unit
 
         runtimeConfig <- dbRef.inTransaction(
-          RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId))
+          RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)
         )
         // Start the cluster in Google
         _ <- startGoogleCluster(updatedCluster, welderAction, runtimeConfig)
@@ -385,7 +385,7 @@ class ClusterHelper(
       // Update the DB
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction {
-        RuntimeConfigQueries.updateMachineType(RuntimeConfigId(existingCluster.runtimeConfigId), machineType, now)
+        RuntimeConfigQueries.updateMachineType(existingCluster.runtimeConfigId, machineType, now)
       }
     } yield ()
 
@@ -393,7 +393,7 @@ class ClusterHelper(
   private def setMasterMachineTypeInGoogle(cluster: Cluster, machineType: MachineTypeName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
-    cluster.instances.toList.traverse_ { instance =>
+    cluster.dataprocInstances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
       // and rebuilding the cluster if new worker machine/disk sizes are needed.
@@ -405,7 +405,7 @@ class ClusterHelper(
     }
 
   def updateMasterDiskSize(cluster: Cluster, diskSize: Int): IO[Unit] =
-    cluster.instances.toList.traverse_ { instance =>
+    cluster.dataprocInstances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
       // and rebuilding the cluster if new worker machine/disk sizes are needed.

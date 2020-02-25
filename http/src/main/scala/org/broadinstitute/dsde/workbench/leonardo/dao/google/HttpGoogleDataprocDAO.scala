@@ -127,24 +127,24 @@ class HttpGoogleDataprocDAO(
   }
 
   override def getClusterMasterInstance(googleProject: GoogleProject,
-                                        clusterName: RuntimeName): Future[Option[InstanceKey]] = {
+                                        clusterName: RuntimeName): Future[Option[DataprocInstanceKey]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       masterInstanceName <- OptionT.fromOption[Future] { getMasterInstanceName(cluster) }
       masterInstanceZone <- OptionT.fromOption[Future] { getZone(cluster) }
-    } yield InstanceKey(googleProject, masterInstanceZone, masterInstanceName)
+    } yield DataprocInstanceKey(googleProject, masterInstanceZone, masterInstanceName)
 
     transformed.value.handleGoogleException(googleProject, clusterName)
   }
 
   override def getClusterInstances(googleProject: GoogleProject,
-                                   clusterName: RuntimeName): Future[Map[DataprocRole, Set[InstanceKey]]] = {
+                                   clusterName: RuntimeName): Future[Map[DataprocRole, Set[DataprocInstanceKey]]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       instanceNames <- OptionT.fromOption[Future] { getAllInstanceNames(cluster) }
       clusterZone <- OptionT.fromOption[Future] { getZone(cluster) }
     } yield {
-      instanceNames.mapValues(_.map(name => InstanceKey(googleProject, clusterZone, name)))
+      instanceNames.mapValues(_.map(name => DataprocInstanceKey(googleProject, clusterZone, name)))
     }
 
     transformed.value.map(_.getOrElse(Map.empty)).handleGoogleException(googleProject, clusterName)

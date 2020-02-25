@@ -77,5 +77,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       _.toString,
       s => RuntimeImageType.withName(s)
     )
+    implicit val runtimeConfigIdMappedColumnType: BaseColumnType[RuntimeConfigId] =
+      MappedColumnType.base[RuntimeConfigId, Long](_.id, RuntimeConfigId.apply)
+
   }
 }

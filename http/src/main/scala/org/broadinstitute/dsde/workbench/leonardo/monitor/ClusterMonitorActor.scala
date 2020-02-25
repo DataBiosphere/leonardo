@@ -227,7 +227,7 @@ class ClusterMonitorActor(
           for {
             _ <- persistInstances(cluster, googleInstances)
             runtimeConfig <- dbRef.inTransaction(
-              RuntimeConfigQueries.getRuntimeConfig(RuntimeConfigId(cluster.runtimeConfigId))
+              RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)
             )
             _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
             now <- IO(Instant.now)
@@ -522,7 +522,7 @@ class ClusterMonitorActor(
   private def persistInstances(cluster: Cluster, googleInstances: Set[Instance]): IO[Unit] = {
     logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $googleInstances")
     dbRef.inTransaction {
-      clusterQuery.mergeInstances(cluster.copy(instances = googleInstances))
+      clusterQuery.mergeInstances(cluster.copy(dataprocInstances = googleInstances))
     }.void
   }
 
@@ -531,7 +531,7 @@ class ClusterMonitorActor(
       .inTransaction {
         val clusterId = clusterQuery.getIdByUniqueKey(cluster)
         clusterId flatMap {
-          case Some(a) => clusterErrorQuery.save(a, RuntimeCreationError(errorMessage, errorCode, Instant.now))
+          case Some(a) => clusterErrorQuery.save(a, RuntimeError(errorMessage, errorCode, Instant.now))
           case None => {
             logger.warn(
               s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.asyncRuntimeFields
@@ -588,7 +588,7 @@ class ClusterMonitorActor(
             googleComputeService.getInstance(key.project, key.zone, key.name).map { instanceOpt =>
               instanceOpt.map { instance =>
                 // TODO
-                Instance(
+                DataprocInstance(
                   key,
                   BigInt(instance.getId),
                   InstanceStatus.withName(instance.getStatus),

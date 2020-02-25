@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import spray.json._
 
+// TODO: remove this in favor of our circe codecs
 object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
 
   implicit val runtimeConfigWriter: RootJsonWriter[RuntimeConfig] = (obj: RuntimeConfig) => {
@@ -51,7 +52,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     JsObject(presentFields)
   }
 
-  implicit val instanceKeyWriter: RootJsonWriter[InstanceKey] = (obj: InstanceKey) => {
+  implicit val dataprocInstanceKeyWriter: RootJsonWriter[DataprocInstanceKey] = (obj: DataprocInstanceKey) => {
     val allFields = Map(
       "name" -> obj.name.value.toJson,
       "project" -> obj.project.value.toJson,
@@ -63,10 +64,10 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     JsObject(presentFields)
   }
 
-  implicit val instanceWriter: RootJsonFormat[Instance] = new RootJsonFormat[Instance] {
-    override def read(json: JsValue): Instance = ???
+  implicit val dataprocInstanceWriter: RootJsonFormat[DataprocInstance] = new RootJsonFormat[DataprocInstance] {
+    override def read(json: JsValue): DataprocInstance = ???
 
-    override def write(obj: Instance): JsValue = {
+    override def write(obj: DataprocInstance): JsValue = {
       val allFields = Map(
         "createdDate" -> obj.createdDate.toJson,
         "dataprocRole" -> obj.dataprocRole.toString.toJson,
@@ -79,7 +80,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
 
       JsObject(presentFields)
     }
-
   }
 
   implicit val listRuntimeResponseWriter: RootJsonWriter[ListRuntimeResponse] = (obj: ListRuntimeResponse) => {
@@ -103,7 +103,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
       "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.map(_.asString).toJson,
       "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket.toJson).getOrElse(JsNull),
-      "instances" -> obj.instances.toJson,
+      "instances" -> obj.dataprocInstances.toJson,
       "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
       "autopauseThreshold" -> obj.autopauseThreshold.toJson,
       "defaultClientId" -> obj.defaultClientId.toJson,
@@ -119,10 +119,11 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     JsObject(presentFields)
   }
 
-  implicit val RuntimeErrorFormat: RootJsonFormat[RuntimeCreationError] = new RootJsonFormat[RuntimeCreationError] {
-    override def read(json: JsValue): RuntimeCreationError = ???
+  implicit val RuntimeErrorFormat: RootJsonFormat[RuntimeError] = new RootJsonFormat[RuntimeError] {
+    override def read(json: JsValue): RuntimeError =
+      throw new NotImplementedError("decode RuntimeError not implemented")
 
-    override def write(obj: RuntimeCreationError): JsValue = {
+    override def write(obj: RuntimeError): JsValue = {
       val allFields = Map(
         "errorMessage" -> obj.errorMessage.toJson,
         "errorCode" -> obj.errorCode.toJson,
@@ -135,6 +136,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     }
   }
 
+  // TODO
   implicit val UserJupyterExtensionConfigFormat: RootJsonFormat[UserJupyterExtensionConfig] =
     new RootJsonFormat[UserJupyterExtensionConfig] {
       override def read(json: JsValue): UserJupyterExtensionConfig = ???
@@ -142,6 +144,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       override def write(obj: UserJupyterExtensionConfig): JsValue = ???
     }
 
+  // TODO
   implicit val RuntimeImageFormat: RootJsonFormat[RuntimeImage] = new RootJsonFormat[ClusterImage] {
     override def read(json: JsValue): ClusterImage = ???
 
@@ -171,7 +174,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.map(_.asString).toJson,
       "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket).toJson,
       "errors" -> obj.errors.toJson,
-      "instances" -> obj.instances.toJson,
+      "instances" -> obj.dataprocInstances.toJson,
       "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
       "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
       "autopauseThreshold" -> obj.autopauseThreshold.toJson,
@@ -211,7 +214,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
         "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.map(_.asString).toJson,
         "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket).toJson,
         "errors" -> obj.errors.toJson,
-        "instances" -> obj.instances.toJson,
+        "instances" -> obj.dataprocInstances.toJson,
         "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
@@ -251,7 +254,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.map(_.asString).toJson,
       "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket).toJson,
       "errors" -> obj.errors.toJson,
-      "instances" -> obj.instances.toJson,
+      "instances" -> obj.dataprocInstances.toJson,
       "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
       "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
       "autopauseThreshold" -> obj.autopauseThreshold.toJson,
