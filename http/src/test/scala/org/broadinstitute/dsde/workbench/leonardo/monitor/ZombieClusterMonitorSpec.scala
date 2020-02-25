@@ -309,7 +309,7 @@ class ZombieClusterMonitorSpec
     googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
   )(testCode: ActorRef => T): T = {
     val actor =
-      system.actorOf(ZombieClusterMonitor.props(zombieClusterConfig, gdDAO, googleProjectDAO, dbRef))
+      system.actorOf(ZombieClusterMonitor.props(zombieClusterConfig, gdDAO, googleProjectDAO))
     val testResult = Try(testCode(actor))
     // shut down the actor and wait for it to terminate
     testKit watch actor

@@ -138,8 +138,7 @@ object Boot extends IOApp {
         system.actorOf(
           ZombieClusterMonitor.props(zombieClusterMonitorConfig,
                                      appDependencies.googleDataprocDAO,
-                                     appDependencies.googleProjectDAO,
-                                     appDependencies.dbReference)
+                                     appDependencies.googleProjectDAO)
         )
         system.actorOf(
           ClusterToolMonitor.props(clusterToolMonitorConfig,

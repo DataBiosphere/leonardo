@@ -1078,7 +1078,7 @@ class LeonardoServiceSpec
     // check that the cluster is stopped
     val dbCluster = dbFutureValue { clusterQuery.getClusterById(stoppedCluster.id) }
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
-    
+
     val caught = the[ClusterCannotBeUpdatedException] thrownBy {
       leo
         .updateCluster(
@@ -1087,7 +1087,9 @@ class LeonardoServiceSpec
           stoppedCluster.clusterName,
           testClusterRequest.copy(
             runtimeConfig = Some(
-              RuntimeConfigRequest.DataprocConfig(numberOfWorkers = Some(2), masterMachineType = None, masterDiskSize = None)
+              RuntimeConfigRequest.DataprocConfig(numberOfWorkers = Some(2),
+                                                  masterMachineType = None,
+                                                  masterDiskSize = None)
             )
           )
         )
