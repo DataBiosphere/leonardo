@@ -92,16 +92,19 @@ class ZombieClusterMonitor(
   private def isProjectActiveInGoogle(googleProject: GoogleProject): IO[Boolean] = {
     // Check the project and its billing info
     val res = for {
-      isProjectActive <- IO.fromFuture(IO(googleProjectDAO.isProjectActive(googleProject.value)))
       isBillingActive <- IO.fromFuture(IO(googleProjectDAO.isBillingActive(googleProject.value)))
-    } yield isProjectActive && isBillingActive
+      // short circuit
+      isProjectActive <- if (!isBillingActive) IO.pure(false)
+      else IO.fromFuture(IO(googleProjectDAO.isProjectActive(googleProject.value)))
+    } yield isProjectActive
 
     res.recoverWith {
       case e: GoogleJsonResponseException if e.getStatusCode == 403 =>
         logger
           .info(e)(
             s"Unable to check status of project ${googleProject.value} for zombie cluster detection " +
-              s"due to a 403 from google. We are assuming this is a free credits project that has been cleaned up, and zombifying"
+              s"due to a 403 from google. We are assuming this is a free credits project that has been cleaned up. " +
+              s"Marking project as a zombie."
           )
           .as(false)
 
@@ -114,7 +117,7 @@ class ZombieClusterMonitor(
 
   private def isClusterActiveInGoogle(cluster: PotentialZombieCluster, now: Instant): IO[Boolean] = {
     val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, now).getSeconds
-    //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
+    // this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
     if (cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation < config.creationHangTolerance.toSeconds) {
       IO.pure(true)
     } else {

@@ -25,8 +25,8 @@ object ZombieMonitorQueries {
 
 }
 
-case class PotentialZombieCluster(id: Long,
-                                  googleProject: GoogleProject,
-                                  clusterName: ClusterName,
-                                  status: ClusterStatus,
-                                  auditInfo: AuditInfo)
+final case class PotentialZombieCluster(id: Long,
+                                        googleProject: GoogleProject,
+                                        clusterName: ClusterName,
+                                        status: ClusterStatus,
+                                        auditInfo: AuditInfo)
