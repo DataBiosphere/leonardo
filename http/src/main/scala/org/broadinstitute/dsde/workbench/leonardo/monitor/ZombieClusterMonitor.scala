@@ -4,7 +4,6 @@ package monitor
 import java.time.{Duration, Instant}
 
 import akka.actor.{Actor, Props, Timers}
-import cats.data.Chain
 import cats.effect.concurrent.Semaphore
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
@@ -14,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -24,10 +24,9 @@ object ZombieClusterMonitor {
   def props(
     config: ZombieClusterConfig,
     gdDAO: GoogleDataprocDAO,
-    googleProjectDAO: GoogleProjectDAO,
-    dbRef: DbReference[IO]
-  )(implicit metrics: NewRelicMetrics[IO], cs: ContextShift[IO], logger: Logger[IO]): Props =
-    Props(new ZombieClusterMonitor(config, gdDAO, googleProjectDAO, dbRef))
+    googleProjectDAO: GoogleProjectDAO
+  )(implicit metrics: NewRelicMetrics[IO], cs: ContextShift[IO], logger: Logger[IO], dbRef: DbReference[IO]): Props =
+    Props(new ZombieClusterMonitor(config, gdDAO, googleProjectDAO))
 
   sealed trait ZombieClusterMonitorMessage
   case object DetectZombieClusters extends ZombieClusterMonitorMessage
@@ -40,9 +39,8 @@ object ZombieClusterMonitor {
 class ZombieClusterMonitor(
   config: ZombieClusterConfig,
   gdDAO: GoogleDataprocDAO,
-  googleProjectDAO: GoogleProjectDAO,
-  dbRef: DbReference[IO]
-)(implicit metrics: NewRelicMetrics[IO], cs: ContextShift[IO], logger: Logger[IO])
+  googleProjectDAO: GoogleProjectDAO
+)(implicit metrics: NewRelicMetrics[IO], cs: ContextShift[IO], logger: Logger[IO], dbRef: DbReference[IO])
     extends Actor
     with Timers {
   import context._
@@ -60,7 +58,7 @@ class ZombieClusterMonitor(
         start <- IO(Instant.now)
         semaphore <- Semaphore[IO](concurrency)
         // Get active clusters from the Leo DB, grouped by project
-        clusterMap <- getActiveClustersFromDatabase
+        clusterMap <- ZombieMonitorQueries.listZombieQuery.transaction
         _ <- logger.info(
           s"Starting zombie detection across ${clusterMap.size} projects with concurrency of $concurrency"
         )
@@ -84,19 +82,14 @@ class ZombieClusterMonitor(
             )
         }
         // Error out each detected zombie cluster
-        _ <- zombies.parTraverse(handleZombieCluster)
+        _ <- zombies.parTraverse(zombie => semaphore.withPermit(handleZombieCluster(zombie)))
         end <- IO(Instant.now)
         duration = Duration.between(start, end)
         _ <- logger.info(
-          s"Detected ${zombies.size} zombie clusters in ${zombies.map(_.googleProject).toSet.size} projects. Elapsed = ${duration.getSeconds} seconds"
+          s"Detected ${zombies.size} zombie clusters in ${zombies.map(_.googleProject).toSet.size} projects. Elapsed time = ${duration.getSeconds} seconds"
         )
       } yield ()).unsafeRunSync
   }
-
-  private def getActiveClustersFromDatabase: IO[Map[GoogleProject, Chain[PotentialZombieCluster]]] =
-    dbRef.inTransaction {
-      ZombieMonitorQueries.listZombieQuery
-    }
 
   private def isProjectActiveInGoogle(googleProject: GoogleProject): IO[Boolean] = {
     // Check the project and its billing info
