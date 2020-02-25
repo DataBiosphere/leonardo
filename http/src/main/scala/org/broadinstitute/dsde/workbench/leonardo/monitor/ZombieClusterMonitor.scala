@@ -47,7 +47,7 @@ class ZombieClusterMonitor(
     with Timers {
   import context._
 
-  val concurrency = 20
+  val concurrency = 100
 
   override def preStart(): Unit = {
     super.preStart()
