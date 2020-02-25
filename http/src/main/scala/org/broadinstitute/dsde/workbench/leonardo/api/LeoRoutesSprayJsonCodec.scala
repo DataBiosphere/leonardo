@@ -121,7 +121,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
 
   implicit val RuntimeErrorFormat: RootJsonFormat[RuntimeError] = new RootJsonFormat[RuntimeError] {
     override def read(json: JsValue): RuntimeError =
-      throw new NotImplementedError("decode RuntimeError not implemented")
+      throw new NotImplementedError("decoding RuntimeError via spray-json is not implemented")
 
     override def write(obj: RuntimeError): JsValue = {
       val allFields = Map(
@@ -136,19 +136,23 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     }
   }
 
-  // TODO
-  implicit val UserJupyterExtensionConfigFormat: RootJsonFormat[UserJupyterExtensionConfig] =
-    new RootJsonFormat[UserJupyterExtensionConfig] {
-      override def read(json: JsValue): UserJupyterExtensionConfig = ???
+  implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
-      override def write(obj: UserJupyterExtensionConfig): JsValue = ???
+  implicit val RuntimeImageFormat: RootJsonFormat[RuntimeImage] = new RootJsonFormat[RuntimeImage] {
+    override def read(json: JsValue): RuntimeImage =
+      throw new NotImplementedError("decoding RuntimeError via spray-json is not implemented")
+
+    override def write(obj: RuntimeImage): JsValue = {
+      val allFields = Map(
+        "imageType" -> obj.imageType.toString.toJson,
+        "imageUrl" -> obj.imageUrl.toJson,
+        "timestamp" -> obj.timestamp.toJson
+      )
+
+      val presentFields = allFields.filter(_._2 != JsNull)
+
+      JsObject(presentFields)
     }
-
-  // TODO
-  implicit val RuntimeImageFormat: RootJsonFormat[RuntimeImage] = new RootJsonFormat[ClusterImage] {
-    override def read(json: JsValue): ClusterImage = ???
-
-    override def write(obj: ClusterImage): JsValue = ???
   }
 
   implicit val GetRuntimeFormat: RootJsonWriter[GetRuntimeResponse] = (obj: GetRuntimeResponse) => {
