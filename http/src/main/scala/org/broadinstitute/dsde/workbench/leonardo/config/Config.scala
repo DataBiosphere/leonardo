@@ -202,7 +202,8 @@ object Config {
     ZombieClusterConfig(
       config.getBoolean("enableZombieClusterMonitor"),
       toScalaDuration(config.getDuration("pollPeriod")),
-      toScalaDuration(config.getDuration("creationHangTolerance"))
+      toScalaDuration(config.getDuration("creationHangTolerance")),
+      config.getInt("concurrency")
     )
   }
 

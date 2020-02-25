@@ -4,4 +4,5 @@ import scala.concurrent.duration.FiniteDuration
 
 case class ZombieClusterConfig(enableZombieClusterDetection: Boolean,
                                zombieCheckPeriod: FiniteDuration,
-                               creationHangTolerance: FiniteDuration)
+                               creationHangTolerance: FiniteDuration,
+                               concurrency: Int)

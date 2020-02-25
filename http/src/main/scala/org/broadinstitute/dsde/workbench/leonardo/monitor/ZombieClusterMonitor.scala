@@ -45,8 +45,6 @@ class ZombieClusterMonitor(
     with Timers {
   import context._
 
-  val concurrency = 100
-
   override def preStart(): Unit = {
     super.preStart()
     timers.startTimerWithFixedDelay(TimerKey, DetectZombieClusters, config.zombieCheckPeriod)
@@ -56,11 +54,11 @@ class ZombieClusterMonitor(
     case DetectZombieClusters =>
       (for {
         start <- IO(Instant.now)
-        semaphore <- Semaphore[IO](concurrency)
+        semaphore <- Semaphore[IO](config.concurrency)
         // Get active clusters from the Leo DB, grouped by project
         clusterMap <- ZombieMonitorQueries.listZombieQuery.transaction
         _ <- logger.info(
-          s"Starting zombie detection across ${clusterMap.size} projects with concurrency of $concurrency"
+          s"Starting zombie detection across ${clusterMap.size} projects with concurrency of ${config.concurrency}"
         )
         zombies <- clusterMap.toList.parFlatTraverse {
           case (project, clusters) =>
