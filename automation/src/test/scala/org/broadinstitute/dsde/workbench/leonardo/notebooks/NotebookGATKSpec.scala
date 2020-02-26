@@ -36,7 +36,7 @@ class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
           val javaOutput = notebookPage.executeCell("""! java -version""")
           javaOutput shouldBe 'defined
-          javaOutput.get should include("openjdk version \"1.8.0_\"")
+          javaOutput.get should include("openjdk version \"1.8.0_")
           javaOutput.get should include("OpenJDK Runtime Environment")
           javaOutput.get should not include ("not found")
         }
