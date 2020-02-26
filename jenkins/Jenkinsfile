@@ -8,7 +8,7 @@
 // Populated by first step
 ArrayList<String> dataprocImages = []
 ArrayList<String> gceImages = []
-def imageID = ""
+String imageID = ""
 def prLink = ""
 
 def LinkedHashMap<String, String> versionMap = [:]
@@ -102,46 +102,49 @@ def String getChangeDescription(LinkedHashMap<String,String> versionMap) {
 }
 
 pipeline {
-  agent { label 'node210' }
+    agent { label 'node210' }
 
-  options {
-    //we don't want to be building more than one PR's changes at once, we will queue them instead
-    disableConcurrentBuilds()
-  }
+    options {
+        // We don't want to be building more than one PR's changes at once, we will queue them instead
+        disableConcurrentBuilds()
+    }
 
-  triggers {
-    // leaving the string empty causes it to trigger off pushes/PRs to the specified branch
-    pollSCM("")
-  }
+    triggers {
+        // Leaving the string empty causes it to trigger off pushes/PRs to the specified branch
+        pollSCM("")
+    }
 
-  parameters {
-    string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
-          description: "The name to give the custom dataproc image. This will be appended with an hypen and the short version of the commit hash (first 7 characters).")
-    booleanParam(name: "useCustomImageIdentifier", defaultValue: false)
-    string(name: "custom_image_id", defaultValue: "sampleUniqueID",
-          description: "Specify along with useCustomImageIdentifier to build the image with a specific name")
-    booleanParam(name: "useCustomImages", defaultValue: false)
-    string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
-          description: "The google project to use")
-    string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
-          description: "The bucket where the image will be stored")
-    string(name: "dataproc_versions", defaultValue: "1.2.79-debian9 1.4.15-debian9",
-          description: "A custom image will be build for each of these dataproc versions")
-    string(name: "terra_jupyter_base", defaultValue: "0.0.6")
-    string(name: "terra_jupyter_hail", defaultValue: "0.0.5")
-    string(name: "terra_jupyter_r", defaultValue: "0.0.7")
-    string(name: "terra_jupyter_python", defaultValue: "0.0.6")
-    string(name: "terra_jupyter_bioconductor", defaultValue: "0.0.9")
-    string(name: "terra_jupyter_gatk", defaultValue: "0.0.8")
-    string(name: "anvil_rstudio_base", defaultValue: "0.0.2")
-    string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.3")
-    string(name: "leonardo_jupyter", defaultValue: "5c51ce6935da",
-          description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
-    string(name: "welder_server", defaultValue: "60e28bc",
-          description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
-    string(name: "openidc_proxy", defaultValue: "2.3.1_2",
-          description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
-  }
+    parameters {
+        // TODO: Make `generateDataprocImage` default `true`
+        booleanParam(name: "generateDataprocImage", defaultValue: true)
+        booleanParam(name: "generateGceImage", defaultValue: true)
+        string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
+              description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters).")
+        booleanParam(name: "useCustomImageIdentifier", defaultValue: false)
+        string(name: "custom_image_id", defaultValue: "sampleUniqueID",
+              description: "Specify along with useCustomImageIdentifier to build the image with a specific name")
+        booleanParam(name: "useCustomImages", defaultValue: false)
+        string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
+              description: "The google project to use")
+        string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
+              description: "The bucket where the image will be stored")
+        string(name: "dataproc_versions", defaultValue: "1.2.79-debian9 1.4.15-debian9",
+              description: "A custom image will be build for each of these dataproc versions")
+        string(name: "terra_jupyter_base", defaultValue: "0.0.6")
+        string(name: "terra_jupyter_hail", defaultValue: "0.0.5")
+        string(name: "terra_jupyter_r", defaultValue: "0.0.7")
+        string(name: "terra_jupyter_python", defaultValue: "0.0.6")
+        string(name: "terra_jupyter_bioconductor", defaultValue: "0.0.9")
+        string(name: "terra_jupyter_gatk", defaultValue: "0.0.8")
+        string(name: "anvil_rstudio_base", defaultValue: "0.0.2")
+        string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.3")
+        string(name: "leonardo_jupyter", defaultValue: "5c51ce6935da",
+              description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
+        string(name: "welder_server", defaultValue: "60e28bc",
+              description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
+        string(name: "openidc_proxy", defaultValue: "2.3.1_2",
+              description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
+    }
 
     stages {
         stage('Terra docker image scan') {
@@ -174,29 +177,38 @@ pipeline {
             }
         }
 
-//     stage('Leonardo Git') {
-//       steps {
-//         git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
-//       }
-//     }
-//
-//     //create short hash properties file
-//     stage('Set image ID') {
-//       steps {
-//         script {
-//           if (useCustomImageIdentifier.equals("true")) {
-//             imageID = "$custom_image_id"
-//           } else {
-//             imageID = getShortHash(sh (
-//               script: "git rev-parse HEAD",
-//               returnStdout: true
-//             ))
-//           }
-//
-//           currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$dataproc_versions-$imageID"
-//         }
-//       }
-//     }
+    stage('Leonardo Git') {
+        steps {
+            // TODO: switch 'branch' back to 'develop'
+            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'ky_ia_1596_jenkinsify_gce_image_creation'
+        }
+    }
+
+    // Create short hash properties file
+    stage('Set image ID') {
+        steps {
+            script {
+                if (useCustomImageIdentifier.equals("true")) {
+                    imageID = "$custom_image_id"
+                } else {
+                    imageID = getShortHash(sh(
+                        script: "git rev-parse HEAD",
+                        returnStdout: true
+                    ))
+                }
+
+                String buildDisplayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME"
+                if (generateDataprocImage.equals("true")) {
+                    buildDisplayName += "-dataproc-$dataproc_versions"
+                }
+                if (generateGceImage.equals("true")) {
+                    buildDisplayName += "-gce-debian9"
+                }
+
+                currentBuild.displayName = "$buildDisplayName-$imageID"
+            }
+        }
+    }
 //
 //     stage('Docker and Gcloud Auth') {
 //       steps {
