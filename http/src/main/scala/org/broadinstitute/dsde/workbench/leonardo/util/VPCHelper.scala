@@ -24,7 +24,8 @@ class VPCHelper(config: VPCHelperConfig,
         labelMap.get(config.projectVPCSubnetLabelName).map(VPCSubnet)
     }
 
-  private def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = ???
+  // TODO
+  private def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = IO(VPCNetwork("default"))
 
   def getOrCreateVPCSettings(googleProject: GoogleProject): IO[VPCConfig] =
     for {

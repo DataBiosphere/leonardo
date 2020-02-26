@@ -7,6 +7,7 @@ import java.util.UUID._
 
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.FlatSpecLike
 
@@ -15,12 +16,12 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
   val cluster = makeCluster(1).copy(
-    dataprocInfo = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
+    asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     stopAfterCreation = true,
     allowStop = false,
-    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
+    runtimeImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
     welderEnabled = true
   )
 
@@ -31,11 +32,12 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
         |}
       """.stripMargin
 
-    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
+    val expectedClusterRequest =
+      CreateRuntimeRequest(labels = Map.empty, dataprocProperties = Map.empty, scopes = Set.empty)
 
     val decodeResult = for {
       json <- io.circe.parser.parse(inputJson)
-      r <- json.as[ClusterRequest]
+      r <- json.as[CreateRuntimeRequest]
     } yield r
     decodeResult shouldBe (Right(expectedClusterRequest))
   }
@@ -57,11 +59,12 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
         |}
       """.stripMargin
 
-    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
+    val expectedClusterRequest =
+      CreateRuntimeRequest(labels = Map.empty, dataprocProperties = Map.empty, scopes = Set.empty)
 
     val decodeResult = for {
       json <- io.circe.parser.parse(inputJson)
-      r <- json.as[ClusterRequest]
+      r <- json.as[CreateRuntimeRequest]
     } yield r
     decodeResult shouldBe (Right(expectedClusterRequest))
   }
@@ -80,9 +83,9 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
         |}
       """.stripMargin
 
-    val expectedClusterRequest = ClusterRequest(
+    val expectedClusterRequest = CreateRuntimeRequest(
       labels = Map.empty,
-      properties = Map.empty,
+      dataprocProperties = Map.empty,
       scopes = Set.empty,
       jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
       jupyterUserScriptUri =
@@ -93,7 +96,7 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
 
     val decodeResult = for {
       json <- io.circe.parser.parse(inputJson)
-      r <- json.as[ClusterRequest]
+      r <- json.as[CreateRuntimeRequest]
     } yield r
     decodeResult shouldBe (Right(expectedClusterRequest))
   }
@@ -203,32 +206,33 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
 //    }
 //  }
 
-  it should "create a map of ClusterTemplateValues object" in {
-    val clusterInit = ClusterTemplateValues(
-      cluster,
-      Some(initBucketPath),
-      Some(stagingBucketName),
-      Some(serviceAccountKey),
-      dataprocConfig,
-      welderConfig,
-      proxyConfig,
-      clusterFilesConfig,
-      clusterResourcesConfig,
-      Some(clusterResourceConstraints)
-    )
-    val clusterInitMap = clusterInit.toMap
-
-    clusterInitMap("googleProject") shouldBe project.value
-    clusterInitMap("clusterName") shouldBe name1.value
-    clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.imageUrl
-    clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
-    clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
-    clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
-    clusterInitMap("welderEnabled") shouldBe "true"
-    clusterInitMap("memLimit") shouldBe clusterResourceConstraints.memoryLimit.bytes.toString + "b"
-
-    clusterInitMap.size shouldBe 36
-  }
+  // TODO make a RuntimeTemplateValuesSpec
+//  it should "create a map of ClusterTemplateValues object" in {
+//    val clusterInit = ClusterTemplateValues(
+//      cluster,
+//      Some(initBucketPath),
+//      Some(stagingBucketName),
+//      Some(serviceAccountKey),
+//      dataprocConfig,
+//      welderConfig,
+//      proxyConfig,
+//      clusterFilesConfig,
+//      clusterResourcesConfig,
+//      Some(clusterResourceConstraints)
+//    )
+//    val clusterInitMap = clusterInit.toMap
+//
+//    clusterInitMap("googleProject") shouldBe project.value
+//    clusterInitMap("clusterName") shouldBe name1.value
+//    clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.imageUrl
+//    clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
+//    clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
+//    clusterInitMap("welderDockerImage") shouldBe welderImage.imageUrl
+//    clusterInitMap("welderEnabled") shouldBe "true"
+//    clusterInitMap("memLimit") shouldBe clusterResourceConstraints.memoryLimit.bytes.toString + "b"
+//
+//    clusterInitMap.size shouldBe 36
+//  }
 
   it should "create UserScriptPath objects according to provided path" in {
     val gcsPath = "gs://userscript_bucket/userscript.sh"
@@ -279,33 +283,40 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
     val expectedBase = s"http://leonardo/proxy/$project/$name0/"
 
     // No images or labels -> default to Jupyter
-    Cluster.getClusterUrl(project, name0, Set.empty, Map.empty).toString shouldBe expectedBase + "jupyter"
+    Runtime.getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map.empty).toString shouldBe expectedBase + "jupyter"
 
     // images only
-    Cluster.getClusterUrl(project, name0, Set(jupyterImage), Map.empty).toString shouldBe expectedBase + "jupyter"
-    Cluster
-      .getClusterUrl(project, name0, Set(welderImage, customDataprocImage, jupyterImage), Map.empty)
+    Runtime
+      .getProxyUrl(proxyUrlBase, project, name0, Set(jupyterImage), Map.empty)
       .toString shouldBe expectedBase + "jupyter"
-    Cluster.getClusterUrl(project, name0, Set(rstudioImage), Map.empty).toString shouldBe expectedBase + "rstudio"
-    Cluster
-      .getClusterUrl(project, name0, Set(welderImage, customDataprocImage, rstudioImage), Map.empty)
+    Runtime
+      .getProxyUrl(proxyUrlBase, project, name0, Set(welderImage, customDataprocImage, jupyterImage), Map.empty)
+      .toString shouldBe expectedBase + "jupyter"
+    Runtime
+      .getProxyUrl(proxyUrlBase, project, name0, Set(rstudioImage), Map.empty)
+      .toString shouldBe expectedBase + "rstudio"
+    Runtime
+      .getProxyUrl(proxyUrlBase, project, name0, Set(welderImage, customDataprocImage, rstudioImage), Map.empty)
       .toString shouldBe expectedBase + "rstudio"
 
     // labels only
-    Cluster
-      .getClusterUrl(project, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
+    Runtime
+      .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
       .toString shouldBe expectedBase + "jupyter"
-    Cluster
-      .getClusterUrl(project, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
+    Runtime
+      .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
       .toString shouldBe expectedBase + "rstudio"
-    Cluster.getClusterUrl(project, name0, Set.empty, Map("foo" -> "bar")).toString shouldBe expectedBase + "jupyter"
+    Runtime
+      .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("foo" -> "bar"))
+      .toString shouldBe expectedBase + "jupyter"
 
     // images and labels -> images take precedence
-    Cluster
-      .getClusterUrl(project,
-                     name0,
-                     Set(welderImage, customDataprocImage, rstudioImage),
-                     Map("tool" -> "Jupyter", "foo" -> "bar"))
+    Runtime
+      .getProxyUrl(proxyUrlBase,
+                   project,
+                   name0,
+                   Set(welderImage, customDataprocImage, rstudioImage),
+                   Map("tool" -> "Jupyter", "foo" -> "bar"))
       .toString shouldBe expectedBase + "rstudio"
   }
 }

@@ -57,7 +57,7 @@ trait TestProxy { this: ScalaFutures =>
     sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
     val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
 
-    serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.jupyterPort, https).futureValue
+    serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.proxyPort, https).futureValue
   }
 
   def shutdownProxyServer() = {

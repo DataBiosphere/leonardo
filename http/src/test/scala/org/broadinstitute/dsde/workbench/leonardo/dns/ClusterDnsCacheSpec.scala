@@ -1,12 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+import org.broadinstitute.dsde.workbench.leonardo.{Cluster, RuntimeConfigId, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{RuntimeConfigId, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
@@ -26,22 +24,28 @@ class ClusterDnsCacheSpec
     super.afterAll()
 
   val clusterBeingCreated: Cluster =
-    makeCluster(2).copy(status = ClusterStatus.Creating, dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)))
-  val runningCluster: Cluster = makeCluster(1).copy(status = ClusterStatus.Running)
+    makeCluster(2)
+      .copy(status = RuntimeStatus.Creating, asyncRuntimeFields = Some(makeDataprocInfo(2).copy(hostIp = None)))
+  val runningCluster: Cluster = makeCluster(1).copy(status = RuntimeStatus.Running)
   val stoppedCluster: Cluster =
-    makeCluster(3).copy(status = ClusterStatus.Stopped, dataprocInfo = Some(makeDataprocInfo(2).copy(hostIp = None)))
+    makeCluster(3)
+      .copy(status = RuntimeStatus.Stopped, asyncRuntimeFields = Some(makeDataprocInfo(2).copy(hostIp = None)))
 
-  val cacheKeyForClusterBeingCreated = DnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.clusterName)
-  val cacheKeyForRunningCluster = DnsCacheKey(runningCluster.googleProject, runningCluster.clusterName)
-  val cacheKeyForStoppedCluster = DnsCacheKey(stoppedCluster.googleProject, stoppedCluster.clusterName)
+  val cacheKeyForClusterBeingCreated = DnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.runtimeName)
+  val cacheKeyForRunningCluster = DnsCacheKey(runningCluster.googleProject, runningCluster.runtimeName)
+  val cacheKeyForStoppedCluster = DnsCacheKey(stoppedCluster.googleProject, stoppedCluster.runtimeName)
 
-  val runningClusterHost = Host(s"${runningCluster.dataprocInfo.map(_.googleId).get.toString}.jupyter.firecloud.org")
-  val clusterBeingCreatedHost = Host(
-    s"${clusterBeingCreated.dataprocInfo.map(_.googleId).get.toString}.jupyter.firecloud.org"
+  val runningClusterHost = Host(
+    s"${runningCluster.asyncRuntimeFields.map(_.googleId).get.toString}.jupyter.firecloud.org"
   )
-  val stoppedClusterHost = Host(s"${stoppedCluster.dataprocInfo.map(_.googleId).get.toString}.jupyter.firecloud.org")
+  val clusterBeingCreatedHost = Host(
+    s"${clusterBeingCreated.asyncRuntimeFields.map(_.googleId).get.toString}.jupyter.firecloud.org"
+  )
+  val stoppedClusterHost = Host(
+    s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.toString}.jupyter.firecloud.org"
+  )
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db
@@ -65,7 +69,7 @@ class ClusterDnsCacheSpec
     clusterDnsCache.stats.loadCount shouldBe 3
     clusterDnsCache.stats.evictionCount shouldBe 0
 
-    ClusterDnsCache.hostToIp.get(runningClusterHost) shouldBe runningCluster.dataprocInfo.flatMap(_.hostIp)
+    ClusterDnsCache.hostToIp.get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
     ClusterDnsCache.hostToIp.get(clusterBeingCreatedHost) shouldBe None
     ClusterDnsCache.hostToIp.get(stoppedClusterHost) shouldBe None
 

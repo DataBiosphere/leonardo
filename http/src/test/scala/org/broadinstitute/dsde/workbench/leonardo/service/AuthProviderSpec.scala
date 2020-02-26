@@ -17,29 +17,25 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleProjectDAO,
   MockGoogleStorageDAO
 }
+import org.broadinstitute.dsde.workbench.google2.FirewallRuleName
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  RuntimeConfigQueries,
-  TestComponent,
-  UpdateAsyncClusterCreationFields
-}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper, QueueFactory}
+import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
-import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 class AuthProviderSpec
     extends FreeSpec
@@ -55,9 +51,9 @@ class AuthProviderSpec
   implicit val nr = FakeNewRelicMetricsInterpreter
 
   val cluster1 = makeCluster(1)
-  val cluster1Name = cluster1.clusterName
+  val cluster1Name = cluster1.runtimeName
 
-  val clusterName = cluster1Name.value
+  val clusterName = cluster1Name.asString
   val googleProject = project.value
 
   def proxyConfig: ProxyConfig = CommonTestData.proxyConfig
@@ -81,8 +77,19 @@ class AuthProviderSpec
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
   val mockWelderDAO = new MockWelderDAO
+  val bucketHelperConfig =
+    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
-    new BucketHelper(mockGoogleComputeDAO, mockGoogleStorageDAO, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper(bucketHelperConfig,
+                     MockGoogleComputeService,
+                     mockGoogleStorageDAO,
+                     FakeGoogleStorageService,
+                     mockGoogleProjectDAO,
+                     serviceAccountProvider,
+                     blocker)(cs)
+  val vpcHelperConfig =
+    VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
+  val vpcHelper = new VPCHelper(vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService)
   val clusterHelper =
     new ClusterHelper(dataprocConfig,
                       imageConfig,
@@ -93,14 +100,15 @@ class AuthProviderSpec
                       monitorConfig,
                       welderConfig,
                       bucketHelper,
+                      vpcHelper,
                       mockGoogleDataprocDAO,
-                      mockGoogleComputeDAO,
+                      MockGoogleComputeService,
                       mockGoogleDirectoryDAO,
                       mockGoogleIamDAO,
                       mockGoogleProjectDAO,
                       mockWelderDAO,
                       blocker)
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -125,7 +133,6 @@ class AuthProviderSpec
     new LeonardoService(dataprocConfig,
                         imageConfig,
                         MockWelderDAO,
-                        clusterDefaultsConfig,
                         proxyConfig,
                         swaggerConfig,
                         autoFreezeConfig,
@@ -157,15 +164,15 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(x => LeoLenses.createClusterAPIRespToListClusterResp.get(x))
+      listResponse shouldBe Seq(cluster1).map(x => LeoLenses.createRuntimeAPIRespToListRuntimeResp.get(x))
 
       //connect
       val proxyRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
-      proxy.proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), proxyRequest).unsafeRunSync()
+      proxy.proxyRequest(userInfo, GoogleProject(googleProject), RuntimeName(clusterName), proxyRequest).unsafeRunSync()
 
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
-      proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).unsafeRunSync()
+      proxy.proxyLocalize(userInfo, GoogleProject(googleProject), RuntimeName(clusterName), syncRequest).unsafeRunSync()
 
       val updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
         Some(GcsPath(initBucketPath, GcsObjectName(""))),
@@ -214,34 +221,34 @@ class AuthProviderSpec
 
       val clusterGetResponseException =
         leo.getActiveClusterDetails(userInfo, cluster1.googleProject, cluster1Name).unsafeToFuture.failed.futureValue
-      clusterGetResponseException shouldBe a[ClusterNotFoundException]
-      clusterGetResponseException.asInstanceOf[ClusterNotFoundException].statusCode shouldBe StatusCodes.NotFound
+      clusterGetResponseException shouldBe a[RuntimeNotFoundException]
+      clusterGetResponseException.asInstanceOf[RuntimeNotFoundException].statusCode shouldBe StatusCodes.NotFound
 
       //connect to cluster
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
       val clusterNotFoundException = proxy
-        .proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest)
+        .proxyRequest(userInfo, GoogleProject(googleProject), RuntimeName(clusterName), httpRequest)
         .attempt
         .unsafeRunSync()
         .swap
         .toOption
         .get
-      clusterNotFoundException shouldBe a[ClusterNotFoundException]
+      clusterNotFoundException shouldBe a[RuntimeNotFoundException]
 
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
       val syncNotFoundException = proxy
-        .proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest)
+        .proxyLocalize(userInfo, GoogleProject(googleProject), RuntimeName(clusterName), syncRequest)
         .attempt
         .unsafeRunSync()
         .swap
         .toOption
         .get
-      syncNotFoundException shouldBe a[ClusterNotFoundException]
+      syncNotFoundException shouldBe a[RuntimeNotFoundException]
 
       //destroy cluster
       val clusterNotFoundAgain = leo.deleteCluster(userInfo, project, cluster1Name).unsafeToFuture.failed.futureValue
-      clusterNotFoundAgain shouldBe a[ClusterNotFoundException]
+      clusterNotFoundAgain shouldBe a[RuntimeNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
       verify(spyProvider, Mockito.never).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
@@ -266,7 +273,7 @@ class AuthProviderSpec
       val savedCluster = cluster1.save(None)
       // status should work for this user
       leo
-        .getActiveClusterDetails(userInfo, project, cluster1.clusterName)
+        .getActiveClusterDetails(userInfo, project, cluster1.runtimeName)
         .unsafeToFuture
         .futureValue
         .internalId shouldEqual cluster1.internalId
@@ -274,13 +281,15 @@ class AuthProviderSpec
       // list should work for this user
       //list all clusters should be fine, but empty
       leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(
-        _.toListClusterResp(dbFutureValue(RuntimeConfigQueries.getRuntime(savedCluster.runtimeConfigId)))
+        r =>
+          ListRuntimeResponse
+            .fromRuntime(r, dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster.runtimeConfigId)))
       )
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
       val clusterAuthException = proxy
-        .proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest)
+        .proxyRequest(userInfo, GoogleProject(googleProject), RuntimeName(clusterName), httpRequest)
         .attempt
         .unsafeRunSync()
         .swap
@@ -291,7 +300,7 @@ class AuthProviderSpec
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
       val syncNotFoundException = proxy
-        .proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest)
+        .proxyLocalize(userInfo, GoogleProject(googleProject), RuntimeName(clusterName), syncRequest)
         .attempt
         .unsafeRunSync()
         .swap
@@ -348,7 +357,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(LeoLenses.createClusterAPIRespToListClusterResp.get)
+      listResponse shouldBe Seq(cluster1).map(LeoLenses.createRuntimeAPIRespToListRuntimeResp.get)
     }
 
     "should return clusters the user didn't create if the auth provider says yes" in isolatedDbTest {
@@ -362,7 +371,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(newUserInfo, Map()).unsafeToFuture().futureValue
-      listResponse shouldBe Seq(cluster1).map(LeoLenses.createClusterAPIRespToListClusterResp.get)
+      listResponse shouldBe Seq(cluster1).map(LeoLenses.createRuntimeAPIRespToListRuntimeResp.get)
     }
   }
 }

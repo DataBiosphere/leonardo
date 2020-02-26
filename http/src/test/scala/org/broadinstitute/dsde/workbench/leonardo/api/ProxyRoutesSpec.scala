@@ -11,7 +11,6 @@ import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite}
@@ -62,7 +61,7 @@ class ProxyRoutesSpec
 
   before {
     proxyService.googleTokenCache.invalidateAll()
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Some(internalId))
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(clusterName)), Some(internalId))
   }
 
   val pathPrefixes = Set("notebooks", "proxy")
@@ -80,7 +79,7 @@ class ProxyRoutesSpec
         validateCors()
       }
       val newName = "aDifferentClusterName"
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Some(internalId))
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)), Some(internalId))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.NotFound
@@ -102,7 +101,7 @@ class ProxyRoutesSpec
         status shouldEqual StatusCodes.NotFound
       }
       // should still 404 even if a cache entry is present
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Some(internalId))
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)), Some(internalId))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }

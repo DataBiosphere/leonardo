@@ -7,10 +7,9 @@ import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeConfigId, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeConfigId, RuntimeName, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
@@ -28,9 +27,9 @@ class ZombieClusterMonitorSpec
     with TestComponent
     with GcsPathUtils { testKit =>
 
-  val testCluster1 = makeCluster(1).copy(status = ClusterStatus.Running)
-  val testCluster2 = makeCluster(2).copy(status = ClusterStatus.Running)
-  val testCluster3 = makeCluster(3).copy(status = ClusterStatus.Running)
+  val testCluster1 = makeCluster(1).copy(status = RuntimeStatus.Running)
+  val testCluster2 = makeCluster(2).copy(status = RuntimeStatus.Running)
+  val testCluster3 = makeCluster(3).copy(status = RuntimeStatus.Running)
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -59,7 +58,7 @@ class ZombieClusterMonitorSpec
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         List(c1, c2).foreach { c =>
-          c.status shouldBe ClusterStatus.Deleted
+          c.status shouldBe RuntimeStatus.Deleted
           c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
           c.errors.head.errorCode shouldBe -1
@@ -90,7 +89,7 @@ class ZombieClusterMonitorSpec
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
 
-        c1.status shouldBe ClusterStatus.Deleted
+        c1.status shouldBe RuntimeStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
         c1.errors.size shouldBe 1
         c1.errors.head.errorCode shouldBe -1
@@ -121,7 +120,7 @@ class ZombieClusterMonitorSpec
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         List(c1, c2).foreach { c =>
-          c.status shouldBe ClusterStatus.Deleted
+          c.status shouldBe RuntimeStatus.Deleted
           c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
           c.errors.head.errorCode shouldBe -1
@@ -143,12 +142,12 @@ class ZombieClusterMonitorSpec
 
     // stub GoogleDataprocDAO to flag cluster2 as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus] =
         Future.successful {
-          if (clusterName == savedTestCluster2.clusterName) {
-            ClusterStatus.Deleted
+          if (clusterName == savedTestCluster2.runtimeName) {
+            RuntimeStatus.Deleted
           } else {
-            ClusterStatus.Running
+            RuntimeStatus.Running
           }
         }
     }
@@ -159,13 +158,13 @@ class ZombieClusterMonitorSpec
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
-        c2.status shouldBe ClusterStatus.Deleted
+        c2.status shouldBe RuntimeStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
         c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
 
-        c1.status shouldBe ClusterStatus.Running
+        c1.status shouldBe RuntimeStatus.Running
         c1.errors shouldBe 'empty
       }
     }
@@ -178,14 +177,14 @@ class ZombieClusterMonitorSpec
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
-    val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
+    val creatingTestCluster = testCluster2.copy(status = RuntimeStatus.Creating)
     val savedTestCluster2 = creatingTestCluster.save()
     savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual creatingTestCluster
 
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
-        Future.successful(ClusterStatus.Deleted)
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus] =
+        Future.successful(RuntimeStatus.Deleted)
     }
 
     val shouldHangAfter: Span = zombieClusterConfig.creationHangTolerance.plus(zombieClusterConfig.zombieCheckPeriod)
@@ -195,7 +194,7 @@ class ZombieClusterMonitorSpec
       eventually(timeout(3 seconds)) { //This timeout can be anything smaller than hang tolerance
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
-        c2.status shouldBe ClusterStatus.Creating
+        c2.status shouldBe RuntimeStatus.Creating
         c2.auditInfo.destroyedDate shouldBe None
       }
     }
@@ -205,13 +204,13 @@ class ZombieClusterMonitorSpec
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
-        c1.status shouldBe ClusterStatus.Deleted
+        c1.status shouldBe RuntimeStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
         c1.errors.size shouldBe 1
         c1.errors.head.errorCode shouldBe -1
         c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
 
-        c2.status shouldBe ClusterStatus.Deleted
+        c2.status shouldBe RuntimeStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
@@ -223,15 +222,15 @@ class ZombieClusterMonitorSpec
   it should "not zombify cluster before hang period" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
-    val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
+    val creatingTestCluster = testCluster2.copy(status = RuntimeStatus.Creating)
     val savedTestCluster2 = creatingTestCluster.save()
     savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual creatingTestCluster
 
     val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
-        Future.successful(ClusterStatus.Deleted)
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus] =
+        Future.successful(RuntimeStatus.Deleted)
     }
 
     // the Running cluster should be a zombie but the Creating one shouldn't
@@ -239,7 +238,7 @@ class ZombieClusterMonitorSpec
       Thread.sleep(shouldNotHangBefore.toSeconds)
 
       val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
-      c1.status shouldBe ClusterStatus.Creating
+      c1.status shouldBe RuntimeStatus.Creating
       c1.errors.size shouldBe 0
     }
   }
@@ -253,12 +252,12 @@ class ZombieClusterMonitorSpec
     savedClusterBadProject.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual clusterBadProject
 
     // running "bad" cluster - should not get zombified
-    val badCluster = testCluster2.copy(clusterName = ClusterName("bad-cluster"))
+    val badCluster = testCluster2.copy(runtimeName = RuntimeName("bad-cluster"))
     val savedBadCluster = badCluster.save()
     savedBadCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual badCluster
 
     // running "good" cluster - should get zombified
-    val goodCluster = testCluster3.copy(clusterName = ClusterName("good-cluster"))
+    val goodCluster = testCluster3.copy(runtimeName = RuntimeName("good-cluster"))
     val savedGoodCluster = goodCluster.save()
     savedGoodCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual goodCluster
 
@@ -272,13 +271,13 @@ class ZombieClusterMonitorSpec
 
     // stub GoogleDataprocDAO to return an error for the bad cluster
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
-        if (googleProject == clusterBadProject.googleProject && clusterName == clusterBadProject.clusterName) {
-          Future.successful(ClusterStatus.Running)
-        } else if (googleProject == badCluster.googleProject && clusterName == badCluster.clusterName) {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus] =
+        if (googleProject == clusterBadProject.googleProject && clusterName == clusterBadProject.runtimeName) {
+          Future.successful(RuntimeStatus.Running)
+        } else if (googleProject == badCluster.googleProject && clusterName == badCluster.runtimeName) {
           Future.failed(new Exception)
         } else {
-          Future.successful(ClusterStatus.Deleted)
+          Future.successful(RuntimeStatus.Deleted)
         }
     }
 
@@ -289,13 +288,13 @@ class ZombieClusterMonitorSpec
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedBadCluster.id) }.get
         val c3 = dbFutureValue { clusterQuery.getClusterById(savedGoodCluster.id) }.get
 
-        c1.status shouldBe ClusterStatus.Running
+        c1.status shouldBe RuntimeStatus.Running
         c1.errors shouldBe 'empty
 
-        c2.status shouldBe ClusterStatus.Running
+        c2.status shouldBe RuntimeStatus.Running
         c2.errors shouldBe 'empty
 
-        c3.status shouldBe ClusterStatus.Deleted
+        c3.status shouldBe RuntimeStatus.Deleted
         c3.auditInfo.destroyedDate shouldBe 'defined
         c3.errors.size shouldBe 1
         c3.errors.head.errorCode shouldBe -1

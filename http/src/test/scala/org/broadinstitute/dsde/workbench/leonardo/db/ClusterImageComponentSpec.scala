@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 import org.scalatest.FlatSpecLike
 import CommonTestData._
 import scala.concurrent.ExecutionContext.Implicits.global

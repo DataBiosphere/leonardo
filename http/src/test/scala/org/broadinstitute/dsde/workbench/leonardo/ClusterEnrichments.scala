@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateClusterAPIResponse
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeAPIResponse
 import org.scalactic.Equality
 import org.scalatest.{Assertion, Matchers}
 
@@ -52,35 +51,35 @@ object ClusterEnrichments extends Matchers {
   }
 
   def stripFieldsForListCluster: Cluster => Cluster = { cluster =>
-    cluster.copy(instances = Set.empty,
-                 clusterImages = Set.empty,
+    cluster.copy(dataprocInstances = Set.empty,
+                 runtimeImages = Set.empty,
                  errors = List.empty,
                  scopes = Set.empty,
                  userJupyterExtensionConfig = None)
   }
 
-  def compareClusterAndCreateClusterAPIResponse(c: Cluster, createCluster: CreateClusterAPIResponse): Assertion = {
+  def compareClusterAndCreateClusterAPIResponse(c: Cluster, createCluster: CreateRuntimeAPIResponse): Assertion = {
     c.id shouldBe createCluster.id
     c.internalId shouldBe createCluster.internalId
-    c.clusterName shouldBe createCluster.clusterName
+    c.runtimeName shouldBe createCluster.clusterName
     c.googleProject shouldBe createCluster.googleProject
     c.serviceAccountInfo shouldBe createCluster.serviceAccountInfo
-    c.dataprocInfo shouldBe createCluster.dataprocInfo
+    c.asyncRuntimeFields shouldBe createCluster.asyncRuntimeFields
     c.auditInfo shouldBe createCluster.auditInfo
-    c.properties shouldBe createCluster.properties
-    c.clusterUrl shouldBe createCluster.clusterUrl
+    c.dataprocProperties shouldBe createCluster.dataprocProperties
+    c.proxyUrl shouldBe createCluster.clusterUrl
     c.status shouldBe createCluster.status
     c.labels shouldBe createCluster.labels
     c.jupyterExtensionUri shouldBe createCluster.jupyterExtensionUri
     c.jupyterUserScriptUri shouldBe createCluster.jupyterUserScriptUri
     c.jupyterStartUserScriptUri shouldBe createCluster.jupyterStartUserScriptUri
     c.errors shouldBe createCluster.errors
-    c.instances shouldBe createCluster.instances
+    c.dataprocInstances shouldBe createCluster.dataprocInstances
     c.userJupyterExtensionConfig shouldBe createCluster.userJupyterExtensionConfig
     c.autopauseThreshold shouldBe createCluster.autopauseThreshold
     c.defaultClientId shouldBe createCluster.defaultClientId
     c.stopAfterCreation shouldBe createCluster.stopAfterCreation
-    c.clusterImages shouldBe createCluster.clusterImages
+    c.runtimeImages shouldBe createCluster.clusterImages
     c.scopes shouldBe createCluster.scopes
     c.welderEnabled shouldBe createCluster.welderEnabled
     c.customClusterEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables

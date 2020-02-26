@@ -10,15 +10,14 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
+import org.broadinstitute.dsde.workbench.google2.{InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CustomDataProc, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType._
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -30,11 +29,11 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 object CommonTestData {
 // values common to multiple tests, to reduce boilerplate
-  val name0 = ClusterName("clustername0")
-  val name1 = ClusterName("clustername1")
-  val name2 = ClusterName("clustername2")
-  val name3 = ClusterName("clustername3")
-  val internalId = ClusterInternalId("067e2867-5d4a-47f3-a53c-fd711529b287")
+  val name0 = RuntimeName("clustername0")
+  val name1 = RuntimeName("clustername1")
+  val name2 = RuntimeName("clustername2")
+  val name3 = RuntimeName("clustername3")
+  val internalId = RuntimeInternalId("067e2867-5d4a-47f3-a53c-fd711529b287")
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
@@ -67,6 +66,7 @@ object CommonTestData {
   )
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
+  val applicationConfig = config.as[ApplicationConfig]("application")
   val dataprocImageProjectGroupName = config.getString("google.groups.dataprocImageProjectGroupName")
   val dataprocImageProjectGroupEmail = WorkbenchEmail(config.getString("google.groups.dataprocImageProjectGroupEmail"))
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
@@ -77,29 +77,25 @@ object CommonTestData {
   val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val zombieClusterConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
   val clusterToolConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
-  val clusterUrlBase = dataprocConfig.clusterUrlBase
+  val proxyUrlBase = proxyConfig.proxyUrlBase
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
+  val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
-    Some(clusterDefaultsConfig.numberOfWorkers),
-    Some(clusterDefaultsConfig.masterMachineType),
-    Some(clusterDefaultsConfig.masterDiskSize)
+    Some(singleNodeDefaultMachineConfig.numberOfWorkers),
+    Some(singleNodeDefaultMachineConfig.masterMachineType),
+    Some(singleNodeDefaultMachineConfig.masterDiskSize)
   )
-  val singleNodeDefaultMachineConfig =
-    singleNodeDefaultMachineConfigRequest.toRuntimeConfigDataprocConfig(
-      MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
-    )
 
-  val testClusterRequest = ClusterRequest(
+  val testClusterRequest = CreateRuntimeRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
     None,
     None,
@@ -113,7 +109,7 @@ object CommonTestData {
     Some(30),
     Some("ThisIsADefaultClientID")
   )
-  val testClusterRequestWithExtensionAndScript = ClusterRequest(
+  val testClusterRequestWithExtensionAndScript = CreateRuntimeRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
     Some(jupyterExtensionUri),
     Some(jupyterUserScriptUri),
@@ -130,7 +126,6 @@ object CommonTestData {
 
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
-  val mockGoogleComputeDAO = new MockGoogleComputeDAO
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
   val defaultUserInfo =
@@ -145,79 +140,83 @@ object CommonTestData {
   val serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
-  val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
-  val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
-  val welderImage = ClusterImage(Welder, "welder/welder:latest", Instant.now)
-  val customDataprocImage = ClusterImage(CustomDataProc, "custom_dataproc", Instant.now)
+  val jupyterImage = RuntimeImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
+  val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
+  val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
+  val customDataprocImage = RuntimeImage(CustomDataProc, "custom_dataproc", Instant.now)
 
-  val clusterResourceConstraints = ClusterResourceConstraints(MemorySize.fromMb(3584))
+  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
 
-  def makeDataprocInfo(index: Int): DataprocInfo =
-    DataprocInfo(
+  def makeDataprocInfo(index: Int): AsyncRuntimeFields =
+    AsyncRuntimeFields(
       UUID.randomUUID(),
       OperationName("operationName" + index.toString),
       GcsBucketName("stagingbucketname" + index.toString),
       Some(IP("numbers.and.dots"))
     )
 
-  val defaultRuntimeConfig = RuntimeConfig.DataprocConfig(0, "", 500)
-  val defaultRuntimeConfigRequest = RuntimeConfigRequest.DataprocConfig(Some(0), Some(""), Some(500))
+  val defaultRuntimeConfig = RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), 500)
+  val defaultRuntimeConfigRequest =
+    RuntimeConfigRequest.DataprocConfig(Some(0), Some(MachineTypeName("n1-standard-4")), Some(500))
   def makeCluster(index: Int): Cluster = {
-    val clusterName = ClusterName("clustername" + index.toString)
-    Cluster(
-      clusterName = clusterName,
+    val clusterName = RuntimeName("clustername" + index.toString)
+    Runtime(
+      runtimeName = clusterName,
       internalId = internalId,
       googleProject = project,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = Some(makeDataprocInfo(index)),
+      asyncRuntimeFields = Some(makeDataprocInfo(index)),
       auditInfo = auditInfo,
-      properties = Map.empty,
-      clusterUrl = Cluster.getClusterUrl(project, clusterName, Set(jupyterImage), Map.empty),
-      status = ClusterStatus.Unknown,
+      dataprocProperties = Map.empty,
+      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
+      status = RuntimeStatus.Unknown,
       labels = Map(),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
       jupyterStartUserScriptUri = None,
       errors = List.empty,
-      instances = Set.empty,
+      dataprocInstances = Set.empty,
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
       allowStop = false,
-      clusterImages = Set(jupyterImage),
+      runtimeImages = Set(jupyterImage),
       scopes = defaultScopes,
       welderEnabled = false,
-      customClusterEnvironmentVariables = Map.empty
+      customClusterEnvironmentVariables = Map.empty,
+      runtimeConfigId = RuntimeConfigId(-1)
     )
   }
 
   val testCluster = new Cluster(
-    clusterName = name1,
+    runtimeName = name1,
     internalId = internalId,
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
-    dataprocInfo = Some(DataprocInfo(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
+    asyncRuntimeFields =
+      Some(AsyncRuntimeFields(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
-    properties = Map.empty,
-    clusterUrl = Cluster.getClusterUrl(project, name1, Set(jupyterImage), Map.empty),
-    status = ClusterStatus.Unknown,
+    dataprocProperties = Map.empty,
+    proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
+    status = RuntimeStatus.Unknown,
     labels = Map(),
     jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
     jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript")))),
     jupyterStartUserScriptUri =
       Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript")))),
     errors = List.empty,
-    instances = Set.empty,
+    dataprocInstances = Set.empty,
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
     allowStop = false,
-    clusterImages = Set(jupyterImage),
+    runtimeImages = Set(jupyterImage),
     scopes = defaultScopes,
     welderEnabled = false,
-    customClusterEnvironmentVariables = Map.empty
+    customClusterEnvironmentVariables = Map.empty,
+    runtimeConfigId = RuntimeConfigId(-1)
   )
 
   // TODO look into parameterized tests so both provider impls can be tested
@@ -237,30 +236,30 @@ object CommonTestData {
   def notebookServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
 
-  val masterInstance = Instance(
-    InstanceKey(project, ZoneUri("my-zone"), InstanceName("master-instance")),
+  val masterInstance = DataprocInstance(
+    DataprocInstanceKey(project, ZoneName("my-zone"), InstanceName("master-instance")),
     googleId = BigInt(12345),
     status = InstanceStatus.Running,
     ip = Some(IP("1.2.3.4")),
-    dataprocRole = Some(DataprocRole.Master),
+    dataprocRole = DataprocRole.Master,
     createdDate = Instant.now()
   )
 
-  val workerInstance1 = Instance(
-    InstanceKey(project, ZoneUri("my-zone"), InstanceName("worker-instance-1")),
+  val workerInstance1 = DataprocInstance(
+    DataprocInstanceKey(project, ZoneName("my-zone"), InstanceName("worker-instance-1")),
     googleId = BigInt(23456),
     status = InstanceStatus.Running,
     ip = Some(IP("1.2.3.5")),
-    dataprocRole = Some(DataprocRole.Worker),
+    dataprocRole = DataprocRole.Worker,
     createdDate = Instant.now()
   )
 
-  val workerInstance2 = Instance(
-    InstanceKey(project, ZoneUri("my-zone"), InstanceName("worker-instance-2")),
+  val workerInstance2 = DataprocInstance(
+    DataprocInstanceKey(project, ZoneName("my-zone"), InstanceName("worker-instance-2")),
     googleId = BigInt(34567),
     status = InstanceStatus.Running,
     ip = Some(IP("1.2.3.6")),
-    dataprocRole = Some(DataprocRole.Worker),
+    dataprocRole = DataprocRole.Worker,
     createdDate = Instant.now()
   )
 

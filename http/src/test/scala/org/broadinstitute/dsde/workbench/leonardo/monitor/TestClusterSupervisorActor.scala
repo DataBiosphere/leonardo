@@ -6,7 +6,7 @@ import akka.testkit.TestKit
 import cats.effect.{ContextShift, IO}
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   AutoFreezeConfig,
   ClusterBucketConfig,
@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
@@ -29,7 +29,7 @@ object TestClusterSupervisorActor {
             imageConfig: ImageConfig,
             clusterBucketConfig: ClusterBucketConfig,
             gdDAO: GoogleDataprocDAO,
-            googleComputeDAO: GoogleComputeDAO,
+            googleComputeService: GoogleComputeService[IO],
             googleStorageDAO: GoogleStorageDAO,
             google2StorageDAO: GoogleStorageService[IO],
             dbRef: DbReference[IO],
@@ -47,7 +47,7 @@ object TestClusterSupervisorActor {
                                      imageConfig,
                                      clusterBucketConfig,
                                      gdDAO,
-                                     googleComputeDAO,
+                                     googleComputeService,
                                      googleStorageDAO,
                                      google2StorageDAO,
                                      dbRef,
@@ -72,7 +72,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  imageConfig: ImageConfig,
                                  clusterBucketConfig: ClusterBucketConfig,
                                  gdDAO: GoogleDataprocDAO,
-                                 googleComputeDAO: GoogleComputeDAO,
+                                 googleComputeService: GoogleComputeService[IO],
                                  googleStorageDAO: GoogleStorageDAO,
                                  google2StorageDAO: GoogleStorageService[IO],
                                  dbRef: DbReference[IO],
@@ -90,7 +90,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       imageConfig,
       clusterBucketConfig,
       gdDAO,
-      googleComputeDAO,
+      googleComputeService,
       googleStorageDAO,
       google2StorageDAO,
       authProvider,

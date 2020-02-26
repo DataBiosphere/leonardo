@@ -141,6 +141,30 @@ final case class ListRuntimeResponse(id: Long,
                                      stopAfterCreation: Boolean,
                                      welderEnabled: Boolean)
 
+object ListRuntimeResponse {
+  def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig): ListRuntimeResponse =
+    ListRuntimeResponse(
+      runtime.id,
+      runtime.internalId,
+      runtime.runtimeName,
+      runtime.googleProject,
+      runtime.serviceAccountInfo,
+      runtime.asyncRuntimeFields,
+      runtime.auditInfo,
+      runtimeConfig,
+      runtime.proxyUrl,
+      runtime.status,
+      runtime.labels,
+      runtime.jupyterExtensionUri,
+      runtime.jupyterUserScriptUri,
+      runtime.dataprocInstances,
+      runtime.autopauseThreshold,
+      runtime.defaultClientId,
+      runtime.stopAfterCreation,
+      runtime.welderEnabled
+    )
+}
+
 final case class GetRuntimeResponse(id: Long,
                                     internalId: RuntimeInternalId,
                                     clusterName: RuntimeName,

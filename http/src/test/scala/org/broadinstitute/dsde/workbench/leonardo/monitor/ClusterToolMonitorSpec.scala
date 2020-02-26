@@ -3,32 +3,22 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  JupyterDAO,
-  MockJupyterDAO,
-  MockRStudioDAO,
-  MockWelderDAO,
-  RStudioDAO,
-  ToolDAO,
-  WelderDAO
-}
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 import com.typesafe.scalalogging.LazyLogging
-import org.mockito.Mockito._
-import org.scalatest.mockito.MockitoSugar
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeContainerServiceType, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.mockito.ArgumentMatchers
+import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
+import org.scalatest.mockito.MockitoSugar
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.Try
-import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType
 
 class ClusterToolMonitorSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -44,17 +34,17 @@ class ClusterToolMonitorSpec
     super.afterAll()
   }
 
-  val welderEnabledCluster = makeCluster(1).copy(status = ClusterStatus.Running,
+  val welderEnabledCluster = makeCluster(1).copy(status = RuntimeStatus.Running,
                                                  welderEnabled = true,
-                                                 clusterImages = Set(jupyterImage, welderImage))
+                                                 runtimeImages = Set(jupyterImage, welderImage))
   val welderDisabledCluster =
-    makeCluster(2).copy(status = ClusterStatus.Running, welderEnabled = false, clusterImages = Set(jupyterImage))
-  val notRunningCluster = makeCluster(3).copy(status = ClusterStatus.Deleted,
+    makeCluster(2).copy(status = RuntimeStatus.Running, welderEnabled = false, runtimeImages = Set(jupyterImage))
+  val notRunningCluster = makeCluster(3).copy(status = RuntimeStatus.Deleted,
                                               welderEnabled = true,
-                                              clusterImages = Set(jupyterImage, welderImage))
-  val rstudioCluster = makeCluster(4).copy(status = ClusterStatus.Running,
+                                              runtimeImages = Set(jupyterImage, welderImage))
+  val rstudioCluster = makeCluster(4).copy(status = RuntimeStatus.Running,
                                            welderEnabled = true,
-                                           clusterImages = Set(rstudioImage, welderImage))
+                                           runtimeImages = Set(rstudioImage, welderImage))
 
   it should "report all services are up normally" in isolatedDbTest {
     welderEnabledCluster.save()
@@ -64,7 +54,7 @@ class ClusterToolMonitorSpec
 
     withServiceActor() { (_, mockNewRelic) =>
       Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-      ClusterContainerServiceType.values.foreach { service =>
+      RuntimeContainerServiceType.values.foreach { service =>
         verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith(service.toString + "Down"),
                                                        ArgumentMatchers.anyInt())
       }
@@ -148,7 +138,7 @@ class ClusterToolMonitorSpec
       ClusterToolMonitor.props(clusterToolConfig,
                                gdDAO = new MockGoogleDataprocDAO,
                                googleProjectDAO = new MockGoogleProjectDAO,
-                               dbRef,
+                               DbSingleton.dbRef,
                                newRelic)
     )
     val testResult = Try(testCode(actor, newRelic))
