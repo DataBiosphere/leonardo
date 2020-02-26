@@ -17,7 +17,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
@@ -127,12 +127,23 @@ class ClusterHelper(
           .compile
           .drain
 
-        // TODO
-//        _ <- initializeBucketObjects(params,
-//                                     initBucketName,
-//                                     stagingBucketName,
-//                                     serviceAccountKeyOpt,
-//                                     resourceConstraints).compile.drain
+        templateParams = RuntimeTemplateValuesConfig.fromCreateCluster(
+          params,
+          Some(initBucketName),
+          Some(stagingBucketName),
+          serviceAccountKeyOpt,
+          dataprocConfig,
+          imageConfig,
+          welderConfig,
+          proxyConfig,
+          clusterFilesConfig,
+          clusterResourcesConfig,
+          Some(resourceConstraints)
+        )
+        _ <- bucketHelper
+          .initializeBucketObjects(initBucketName, templateParams, params.customClusterEnvironmentVariables)
+          .compile
+          .drain
 
         // build cluster configuration
         initScriptResources = List(clusterResourcesConfig.initActionsScript)
@@ -227,8 +238,7 @@ class ClusterHelper(
   private def stopGoogleCluster(cluster: Cluster,
                                 runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
-      // TODO
-      metadata <- getMasterInstanceShutdownScript(null)
+      metadata <- getMasterInstanceShutdownScript(cluster)
 
       // First remove all its preemptible instances, if any
       _ <- runtimeConfig match {
@@ -257,8 +267,7 @@ class ClusterHelper(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
     for {
-      // TODO
-      metadata <- getMasterInstanceStartupScript(null, welderAction)
+      metadata <- getMasterInstanceStartupScript(cluster, welderAction)
 
       // Add back the preemptible instances, if any
       _ <- runtimeConfig match {
@@ -404,16 +413,18 @@ class ClusterHelper(
       }
     }
 
-  def updateMasterDiskSize(cluster: Cluster, diskSize: Int): IO[Unit] =
+  def updateMasterDiskSize(cluster: Cluster, diskSize: Int)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     cluster.dataprocInstances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
       // and rebuilding the cluster if new worker machine/disk sizes are needed.
       instance.dataprocRole match {
         case Master =>
-          IO.unit
-        // TODO
-        // googleComputeService.resizeDisk(instance.key.project, instance.key.zone, instance.key.name, diskSize))
+          // Note for Dataproc the disk name is the same as the instance name
+          googleComputeService.resizeDisk(instance.key.project,
+                                          instance.key.zone,
+                                          DiskName(instance.key.name.value),
+                                          diskSize)
         case _ => IO.unit
       }
     }
@@ -677,10 +688,19 @@ class ClusterHelper(
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private def getMasterInstanceStartupScript(templateConfig: RuntimeTemplateValuesConfig,
-                                             welderAction: WelderAction): IO[Map[String, String]] = {
+  private def getMasterInstanceStartupScript(runtime: Runtime, welderAction: WelderAction): IO[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
+    val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(runtime,
+                                                                 None,
+                                                                 None,
+                                                                 dataprocConfig,
+                                                                 imageConfig,
+                                                                 welderConfig,
+                                                                 proxyConfig,
+                                                                 clusterFilesConfig,
+                                                                 clusterResourcesConfig,
+                                                                 None)
     val clusterInit = RuntimeTemplateValues(templateConfig)
     val replacements: Map[String, String] = clusterInit.toMap ++
       Map(
@@ -695,9 +715,19 @@ class ClusterHelper(
     }
   }
 
-  private def getMasterInstanceShutdownScript(templateConfig: RuntimeTemplateValuesConfig): IO[Map[String, String]] = {
+  private def getMasterInstanceShutdownScript(runtime: Runtime): IO[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
+    val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(runtime,
+                                                                 None,
+                                                                 None,
+                                                                 dataprocConfig,
+                                                                 imageConfig,
+                                                                 welderConfig,
+                                                                 proxyConfig,
+                                                                 clusterFilesConfig,
+                                                                 clusterResourcesConfig,
+                                                                 None)
     val replacements = RuntimeTemplateValues(templateConfig).toMap
 
     TemplateHelper

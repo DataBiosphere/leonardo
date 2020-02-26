@@ -34,34 +34,33 @@ class ComputeHelper(config: ComputeHelperConfig,
   def createInstance(params: CreateInstanceParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       // Set up VPC network and firewall
-      vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.googleProject)
-      firewallRule <- vpcHelper.getOrCreateFirewallRule(params.googleProject, vpcSettings)
+      vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
+      firewallRule <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)
 
       // Get resource (e.g. memory) constraints for the instance
-      resourceConstraints <- getResourceConstraints(params.googleProject,
+      resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
                                                     params.zoneName,
                                                     params.machineConfig.machineType)
 
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
-      initBucketName = generateUniqueBucketName("leoinit-" + params.clusterName.asString)
-      stagingBucketName = generateUniqueBucketName("leostaging-" + params.clusterName.asString)
+      initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
+      stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
       _ <- bucketHelper
-        .createInitBucket(params.googleProject, initBucketName, params.serviceAccountInfo)
+        .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
         .compile
         .drain
 
       _ <- bucketHelper
         .createStagingBucket(params.auditInfo.creator,
-                             params.googleProject,
+                             params.runtimeProjectAndName.googleProject,
                              stagingBucketName,
                              params.serviceAccountInfo)
         .compile
         .drain
 
       templateParams = RuntimeTemplateValuesConfig(
-        params.googleProject,
-        params.clusterName,
+        params.runtimeProjectAndName,
         params.stagingBucketName,
         params.runtimeImages,
         params.initBucketName,
@@ -80,15 +79,15 @@ class ComputeHelper(config: ComputeHelperConfig,
         Some(resourceConstraints)
       )
 
-      _ <- bucketHelper.initializeBucketObjects(initBucketName, templateParams, params.customEnvVars).compile.drain
+      _ <- bucketHelper.initializeBucketObjects(initBucketName, templateParams, Map.empty).compile.drain
 
       // TODO
       instance = Instance
         .newBuilder()
-        .setName(params.clusterName.asString)
+        .setName(params.runtimeProjectAndName.runtimeName.asString)
         .build
 
-      _ <- googleComputeService.createInstance(params.googleProject, params.zoneName, instance)
+      _ <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, params.zoneName, instance)
 
     } yield ()
 
@@ -111,9 +110,8 @@ class ComputeHelper(config: ComputeHelperConfig,
 
 }
 
-final case class CreateInstanceParams(googleProject: GoogleProject,
+final case class CreateInstanceParams(runtimeProjectAndName: RuntimeProjectAndName,
                                       zoneName: ZoneName,
-                                      clusterName: ClusterName,
                                       serviceAccountInfo: ServiceAccountInfo,
                                       machineConfig: RuntimeConfig.GceConfig,
                                       stagingBucketName: Option[GcsBucketName],

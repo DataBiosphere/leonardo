@@ -3,21 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AuditInfo,
-  ClusterName,
-  RuntimeImage,
-  RuntimeResourceConstraints,
-  UserJupyterExtensionConfig,
-  UserScriptPath
-}
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GcsObjectName,
-  GcsPath,
-  GoogleProject,
-  ServiceAccountKey
-}
+import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
 case class RuntimeTemplateValues private (googleProject: String,
                                           clusterName: String,
@@ -61,8 +48,7 @@ case class RuntimeTemplateValues private (googleProject: String,
 
 }
 
-case class RuntimeTemplateValuesConfig(googleProject: GoogleProject,
-                                       clusterName: ClusterName,
+case class RuntimeTemplateValuesConfig(runtimeProjectAndName: RuntimeProjectAndName,
                                        stagingBucketName: Option[GcsBucketName],
                                        runtimeImages: Set[RuntimeImage],
                                        initBucketName: Option[GcsBucketName],
@@ -79,6 +65,68 @@ case class RuntimeTemplateValuesConfig(googleProject: GoogleProject,
                                        clusterFilesConfig: ClusterFilesConfig,
                                        clusterResourcesConfig: ClusterResourcesConfig,
                                        clusterResourceConstraints: Option[RuntimeResourceConstraints])
+object RuntimeTemplateValuesConfig {
+  def fromCreateCluster(createCluster: CreateCluster,
+                        initBucketName: Option[GcsBucketName],
+                        stagingBucketName: Option[GcsBucketName],
+                        serviceAccountKey: Option[ServiceAccountKey],
+                        dataprocConfig: DataprocConfig,
+                        imageConfig: ImageConfig,
+                        welderConfig: WelderConfig,
+                        proxyConfig: ProxyConfig,
+                        clusterFilesConfig: ClusterFilesConfig,
+                        clusterResourcesConfig: ClusterResourcesConfig,
+                        clusterResourceConstraints: Option[RuntimeResourceConstraints]): RuntimeTemplateValuesConfig =
+    RuntimeTemplateValuesConfig(
+      createCluster.clusterProjectAndName,
+      stagingBucketName,
+      createCluster.runtimeImages,
+      initBucketName,
+      createCluster.jupyterUserScriptUri,
+      createCluster.jupyterStartUserScriptUri,
+      serviceAccountKey,
+      createCluster.userJupyterExtensionConfig,
+      createCluster.defaultClientId,
+      createCluster.welderEnabled,
+      createCluster.auditInfo,
+      imageConfig,
+      welderConfig,
+      proxyConfig,
+      clusterFilesConfig,
+      clusterResourcesConfig,
+      clusterResourceConstraints
+    )
+
+  def fromRuntime(runtime: Runtime,
+                  initBucketName: Option[GcsBucketName],
+                  serviceAccountKey: Option[ServiceAccountKey],
+                  dataprocConfig: DataprocConfig,
+                  imageConfig: ImageConfig,
+                  welderConfig: WelderConfig,
+                  proxyConfig: ProxyConfig,
+                  clusterFilesConfig: ClusterFilesConfig,
+                  clusterResourcesConfig: ClusterResourcesConfig,
+                  clusterResourceConstraints: Option[RuntimeResourceConstraints]): RuntimeTemplateValuesConfig =
+    RuntimeTemplateValuesConfig(
+      RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
+      runtime.asyncRuntimeFields.map(_.stagingBucket),
+      runtime.runtimeImages,
+      initBucketName,
+      runtime.jupyterUserScriptUri,
+      runtime.jupyterStartUserScriptUri,
+      serviceAccountKey,
+      runtime.userJupyterExtensionConfig,
+      runtime.defaultClientId,
+      runtime.welderEnabled,
+      runtime.auditInfo,
+      imageConfig,
+      welderConfig,
+      proxyConfig,
+      clusterFilesConfig,
+      clusterResourcesConfig,
+      clusterResourceConstraints
+    )
+}
 
 object RuntimeTemplateValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
@@ -86,8 +134,8 @@ object RuntimeTemplateValues {
 
   def apply(config: RuntimeTemplateValuesConfig): RuntimeTemplateValues =
     RuntimeTemplateValues(
-      config.googleProject.value,
-      config.clusterName.asString,
+      config.runtimeProjectAndName.googleProject.value,
+      config.runtimeProjectAndName.runtimeName.asString,
       config.stagingBucketName.map(_.value).getOrElse(""),
       config.runtimeImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
@@ -150,82 +198,5 @@ object RuntimeTemplateValues {
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
         .getOrElse(""),
       config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse("")
-    )
-
-  // TODO consolidate
-  def fromCreateCluster(createCluster: CreateCluster,
-                        initBucketName: Option[GcsBucketName],
-                        stagingBucketName: Option[GcsBucketName],
-                        serviceAccountKey: Option[ServiceAccountKey],
-                        dataprocConfig: DataprocConfig,
-                        imageConfig: ImageConfig,
-                        welderConfig: WelderConfig,
-                        proxyConfig: ProxyConfig,
-                        clusterFilesConfig: ClusterFilesConfig,
-                        clusterResourcesConfig: ClusterResourcesConfig,
-                        clusterResourceConstraints: Option[RuntimeResourceConstraints]): RuntimeTemplateValues =
-    RuntimeTemplateValues(
-      createCluster.clusterProjectAndName.googleProject.value,
-      createCluster.clusterProjectAndName.runtimeName.asString,
-      stagingBucketName.map(_.value).getOrElse(""),
-      createCluster.runtimeImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
-      createCluster.runtimeImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
-      createCluster.runtimeImages.find(_.imageType == Proxy).map(_.imageUrl).getOrElse(""),
-      createCluster.runtimeImages.find(_.imageType == Welder).map(_.imageUrl).getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.jupyterDockerCompose.asString)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.rstudioDockerCompose.asString)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.proxyDockerCompose.asString)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.welderDockerCompose.asString)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.proxySiteConf.asString)).toUri)
-        .getOrElse(""),
-      imageConfig.jupyterContainerName,
-      imageConfig.rstudioContainerName,
-      imageConfig.welderContainerName,
-      imageConfig.proxyContainerName,
-      createCluster.jupyterUserScriptUri.map(_.asString).getOrElse(""),
-      stagingBucketName.map(n => GcsPath(n, GcsObjectName("userscript_output.txt")).toUri).getOrElse(""),
-      createCluster.jupyterStartUserScriptUri.map(_.asString).getOrElse(""),
-      stagingBucketName.map(n => GcsPath(n, GcsObjectName("startscript_output.txt")).toUri).getOrElse(""),
-      (for {
-        _ <- serviceAccountKey
-        n <- initBucketName
-      } yield GcsPath(n, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
-      createCluster.auditInfo.creator.value,
-      createCluster.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
-      createCluster.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
-      createCluster.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
-      createCluster.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.asString)).toUri)
-        .getOrElse(""),
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.asString)).toUri)
-        .getOrElse(""),
-      createCluster.defaultClientId.getOrElse(""),
-      createCluster.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (createCluster.welderEnabled) welderConfig.welderEnabledNotebooksDir.toString
-      else welderConfig.welderDisabledNotebooksDir.toString,
-      initBucketName
-        .map(n => GcsPath(n, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
-        .getOrElse(""),
-      clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse("")
     )
 }

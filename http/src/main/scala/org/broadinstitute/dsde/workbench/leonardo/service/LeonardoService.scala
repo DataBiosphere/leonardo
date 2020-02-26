@@ -576,9 +576,11 @@ class LeonardoService(
     }
   }
 
-  def maybeChangeMasterDiskSize(existingCluster: Cluster,
-                                existingRuntimeConfig: RuntimeConfig,
-                                targetMachineSize: Option[Int]): IO[UpdateResult] = {
+  def maybeChangeMasterDiskSize(
+    existingCluster: Cluster,
+    existingRuntimeConfig: RuntimeConfig,
+    targetMachineSize: Option[Int]
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
     val updatedMasterDiskSizeOpt =
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.diskSize), targetMachineSize)
 
