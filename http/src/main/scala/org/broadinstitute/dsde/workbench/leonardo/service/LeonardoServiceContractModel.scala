@@ -3,8 +3,10 @@ package http
 package service
 
 import java.net.URL
+import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 
@@ -77,6 +79,49 @@ final case class CreateRuntimeRequest(labels: LabelMap = Map.empty,
                                       enableWelder: Option[Boolean] = None,
                                       customClusterEnvironmentVariables: Map[String, String] = Map.empty)
 
+object CreateRuntimeRequest {
+  def toRuntime(request: CreateRuntimeRequest,
+                internalId: RuntimeInternalId,
+                userEmail: WorkbenchEmail,
+                runtimeName: RuntimeName,
+                googleProject: GoogleProject,
+                serviceAccountInfo: ServiceAccountInfo,
+                machineConfig: RuntimeConfig.DataprocConfig,
+                proxyUrlBase: String,
+                autopauseThreshold: Int,
+                scopes: Set[String],
+                runtimeImages: Set[RuntimeImage],
+                timestamp: Instant): Runtime =
+    Runtime(
+      internalId = internalId,
+      runtimeName = runtimeName,
+      googleProject = googleProject,
+      serviceAccountInfo = serviceAccountInfo,
+      asyncRuntimeFields = None,
+      auditInfo = AuditInfo(userEmail, timestamp, None, timestamp, None),
+      dataprocProperties = request.dataprocProperties,
+      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, googleProject, runtimeName, runtimeImages, request.labels),
+      status = RuntimeStatus.Creating,
+      labels = request.labels,
+      jupyterExtensionUri = request.jupyterExtensionUri,
+      jupyterUserScriptUri = request.jupyterUserScriptUri,
+      jupyterStartUserScriptUri = request.jupyterStartUserScriptUri,
+      errors = List.empty,
+      dataprocInstances = Set.empty,
+      userJupyterExtensionConfig = request.userJupyterExtensionConfig,
+      autopauseThreshold = autopauseThreshold,
+      defaultClientId = request.defaultClientId,
+      stopAfterCreation = request.stopAfterCreation.getOrElse(false),
+      allowStop = request.allowStop,
+      runtimeImages = runtimeImages,
+      scopes = request.scopes,
+      welderEnabled = request.enableWelder.getOrElse(false),
+      customClusterEnvironmentVariables = request.customClusterEnvironmentVariables,
+      runtimeConfigId = RuntimeConfigId(-1)
+    )
+
+}
+
 final case class ListRuntimeResponse(id: Long,
                                      internalId: RuntimeInternalId,
                                      clusterName: RuntimeName,
@@ -133,7 +178,7 @@ object GetRuntimeResponse {
     runtime.auditInfo,
     runtime.dataprocProperties,
     runtimeConfig,
-    runtime.clusterUrl,
+    runtime.proxyUrl,
     runtime.status,
     runtime.labels,
     runtime.jupyterExtensionUri,
@@ -145,7 +190,7 @@ object GetRuntimeResponse {
     runtime.autopauseThreshold,
     runtime.defaultClientId,
     runtime.stopAfterCreation,
-    runtime.clusterImages,
+    runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
     runtime.customClusterEnvironmentVariables
@@ -191,7 +236,7 @@ object CreateRuntimeAPIResponse {
     runtime.auditInfo,
     runtime.dataprocProperties,
     runtimeConfig,
-    runtime.clusterUrl,
+    runtime.proxyUrl,
     runtime.status,
     runtime.labels,
     runtime.jupyterExtensionUri,
@@ -203,7 +248,7 @@ object CreateRuntimeAPIResponse {
     runtime.autopauseThreshold,
     runtime.defaultClientId,
     runtime.stopAfterCreation,
-    runtime.clusterImages,
+    runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
     runtime.customClusterEnvironmentVariables
@@ -249,7 +294,7 @@ object UpdateRuntimeResponse {
     runtime.auditInfo,
     runtime.dataprocProperties,
     runtimeConfig,
-    runtime.clusterUrl,
+    runtime.proxyUrl,
     runtime.status,
     runtime.labels,
     runtime.jupyterExtensionUri,
@@ -261,7 +306,7 @@ object UpdateRuntimeResponse {
     runtime.autopauseThreshold,
     runtime.defaultClientId,
     runtime.stopAfterCreation,
-    runtime.clusterImages,
+    runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
     runtime.customClusterEnvironmentVariables

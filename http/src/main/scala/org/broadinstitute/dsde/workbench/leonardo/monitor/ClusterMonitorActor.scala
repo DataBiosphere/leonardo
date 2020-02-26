@@ -278,7 +278,7 @@ class ClusterMonitorActor(
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(cluster), cluster.status, RuntimeStatus.Running)
       _ <- if (cluster.status == RuntimeStatus.Creating)
-        recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.clusterImages)
+        recordClusterCreationMetrics(cluster.auditInfo.createdDate, cluster.runtimeImages)
       else IO.unit
       // Finally pipe a shutdown message to this actor
       _ <- IO(logger.info(s"Cluster ${cluster.googleProject}/${cluster.runtimeName} is ready for use!"))

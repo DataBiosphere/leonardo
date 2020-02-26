@@ -6,13 +6,13 @@ import org.broadinstitute.dsde.workbench.leonardo.db.GetClusterKey
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeAPIResponse, ListRuntimeResponse}
 
 object LeoLenses {
-  val clusterToClusterImages: Lens[Cluster, Set[RuntimeImage]] = GenLens[Cluster](_.clusterImages)
+  val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
 
-  val clusterToAuditInfo: Lens[Cluster, AuditInfo] = GenLens[Cluster](_.auditInfo)
+  val runtimeToAuditInfo: Lens[Runtime, AuditInfo] = GenLens[Runtime](_.auditInfo)
 
-  val clusterToRuntimeConfigId: Lens[Cluster, RuntimeConfigId] = GenLens[Cluster](_.runtimeConfigId)
+  val runtimeToRuntimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 
-  val createClusterAPIRespToGetClusterKey = Lens[CreateRuntimeAPIResponse, GetClusterKey](
+  val createRuntimeAPIRespToGetClusterKey = Lens[CreateRuntimeAPIResponse, GetClusterKey](
     x => GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
   )(
     x =>
@@ -22,7 +22,7 @@ object LeoLenses {
                auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate))
   )
 
-  val createClusterAPIRespToListClusterResp = Lens[CreateRuntimeAPIResponse, ListRuntimeResponse](
+  val createRuntimeAPIRespToListRuntimeResp = Lens[CreateRuntimeAPIResponse, ListRuntimeResponse](
     x =>
       ListRuntimeResponse(
         x.id,

@@ -47,6 +47,29 @@ object LeoPubsubMessage {
     val messageType = "createCluster"
   }
 
+  object CreateCluster {
+    def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig, traceId: Option[TraceId]): CreateCluster =
+      CreateCluster(
+        runtime.id,
+        RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
+        runtime.serviceAccountInfo,
+        runtime.asyncRuntimeFields,
+        runtime.auditInfo,
+        runtime.dataprocProperties,
+        runtime.jupyterExtensionUri,
+        runtime.jupyterUserScriptUri,
+        runtime.jupyterStartUserScriptUri,
+        runtime.userJupyterExtensionConfig,
+        runtime.defaultClientId,
+        runtime.runtimeImages,
+        runtime.scopes,
+        runtime.welderEnabled,
+        runtime.customClusterEnvironmentVariables,
+        runtimeConfig,
+        traceId
+      )
+  }
+
   final case class ClusterFollowupDetails(clusterId: Long, runtimeStatus: RuntimeStatus)
       extends Product
       with Serializable

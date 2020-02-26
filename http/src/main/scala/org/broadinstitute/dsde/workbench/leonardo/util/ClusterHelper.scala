@@ -323,7 +323,7 @@ class ClusterHelper(
       // Welder is already enabled; do we need to update it?
       val labelFound = welderConfig.updateWelderLabel.exists(cluster.labels.contains)
 
-      val imageChanged = cluster.clusterImages.find(_.imageType == Welder) match {
+      val imageChanged = cluster.runtimeImages.find(_.imageType == Welder) match {
         case Some(welderImage) if welderImage.imageUrl != imageConfig.welderImage => true
         case _                                                                    => false
       }
@@ -358,7 +358,7 @@ class ClusterHelper(
       }
 
       newCluster = cluster.copy(welderEnabled = true,
-                                clusterImages = cluster.clusterImages.filterNot(_.imageType == Welder) + welderImage)
+                                runtimeImages = cluster.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newCluster
 
   def resizeCluster(cluster: Cluster, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =

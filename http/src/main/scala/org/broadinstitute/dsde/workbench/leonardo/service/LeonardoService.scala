@@ -17,27 +17,23 @@ import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
+import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  DbReference,
-  LeonardoServiceDbQueries,
-  RuntimeConfigQueries,
-  SaveCluster
-}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdate
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateCluster, StopUpdate}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
@@ -205,8 +201,8 @@ class LeonardoService(
   def createCluster(
     userInfo: UserInfo,
     googleProject: GoogleProject,
-    clusterName: ClusterName,
-    clusterRequest: CreateRuntimeRequest
+    runtimeName: RuntimeName,
+    request: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeAPIResponse] =
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
@@ -217,11 +213,11 @@ class LeonardoService(
         .getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName).transaction
+      clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
 
       cluster <- clusterOpt.fold(
-        internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
-      )(c => IO.raiseError(RuntimeAlreadyExistsException(googleProject, clusterName, c.status)))
+        internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, runtimeName, request)
+      )(c => IO.raiseError(RuntimeAlreadyExistsException(googleProject, runtimeName, c.status)))
 
     } yield cluster
 
@@ -229,52 +225,50 @@ class LeonardoService(
     userEmail: WorkbenchEmail,
     serviceAccountInfo: ServiceAccountInfo,
     googleProject: GoogleProject,
-    clusterName: ClusterName,
-    clusterRequest: CreateRuntimeRequest
+    runtimeName: RuntimeName,
+    request: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeAPIResponse] =
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     for {
       traceId <- ev.ask
       internalId <- IO(RuntimeInternalId(UUID.randomUUID().toString))
-      clusterImages <- getRuntimeImages(userEmail, googleProject, clusterRequest)
-      augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo,
-                                                      googleProject,
-                                                      clusterName,
-                                                      userEmail,
-                                                      clusterRequest,
-                                                      clusterImages)
-      // TODO
-      defaultRuntimeConfig = null // MachineConfigOps.createFromDefaults(clusterDefaultsConfig)
-      machineConfig = clusterRequest.runtimeConfig
+      clusterImages <- getRuntimeImages(userEmail, googleProject, request)
+      augmentedRequest = augmentCreateRuntimeRequest(serviceAccountInfo,
+                                                     googleProject,
+                                                     runtimeName,
+                                                     userEmail,
+                                                     request,
+                                                     clusterImages)
+      // TODO: dataproc specific
+      machineConfig = request.runtimeConfig
         .asInstanceOf[Option[RuntimeConfigRequest.DataprocConfig]]
-        .map(_.toRuntimeConfigDataprocConfig(defaultRuntimeConfig))
-        .getOrElse(defaultRuntimeConfig) //TODO: remove this asInstanceOf
+        .map(_.toRuntimeConfigDataprocConfig(dataprocConfig.runtimeConfigDefaults))
+        .getOrElse(dataprocConfig.runtimeConfigDefaults)
       now <- IO(Instant.now())
-      autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
-      clusterScopes = if (clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
-      // TODO
-      initialClusterToSave: Runtime = null.asInstanceOf[Runtime]
-//      Runtime.create(
-//        augmentedClusterRequest,
-//        internalId,
-//        userEmail,
-//        clusterName,
-//        googleProject,
-//        serviceAccountInfo,
-//        machineConfig,
-//        dataprocConfig.clusterUrlBase,
-//        autopauseThreshold,
-//        clusterScopes,
-//        clusterImages
-//      )
+      autopauseThreshold = calculateAutopauseThreshold(request.autopause, request.autopauseThreshold)
+      clusterScopes = if (request.scopes.isEmpty) dataprocConfig.defaultScopes else request.scopes
+      initialClusterToSave: Runtime = CreateRuntimeRequest.toRuntime(
+        augmentedRequest,
+        internalId,
+        userEmail,
+        runtimeName,
+        googleProject,
+        serviceAccountInfo,
+        machineConfig,
+        proxyConfig.proxyUrlBase,
+        autopauseThreshold,
+        clusterScopes,
+        clusterImages,
+        now
+      )
       _ <- log.info(
         s"[$traceId] will deploy the following images to cluster ${initialClusterToSave.projectNameString}: ${clusterImages}"
       )
-      _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest) >> log.info(
+      _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedRequest) >> log.info(
         s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
       )
-      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith { t =>
+      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, runtimeName).handleErrorWith { t =>
         log.info(
           s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
         ) >> IO.raiseError(t)
@@ -284,8 +278,7 @@ class LeonardoService(
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
-      // TODO
-      _ <- publisherQueue.enqueue1(null) // (cluster.toCreateCluster(machineConfig, Some(traceId)))
+      _ <- publisherQueue.enqueue1(CreateCluster.fromRuntime(initialClusterToSave, machineConfig, Some(traceId)))
     } yield CreateRuntimeAPIResponse.fromRuntime(cluster, machineConfig)
 
   // throws 404 if nonexistent or no permissions
@@ -844,25 +837,25 @@ class LeonardoService(
         processLabelMap(params).map(lm => (lm, false))
     }
 
-  private[service] def augmentClusterRequest(serviceAccountInfo: ServiceAccountInfo,
-                                             googleProject: GoogleProject,
-                                             clusterName: ClusterName,
-                                             userEmail: WorkbenchEmail,
-                                             clusterRequest: CreateRuntimeRequest,
-                                             clusterImages: Set[ClusterImage]): CreateRuntimeRequest = {
-    val userJupyterExt = clusterRequest.jupyterExtensionUri match {
+  private[service] def augmentCreateRuntimeRequest(serviceAccountInfo: ServiceAccountInfo,
+                                                   googleProject: GoogleProject,
+                                                   clusterName: ClusterName,
+                                                   userEmail: WorkbenchEmail,
+                                                   request: CreateRuntimeRequest,
+                                                   clusterImages: Set[ClusterImage]): CreateRuntimeRequest = {
+    val userJupyterExt = request.jupyterExtensionUri match {
       case Some(ext) => Map("notebookExtension" -> ext.toUri)
       case None      => Map.empty[String, String]
     }
 
     // add the userJupyterExt to the nbExtensions
-    val updatedUserJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig match {
+    val updatedUserJupyterExtensionConfig = request.userJupyterExtensionConfig match {
       case Some(config) => config.copy(nbExtensions = config.nbExtensions ++ userJupyterExt)
       case None         => UserJupyterExtensionConfig(userJupyterExt, Map.empty, Map.empty, Map.empty)
     }
 
     // transform Some(empty, empty, empty, empty) to None
-    val updatedClusterRequest = clusterRequest.copy(
+    val updatedRequest = request.copy(
       userJupyterExtensionConfig =
         if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
           None
@@ -870,38 +863,36 @@ class LeonardoService(
           Some(updatedUserJupyterExtensionConfig)
     )
 
-    addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedClusterRequest, clusterImages)
+    addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedRequest, clusterImages)
   }
 
   private[service] def addClusterLabels(serviceAccountInfo: ServiceAccountInfo,
                                         googleProject: GoogleProject,
                                         clusterName: ClusterName,
                                         creator: WorkbenchEmail,
-                                        clusterRequest: CreateRuntimeRequest,
+                                        request: CreateRuntimeRequest,
                                         clusterImages: Set[ClusterImage]): CreateRuntimeRequest = {
     // create a LabelMap of default labels
-    // TODO
-    val defaultLabels = Map.empty[String, String]
-//      DefaultLabels(
-//      clusterName,
-//      googleProject,
-//      creator,
-//      serviceAccountInfo.clusterServiceAccount,
-//      serviceAccountInfo.notebookServiceAccount,
-//      clusterRequest.jupyterUserScriptUri,
-//      clusterRequest.jupyterStartUserScriptUri,
-//      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
-//    ).toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
+    val defaultLabels = DefaultLabels(
+      clusterName,
+      googleProject,
+      creator,
+      serviceAccountInfo.clusterServiceAccount,
+      serviceAccountInfo.notebookServiceAccount,
+      request.jupyterUserScriptUri,
+      request.jupyterStartUserScriptUri,
+      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+    ).asJson.as[Map[String, String]].getOrElse(Map.empty)
 
     // combine default and given labels and add labels for extensions
-    val allLabels = clusterRequest.labels ++ defaultLabels ++
-      clusterRequest.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
+    val allLabels = request.labels ++ defaultLabels ++
+      request.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
 
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
     else
-      clusterRequest
+      request
         .copy(labels = allLabels)
   }
 

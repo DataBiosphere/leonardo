@@ -268,14 +268,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def save(saveCluster: SaveCluster)(implicit ec: ExecutionContext): DBIO[Cluster] =
     for {
       runtimeConfigId <- RuntimeConfigQueries.insertRuntimeConfig(saveCluster.runtimeConfig, saveCluster.now)
-      cluster = LeoLenses.clusterToRuntimeConfigId.modify(_ => runtimeConfigId.value)(saveCluster.cluster) // update runtimeConfigId
+      cluster = LeoLenses.runtimeToRuntimeConfigId.modify(_ => runtimeConfigId.value)(saveCluster.cluster) // update runtimeConfigId
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
                                                                                    saveCluster.initBucket.map(_.toUri),
                                                                                    saveCluster.serviceAccountKeyId)
       _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
       _ <- instanceQuery.saveAllForCluster(clusterId, cluster.dataprocInstances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
-      _ <- clusterImageQuery.saveAllForCluster(clusterId, cluster.clusterImages.toSeq)
+      _ <- clusterImageQuery.saveAllForCluster(clusterId, cluster.runtimeImages.toSeq)
       _ <- scopeQuery.saveAllForCluster(clusterId, cluster.scopes)
     } yield cluster.copy(id = clusterId)
 
