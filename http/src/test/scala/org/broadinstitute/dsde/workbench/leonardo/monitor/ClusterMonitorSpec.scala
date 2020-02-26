@@ -908,30 +908,34 @@ class ClusterMonitorSpec
     } thenReturn IO.unit
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    withClusterSupervisor(gdDAO,
-                          computeDAO,
-                          iamDAO,
-                          projectDAO,
-                          storageDAO,
-                          FakeGoogleStorageService,
-                          authProvider,
-                          MockJupyterDAO,
-                          MockRStudioDAO,
-                          MockWelderDAO,
-                          false,
-                          queue = publisherQueue) { _ =>
+    withClusterSupervisor(
+      gdDAO,
+      computeDAO,
+      iamDAO,
+      projectDAO,
+      storageDAO,
+      FakeGoogleStorageService,
+      authProvider,
+      MockJupyterDAO,
+      MockRStudioDAO,
+      MockWelderDAO,
+      false,
+      queue = publisherQueue
+    ) { _ =>
       eventually {
         val newCluster = dbFutureValue {
           clusterQuery.getClusterById(savedCreatingCluster.id)
         }
 
-        newCluster.get.status shouldBe(ClusterStatus.Creating)
+        newCluster.get.status shouldBe (ClusterStatus.Creating)
         // Since creating cluster is now initiated by pubsub message, we're only validating that we've published the right message
         val createClusterMsg = publisherQueue.dequeue1.unsafeRunSync().asInstanceOf[LeoPubsubMessage.CreateCluster]
         val expectedMsg = creatingCluster.toCreateCluster(CommonTestData.defaultRuntimeConfig, None)
 
-        createClusterMsg.copy(traceId = None, scopes = Set.empty, id = 0) shouldBe(expectedMsg.copy(scopes = Set.empty))
-        createClusterMsg.scopes should contain theSameElementsAs(expectedMsg.scopes)
+        createClusterMsg.copy(traceId = None, scopes = Set.empty, id = 0) shouldBe (expectedMsg.copy(
+          scopes = Set.empty
+        ))
+        createClusterMsg.scopes should contain theSameElementsAs (expectedMsg.scopes)
       }
       // no longer adding/removing compute.imageUser role
       verify(iamDAO, never()).addIamRoles(any[GoogleProject],

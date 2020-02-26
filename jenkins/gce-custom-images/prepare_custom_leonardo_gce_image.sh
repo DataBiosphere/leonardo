@@ -11,8 +11,6 @@ set -e -x
 #    "roles/iam.serviceAccountUser",
 #    "roles/storage.objectViewer",
 
-# The version of python to install
-python_version="3.7.4"
 # The version of ansible to install
 ansible_version="2.7.0.0"
 
@@ -140,31 +138,8 @@ add-apt-repository \
 # Install dpkg-dev so we can use dpkg-architecture down below
 apt-get install -y -q dpkg-dev
 
-# Install Python (needed to install Ansible)
-python_source_archive_name="Python-${python_version:?}.tar.xz"
-python_source_archive_download_url="https://www.python.org/ftp/python/${python_version%%[a-z]*}/${python_source_archive_name:?}"
-python_target_archive_name="python.tar.xz"
-
-log "Installing Python ${python_version:?}..."
-retry 5 wget -O "${python_target_archive_name:?}" "${python_source_archive_download_url:?}"
-
-mkdir -p /usr/src/python
-tar -xJC /usr/src/python --strip-components=1 -f "${python_target_archive_name:?}"
-rm -v "${python_target_archive_name:?}"
-cd /usr/src/python
-gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"
-./configure \
-  --build="$gnuArch" \
-  --enable-loadable-sqlite-extensions \
-  --enable-shared \
-  --with-system-expat \
-  --with-system-ffi \
-  --without-ensurepip
-make -j "$(nproc)"
-make install
-ldconfig
-python3 --version
-log "Finished installing Python $python_version"
+python_version=$(python3 --version)
+log "Using $python_version packaged in the base (Debian 9) image..."
 
 # Installing Ansible
 log "Installing Ansible ${ansible_version:?}..."
