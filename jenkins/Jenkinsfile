@@ -188,7 +188,7 @@ pipeline {
     stage('Set image ID') {
         steps {
             script {
-                if (useCustomImageIdentifier.equals("true")) {
+                if (useCustomImageIdentifier == "true") {
                     imageID = "$custom_image_id"
                 } else {
                     imageID = getShortHash(sh(
@@ -198,10 +198,10 @@ pipeline {
                 }
 
                 String buildDisplayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME"
-                if (generateDataprocImage.equals("true")) {
+                if (generateDataprocImage == "true") {
                     buildDisplayName += "-dataproc-$dataproc_versions"
                 }
-                if (generateGceImage.equals("true")) {
+                if (generateGceImage == "true") {
                     buildDisplayName += "-gce-debian9"
                 }
 
@@ -222,7 +222,7 @@ pipeline {
 //     }
 //
 //     stage ('Detect Hash Changes') {
-//       when { expression { useCustomImages.equals("false") } }
+//       when { expression { useCustomImages == "false" } }
 //       steps {
 //         script {
 //           def shouldUpdate = hasHashChanges(images)
@@ -252,7 +252,7 @@ pipeline {
 //     }
 //
 //     stage ('Use manually specified hashes') {
-//       when { expression { useCustomImages.equals("true") } }
+//       when { expression { useCustomImages == "true" } }
 //       steps {
 //         script {
 //           for(String image: images) {
