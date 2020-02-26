@@ -35,7 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
@@ -582,19 +582,19 @@ class ClusterMonitorActor(
   private def getClusterInstances(cluster: Cluster)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[Instance]] =
     for {
       map <- IO.fromFuture(IO(gdDAO.getClusterInstances(cluster.googleProject, cluster.runtimeName)))
+      now <- IO(Instant.now)
       instances <- map.toList.flatTraverse {
         case (role, keys) =>
           keys.toList.traverseFilter { key =>
             googleComputeService.getInstance(key.project, key.zone, key.name).map { instanceOpt =>
               instanceOpt.map { instance =>
-                // TODO
                 DataprocInstance(
                   key,
                   BigInt(instance.getId),
-                  InstanceStatus.withName(instance.getStatus),
-                  Some(IP("1.2.3.4")),
+                  InstanceStatus.withNameInsensitive(instance.getStatus),
+                  getInstanceIP(instance),
                   role,
-                  Instant.now
+                  parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(now)
                 )
               }
             }
@@ -608,7 +608,7 @@ class ClusterMonitorActor(
         IO.fromFuture(IO(gdDAO.getClusterMasterInstance(cluster.googleProject, cluster.runtimeName)))
       )
       masterInstance <- OptionT(googleComputeService.getInstance(masterKey.project, masterKey.zone, masterKey.name))
-      masterIp <- OptionT.fromOption[IO](Some(IP("1.2.3.4"))) // TODO
+      masterIp <- OptionT.fromOption[IO](getInstanceIP(masterInstance))
     } yield masterIp
 
     transformed.value
