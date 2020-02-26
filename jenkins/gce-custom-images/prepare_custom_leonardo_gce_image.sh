@@ -11,6 +11,9 @@ set -e -x
 #    "roles/iam.serviceAccountUser",
 #    "roles/storage.objectViewer",
 
+# The version of ansible to install
+ansible_version="2.7.0.0"
+
 #
 # Constants and Global Vars
 # the image tags are set via jenkins automation
@@ -23,16 +26,22 @@ terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.7"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.9"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.8"
 
-#leonardo_jupyter will be discontinued soon
+# leonardo_jupyter will be discontinued soon
 leonardo_jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:60e28bc"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_base="us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.3"
 
-# this array determines which of the above images are baked into the custom image
+# This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
 docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk openidc_proxy anvil_rstudio_base anvil_rstudio_bioconductor"
+
+# Re: downloading Ansible playbook files for hardening
+cis_hardening_playbook_requirements_file="cis_hardening_playbook_requirements.yml"
+cis_hardening_playbook_config_file="cis_hardening_playbook_config.yml"
+daisy_sources_metadata_url="http://metadata.google.internal/computeMetadata/v1/instance/attributes/daisy-sources-path"
+vm_metadata_google_header="Metadata-Flavor: Google"
 
 #
 # Functions
@@ -123,6 +132,34 @@ add-apt-repository \
   "deb [arch=${os_dist_arch:?}] ${docker_apt_repo_url:?} \
   ${os_dist_code_name:?} \
   ${os_dist_release_channel:?}"
+
+# Do some set-up in preparation for image hardening
+
+# Install dpkg-dev so we can use dpkg-architecture down below
+apt-get install -y -q dpkg-dev
+
+python_version=$(python3 --version)
+log "Using $python_version packaged in the base (Debian 9) image..."
+
+# Installing Ansible
+log "Installing Ansible ${ansible_version:?}..."
+apt-get install -y python3-pip
+pip3 install paramiko
+pip3 install "ansible==${ansible_version}"
+
+# Download playbook requirements and config files
+log "Downloading Ansible playbook files..."
+daisy_sources_path=$(curl --silent -H "$vm_metadata_google_header" "$daisy_sources_metadata_url")
+gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_requirements_file}" .
+gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_config_file}" .
+
+# Install Ansible role via Ansible Galaxy
+apt-get install -y git
+ansible-galaxy install -p roles -r cis_hardening_playbook_requirements.yml
+
+# Run CIS hardening
+log "Running Ansible CIS hardening playbook..."
+ansible-playbook cis_hardening_playbook_config.yml
 
 log 'Installing Docker...'
 
