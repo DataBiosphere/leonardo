@@ -280,7 +280,7 @@ object Config {
     MemorySize(config.getBytes(path))
 
   val applicationConfig = config.as[ApplicationConfig]("application")
-  val googleGroupsConfig = config.as[GoogleGroupsConfig]("google.groups")
+  val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val gceConfig = config.as[GceConfig]("gce")
   val imageConfig = config.as[ImageConfig]("image")
@@ -300,7 +300,7 @@ object Config {
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
   val uiConfig = config.as[ClusterUIConfig]("ui")
   val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
-  val leoServiceAccountJsonFile = config.as[String]("google.leoServiceAccountJsonFile")
+  val leoServiceAccountJsonFile = config.as[String]("application.leoServiceAccountJsonFile")
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
   val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
