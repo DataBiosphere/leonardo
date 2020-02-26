@@ -9,24 +9,24 @@
 ArrayList<String> dataprocImages = []
 ArrayList<String> gceImages = []
 String imageID = ""
-def prLink = ""
+String prLink = ""
 
-def LinkedHashMap<String, String> versionMap = [:]
+LinkedHashMap<String, String> versionMap = [:]
 
-def shouldAbortBuild = false
-def LinkedHashMap<String, String> imageToParamMap = [:]
-def branchName = "automated-custom-image-hash-update-"
+boolean shouldAbortBuild = false
+LinkedHashMap<String, String> imageToParamMap = [:]
+String branchName = "automated-custom-image-hash-update-"
 
-def getShortHash(hash) {
-    def shortHash = hash.substring(0,7)
+String getShortHash(hash) {
+    String shortHash = hash.substring(0,7)
     println("Short hash is $shortHash")
     return shortHash
 }
 
-def boolean hasHashChanges(ArrayList<String> images) {
-    def Set imagesChanged = []
+boolean hasHashChanges(ArrayList<String> images) {
+    Set imagesChanged = []
 
-    def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+    String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
     for (String configFile: configPaths) {
         println("in change detection loop, before bash. File: $configFile")
         def gitOutput = sh(
@@ -48,11 +48,11 @@ def boolean hasHashChanges(ArrayList<String> images) {
 }
 
 // If an image is in imageNames but not the confFile, the returned version will be an empty string
-def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames) {
-    def LinkedHashMap<String, String> tempVersionMap = [:]
-    def LinkedHashMap<String, String> finalVersionMap = [:]
+LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames) {
+    LinkedHashMap<String, String> tempVersionMap = [:]
+    LinkedHashMap<String, String> finalVersionMap = [:]
 
-    def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+    String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
     for (String configFile: configPaths) {
         tempVersionMap = getVersionMap(imageNames, configFile)
         for (String image in tempVersionMap.keySet()) {
@@ -66,8 +66,8 @@ def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames) {
     return finalVersionMap
 }
 
-def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, String configFile) {
-    def LinkedHashMap<String,String> versionMap = [:]
+LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, String configFile) {
+    LinkedHashMap<String,String> versionMap = [:]
 
     //for example, if $image is 'welder-server', this line would isolate 'a4f0e04' from the line below in a $configFile
     // welderDockerImage = "us.gcr.io/broad-dsp-gcr-public/welder-server:a4f0e04"
@@ -84,10 +84,10 @@ def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, Str
     return versionMap
 }
 
-def String getChangeDescription(LinkedHashMap<String,String> versionMap) {
-    def title = "[jenkins-generated-pr] Automated custom image hash update"
-    def body = "$title\n These are the images that are baked into this custom image:\n"
-    def version = ""
+String getChangeDescription(LinkedHashMap<String,String> versionMap) {
+    String title = "[jenkins-generated-pr] Automated custom image hash update"
+    String body = "$title\n These are the images that are baked into this custom image:\n"
+    String version = ""
     println("version map in getChangeDescription: " + versionMap.toString())
     for (String image in versionMap.keySet()) {
         if (versionMap[image].isEmpty()) {
