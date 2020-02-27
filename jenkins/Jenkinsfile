@@ -121,17 +121,18 @@ pipeline {
         booleanParam(name: "generateDataprocImage", defaultValue: true)
         booleanParam(name: "generateGceImage", defaultValue: true)
         string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
-              description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters).")
+            description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters).")
         booleanParam(name: "useCustomImageIdentifier", defaultValue: false)
         string(name: "custom_image_id", defaultValue: "sampleUniqueID",
-              description: "Specify along with useCustomImageIdentifier to build the image with a specific name")
-        booleanParam(name: "useCustomImages", defaultValue: false)
+            description: "Specify along with useCustomImageIdentifier to build the VM image with a specific name")
         string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
-              description: "The google project to use")
+            description: "The google project to use")
         string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
-              description: "The bucket where the image will be stored")
+            description: "The bucket where the image will be stored")
         string(name: "dataproc_versions", defaultValue: "1.2.79-debian9 1.4.15-debian9",
-              description: "A custom image will be build for each of these dataproc versions")
+            description: "A custom image will be build for each of these dataproc versions")
+        booleanParam(name: "useCustomDockerImageVersions", defaultValue: false,
+            description: "Check if you want to specify custom image versions below")
         string(name: "terra_jupyter_base", defaultValue: "0.0.6")
         string(name: "terra_jupyter_hail", defaultValue: "0.0.5")
         string(name: "terra_jupyter_r", defaultValue: "0.0.7")
@@ -141,11 +142,11 @@ pipeline {
         string(name: "anvil_rstudio_base", defaultValue: "0.0.2")
         string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.3")
         string(name: "leonardo_jupyter", defaultValue: "5c51ce6935da",
-              description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
+            description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
         string(name: "welder_server", defaultValue: "60e28bc",
-              description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
+            description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
         string(name: "openidc_proxy", defaultValue: "2.3.1_2",
-              description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
+            description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
     }
 
     stages {
@@ -226,7 +227,7 @@ pipeline {
     }
 
     stage ('Detect Hash Changes') {
-        when { expression { useCustomImages == "false" } }
+        when { expression { useCustomDockerImageVersions == "false" } }
             steps {
                 script {
                     def shouldUpdate = hasHashChanges(images)
@@ -267,40 +268,42 @@ pipeline {
             }
     }
 
-//     stage ('Use manually specified hashes') {
-//       when { expression { useCustomImages == "true" } }
-//       steps {
-//         script {
-//           for(String image: images) {
-//             def varName = image.replace("-","_") //needed because the env vars use _ in place of the - in the image name due to bash restrictions
-//
-//             //here we take advantage of the fact that the image names and jenkins version env variables have the same name to retrieve the versions
-//             version = sh(
-//               script: """
-//                 eval "echo \$$varName"
-//               """,
-//               returnStdout: true
-//             ).trim()
-//
-//             println("Manually replacing line with $image with $image:$version")
-//
-//             sh (
-//               script: """
-//                 sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//               """
-//             )
-//
-//             versionMap[image] = version
-//
-//             //will print any changed lines via git diff
-//             sh(
-//               script: "cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh; git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh"
-//             )
-//           }
-//         }
-//       }
-//     }
-//
+    stage ('Use manually specified hashes') {
+        when { expression { useCustomDockerImageVersions == "true" } }
+            steps {
+                script {
+                    for (String image: images) {
+                        // Needed because the env vars use _ in place of the - in the image name due to bash restrictions
+                        def varName = image.replace("-","_")
+
+                        // Here we take advantage of the fact that the image names and jenkins version env variables
+                        // have the same name to retrieve the versions
+                        version = sh(
+                            script: """
+                                    eval "echo \$$varName"
+                                    """,
+                            returnStdout: true
+                        ).trim()
+
+                        println("Manually replacing line with $image with $image:$version...")
+
+                        sh(
+                            script: """
+                                    sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                    """
+                        )
+
+                        versionMap[image] = version
+                    }
+
+                    // Will print any changed lines via git diff
+                    sh(
+                        script: "git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh"
+                    )
+                }
+            }
+    }
+
 //       stage('Run build script') {
 //         when { expression { !shouldAbortBuild } }
 //         steps {
@@ -308,13 +311,13 @@ pipeline {
 //               git submodule init && git submodule update
 //           """
 //           script {
-//             for(String dp_version: dataproc_versions.trim().split(' ')) {
+//             for (String dp_version: dataproc_versions.trim().split(' ')) {
 //               def dp_version_formatted = dp_version.replace(".","-")
 //               // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
 //               // Otherwise, a terra-docker image is used which must have python 3.7 installed
 //               def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
 //               println("Installing Python $python_version on Dataproc $dp_version")
-//               sh (
+//               sh(
 //                 script: """
 //                   sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
 //                   cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
@@ -342,7 +345,7 @@ pipeline {
 //             for (String configFile: configPaths) {
 //               for (String dp_version: dataproc_versions.trim().split(' ')) {
 //                 def dp_version_formatted = dp_version.replace(".","-")
-//                 sh (
+//                 sh(
 //                     script: """
 //                       sed -i "s/$IMAGE_BASE_NAME-$dp_version_formatted.*/$IMAGE_BASE_NAME-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
 //                     """
