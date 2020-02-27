@@ -129,7 +129,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    postStorage.get.value shouldBe newMachineConfig.masterMachineType
+    postStorage.get shouldBe newMachineConfig.masterMachineType
 
     eventually {
       dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe RuntimeStatus.Stopping

@@ -5,10 +5,15 @@ package api
 import java.io.ByteArrayInputStream
 
 import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.google2.FirewallRuleName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
@@ -27,7 +32,8 @@ import org.scalatest.time.{Seconds, Span}
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 
-trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
+trait TestLeoRoutes {
+  this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
   // to pull the custom dataproc image
   val mockGoogleDirectoryDAO = {

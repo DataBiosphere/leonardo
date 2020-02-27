@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.{Cluster, RuntimeConfigId, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent

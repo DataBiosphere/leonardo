@@ -5,7 +5,14 @@ import java.time.Instant
 import cats.effect.{IO, Resource}
 import cats.effect.concurrent.Semaphore
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite, Runtime, RuntimeConfig, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  CommonTestData,
+  GcsPathUtils,
+  LeonardoTestSuite,
+  Runtime,
+  RuntimeConfig,
+  RuntimeName
+}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 import org.scalatest.{BeforeAndAfterAll, TestSuite}
 import org.scalatest.concurrent.ScalaFutures

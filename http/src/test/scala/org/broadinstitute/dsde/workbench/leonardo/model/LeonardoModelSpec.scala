@@ -280,7 +280,7 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
   }
 
   "Cluster" should "generate a correct cluster URL" in {
-    val expectedBase = s"http://leonardo/proxy/$project/$name0/"
+    val expectedBase = s"https://leo/proxy/${project.value}/${name0.asString}/"
 
     // No images or labels -> default to Jupyter
     Runtime.getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map.empty).toString shouldBe expectedBase + "jupyter"
