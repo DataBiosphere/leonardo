@@ -37,8 +37,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     super.afterAll()
   }
 
-  // This is a bit duplicative of DbRef.init but that code uses cats-effect Resource
-  // which doesn't play nicely with ScalaTest BeforeAndAfterAll.
+  // This is a bit duplicative of DbReference.init but that method returns a Resource[F, DbRef[F]]
+  // which doesn't play nicely with ScalaTest BeforeAndAfterAll. This version returns an F[DbRef[F]].
   private def initDbRef: IO[DbRef[IO]] =
     for {
       concurrentPermits <- Semaphore[IO](100)
@@ -46,7 +46,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
         DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       )
       db <- IO(dbConfig.db)
-      // Init with liquibase if we haven't done it yet
+      // init with liquibase if we haven't done it yet
       _ <- if (sys.props.get(initWithLiquibaseProp).isEmpty)
         Resource
           .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
