@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterQuery,
-  DbSingleton,
   RuntimeConfigQueries,
   TestComponent,
   UpdateAsyncClusterCreationFields
@@ -101,7 +100,7 @@ class AuthProviderSpec
                       mockGoogleProjectDAO,
                       mockWelderDAO,
                       blocker)
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 
   override def beforeAll(): Unit = {
     super.beforeAll()

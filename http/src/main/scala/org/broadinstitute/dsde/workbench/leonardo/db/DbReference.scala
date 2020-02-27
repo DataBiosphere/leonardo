@@ -73,7 +73,7 @@ trait DbReference[F[_]] {
   ): F[T]
 }
 
-private class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProfile],
+private[db] class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProfile],
                                                database: JdbcBackend#DatabaseDef,
                                                concurrentDbAccessPermits: Semaphore[F],
                                                blocker: Blocker)
@@ -95,6 +95,10 @@ private class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProf
     concurrentDbAccessPermits.withPermit(
       blocker.blockOn(Async.fromFuture(Async[F].delay(inTransactionFuture(dbio, isolationLevel))))
     )
+
+  private[db] def close(): Unit = {
+    database.close()
+  }
 }
 
 final class DataAccess(blocker: Blocker) {
