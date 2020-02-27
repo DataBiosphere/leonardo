@@ -33,8 +33,8 @@ class StatusRoutesSpec
     with Matchers
     with ScalatestRouteTest
     with LeonardoTestSuite
-    with TestLeoRoutes
-    with TestComponent {
+    with TestComponent
+    with TestLeoRoutes {
   implicit override val patienceConfig = PatienceConfig(timeout = 1.second)
 
   "GET /version" should "give 200 for ok" in {

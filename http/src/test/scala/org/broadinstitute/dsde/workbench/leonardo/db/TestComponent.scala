@@ -31,7 +31,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
 
   // Not using beforeAll because it's needed before beforeAll is called
-  protected lazy implicit val dbRef: DbRef[IO] = initDbRef
+  implicit protected lazy val dbRef: DbRef[IO] = initDbRef
 
   override def afterAll(): Unit = {
     dbRef.close()
