@@ -259,10 +259,9 @@ pipeline {
                 }
 
                 sh """
-                    echo 'Printing changed configs...'
-                    echo 'prepare-custom-leonardo-jupyter-dataproc-image.sh:'
+                    printf 'Printing changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh:\n\n'
                     git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                    printf '\nprepare_custom_leonardo_gce_image.sh:\n'
+                    printf '\n\nPrinting changed versions in prepare_custom_leonardo_gce_image.sh:\n\n'
                     git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
                 """
             }
