@@ -74,9 +74,9 @@ trait DbReference[F[_]] {
 }
 
 private[db] class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProfile],
-                                               database: JdbcBackend#DatabaseDef,
-                                               concurrentDbAccessPermits: Semaphore[F],
-                                               blocker: Blocker)
+                                                   database: JdbcBackend#DatabaseDef,
+                                                   concurrentDbAccessPermits: Semaphore[F],
+                                                   blocker: Blocker)
     extends DbReference[F] {
   import LeoProfile.api._
 

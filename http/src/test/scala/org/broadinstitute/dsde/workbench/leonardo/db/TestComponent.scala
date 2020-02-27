@@ -2,10 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
 
-import cats.effect.IO
 import cats.effect.concurrent.Semaphore
+import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference.initWithLiquibase
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite, RuntimeConfig}
@@ -27,32 +26,32 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   val defaultServiceAccountKeyId = ServiceAccountKeyId("123")
 
   val initWithLiquibaseProp = "initLiquibase"
-  val liquidBaseConfig =
+  val liquiBaseConfig =
     LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
 
-  // Not using beforeAll because it's needed before beforeAll is called
-  implicit protected lazy val dbRef: DbRef[IO] = initDbRef
+  // Not using beforeAll because the dbRef is needed before beforeAll is called
+  implicit protected lazy val dbRef: DbRef[IO] = initDbRef.unsafeRunSync()
 
   override def afterAll(): Unit = {
     dbRef.close()
     super.afterAll()
   }
 
-  private def initDbRef = {
-    val concurrentPermits = Semaphore[IO](100).unsafeRunSync()
-    val dbConfig =
-      DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
-    val db = dbConfig.db
-
-    if (sys.props.get(initWithLiquibaseProp).isEmpty) {
-      val conn = db.source.createConnection()
-      initWithLiquibase(conn, liquidBaseConfig)
-      conn.close()
-      sys.props.put(initWithLiquibaseProp, "done")
-    }
-
-    new DbRef[IO](dbConfig, db, concurrentPermits, blocker)
-  }
+  // This is a bit duplicative of DbRef.init but that code uses cats-effect Resource
+  // which doesn't play nicely with ScalaTest BeforeAndAfterAll.
+  private def initDbRef: IO[DbRef[IO]] =
+    for {
+      concurrentPermits <- Semaphore[IO](100)
+      dbConfig <- IO(
+        DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
+      )
+      db <- IO(dbConfig.db)
+      _ <- if (sys.props.get(initWithLiquibaseProp).isEmpty)
+        Resource
+          .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
+          .use(conn => IO(DbReference.initWithLiquibase(conn, liquiBaseConfig)))
+      else IO.unit
+    } yield new DbRef[IO](dbConfig, db, concurrentPermits, blocker)
 
   def dbFutureValue[T](f: DBIO[T]): T = dbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()
   def dbFailure[T](f: DBIO[T]): Throwable =
@@ -61,12 +60,12 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   // clean up after tests
   def isolatedDbTest[T](testCode: => T): T =
     try {
-      if (dbRef != null) dbFutureValue(dbRef.dataAccess.truncateAll)
+      dbFutureValue(dbRef.dataAccess.truncateAll)
       testCode
     } catch {
       case t: Throwable => t.printStackTrace(); throw t
     } finally {
-      if (dbRef != null) dbFutureValue(dbRef.dataAccess.truncateAll)
+      dbFutureValue(dbRef.dataAccess.truncateAll)
     }
 
   protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =
