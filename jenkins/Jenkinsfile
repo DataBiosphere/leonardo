@@ -8,6 +8,7 @@
 // Populated by first step
 ArrayList<String> dataprocImages = []
 ArrayList<String> gceImages = []
+Set<String> images = [] // Union of dataprocImages and gceImages
 String imageID = ""
 String prLink = ""
 
@@ -23,22 +24,22 @@ String getShortHash(hash) {
     return shortHash
 }
 
-boolean hasHashChanges(ArrayList<String> images) {
+boolean hasHashChanges(Set<String> images) {
     Set imagesChanged = []
 
     String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
     for (String configFile: configPaths) {
-        println("in change detection loop, before bash. File: $configFile")
+        println("Checking config file '$configFile' for any hash changes...")
         def gitOutput = sh(
             script: "git diff HEAD~1..HEAD $configFile",
             returnStdout: true
         ).trim()
 
-        println("in change detection loop, after bash: $gitOutput")
+        println("git diff result: $gitOutput")
 
         for (String image: images) {
             if (gitOutput.contains(image)) {
-                println("detected changed image for $image")
+                println("Detected changed image for $image.")
                 imagesChanged.add(image)
             }
         }
@@ -48,7 +49,7 @@ boolean hasHashChanges(ArrayList<String> images) {
 }
 
 // If an image is in imageNames but not the confFile, the returned version will be an empty string
-LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames) {
+LinkedHashMap<String,String> getVersionMap(Set<String> imageNames) {
     LinkedHashMap<String, String> tempVersionMap = [:]
     LinkedHashMap<String, String> finalVersionMap = [:]
 
@@ -66,12 +67,13 @@ LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames) {
     return finalVersionMap
 }
 
-LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, String configFile) {
+LinkedHashMap<String,String> getVersionMap(Set<String> imageNames, String configFile) {
     LinkedHashMap<String,String> versionMap = [:]
 
-    //for example, if $image is 'welder-server', this line would isolate 'a4f0e04' from the line below in a $configFile
+    // For example, if $image is 'welder-server', this line would isolate 'a4f0e04' from the line below in a $configFile.
     // welderDockerImage = "us.gcr.io/broad-dsp-gcr-public/welder-server:a4f0e04"
-    // the awk at the end ensures that the line can have comments or other whitespace after the terminating quote
+    // The awk at the end ensures that the line can have comments or other whitespace after the terminating quote.
+    // Escaping '$' inside the 'awk' command is to appease Jenkins.
     for (String image: imageNames) {
         def version = sh(
           script: "cat $configFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' | awk '{print \$1}' ",
@@ -170,9 +172,11 @@ pipeline {
 
                     dataprocImages = terraDockerDataprocImageArray + nonTerraDockerImages
                     gceImages = terraDockerGceImageArray + nonTerraDockerImages
+                    images = dataprocImages + gceImages
 
                     println("dataprocImages: $dataprocImages")
                     println("gceImages: $gceImages")
+                    println("images: $images")
                 }
             }
         }
@@ -221,36 +225,49 @@ pipeline {
         }
     }
 
-//     stage ('Detect Hash Changes') {
-//       when { expression { useCustomImages == "false" } }
-//       steps {
-//         script {
-//           def shouldUpdate = hasHashChanges(images)
-//           shouldAbortBuild = !shouldUpdate //set variable to control if future steps get run
-//           versionMap = getVersionMap(images)
-//
-//           if (shouldUpdate) {
-//             for (String image: images) {
-//               if (image in versionMap.keySet() && !versionMap[image].isEmpty()) { //the version could be empty if the image from terra-docker is not in a leo conf yet
-//                 version = versionMap[image]
-//                 println("using version $version for $image in this build of custom dataproc image")
-//
-//                 sh """
-//                   sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//                 """
-//               }
-//             }
-//           }
-//         }
-//
-//         sh """
-//           echo 'printing changed config'
-//           cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//           git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//         """
-//       }
-//     }
-//
+    stage ('Detect Hash Changes') {
+        when { expression { useCustomImages == "false" } }
+            steps {
+                script {
+                    def shouldUpdate = hasHashChanges(images)
+                    // Set variable to control if future steps get run
+                    shouldAbortBuild = !shouldUpdate
+                    versionMap = getVersionMap(images)
+
+                    if (shouldUpdate) {
+                        for (String image: images) {
+                            // The version could be empty if the image from terra-docker is not in a leo conf yet.
+                            if (image in versionMap.keySet() && !versionMap[image].isEmpty()) {
+                                version = versionMap[image]
+
+                                if (dataprocImages.contains(image)) {
+                                    println("Using version $version for $image in this build of custom Dataproc images")
+                                    sh """
+                                        sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                    """
+                                }
+
+                                if (gceImages.contains(image)) {
+                                    println("Using version $version for $image in this build of custom GCE images")
+                                    sh """
+                                        sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                                    """
+                                }
+                            }
+                        }
+                    }
+                }
+
+                sh """
+                    echo 'Printing changed configs...'
+                    echo 'prepare-custom-leonardo-jupyter-dataproc-image.sh:'
+                    git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                    printf '\nprepare_custom_leonardo_gce_image.sh:\n'
+                    git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                """
+            }
+    }
+
 //     stage ('Use manually specified hashes') {
 //       when { expression { useCustomImages == "true" } }
 //       steps {
