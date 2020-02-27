@@ -46,6 +46,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
         DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       )
       db <- IO(dbConfig.db)
+      // Init with liquibase if we haven't done it yet
       _ <- if (sys.props.get(initWithLiquibaseProp).isEmpty)
         Resource
           .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
