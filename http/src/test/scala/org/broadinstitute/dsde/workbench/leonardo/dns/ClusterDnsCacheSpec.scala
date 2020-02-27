@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import akka.http.scaladsl.model.Uri.Host
 import org.broadinstitute.dsde.workbench.leonardo.{Cluster, RuntimeConfigId, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
@@ -45,7 +45,7 @@ class ClusterDnsCacheSpec
     s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.toString}.jupyter.firecloud.org"
   )
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db

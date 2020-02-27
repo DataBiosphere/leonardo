@@ -5,20 +5,15 @@ package api
 import java.io.ByteArrayInputStream
 
 import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
+import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDirectoryDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.FirewallRuleName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
@@ -32,8 +27,7 @@ import org.scalatest.time.{Seconds, Span}
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 
-trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite =>
-  implicit val db = DbSingleton.dbRef
+trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
   // to pull the custom dataproc image
   val mockGoogleDirectoryDAO = {
@@ -113,14 +107,14 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with ScalaFutures w
     clusterHelper,
     new MockDockerDAO,
     QueueFactory.makePublisherQueue()
-  )(executor, system, loggerIO, cs, metrics, DbSingleton.dbRef, timer)
+  )(executor, system, loggerIO, cs, metrics, dbRef, timer)
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 
   val proxyService =
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache)
   val statusService =
-    new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.dbRef, applicationConfig, pollInterval = 1.second)
+    new StatusService(mockGoogleDataprocDAO, mockSamDAO, dbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
   val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
   with MockUserInfoDirectives {

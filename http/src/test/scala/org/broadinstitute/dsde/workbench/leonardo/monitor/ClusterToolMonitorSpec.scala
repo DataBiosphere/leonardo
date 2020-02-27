@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeContainerServiceType, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.mockito.ArgumentMatchers
@@ -138,7 +138,7 @@ class ClusterToolMonitorSpec
       ClusterToolMonitor.props(clusterToolConfig,
                                gdDAO = new MockGoogleDataprocDAO,
                                googleProjectDAO = new MockGoogleProjectDAO,
-                               DbSingleton.dbRef,
+                               dbRef,
                                newRelic)
     )
     val testResult = Try(testCode(actor, newRelic))

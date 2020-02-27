@@ -10,7 +10,7 @@ import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -32,8 +32,8 @@ class StatusRoutesSpec
     with Matchers
     with ScalatestRouteTest
     with LeonardoTestSuite
-    with TestLeoRoutes
-    with TestComponent {
+    with TestComponent
+    with TestLeoRoutes {
   implicit override val patienceConfig = PatienceConfig(timeout = 1.second)
 
   "GET /version" should "give 200 for ok" in {
@@ -101,7 +101,7 @@ class StatusRoutesSpec
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =
-      new StatusService(badDataproc, badSam, DbSingleton.dbRef, applicationConfig, pollInterval = 1.second)
+      new StatusService(badDataproc, badSam, dbRef, applicationConfig, pollInterval = 1.second)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
     with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo

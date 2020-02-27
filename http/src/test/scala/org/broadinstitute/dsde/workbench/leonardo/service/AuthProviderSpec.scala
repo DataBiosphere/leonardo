@@ -108,7 +108,7 @@ class AuthProviderSpec
                       mockGoogleProjectDAO,
                       mockWelderDAO,
                       blocker)
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.dbRef, dnsCacheConfig, blocker)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 
   override def beforeAll(): Unit = {
     super.beforeAll()

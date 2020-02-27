@@ -34,7 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{
   GoogleDataprocDAO,
   MockGoogleComputeService
 }
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -227,7 +227,7 @@ class ClusterMonitorSpec
         computeService,
         storageDAO,
         storage2DAO,
-        DbSingleton.dbRef,
+        dbRef,
         testKit,
         authProvider,
         autoFreezeConfig,
