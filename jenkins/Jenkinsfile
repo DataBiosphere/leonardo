@@ -240,14 +240,14 @@ pipeline {
                             if (image in versionMap.keySet() && !versionMap[image].isEmpty()) {
                                 version = versionMap[image]
 
-                                if (dataprocImages.contains(image)) {
+                                if (generateDataprocImage == "true" && dataprocImages.contains(image)) {
                                     println("Using version $version for $image in this build of custom Dataproc images")
                                     sh """
                                         sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                     """
                                 }
 
-                                if (gceImages.contains(image)) {
+                                if (generateGceImage == "true" && gceImages.contains(image)) {
                                     println("Using version $version for $image in this build of custom GCE images")
                                     sh """
                                         sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
@@ -259,9 +259,9 @@ pipeline {
                 }
 
                 sh """
-                    printf 'Printing changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh:\n\n'
+                    printf 'Printing changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh (if any):\n\n'
                     git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                    printf '\n\nPrinting changed versions in prepare_custom_leonardo_gce_image.sh:\n\n'
+                    printf '\n\nPrinting changed versions in prepare_custom_leonardo_gce_image.sh (if any):\n\n'
                     git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
                 """
             }
