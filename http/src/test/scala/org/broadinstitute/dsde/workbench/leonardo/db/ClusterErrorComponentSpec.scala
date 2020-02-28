@@ -8,7 +8,7 @@ import org.scalatest.FlatSpecLike
 import CommonTestData._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils {
+class ClusterErrorComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
 
   "ClusterErrorComponent" should "save, and get" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).save()

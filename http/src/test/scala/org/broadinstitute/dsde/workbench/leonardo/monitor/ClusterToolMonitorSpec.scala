@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   WelderDAO
 }
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 import com.typesafe.scalalogging.LazyLogging
@@ -148,7 +148,7 @@ class ClusterToolMonitorSpec
       ClusterToolMonitor.props(clusterToolConfig,
                                gdDAO = new MockGoogleDataprocDAO,
                                googleProjectDAO = new MockGoogleProjectDAO,
-                               DbSingleton.dbRef,
+                               dbRef,
                                newRelic)
     )
     val testResult = Try(testCode(actor, newRelic))

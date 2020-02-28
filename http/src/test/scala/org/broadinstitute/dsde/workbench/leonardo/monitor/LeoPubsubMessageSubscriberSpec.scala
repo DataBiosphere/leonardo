@@ -43,8 +43,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
-    with TestComponent
     with FlatSpecLike
+    with TestComponent
     with Matchers
     with MockitoSugar
     with Eventually
