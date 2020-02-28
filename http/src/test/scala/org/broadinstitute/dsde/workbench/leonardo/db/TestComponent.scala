@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.effect.concurrent.Semaphore
 import cats.effect.{IO, Resource}
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite, RuntimeConfig}
@@ -42,9 +42,9 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   // which doesn't play nicely with ScalaTest BeforeAndAfterAll. This version returns an F[DbRef[F]].
   private def initDbRef: IO[DbRef[IO]] =
     for {
-      concurrentPermits <- Semaphore[IO](100)
+      concurrentPermits <- Semaphore[IO](Config.dbConcurrency)
       dbConfig <- IO(
-        DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
+        DatabaseConfig.forConfig[JdbcProfile]("mysql", Config.config)
       )
       db <- IO(dbConfig.db)
       // init with liquibase if we haven't done it yet
