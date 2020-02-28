@@ -26,7 +26,7 @@ class BucketHelper(config: BucketHelperConfig,
                    blocker: Blocker)(implicit val contextShift: ContextShift[IO])
     extends LazyLogging {
 
-  val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccount)
+  val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
   /**
    * Creates the dataproc init bucket and sets the necessary ACLs.

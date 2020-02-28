@@ -8,17 +8,15 @@ import java.util.concurrent.TimeUnit
 import _root_.io.circe.{Decoder, Json, KeyDecoder}
 import ca.mrvisser.sealerate
 import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect}
+import cats.effect.{Blocker, ContextShift, Effect, Resource}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
-import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import io.chrisdavenport.log4cats.Logger
+import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -192,16 +190,17 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
     )(onError)
 
-  def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[WorkbenchEmail]] = {
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, getAccessTokenUsingLeoPem))
-    httpClient.expectOptionOr[WorkbenchEmail](
-      Request[F](
-        method = Method.GET,
-        uri = config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${userEmail.value}"),
-        headers = Headers.of(authHeader)
-      )
-    )(onError)
-  }
+  def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[WorkbenchEmail]] =
+    getAccessTokenUsingLeoJson.use { leoToken =>
+      val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
+      httpClient.expectOptionOr[WorkbenchEmail](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${userEmail.value}"),
+          headers = Headers.of(authHeader)
+        )
+      )(onError)
+    }
 
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
@@ -212,41 +211,35 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       getPetAccessToken(userEmail, googleProject)
     }
 
-  private def getAccessTokenUsingLeoPem: String = {
-    val credential = new GoogleCredential.Builder()
-      .setTransport(GoogleNetHttpTransport.newTrustedTransport)
-      .setJsonFactory(JacksonFactory.getDefaultInstance)
-      .setServiceAccountId(config.serviceAccountProviderConfig.leoServiceAccount.value)
-      .setServiceAccountScopes(saScopes.asJava)
-      .setServiceAccountPrivateKeyFromPemFile(config.serviceAccountProviderConfig.leoPemFile)
-      .build()
-
-    credential.refreshToken
-    credential.getAccessToken
-  }
+  private def getAccessTokenUsingLeoJson: Resource[F, String] =
+    for {
+      credential <- credentialResource(config.serviceAccountProviderConfig.leoServiceAccountJsonFile.getAbsolutePath)
+      scopedCredential = credential.createScoped(saScopes.asJava)
+      _ <- Resource.liftF(Effect[F].delay(scopedCredential.refresh))
+    } yield scopedCredential.getAccessToken.getTokenValue
 
   private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Option[String]] = {
-    val leoToken = getAccessTokenUsingLeoPem
-    val leoAuth = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
-    for {
-      // fetch user's pet SA key with leo's authorization token
-      userPetKey <- httpClient.expectOptionOr[Json](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(s"/api/google/v1/petServiceAccount/${googleProject.value}/${userEmail.value}"),
-          headers = Headers.of(leoAuth)
-        )
-      )(onError)
-      token <- userPetKey.traverse { key =>
-        val keyStream = new ByteArrayInputStream(key.toString().getBytes)
-        Effect[F]
-          .delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
-          .map(_.refreshAccessToken.getTokenValue)
-      }
-    } yield token
-  }
+  ): F[Option[String]] =
+    getAccessTokenUsingLeoJson.use { leoToken =>
+      val leoAuth = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
+      for {
+        // fetch user's pet SA key with leo's authorization token
+        userPetKey <- httpClient.expectOptionOr[Json](
+          Request[F](
+            method = Method.GET,
+            uri = config.samUri.withPath(s"/api/google/v1/petServiceAccount/${googleProject.value}/${userEmail.value}"),
+            headers = Headers.of(leoAuth)
+          )
+        )(onError)
+        token <- userPetKey.traverse { key =>
+          val keyStream = new ByteArrayInputStream(key.toString().getBytes)
+          Effect[F]
+            .delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
+            .map(_.refreshAccessToken.getTokenValue)
+        }
+      } yield token
+    }
 
   private def onError(response: Response[F])(implicit ev: ApplicativeAsk[F, TraceId]): F[Throwable] =
     for {

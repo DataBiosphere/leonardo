@@ -69,4 +69,4 @@ abstract class ServiceAccountProvider[F[_]] {
  *
  * @return service account email and pem file
  */
-final case class ServiceAccountProviderConfig(leoServiceAccount: WorkbenchEmail, leoPemFile: File)
+final case class ServiceAccountProviderConfig(leoServiceAccountJsonFile: File, leoServiceAccountEmail: WorkbenchEmail)

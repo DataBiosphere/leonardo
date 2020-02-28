@@ -37,8 +37,9 @@ object Config {
   implicit val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
     ApplicationConfig(
       config.getString("applicationName"),
-      GoogleProject(config.getString("leoGoogleProject")),
-      new File(config.getString("leoServiceAccountJsonFile"))
+      config.as[GoogleProject]("leoGoogleProject"),
+      config.as[File]("leoServiceAccountJsonFile"),
+      config.as[WorkbenchEmail]("leoServiceAccountEmail")
     )
   }
 
@@ -255,12 +256,13 @@ object Config {
     )
   }
   implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
+  implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
   implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
   implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
     ValueReader.relative { config =>
       ServiceAccountProviderConfig(
-        config.as[WorkbenchEmail]("leoServiceAccountEmail"),
-        config.as[File]("leoServiceAccountPemFile")
+        config.as[File]("leoServiceAccountJsonFile"),
+        config.as[WorkbenchEmail]("leoServiceAccountEmail")
       )
     }
 

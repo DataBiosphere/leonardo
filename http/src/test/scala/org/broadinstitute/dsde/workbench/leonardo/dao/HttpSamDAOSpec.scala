@@ -33,7 +33,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
                                 false,
                                 1 seconds,
                                 10,
-                                ServiceAccountProviderConfig(WorkbenchEmail("leo@gmail.com"), new File("test")))
+                                ServiceAccountProviderConfig(new File("test"), WorkbenchEmail("test")))
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
