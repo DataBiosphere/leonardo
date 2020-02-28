@@ -90,7 +90,10 @@ trait LeonardoTestUtils
     : Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
-  def saveClusterLogFiles(googleProject: GoogleProject, clusterName: ClusterName, paths: List[String], suffix: String)(
+  def saveClusterLogFiles(googleProject: GoogleProject,
+                          clusterName: ClusterNameCopy,
+                          paths: List[String],
+                          suffix: String)(
     implicit token: AuthToken
   ): Unit = {
     val fileResult = paths.traverse[Try, File] { path =>
@@ -137,7 +140,7 @@ trait LeonardoTestUtils
     else "Jupyter"
 
   def labelCheck(seen: LabelMap,
-                 clusterName: ClusterName,
+                 clusterName: ClusterNameCopy,
                  googleProject: GoogleProject,
                  creator: WorkbenchEmail,
                  clusterRequest: ClusterRequest): Unit = {
@@ -167,17 +170,17 @@ trait LeonardoTestUtils
     (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
   }
 
-  def verifyCluster(cluster: Cluster,
+  def verifyCluster(cluster: ClusterCopy,
                     expectedProject: GoogleProject,
-                    expectedName: ClusterName,
+                    expectedName: ClusterNameCopy,
                     expectedStatuses: Iterable[ClusterStatus],
                     clusterRequest: ClusterRequest,
-                    bucketCheck: Boolean = true): Cluster = {
+                    bucketCheck: Boolean = true): ClusterCopy = {
     // Always log cluster errors
     if (cluster.errors.nonEmpty) {
-      logger.warn(s"Cluster ${cluster.projectNameString} returned the following errors: ${cluster.errors}")
+      logger.warn(s"ClusterCopy ${cluster.projectNameString} returned the following errors: ${cluster.errors}")
     }
-    withClue(s"Cluster ${cluster.projectNameString}: ") {
+    withClue(s"ClusterCopy ${cluster.projectNameString}: ") {
       expectedStatuses should contain(cluster.status)
     }
 
@@ -200,9 +203,9 @@ trait LeonardoTestUtils
   }
 
   def createCluster(googleProject: GoogleProject,
-                    clusterName: ClusterName,
+                    clusterName: ClusterNameCopy,
                     clusterRequest: ClusterRequest,
-                    monitor: Boolean)(implicit token: AuthToken): Cluster = {
+                    monitor: Boolean)(implicit token: AuthToken): ClusterCopy = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
@@ -238,9 +241,9 @@ trait LeonardoTestUtils
   }
 
   def monitorCreate(googleProject: GoogleProject,
-                    clusterName: ClusterName,
+                    clusterName: ClusterNameCopy,
                     clusterRequest: ClusterRequest,
-                    creatingCluster: Cluster)(implicit token: AuthToken): Cluster = {
+                    creatingCluster: ClusterCopy)(implicit token: AuthToken): ClusterCopy = {
     // wait for "Running", "Stopped", or error (fail fast)
     val stopAfterCreate = clusterRequest.stopAfterCreation.getOrElse(false)
 
@@ -274,12 +277,12 @@ trait LeonardoTestUtils
   }
 
   // creates a cluster and checks to see that it reaches the Running state
-  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(
+  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterNameCopy, clusterRequest: ClusterRequest)(
     implicit token: AuthToken
-  ): Cluster =
+  ): ClusterCopy =
     createCluster(googleProject, clusterName, clusterRequest, monitor = true)
 
-  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(
+  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterNameCopy, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
     //we cannot save the log if the cluster isn't running
@@ -300,7 +303,7 @@ trait LeonardoTestUtils
     }
   }
 
-  def monitorDelete(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit = {
+  def monitorDelete(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): Unit = {
     // wait until not found or in "Deleted" state
     implicit val patienceConfig: PatienceConfig = clusterPatience
     eventually {
@@ -311,10 +314,10 @@ trait LeonardoTestUtils
         .toSet
 
       val isDeleted = if (allStatus.isEmpty || allStatus == Set(ClusterStatus.Deleted)) {
-        logger.info(s"Cluster ${googleProject.value}/${clusterName.string} is deleted")
+        logger.info(s"ClusterCopy ${googleProject.value}/${clusterName.string} is deleted")
         true
       } else {
-        logger.info(s"Cluster ${googleProject.value}/${clusterName.string} is not deleted yet")
+        logger.info(s"ClusterCopy ${googleProject.value}/${clusterName.string} is not deleted yet")
         false
       }
 
@@ -323,10 +326,10 @@ trait LeonardoTestUtils
   }
 
   // deletes a cluster and checks to see that it reaches the Deleted state
-  def deleteAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit =
+  def deleteAndMonitor(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): Unit =
     deleteCluster(googleProject, clusterName, monitor = true)
 
-  def stopCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(
+  def stopCluster(googleProject: GoogleProject, clusterName: ClusterNameCopy, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
     Leonardo.cluster.stop(googleProject, clusterName) shouldBe
@@ -351,15 +354,15 @@ trait LeonardoTestUtils
 
       caught.message should include("\"statusCode\":422")
       caught.message should include(
-        s"""Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."""
+        s"""ClusterCopy ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."""
       )
     }
   }
 
-  def stopAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit =
+  def stopAndMonitor(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): Unit =
     stopCluster(googleProject, clusterName, monitor = true)(token)
 
-  def startCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(
+  def startCluster(googleProject: GoogleProject, clusterName: ClusterNameCopy, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
     Leonardo.cluster.start(googleProject, clusterName)(token) shouldBe
@@ -387,10 +390,10 @@ trait LeonardoTestUtils
     }
   }
 
-  def startAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit =
+  def startAndMonitor(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): Unit =
     startCluster(googleProject, clusterName, monitor = true)(token)
 
-  def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
+  def randomClusterName: ClusterNameCopy = ClusterNameCopy(s"automation-test-a${makeRandomId().toLowerCase}z")
 
   def defaultClusterRequest: ClusterRequest =
     ClusterRequest(Map("foo" -> makeRandomId()),
@@ -398,14 +401,14 @@ trait LeonardoTestUtils
                    toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
 
   def createNewCluster(googleProject: GoogleProject,
-                       name: ClusterName = randomClusterName,
+                       name: ClusterNameCopy = randomClusterName,
                        request: ClusterRequest = defaultClusterRequest,
-                       monitor: Boolean = true)(implicit token: AuthToken): Cluster = {
+                       monitor: Boolean = true)(implicit token: AuthToken): ClusterCopy = {
 
     val cluster = createCluster(googleProject, name, request, monitor)
 
     if (monitor) {
-      withClue(s"Monitoring Cluster status: $name") {
+      withClue(s"Monitoring ClusterCopy status: $name") {
         val clusterShouldBeStopped = request.stopAfterCreation.getOrElse(false)
         val expectedStatus = if (clusterShouldBeStopped) ClusterStatus.Stopped else ClusterStatus.Running
 
@@ -428,10 +431,10 @@ trait LeonardoTestUtils
   }
 
   def withNewCluster[T](googleProject: GoogleProject,
-                        name: ClusterName = randomClusterName,
+                        name: ClusterNameCopy = randomClusterName,
                         request: ClusterRequest = defaultClusterRequest,
                         monitorCreate: Boolean = true,
-                        monitorDelete: Boolean = false)(testCode: Cluster => T)(implicit token: AuthToken): T = {
+                        monitorDelete: Boolean = false)(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
     val cluster = createNewCluster(googleProject, name, request, monitorCreate)
     val testResult: Try[T] = Try {
       testCode(cluster)
@@ -451,8 +454,10 @@ trait LeonardoTestUtils
     testResult.get
   }
 
-  def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
-    val name = ClusterName(s"automation-test-a${makeRandomId()}z")
+  def withNewErroredCluster[T](
+    googleProject: GoogleProject
+  )(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
+    val name = ClusterNameCopy(s"automation-test-a${makeRandomId()}z")
     // Fail a cluster by providing a user script which returns exit status 1
     val hailUploadFile = ResourceFile("bucket-tests/invalid_user_script.sh")
     withResourceFileInBucket(googleProject, hailUploadFile, "text/plain") { bucketPath =>
@@ -473,7 +478,7 @@ trait LeonardoTestUtils
     }
   }
 
-  def withRestartCluster[T](cluster: Cluster)(testCode: Cluster => T)(implicit token: AuthToken): T = {
+  def withRestartCluster[T](cluster: ClusterCopy)(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
     stopAndMonitor(cluster.googleProject, cluster.clusterName)
     val resolvedCluster = Leonardo.cluster.get(cluster.googleProject, cluster.clusterName)
     resolvedCluster.status shouldBe ClusterStatus.Stopped
@@ -560,7 +565,7 @@ trait LeonardoTestUtils
     }
   }
 
-  def saveDataprocLogFiles(cluster: Cluster): IO[Unit] =
+  def saveDataprocLogFiles(cluster: ClusterCopy): IO[Unit] =
     google2StorageResource.use { storage =>
       cluster.stagingBucket
         .traverse { stagingBucketName =>
@@ -577,7 +582,7 @@ trait LeonardoTestUtils
           downloadLogs.compile.toList
         }
         .flatMap {
-          case None => IO(logger.error(s"Cluster ${cluster.projectNameString} does not have a staging bucket"))
+          case None => IO(logger.error(s"ClusterCopy ${cluster.projectNameString} does not have a staging bucket"))
           case Some(logs) if logs.isEmpty =>
             IO(logger.warn(s"Unable to find output logs for cluster ${cluster.projectNameString}"))
           case Some(logs) =>

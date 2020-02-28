@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.config.LeoAuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterNameCopy, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
@@ -24,8 +24,8 @@ object DummyClient extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver): DummyClientPage = {
+  def get(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken,
+                                                                      webDriver: WebDriver): DummyClientPage = {
     val localhost = java.net.InetAddress.getLocalHost.getHostName
     val url = s"http://$localhost:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
     logger.info(s"Get dummy client: $url")
@@ -49,13 +49,13 @@ object DummyClient extends RestClient with LazyLogging {
           complete {
             logger.info(s"Serving dummy client for $googleProject/$clusterName")
             HttpEntity(ContentTypes.`text/html(UTF-8)`,
-                       getContent(GoogleProject(googleProject), ClusterName(clusterName), LeoAuthToken(token)))
+                       getContent(GoogleProject(googleProject), ClusterNameCopy(clusterName), LeoAuthToken(token)))
           }
         }
       }
     }
 
-  private def getContent(googleProject: GoogleProject, clusterName: ClusterName, token: LeoAuthToken) = {
+  private def getContent(googleProject: GoogleProject, clusterName: ClusterNameCopy, token: LeoAuthToken) = {
     val resourceFile = ResourceFile("dummy-notebook-client.html")
     val raw = Source.fromFile(resourceFile).mkString
     val replacementMap = Map(

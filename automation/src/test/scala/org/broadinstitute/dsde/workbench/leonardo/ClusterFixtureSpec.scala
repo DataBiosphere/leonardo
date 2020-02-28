@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -17,7 +18,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   implicit val ronToken: AuthToken = ronAuthToken
 
   def toolDockerImage: Option[String] = None
-  var ronCluster: Cluster = _
+  var ronCluster: ClusterCopy = _
   var clusterCreationFailureMsg: String = ""
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
@@ -29,14 +30,16 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
   val debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
   var mockedCluster
-    : Cluster = _ //mockCluster("gpalloc-dev-master-0wmkqka", "automation-test-adhkmuanz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
+    : ClusterCopy = _ //mockCluster("gpalloc-dev-master-0wmkqka", "automation-test-adhkmuanz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
 
-  def mockCluster(googleProject: String, clusterName: String): Cluster =
-    Cluster(
-      ClusterName(clusterName),
+  def mockCluster(googleProject: String, clusterName: String): ClusterCopy =
+    ClusterCopy(
+      ClusterNameCopy(clusterName),
       GoogleProject(googleProject),
       ServiceAccountInfo(None, None),
-      RuntimeConfig.DataprocConfig(numberOfWorkers = 0, masterMachineType = "n1-standard-4", masterDiskSize = 5),
+      RuntimeConfig.DataprocConfig(numberOfWorkers = 0,
+                                   masterMachineType = MachineTypeName("n1-standard-4"),
+                                   masterDiskSize = 5),
       ClusterStatus.Running,
       WorkbenchEmail(""),
       Map(),
@@ -54,7 +57,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
    *
    * Claim a billing project for project owner
    */
-  case class ClusterFixture(cluster: Cluster)
+  case class ClusterFixture(cluster: ClusterCopy)
 
   override type FixtureParam = ClusterFixture
 
@@ -95,8 +98,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       RuntimeConfig.DataprocConfig(
         numberOfWorkers = 0,
         masterDiskSize = 500,
-        masterMachineType = "n1-standard-8",
-        workerMachineType = Some("n1-standard-8")
+        masterMachineType = MachineTypeName("n1-standard-8"),
+        workerMachineType = Some(MachineTypeName("n1-standard-8"))
       )
     )
 

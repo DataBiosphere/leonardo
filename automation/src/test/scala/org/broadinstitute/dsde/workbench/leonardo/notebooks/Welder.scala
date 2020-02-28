@@ -28,10 +28,10 @@ object Welder extends RestClient with LazyLogging {
                       lastLockedBy: Option[String],
                       storageLink: Map[String, String])
 
-  def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
+  def welderBasePath(googleProject: GoogleProject, clusterName: ClusterNameCopy): String =
     s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
 
-  def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): IO[StatusResponse] = {
+  def getWelderStatus(cluster: ClusterCopy)(implicit token: AuthToken): IO[StatusResponse] = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)
     logger.info(s"Get welder status: GET $path/status")
 
@@ -43,7 +43,7 @@ object Welder extends RestClient with LazyLogging {
     } yield body
   }
 
-  def postStorageLink(cluster: Cluster, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
+  def postStorageLink(cluster: ClusterCopy, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
 
     val payload = Map(
@@ -60,7 +60,9 @@ object Welder extends RestClient with LazyLogging {
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
-  def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
+  def localize(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean)(
+    implicit token: AuthToken
+  ): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
 
     val payload = Map(
@@ -79,7 +81,7 @@ object Welder extends RestClient with LazyLogging {
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
-  def getMetadata(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(
+  def getMetadata(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean)(
     implicit token: AuthToken
   ): Metadata = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects/metadata"

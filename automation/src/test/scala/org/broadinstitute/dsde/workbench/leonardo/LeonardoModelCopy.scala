@@ -9,21 +9,21 @@ import org.broadinstitute.dsde.workbench.model.google._
 import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
-case class ClusterName(string: String) extends AnyVal with StringValueClass
+case class ClusterNameCopy(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 
-case class Cluster(clusterName: ClusterName,
-                   googleProject: GoogleProject,
-                   serviceAccountInfo: ServiceAccountInfo,
-                   machineConfig: RuntimeConfig.DataprocConfig,
-                   status: ClusterStatus,
-                   creator: WorkbenchEmail,
-                   labels: LabelMap,
-                   stagingBucket: Option[GcsBucketName],
-                   errors: List[ClusterError],
-                   dateAccessed: Instant,
-                   stopAfterCreation: Boolean,
-                   autopauseThreshold: Int) {
+case class ClusterCopy(clusterName: ClusterNameCopy,
+                       googleProject: GoogleProject,
+                       serviceAccountInfo: ServiceAccountInfo,
+                       machineConfig: RuntimeConfig.DataprocConfig,
+                       status: ClusterStatus,
+                       creator: WorkbenchEmail,
+                       labels: LabelMap,
+                       stagingBucket: Option[GcsBucketName],
+                       errors: List[ClusterError],
+                       dateAccessed: Instant,
+                       stopAfterCreation: Boolean,
+                       autopauseThreshold: Int) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
@@ -50,7 +50,7 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
                                       labExtensions: Map[String, String] = Map())
 
-case class DefaultLabels(clusterName: ClusterName,
+case class DefaultLabels(clusterName: ClusterNameCopy,
                          googleProject: GoogleProject,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
