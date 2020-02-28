@@ -4,6 +4,7 @@ import java.time.Instant
 
 import cats.effect.{IO, Resource}
 import cats.effect.concurrent.Semaphore
+import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import org.broadinstitute.dsde.workbench.leonardo.{
   CommonTestData,
@@ -55,7 +56,9 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       _ <- if (sys.props.get(initWithLiquibaseProp).isEmpty)
         Resource
           .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
-          .use(conn => IO(DbReference.initWithLiquibase(conn, liquiBaseConfig)))
+          .use(conn => IO(DbReference.initWithLiquibase(conn, liquiBaseConfig))) >> IO(
+          sys.props.put(initWithLiquibaseProp, "done")
+        )
       else IO.unit
     } yield new DbRef[IO](dbConfig, db, concurrentPermits, blocker)
 

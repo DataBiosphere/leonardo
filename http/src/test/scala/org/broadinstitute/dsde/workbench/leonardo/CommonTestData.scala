@@ -140,7 +140,7 @@ object CommonTestData {
   val serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
-  val jupyterImage = RuntimeImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
+  val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
   val customDataprocImage = RuntimeImage(CustomDataProc, "custom_dataproc", Instant.now)
