@@ -265,9 +265,12 @@ object Boot extends IOApp {
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
-      credentialJson <- org.broadinstitute.dsde.workbench.util2
-        .readFile(applicationConfig.leoServiceAccountJsonFile.getAbsolutePath)
-        .map(_.toString)
+      credentialJson <- Resource.liftF(
+        org.broadinstitute.dsde.workbench.util2
+          .readJsonFileToA[F, String](applicationConfig.leoServiceAccountJsonFile.toPath, Some(blocker))
+          .compile
+          .lastOrError
+      )
       json = Json(credentialJson)
       jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
 
