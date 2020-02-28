@@ -328,37 +328,53 @@ pipeline {
             }
     }
 
-    stage('Run Dataproc image build script') {
+    stage('Run image generation scripts') {
         when { expression { !shouldAbortBuild } }
-            steps {
-                sh """
-                   git submodule init && git submodule update
-                """
+            // Fail the pipeline if any of the parallel branches (that build the Dataproc and GCE images) fails
+            failFast true
+            parallel {
+                stage('Run Dataproc image generation script') {
+                    when { expression { generateDataprocImage == "true" } }
+                        steps {
+                            sh """
+                                   git submodule init && git submodule update
+                                """
 
-                script {
-                    for (String dp_version: dataproc_versions.trim().split(' ')) {
-                        def dp_version_formatted = dp_version.replace(".","-")
-                        // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
-                        // Otherwise, a terra-docker image is used which must have python 3.7 installed
-                        def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
-                        println("Installing Python $python_version on Dataproc $dp_version...")
-                        // TODO: Uncomment out running of the script
-//                        sh(
-//                            script: """
-//                                sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//                                cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//                                cd jenkins/dataproc-custom-images/dataproc-custom-images
-//                                #python generate_custom_image.py \
-//                                    --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
-//                                    --dataproc-version "$dp_version" \
-//                                    --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-//                                    --zone us-central1-a \
-//                                    --gcs-bucket $BUCKET_NAME \
-//                                    --project-id=$GOOGLE_PROJECT \
-//                                    --disk-size=50
-//                            """
-//                        )
-                    }
+                            script {
+                                for (String dp_version : dataproc_versions.trim().split(' ')) {
+                                    def dp_version_formatted = dp_version.replace(".", "-")
+                                    // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
+                                    // Otherwise, a terra-docker image is used which must have python 3.7 installed
+                                    def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
+                                    println("Installing Python $python_version on Dataproc $dp_version...")
+                                    // TODO: Uncomment out running of the script
+                                    //                        sh(
+                                    //                            script: """
+                                    //                                sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                    //                                cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                    //                                cd jenkins/dataproc-custom-images/dataproc-custom-images
+                                    //                                #python generate_custom_image.py \
+                                    //                                    --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
+                                    //                                    --dataproc-version "$dp_version" \
+                                    //                                    --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+                                    //                                    --zone us-central1-a \
+                                    //                                    --gcs-bucket $BUCKET_NAME \
+                                    //                                    --project-id=$GOOGLE_PROJECT \
+                                    //                                    --disk-size=50
+                                    //                            """
+                                    //                        )
+                                }
+                            }
+                        }
+                }
+
+                stage('Run GCE image generation script') {
+                    when { expression { generateGceImage == "true" } }
+                        steps {
+                            sh """
+                                       echo "Running GCE image generation script..."
+                               """
+                        }
                 }
             }
     }
