@@ -191,17 +191,17 @@ class AuthProviderSpec
       leo.deleteCluster(userInfo, project, cluster1Name).unsafeRunSync()
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
+      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[RuntimeInternalId],
                                                any[WorkbenchEmail],
                                                any[GoogleProject],
-                                               any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+                                               any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
 
       // notification of deletion happens only after it has been fully deleted
-      verify(spyProvider, never).notifyClusterDeleted(any[String].asInstanceOf[ClusterInternalId],
+      verify(spyProvider, never).notifyClusterDeleted(any[String].asInstanceOf[RuntimeInternalId],
                                                       any[WorkbenchEmail],
                                                       any[WorkbenchEmail],
                                                       any[GoogleProject],
-                                                      any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+                                                      any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should not let you do things if the auth provider says no" in {
@@ -254,12 +254,12 @@ class AuthProviderSpec
       verify(spyProvider, Mockito.never).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
-                                                              any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+                                                              any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
       verify(spyProvider, Mockito.never).notifyClusterDeleted(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
-                                                              any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+                                                              any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
@@ -316,12 +316,12 @@ class AuthProviderSpec
       verify(spyProvider, Mockito.never).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
-                                                              any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+                                                              any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
       verify(spyProvider, Mockito.never).notifyClusterDeleted(any[String].asInstanceOf[ClusterInternalId],
                                                               any[WorkbenchEmail],
                                                               any[WorkbenchEmail],
                                                               any[GoogleProject],
-                                                              any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+                                                              any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
@@ -346,7 +346,7 @@ class AuthProviderSpec
       verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
                                                any[WorkbenchEmail],
                                                any[GoogleProject],
-                                               any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+                                               any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should return clusters the user created even if the auth provider doesn't" in isolatedDbTest {

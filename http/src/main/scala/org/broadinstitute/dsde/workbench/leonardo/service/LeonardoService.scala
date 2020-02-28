@@ -884,10 +884,14 @@ class LeonardoService(
       request.jupyterUserScriptUri,
       request.jupyterStartUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
-    ).asJson.asObject.map(_.toMap.mapValues(_.asString.getOrElse(""))).getOrElse(Map.empty)
+    )
+
+    val defaultLabelsMap = defaultLabels.asJson.asObject.map { jsObj =>
+      jsObj.toMap.flatMap { case (k, v) => v.asString.map(k -> _) }
+    }.getOrElse(Map.empty)
 
     // combine default and given labels and add labels for extensions
-    val allLabels = request.labels ++ defaultLabels ++
+    val allLabels = request.labels ++ defaultLabelsMap ++
       request.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
 
     // check the labels do not contain forbidden keys
