@@ -886,9 +886,11 @@ class LeonardoService(
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
     )
 
-    val defaultLabelsMap = defaultLabels.asJson.asObject.map { jsObj =>
-      jsObj.toMap.flatMap { case (k, v) => v.asString.map(k -> _) }
-    }.getOrElse(Map.empty)
+    val defaultLabelsMap = defaultLabels.asJson.asObject
+      .map { jsObj =>
+        jsObj.toMap.flatMap { case (k, v) => v.asString.map(k -> _) }
+      }
+      .getOrElse(Map.empty)
 
     // combine default and given labels and add labels for extensions
     val allLabels = request.labels ++ defaultLabelsMap ++

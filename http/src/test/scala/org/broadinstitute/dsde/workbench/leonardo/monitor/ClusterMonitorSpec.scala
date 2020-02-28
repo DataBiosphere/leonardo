@@ -16,19 +16,37 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GcsBlobName, GetMetadataResponse, GoogleComputeService, GoogleStorageService, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  FirewallRuleName,
+  GcsBlobName,
+  GetMetadataResponse,
+  GoogleComputeService,
+  GoogleStorageService,
+  InstanceName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO, MockGoogleComputeService}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{
+  CreateClusterConfig,
+  GoogleDataprocDAO,
+  MockGoogleComputeService
+}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GcsBucketName,
+  GcsEntity,
+  GcsObjectName,
+  GoogleProject,
+  ServiceAccountKeyId
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
