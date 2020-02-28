@@ -117,7 +117,6 @@ pipeline {
     }
 
     parameters {
-        // TODO: Make `generateDataprocImage` default `true`
         booleanParam(name: "generateDataprocImage", defaultValue: true)
         booleanParam(name: "generateGceImage", defaultValue: true)
         string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
@@ -329,39 +328,41 @@ pipeline {
             }
     }
 
-//       stage('Run build script') {
-//         when { expression { !shouldAbortBuild } }
-//         steps {
-//           sh """
-//               git submodule init && git submodule update
-//           """
-//           script {
-//             for (String dp_version: dataproc_versions.trim().split(' ')) {
-//               def dp_version_formatted = dp_version.replace(".","-")
-//               // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
-//               // Otherwise, a terra-docker image is used which must have python 3.7 installed
-//               def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
-//               println("Installing Python $python_version on Dataproc $dp_version")
-//               sh(
-//                 script: """
-//                   sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//                   cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-//                   cd jenkins/dataproc-custom-images/dataproc-custom-images
-//                   python generate_custom_image.py \
-//                     --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
-//                     --dataproc-version "$dp_version" \
-//                     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-//                     --zone us-central1-a \
-//                     --gcs-bucket $BUCKET_NAME \
-//                     --project-id=$GOOGLE_PROJECT \
-//                     --disk-size=50
-//                 """
-//               )
-//             }
-//           }
-//         }
-//       }
-//
+    stage('Run Dataproc image build script') {
+        when { expression { !shouldAbortBuild } }
+            steps {
+                sh """
+                   git submodule init && git submodule update
+                """
+
+                script {
+                    for (String dp_version: dataproc_versions.trim().split(' ')) {
+                        def dp_version_formatted = dp_version.replace(".","-")
+                        // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
+                        // Otherwise, a terra-docker image is used which must have python 3.7 installed
+                        def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
+                        println("Installing Python $python_version on Dataproc $dp_version...")
+                        // TODO: Uncomment out running of the script
+//                        sh(
+//                            script: """
+//                                sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//                                cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+//                                cd jenkins/dataproc-custom-images/dataproc-custom-images
+//                                #python generate_custom_image.py \
+//                                    --image-name "$IMAGE_BASE_NAME-$dp_version_formatted-$imageID" \
+//                                    --dataproc-version "$dp_version" \
+//                                    --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+//                                    --zone us-central1-a \
+//                                    --gcs-bucket $BUCKET_NAME \
+//                                    --project-id=$GOOGLE_PROJECT \
+//                                    --disk-size=50
+//                            """
+//                        )
+                    }
+                }
+            }
+    }
+
 //       stage('Update custom leo image in conf') {
 //         when { expression { !shouldAbortBuild } }
 //         steps {
