@@ -285,15 +285,15 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
     // No images or labels -> default to Jupyter
     Runtime
       .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map.empty)
-      .toString shouldBe expectedBase + "init-resources"
+      .toString shouldBe expectedBase + "jupyter"
 
     // images only
     Runtime
       .getProxyUrl(proxyUrlBase, project, name0, Set(jupyterImage), Map.empty)
-      .toString shouldBe expectedBase + "init-resources"
+      .toString shouldBe expectedBase + "jupyter"
     Runtime
       .getProxyUrl(proxyUrlBase, project, name0, Set(welderImage, customDataprocImage, jupyterImage), Map.empty)
-      .toString shouldBe expectedBase + "init-resources"
+      .toString shouldBe expectedBase + "jupyter"
     Runtime
       .getProxyUrl(proxyUrlBase, project, name0, Set(rstudioImage), Map.empty)
       .toString shouldBe expectedBase + "rstudio"
@@ -304,13 +304,13 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
     // labels only
     Runtime
       .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
-      .toString shouldBe expectedBase + "init-resources"
+      .toString shouldBe expectedBase + "jupyter"
     Runtime
       .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
       .toString shouldBe expectedBase + "rstudio"
     Runtime
       .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("foo" -> "bar"))
-      .toString shouldBe expectedBase + "init-resources"
+      .toString shouldBe expectedBase + "jupyter"
 
     // images and labels -> images take precedence
     Runtime

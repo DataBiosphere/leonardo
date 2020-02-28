@@ -114,7 +114,7 @@ object CreateRuntimeRequest {
       stopAfterCreation = request.stopAfterCreation.getOrElse(false),
       allowStop = request.allowStop,
       runtimeImages = runtimeImages,
-      scopes = request.scopes,
+      scopes = scopes,
       welderEnabled = request.enableWelder.getOrElse(false),
       customClusterEnvironmentVariables = request.customClusterEnvironmentVariables,
       runtimeConfigId = RuntimeConfigId(-1)

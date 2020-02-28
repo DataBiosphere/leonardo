@@ -884,7 +884,7 @@ class LeonardoService(
       request.jupyterUserScriptUri,
       request.jupyterStartUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
-    ).asJson.as[Map[String, String]].getOrElse(Map.empty)
+    ).asJson.asObject.map(_.toMap.mapValues(_.asString.getOrElse(""))).getOrElse(Map.empty)
 
     // combine default and given labels and add labels for extensions
     val allLabels = request.labels ++ defaultLabels ++

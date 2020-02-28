@@ -192,7 +192,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.scopes shouldBe dataprocConfig.defaultScopes
     clusterCreateResponse.welderEnabled shouldBe false
     clusterCreateResponse.labels.get("tool") shouldBe Some("Jupyter")
-    clusterCreateResponse.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name0/jupyter")
+    clusterCreateResponse.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name0.asString}/jupyter")
 
     // check the cluster persisted to the database matches the create response
     val dbCluster = dbFutureValue { clusterQuery.getClusterById(clusterCreateResponse.id) }
@@ -301,14 +301,14 @@ class LeonardoServiceSpec
       imageConfig.welderImage
     )
     clusterResponse.labels.get("tool") shouldBe Some("RStudio")
-    clusterResponse.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name1/rstudio")
+    clusterResponse.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name1.asString}/rstudio")
 
     // list clusters should return RStudio information
     val clusterList = leoForTest.listClusters(userInfo, Map.empty, Some(project)).unsafeToFuture.futureValue
     clusterList.size shouldBe 1
     clusterList.toSet shouldBe Set(clusterResponse).map(x => LeoLenses.createRuntimeAPIRespToListRuntimeResp.get(x))
     clusterList.head.labels.get("tool") shouldBe Some("RStudio")
-    clusterList.head.clusterUrl shouldBe new URL(s"http://leonardo/proxy/$project/$name1/rstudio")
+    clusterList.head.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name1.asString}/rstudio")
   }
 
   it should "create a single node with default machine config cluster when no machine config is set" in isolatedDbTest {
@@ -329,22 +329,33 @@ class LeonardoServiceSpec
         )
       )
     )
+    val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
+      numberOfWorkers = 0,
+      masterMachineType = dataprocConfig.runtimeConfigDefaults.masterMachineType,
+      masterDiskSize = dataprocConfig.runtimeConfigDefaults.masterDiskSize
+    )
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
-    clusterCreateResponse.runtimeConfig shouldEqual dataprocConfig.runtimeConfigDefaults
+    clusterCreateResponse.runtimeConfig shouldEqual expectedRuntimeConfig
   }
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
     val singleNodeDefinedMachineConfigReq =
       RuntimeConfigRequest.DataprocConfig(Some(0), Some(MachineTypeName("test-master-machine-type2")), Some(200))
 
+    val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
+      numberOfWorkers = 0,
+      masterMachineType = MachineTypeName("test-master-machine-type2"),
+      masterDiskSize = 200
+    )
+
     val clusterRequestWithMachineConfig =
       testClusterRequest.copy(runtimeConfig = Some(singleNodeDefinedMachineConfigReq))
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
-    clusterCreateResponse.runtimeConfig shouldEqual dataprocConfig.runtimeConfigDefaults
+    clusterCreateResponse.runtimeConfig shouldEqual expectedRuntimeConfig
   }
 
   it should "create a single node cluster and override worker configs" in isolatedDbTest {
@@ -402,11 +413,20 @@ class LeonardoServiceSpec
                                                             Some(300),
                                                             Some(3),
                                                             Some(4))
+    val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
+      numberOfWorkers = 10,
+      masterMachineType = MachineTypeName("test-master-machine-type"),
+      masterDiskSize = 200,
+      workerMachineType = Some(MachineTypeName("test-worker-machine-type")),
+      workerDiskSize = Some(300),
+      numberOfWorkerLocalSSDs = Some(3),
+      numberOfPreemptibleWorkers = Some(4)
+    )
     val clusterRequestWithMachineConfig = testClusterRequest.copy(runtimeConfig = Some(machineConfig))
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
-    clusterCreateResponse.runtimeConfig shouldEqual dataprocConfig.runtimeConfigDefaults
+    clusterCreateResponse.runtimeConfig shouldEqual expectedRuntimeConfig
   }
 
   it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
@@ -580,7 +600,7 @@ class LeonardoServiceSpec
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project),
-      mockitoEq(name1)
+      RuntimeName(mockitoEq(name1.asString))
     )(any[ApplicativeAsk[IO, TraceId]])
   }
 
@@ -638,7 +658,7 @@ class LeonardoServiceSpec
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project),
-      mockitoEq(name1)
+      RuntimeName(mockitoEq(name1.asString))
     )(any[ApplicativeAsk[IO, TraceId]])
   }
 
