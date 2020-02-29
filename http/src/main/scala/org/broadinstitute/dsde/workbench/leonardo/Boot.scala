@@ -268,6 +268,7 @@ object Boot extends IOApp {
       credentialJson <- Resource.liftF(
         readFileToString(applicationConfig.leoServiceAccountJsonFile.toPath, blocker)
       )
+      _ = println("json is " + credentialJson)
       json = Json(credentialJson)
       jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
 
