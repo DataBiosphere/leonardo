@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.nio.file.Path
 
 import cats.effect.{Blocker, ContextShift, Sync}
-import cats.implicits._
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
 import org.broadinstitute.dsde.workbench.model.ErrorReportSource
@@ -19,7 +18,7 @@ package object http {
       .through(text.utf8Decode)
       .through(text.lines)
       .fold(List.empty[String]) { case (acc, str) => str :: acc }
+      .map(_.reverse.mkString("\n"))
       .compile
       .lastOrError
-      .map(_.mkString("\n"))
 }
