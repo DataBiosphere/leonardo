@@ -100,7 +100,7 @@ object LeoPubsubCodec {
       "jupyterStartUserScriptUri",
       "userJupyterExtensionConfig",
       "defaultClientId",
-      "runtimeImages",
+      "clusterImages",
       "scopes",
       "welderEnabled",
       "customClusterEnvironmentVariables",
