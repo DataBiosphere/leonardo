@@ -267,9 +267,10 @@ object Boot extends IOApp {
 
       credentialJson <- Resource.liftF(
         org.broadinstitute.dsde.workbench.util2
-          .readJsonFileToA[F, String](applicationConfig.leoServiceAccountJsonFile.toPath, Some(blocker))
+          .readJsonFileToA[F, List[String]](applicationConfig.leoServiceAccountJsonFile.toPath, Some(blocker))
           .compile
           .lastOrError
+          .map(_.mkString)
       )
       json = Json(credentialJson)
       jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
