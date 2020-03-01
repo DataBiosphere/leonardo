@@ -196,7 +196,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             case _ =>
               s"Failed to create cluster ${msg.clusterProjectAndName} due to ${e.toString}"
           }
-          _ <- clusterErrorQuery.save(msg.id, RuntimeError(errorMessage, -1, now)).transaction[F]
+          _ <- (clusterErrorQuery.save(msg.id, RuntimeError(errorMessage, -1, now)) >>
+            clusterQuery.updateClusterStatus(msg.id, RuntimeStatus.Error, now)).transaction[F]
         } yield ()
     }
   }
