@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.GCR
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
@@ -188,7 +188,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.autopauseThreshold shouldBe testClusterRequest.autopauseThreshold.getOrElse(0)
     clusterCreateResponse.defaultClientId shouldBe testClusterRequest.defaultClientId
     clusterCreateResponse.stopAfterCreation shouldBe testClusterRequest.stopAfterCreation.getOrElse(false)
-    clusterCreateResponse.clusterImages.map(_.imageType) shouldBe Set(Jupyter)
+    clusterCreateResponse.clusterImages.map(_.imageType) shouldBe Set(Jupyter, Proxy)
     clusterCreateResponse.scopes shouldBe dataprocConfig.defaultScopes
     clusterCreateResponse.welderEnabled shouldBe false
     clusterCreateResponse.labels.get("tool") shouldBe Some("Jupyter")

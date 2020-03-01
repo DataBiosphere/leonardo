@@ -21,7 +21,7 @@ import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
@@ -934,7 +934,9 @@ class LeonardoService(
         val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(imageConfig.welderImage)
         Some(RuntimeImage(Welder, imageUrl, now))
       } else None
-    } yield Set(Some(toolImage), welderImageOpt).flatten
+      // Get the proxy image
+      proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage, now)
+    } yield Set(Some(toolImage), welderImageOpt, Some(proxyImage)).flatten
 
 }
 
