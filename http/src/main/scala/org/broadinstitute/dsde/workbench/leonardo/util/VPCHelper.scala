@@ -37,14 +37,16 @@ class VPCHelper(config: VPCHelperConfig,
                               vpcConfig: VPCConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       rule <- googleComputeService.getFirewallRule(googleProject, config.firewallRuleName)
-      _ <- rule.fold(googleComputeService.addFirewallRule(googleProject, buildFirewall(vpcConfig)))(_ => IO.unit)
+      _ <- rule.fold(googleComputeService.addFirewallRule(googleProject, buildFirewall(googleProject, vpcConfig)))(
+        _ => IO.unit
+      )
     } yield ()
 
-  private def buildFirewall(vpcConfig: VPCConfig): Firewall =
+  private def buildFirewall(googleProject: GoogleProject, vpcConfig: VPCConfig): Firewall =
     Firewall
       .newBuilder()
       .setName(config.firewallRuleName.value)
-      .setNetwork(vpcConfig.value)
+      .setNetwork(networkUri(googleProject, vpcConfig))
       .addAllTargetTags(config.firewallRuleTargetTags.map(_.value).asJava)
       .addAllowed(
         Allowed
@@ -54,6 +56,9 @@ class VPCHelper(config: VPCHelperConfig,
           .build
       )
       .build
+
+  private def networkUri(googleProject: GoogleProject, vpcConfig: VPCConfig): String =
+    s"projects/${googleProject.value}/global/networks/${vpcConfig.value}"
 
 }
 
