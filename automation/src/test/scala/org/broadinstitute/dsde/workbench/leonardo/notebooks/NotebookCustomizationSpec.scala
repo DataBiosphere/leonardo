@@ -6,7 +6,6 @@ import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoConfig, RuntimeConfig}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
-import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -19,7 +18,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
 
   "NotebookCustomizationSpec" - {
 
-    "should run a user script" taggedAs Tags.SmokeTest in { billingProject =>
+    "should run a user script" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a new bucket

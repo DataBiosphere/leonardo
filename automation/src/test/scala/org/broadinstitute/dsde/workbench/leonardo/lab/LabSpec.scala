@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
-import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
 /**
@@ -13,7 +12,7 @@ class LabSpec extends ClusterFixtureSpec with LabTestUtils {
   "Leonardo lab" - {
 
     // TODO: ignored until we officially support JupyterLab
-    "should execute cells" taggedAs Tags.SmokeTest ignore { clusterFixture =>
+    "should execute cells" ignore { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewLabNotebook(clusterFixture.cluster) { labNotebookPage =>
           labNotebookPage.runCodeInEmptyCell("1+1") shouldBe Some("2")

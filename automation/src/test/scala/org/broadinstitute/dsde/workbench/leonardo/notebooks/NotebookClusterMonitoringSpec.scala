@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEntity, GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.service.Sam
-import org.broadinstitute.dsde.workbench.service.util.Tags
+
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -28,7 +28,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
   "NotebookClusterMonitoringSpec" - {
 
-    "should pause and resume a cluster" taggedAs Tags.SmokeTest in { billingProject =>
+    "should pause and resume a cluster" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a cluster

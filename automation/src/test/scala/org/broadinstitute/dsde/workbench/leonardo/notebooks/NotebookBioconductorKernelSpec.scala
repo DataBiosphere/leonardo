@@ -19,7 +19,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
-import org.broadinstitute.dsde.workbench.service.util.Tags
+
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._
@@ -63,7 +63,7 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to call installed Bioconductor libraries" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should be able to call installed Bioconductor libraries" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           // it shouldn't take long to load libraries
