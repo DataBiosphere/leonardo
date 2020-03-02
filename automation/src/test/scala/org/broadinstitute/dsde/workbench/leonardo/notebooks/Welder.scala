@@ -28,8 +28,8 @@ object Welder extends RestClient with LazyLogging {
                       lastLockedBy: Option[String],
                       storageLink: Map[String, String])
 
-  def welderBasePath(googleProject: GoogleProject, clusterName: ClusterNameCopy): String =
-    s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
+  def welderBasePath(googleProject: GoogleProject, clusterName: RuntimeName): String =
+    s"${url}proxy/${googleProject.value}/${clusterName.asString}/welder"
 
   def getWelderStatus(cluster: ClusterCopy)(implicit token: AuthToken): IO[StatusResponse] = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)

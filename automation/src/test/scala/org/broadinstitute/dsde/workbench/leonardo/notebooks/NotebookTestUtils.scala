@@ -92,7 +92,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withFileUpload(cluster, file) { notebooksListPage =>
       logger.info(
-        s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+        s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
       notebooksListPage.withOpenNotebook(file, timeout) { notebookPage =>
         testCode(notebookPage)
@@ -104,12 +104,12 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(
-        s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+        s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
       val result: Future[T] = retryUntilSuccessOrTimeout(
         whenKernelNotReady,
         failureLogMessage =
-          s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.string} for ${kernel}"
+          s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
       )(30 seconds, 2 minutes) { () =>
         Future(
           notebooksListPage.open.withNewNotebook(kernel, timeout) { notebookPage =>
@@ -136,7 +136,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
         notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
           logger.info(
-            s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+            s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
           )
           val result: Future[T] =
             retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
@@ -158,7 +158,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(
-        s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+        s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
       notebooksListPage.withOpenNotebook(notebookPath, timeout) { notebookPage =>
         testCode(notebookPage)

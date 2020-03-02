@@ -213,7 +213,9 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 
   private def getAccessTokenUsingLeoJson: Resource[F, String] =
     for {
-      credential <- credentialResource(config.serviceAccountProviderConfig.leoServiceAccountJsonFile.getAbsolutePath)
+      credential <- credentialResource(
+        config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
+      )
       scopedCredential = credential.createScoped(saScopes.asJava)
       _ <- Resource.liftF(Effect[F].delay(scopedCredential.refresh))
     } yield scopedCredential.getAccessToken.getTokenValue

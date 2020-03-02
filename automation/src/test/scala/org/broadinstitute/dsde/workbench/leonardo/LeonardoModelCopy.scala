@@ -9,10 +9,9 @@ import org.broadinstitute.dsde.workbench.model.google._
 import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
-case class ClusterNameCopy(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 
-case class ClusterCopy(clusterName: ClusterNameCopy,
+case class ClusterCopy(clusterName: RuntimeName,
                        googleProject: GoogleProject,
                        serviceAccountInfo: ServiceAccountInfo,
                        machineConfig: RuntimeConfig.DataprocConfig,
@@ -24,7 +23,7 @@ case class ClusterCopy(clusterName: ClusterNameCopy,
                        dateAccessed: Instant,
                        stopAfterCreation: Boolean,
                        autopauseThreshold: Int) {
-  def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
+  def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
 case class ClusterRequest(labels: LabelMap = Map(),
@@ -50,15 +49,15 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
                                       labExtensions: Map[String, String] = Map())
 
-case class DefaultLabels(clusterName: ClusterNameCopy,
-                         googleProject: GoogleProject,
-                         creator: WorkbenchEmail,
-                         clusterServiceAccount: Option[WorkbenchEmail],
-                         notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookExtension: Option[String],
-                         notebookUserScript: Option[String],
-                         notebookStartUserScript: Option[String],
-                         tool: String) {
+case class DefaultLabelsCopy(clusterName: RuntimeName,
+                             googleProject: GoogleProject,
+                             creator: WorkbenchEmail,
+                             clusterServiceAccount: Option[WorkbenchEmail],
+                             notebookServiceAccount: Option[WorkbenchEmail],
+                             notebookExtension: Option[String],
+                             notebookUserScript: Option[String],
+                             notebookStartUserScript: Option[String],
+                             tool: String) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
@@ -79,7 +78,7 @@ case class DefaultLabels(clusterName: ClusterNameCopy,
     } getOrElse Map.empty
 
     Map(
-      "clusterName" -> clusterName.string,
+      "clusterName" -> clusterName.asString,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "tool" -> tool

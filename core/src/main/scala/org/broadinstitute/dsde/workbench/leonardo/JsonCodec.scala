@@ -77,6 +77,7 @@ object JsonCodec {
     "kernelFoundBusyDate"
   )(x => AuditInfo.unapply(x).get)
   implicit val runtimeImageTypeEncoder: Encoder[RuntimeImageType] = Encoder.encodeString.contramap(_.toString)
+  implicit val containerImageEncoder: Encoder[ContainerImage] = Encoder.encodeString.contramap(_.imageUrl)
   implicit val runtimeImageEncoder: Encoder[RuntimeImage] = Encoder.forProduct3(
     "imageType",
     "imageUrl",
@@ -89,7 +90,6 @@ object JsonCodec {
         case x: RuntimeConfig.GceConfig      => x.asJson
       }
   )
-  implicit val containerImageEncoder: Encoder[ContainerImage] = Encoder.encodeString.contramap(_.imageUrl)
   implicit val serviceAccountInfoEncoder: Encoder[ServiceAccountInfo] = Encoder.forProduct2(
     "clusterServiceAccount",
     "notebookServiceAccount"
@@ -117,7 +117,7 @@ object JsonCodec {
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
   implicit val containerImageDecoder: Decoder[ContainerImage] = Decoder.decodeString.emap(
-    s => ContainerImage.stringToJupyterDockerImage(s).toRight(s"invalid container image ${s}")
+    s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}")
   )
   implicit val cloudServiceDecoder: Decoder[CloudService] =
     Decoder.decodeString.emap(s => CloudService.withNameOption(s).toRight(s"Unsupported cloud service ${s}"))

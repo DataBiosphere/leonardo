@@ -12,6 +12,8 @@ object LeoLenses {
 
   val runtimeToRuntimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 
+  val runtimeToAsyncRuntimeFields: Lens[Runtime, Option[AsyncRuntimeFields]] = GenLens[Runtime](_.asyncRuntimeFields)
+
   val createRuntimeAPIRespToGetClusterKey = Lens[CreateRuntimeAPIResponse, GetClusterKey](
     x => GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
   )(

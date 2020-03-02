@@ -34,7 +34,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   def mockCluster(googleProject: String, clusterName: String): ClusterCopy =
     ClusterCopy(
-      ClusterNameCopy(clusterName),
+      RuntimeName(clusterName),
       GoogleProject(googleProject),
       ServiceAccountInfo(None, None),
       RuntimeConfig.DataprocConfig(numberOfWorkers = 0,

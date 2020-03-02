@@ -93,6 +93,7 @@ object CreateRuntimeRequest {
                 runtimeImages: Set[RuntimeImage],
                 timestamp: Instant): Runtime =
     Runtime(
+      id = -1,
       internalId = internalId,
       runtimeName = runtimeName,
       googleProject = googleProject,

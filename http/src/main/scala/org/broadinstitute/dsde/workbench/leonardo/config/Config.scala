@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import java.io.File
-import java.nio.file.Paths
+import java.nio.file.{Path, Paths}
 
 import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
@@ -13,16 +13,10 @@ import org.broadinstitute.dsde.workbench.google2.{
   PublisherConfig,
   SubscriberConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.{
-  CustomDataprocImage,
-  MemorySize,
-  RuntimeConfig,
-  RuntimeResource,
-  RuntimeStatus
-}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -38,7 +32,7 @@ object Config {
     ApplicationConfig(
       config.getString("applicationName"),
       config.as[GoogleProject]("leoGoogleProject"),
-      config.as[File]("leoServiceAccountJsonFile"),
+      config.as[Path]("leoServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail")
     )
   }
@@ -92,10 +86,10 @@ object Config {
 
   implicit val imageConfigReader: ValueReader[ImageConfig] = ValueReader.relative { config =>
     ImageConfig(
-      config.getString("welderImage"),
-      config.getString("jupyterImage"),
-      config.getString("legacyJupyterImage"),
-      config.getString("proxyImage"),
+      config.as[ContainerImage]("welderImage"),
+      config.as[ContainerImage]("jupyterImage"),
+      config.as[ContainerImage]("legacyJupyterImage"),
+      config.as[ContainerImage]("proxyImage"),
       config.getString("jupyterContainerName"),
       config.getString("rstudioContainerName"),
       config.getString("welderContainerName"),
@@ -258,10 +252,14 @@ object Config {
   implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
   implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
+  implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
+  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
+    s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
+  )
   implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
     ValueReader.relative { config =>
       ServiceAccountProviderConfig(
-        config.as[File]("leoServiceAccountJsonFile"),
+        config.as[Path]("leoServiceAccountJsonFile"),
         config.as[WorkbenchEmail]("leoServiceAccountEmail")
       )
     }

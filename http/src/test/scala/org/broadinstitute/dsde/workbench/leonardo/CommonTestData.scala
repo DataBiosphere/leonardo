@@ -161,6 +161,7 @@ object CommonTestData {
   def makeCluster(index: Int): Cluster = {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
+      id = -1,
       runtimeName = clusterName,
       internalId = internalId,
       googleProject = project,
@@ -190,6 +191,7 @@ object CommonTestData {
   }
 
   val testCluster = new Cluster(
+    id = -1,
     runtimeName = name1,
     internalId = internalId,
     googleProject = project,

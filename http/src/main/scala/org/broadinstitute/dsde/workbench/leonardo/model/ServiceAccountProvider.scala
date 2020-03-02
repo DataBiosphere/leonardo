@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
-import java.io.File
+import java.nio.file.Path
 
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -69,4 +69,4 @@ abstract class ServiceAccountProvider[F[_]] {
  *
  * @return service account email and pem file
  */
-final case class ServiceAccountProviderConfig(leoServiceAccountJsonFile: File, leoServiceAccountEmail: WorkbenchEmail)
+final case class ServiceAccountProviderConfig(leoServiceAccountJsonFile: Path, leoServiceAccountEmail: WorkbenchEmail)

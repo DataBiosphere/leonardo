@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import org.broadinstitute.dsde.workbench.leonardo.ContainerImage
+
 final case class ImageConfig(
-  welderImage: String,
-  jupyterImage: String,
-  legacyJupyterImage: String,
-  proxyImage: String,
+  welderImage: ContainerImage,
+  jupyterImage: ContainerImage,
+  legacyJupyterImage: ContainerImage,
+  proxyImage: ContainerImage,
   jupyterContainerName: String,
   rstudioContainerName: String,
   welderContainerName: String,

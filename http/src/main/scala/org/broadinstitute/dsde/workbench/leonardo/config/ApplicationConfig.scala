@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import java.io.File
+import java.nio.file.Path
 
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 case class ApplicationConfig(applicationName: String,
                              leoGoogleProject: GoogleProject,
-                             leoServiceAccountJsonFile: File,
+                             leoServiceAccountJsonFile: Path,
                              leoServiceAccountEmail: WorkbenchEmail)

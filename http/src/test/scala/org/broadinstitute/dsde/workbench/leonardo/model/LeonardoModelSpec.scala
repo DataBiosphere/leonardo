@@ -273,10 +273,10 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
   }
 
   "ContainerImage.stringToJupyterDockerImage" should "match GCR first, and then dockerhub" in {
-    ContainerImage.stringToJupyterDockerImage("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (Some(
+    ContainerImage.fromString("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (Some(
       ContainerImage.GCR("us.gcr.io/broad-dsp-gcr-public/ubuntu1804")
     ))
-    ContainerImage.stringToJupyterDockerImage("asd/asdf") shouldBe (Some(ContainerImage.DockerHub("asd/asdf")))
+    ContainerImage.fromString("asd/asdf") shouldBe (Some(ContainerImage.DockerHub("asd/asdf")))
   }
 
   "Cluster" should "generate a correct cluster URL" in {

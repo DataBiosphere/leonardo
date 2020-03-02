@@ -925,17 +925,17 @@ class LeonardoService(
       // - else if a legacy jupyterDockerImage param was sent, use that
       // - else use the default jupyter image
       jupyterImageOpt = clusterRequest.jupyterDockerImage.map(i => RuntimeImage(Jupyter, i.imageUrl, now))
-      defaultJupyterImage = RuntimeImage(Jupyter, imageConfig.jupyterImage, now)
+      defaultJupyterImage = RuntimeImage(Jupyter, imageConfig.jupyterImage.imageUrl, now)
       toolImage = autodetectedImageOpt orElse jupyterImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
       // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
       // - If welder is not enabled, we won't use any image.
       welderImageOpt = if (clusterRequest.enableWelder.getOrElse(false)) {
-        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(imageConfig.welderImage)
+        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(imageConfig.welderImage.imageUrl)
         Some(RuntimeImage(Welder, imageUrl, now))
       } else None
       // Get the proxy image
-      proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage, now)
+      proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, now)
     } yield Set(Some(toolImage), welderImageOpt, Some(proxyImage)).flatten
 
 }

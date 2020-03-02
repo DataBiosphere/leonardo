@@ -19,7 +19,7 @@ import scala.collection.immutable
  * This file contains models for Leonardo runtimes.
  */
 /** The runtime itself */
-final case class Runtime(id: Long = 0, // DB AutoInc
+final case class Runtime(id: Long,
                          internalId: RuntimeInternalId,
                          runtimeName: RuntimeName,
                          googleProject: GoogleProject,
@@ -50,11 +50,6 @@ final case class Runtime(id: Long = 0, // DB AutoInc
 }
 
 object Runtime {
-  def addAsyncFields(runtime: Runtime, operation: Operation, stagingBucket: GcsBucketName): Runtime =
-    runtime.copy(
-      asyncRuntimeFields = Some(AsyncRuntimeFields(operation.uuid, operation.name, stagingBucket, None))
-    )
-
   def getProxyUrl(urlBase: String,
                   googleProject: GoogleProject,
                   runtimeName: RuntimeName,

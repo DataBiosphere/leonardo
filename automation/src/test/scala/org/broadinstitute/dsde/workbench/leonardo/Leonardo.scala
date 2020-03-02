@@ -46,10 +46,10 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def clusterPath(googleProject: GoogleProject,
-                    clusterName: ClusterNameCopy,
+                    clusterName: RuntimeName,
                     version: Option[ApiVersion] = None): String = {
       val versionPath = version.map(_.toUrlSegment).getOrElse("")
-      s"api/cluster${versionPath}/${googleProject.value}/${clusterName.string}"
+      s"api/cluster${versionPath}/${googleProject.value}/${clusterName.asString}"
     }
 
     def list(googleProject: GoogleProject)(implicit token: AuthToken): Seq[ClusterCopy] = {
@@ -63,7 +63,7 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
-    def create(googleProject: GoogleProject, clusterName: ClusterNameCopy, clusterRequest: ClusterRequest)(
+    def create(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: ClusterRequest)(
       implicit token: AuthToken
     ): ClusterCopy = {
       val path = clusterPath(googleProject, clusterName, Some(ApiVersion.V2))
@@ -71,7 +71,7 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterResponse(putRequest(url + path, clusterRequest))
     }
 
-    def get(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): ClusterCopy = {
+    def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): ClusterCopy = {
       val path = clusterPath(googleProject, clusterName)
 
       val responseString = parseResponse(getRequest(url + path))
@@ -81,25 +81,25 @@ object Leonardo extends RestClient with LazyLogging {
       cluster
     }
 
-    def delete(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): String = {
+    def delete(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
       val path = clusterPath(googleProject, clusterName)
       logger.info(s"Delete cluster: DELETE /$path")
       deleteRequest(url + path)
     }
 
-    def stop(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): String = {
+    def stop(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
       val path = clusterPath(googleProject, clusterName) + "/stop"
       logger.info(s"Stopping cluster: POST /$path")
       postRequest(url + path)
     }
 
-    def start(googleProject: GoogleProject, clusterName: ClusterNameCopy)(implicit token: AuthToken): String = {
+    def start(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
       val path = clusterPath(googleProject, clusterName) + "/start"
       logger.info(s"Starting cluster: POST /$path")
       postRequest(url + path)
     }
 
-    def update(googleProject: GoogleProject, clusterName: ClusterNameCopy, clusterRequest: ClusterRequest)(
+    def update(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: ClusterRequest)(
       implicit token: AuthToken
     ): ClusterCopy = {
       val path = clusterPath(googleProject, clusterName)
@@ -110,12 +110,10 @@ object Leonardo extends RestClient with LazyLogging {
 }
 
 object AutomationTestJsonCodec {
-  implicit val clusterNameDecoder: Decoder[ClusterNameCopy] = Decoder.decodeString.map(ClusterNameCopy)
   implicit val clusterStatusDecoder: Decoder[ClusterStatus] =
     Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"Invalid cluster status ${s}"))
-
   implicit val clusterDecoder: Decoder[ClusterCopy] = Decoder.forProduct12[ClusterCopy,
-                                                                           ClusterNameCopy,
+                                                                           RuntimeName,
                                                                            GoogleProject,
                                                                            ServiceAccountInfo,
                                                                            RuntimeConfig.DataprocConfig,

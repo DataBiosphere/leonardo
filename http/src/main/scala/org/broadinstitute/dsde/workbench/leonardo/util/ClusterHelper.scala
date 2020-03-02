@@ -360,10 +360,10 @@ class ClusterHelper(
       _ <- log.info(s"Will deploy welder to cluster ${cluster.projectNameString}")
       _ <- metrics.incrementCounter("welder/deploy")
       now <- IO(Instant.now)
-      welderImage = RuntimeImage(Welder, imageConfig.welderImage, now)
+      welderImage = RuntimeImage(Welder, imageConfig.welderImage.imageUrl, now)
 
       _ <- dbRef.inTransaction {
-        clusterQuery.updateWelder(cluster.id, RuntimeImage(Welder, imageConfig.welderImage, now), now)
+        clusterQuery.updateWelder(cluster.id, RuntimeImage(Welder, imageConfig.welderImage.imageUrl, now), now)
       }
 
       newCluster = cluster.copy(welderEnabled = true,

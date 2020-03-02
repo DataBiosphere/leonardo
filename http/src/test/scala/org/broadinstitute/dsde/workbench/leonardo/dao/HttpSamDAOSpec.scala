@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import cats.implicits._
 
 import scala.concurrent.duration._
-import java.io.File
+import java.nio.file.Paths
 import java.util.UUID
 
 import scala.concurrent.ExecutionContext.global
@@ -33,7 +33,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
                                 false,
                                 1 seconds,
                                 10,
-                                ServiceAccountProviderConfig(new File("test"), WorkbenchEmail("test")))
+                                ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test")))
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 

@@ -266,7 +266,7 @@ object Boot extends IOApp {
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
       credentialJson <- Resource.liftF(
-        readFileToString(applicationConfig.leoServiceAccountJsonFile.toPath, blocker)
+        readFileToString(applicationConfig.leoServiceAccountJsonFile, blocker)
       )
       json = Json(credentialJson)
       jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))

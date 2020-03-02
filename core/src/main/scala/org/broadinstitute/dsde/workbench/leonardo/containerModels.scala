@@ -39,7 +39,7 @@ object ContainerImage {
     val registry: ContainerRegistry = ContainerRegistry.DockerHub
   }
 
-  def stringToJupyterDockerImage(imageUrl: String): Option[ContainerImage] =
+  def fromString(imageUrl: String): Option[ContainerImage] =
     List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
       .find(image => image.regex.pattern.asPredicate().test(imageUrl))
       .map { dockerRegistry =>

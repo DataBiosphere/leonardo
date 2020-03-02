@@ -24,7 +24,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache:
           Request[F](
             method = Method.GET,
             uri = Uri.unsafeFromString(
-              s"https://${targetHost.toString}/notebooks/$googleProject/$runtimeName/api/status"
+              s"https://${targetHost.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
             )
           )
         )
@@ -41,7 +41,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache:
               Request[F](
                 method = Method.GET,
                 uri = Uri.unsafeFromString(
-                  s"https://${host.toString}/notebooks/$googleProject/$runtimeName/api/sessions"
+                  s"https://${host.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
                 )
               )
             )
