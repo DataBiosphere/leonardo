@@ -9,6 +9,7 @@
 String REGION = "us-central1"
 String ZONE = "${REGION}-a"
 String GCE_BASE_IMAGE = "projects/debian-cloud/global/images/debian-9-stretch-v20200210"
+String GOOGLE_CREDENTIAL_FILE_NAME = "image-build-account.json"
 
 // Variables populated by first step
 ArrayList<String> dataprocImages = []
@@ -18,6 +19,7 @@ String imageID = ""
 String customDataprocImageBaseName = ""
 String customGceImageBaseName = ""
 String prLink = ""
+String googleCredentialFile = ""
 
 LinkedHashMap<String, String> versionMap = [:]
 
@@ -161,7 +163,7 @@ pipeline {
     }
 
     stages {
-        stage('Terra docker image scan') {
+        stage('Scan Terra docker images') {
             steps {
                 git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'ky_ia_1596_jenkinsify_gce_image_creation'
 
@@ -188,14 +190,12 @@ pipeline {
                     gceImages = terraDockerGceImageArray + nonTerraDockerImages
                     images = dataprocImages + gceImages
 
-                    println("dataprocImages: $dataprocImages")
-                    println("gceImages: $gceImages")
-                    println("images: $images")
+                    googleCredentialFile = "${WORKSPACE}/jenkins/gce-custom-images/${GOOGLE_CREDENTIAL_FILE_NAME}"
                 }
             }
         }
 
-    stage('Leonardo Git') {
+    stage('Pull Leonardo') {
         steps {
             // TODO: switch 'branch' back to 'develop'
             git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'ky_ia_1596_jenkinsify_gce_image_creation'
@@ -232,8 +232,8 @@ pipeline {
         steps {
             sh """
                 sudo chown -R jenkins:jenkins /home/jenkins/.config
-                docker run --rm  -v /etc/vault-token-dsde:/root/.vault-token:ro broadinstitute/dsde-toolbox:latest vault read --format=json secret/dsde/firecloud/common/image-build-account.json | jq .data > image-build-account.json
-                gcloud auth activate-service-account --key-file=image-build-account.json
+                docker run --rm  -v /etc/vault-token-dsde:/root/.vault-token:ro broadinstitute/dsde-toolbox:latest vault read --format=json secret/dsde/firecloud/common/$GOOGLE_CREDENTIAL_FILE_NAME | jq .data > $googleCredentialFile
+                gcloud auth activate-service-account --key-file=${googleCredentialFile}
                 gcloud auth configure-docker --quiet
             """
         }
@@ -399,8 +399,9 @@ pipeline {
                                             $daisyImage \
                                             -project $GOOGLE_PROJECT \
                                             -zone $ZONE \
+                                            -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
                                             -gcs_path $gceImageBucket \
-                                            -default_timeout 60m \
+                                            -default_timeout 45m \
                                             -var:base_image $GCE_BASE_IMAGE \
                                             -var:output_image "${customGceImageBaseName}-${imageID}" \
                                             -var:installation_script_dir /daisy_source_files \
