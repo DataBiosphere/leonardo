@@ -388,65 +388,75 @@ pipeline {
                                     docker pull gcr.io/compute-image-tools/daisy:latest
                                 """
 
-                            script {
-                                String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
-                                sh """
-                                        # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
-                                        gsutil ls $gceImageBucket || gsutil mb -p $GOOGLE_PROJECT -l $REGION $gceImageBucket
-
-                                        docker pull $daisyImage
-                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
-                                            $daisyImage \
-                                            -project $GOOGLE_PROJECT \
-                                            -zone $ZONE \
-                                            -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
-                                            -gcs_path $gceImageBucket \
-                                            -default_timeout 45m \
-                                            -var:base_image $GCE_BASE_IMAGE \
-                                            -var:output_image "${customGceImageBaseName}-${imageID}" \
-                                            -var:installation_script_dir /daisy_source_files \
-                                            -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
-                                            -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
-                                            -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
-                                            /daisy_source_files/leo_custom_gce_image.wf.json
-                                        
-                                        # Daisy doesn't clean it up all so we remove the bucket manually
-                                        gsutil rm -r $gceImageBucket
-                                    """
-                            }
+//                            script {
+//                                String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
+//                                sh """
+//                                        # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
+//                                        gsutil ls $gceImageBucket || gsutil mb -p $GOOGLE_PROJECT -l $REGION $gceImageBucket
+//
+//                                        docker pull $daisyImage
+//                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
+//                                            $daisyImage \
+//                                            -project $GOOGLE_PROJECT \
+//                                            -zone $ZONE \
+//                                            -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
+//                                            -gcs_path $gceImageBucket \
+//                                            -default_timeout 45m \
+//                                            -var:base_image $GCE_BASE_IMAGE \
+//                                            -var:output_image "${customGceImageBaseName}-${imageID}" \
+//                                            -var:installation_script_dir /daisy_source_files \
+//                                            -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
+//                                            -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
+//                                            -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
+//                                            /daisy_source_files/leo_custom_gce_image.wf.json
+//                                        
+//                                        # Daisy doesn't clean it up all so we remove the bucket manually
+//                                        gsutil rm -r $gceImageBucket
+//                                    """
+//                            }
                         }
                 }
             }
     }
 
-//       stage('Update custom leo image in conf') {
-//         when { expression { !shouldAbortBuild } }
-//         steps {
-//           script {
-//             def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
-//             for (String configFile: configPaths) {
-//               for (String dp_version: dataproc_versions.trim().split(' ')) {
-//                 def dp_version_formatted = dp_version.replace(".","-")
-//                 sh(
-//                     script: """
-//                       sed -i "s/$customDataprocImageBaseName-$dp_version_formatted.*/$customDataprocImageBaseName-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
-//                     """
-//                 )
-//               }
-//             }
-//           }
-//
-//           sshagent(['jenkins-ssh-github']) {
-//             sh """
-//               git checkout -b $branchName$imageID
-//               git commit -m "automated custom image hash updates"
-//               git push origin $branchName$imageID
-//             """
-//           }
-//
-//         }
-//       }
-//
+    stage('Update custom leo images in conf') {
+        when { expression { !shouldAbortBuild } }
+            steps {
+                script {
+                    def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+                    for (String configFile: configPaths) {
+                        if (generateDataprocImage == "true") {
+                            for (String dp_version : dataproc_versions.trim().split(' ')) {
+                                def dp_version_formatted = dp_version.replace(".", "-")
+                                sh(
+                                    script: """
+                                        sed -i "s/$customDataprocImageBaseName-$dp_version_formatted.*/$customDataprocImageBaseName-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+                                    """
+                                )
+                            }
+                        }
+
+                        if (generateGceImage == "true") {
+                            sh(
+                                script: """
+                                    sed -i "s/$customGceImageBaseName-.*/$customGceImageBaseName-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+                                """
+                            )
+                        }
+                    }
+                }
+
+                sshagent(['jenkins-ssh-github']) {
+                    sh """
+                        git checkout -b $branchName$imageID
+                        git commit -m "automated custom image hash updates for image ID $imageID'"
+                        git push origin $branchName$imageID
+                    """
+                }
+
+            }
+    }
+
 //       stage('Create PR') {
 //         when { expression { !shouldAbortBuild } }
 //         steps {
