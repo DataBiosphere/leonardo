@@ -9,12 +9,7 @@ import cats.implicits._
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.{
-  ConfigSSLContextBuilder,
-  DefaultKeyManagerFactoryWrapper,
-  DefaultTrustManagerFactoryWrapper,
-  SSLConfigFactory
-}
+import com.typesafe.sslconfig.ssl.{ConfigSSLContextBuilder, DefaultKeyManagerFactoryWrapper, DefaultTrustManagerFactoryWrapper, SSLConfigFactory}
 import fs2.concurrent.InspectableQueue
 import fs2.{Pipe, Stream}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
@@ -22,21 +17,8 @@ import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
 import io.circe.syntax._
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleStorageDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO,
-  HttpGoogleStorageDAO
-}
-import org.broadinstitute.dsde.workbench.google2.{
-  Event,
-  FirewallRuleName,
-  GoogleComputeService,
-  GooglePublisher,
-  GoogleStorageService,
-  GoogleSubscriber
-}
+import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google2.{Event, FirewallRuleName, GoogleComputeService, GooglePublisher, GoogleStorageService, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -48,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -97,14 +80,15 @@ object Boot extends IOApp {
       val vpcHelper =
         new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
 
-      val clusterHelper = new ClusterHelper(dataprocConfig,
+      val clusterHelper = new ClusterHelper(DataprocInterpreterConfig(dataprocConfig,
+        googleGroupsConfig,
+        welderConfig,
                                             imageConfig,
-                                            googleGroupsConfig,
+
                                             proxyConfig,
                                             clusterResourcesConfig,
                                             clusterFilesConfig,
-                                            monitorConfig,
-                                            welderConfig,
+                                            monitorConfig),
                                             bucketHelper,
                                             vpcHelper,
                                             appDependencies.googleDataprocDAO,

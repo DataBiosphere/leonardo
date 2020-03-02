@@ -88,7 +88,6 @@ class ComputeHelper(config: ComputeHelperConfig,
         .build
 
       _ <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, params.zoneName, instance)
-
     } yield ()
 
   private[leonardo] def getResourceConstraints(

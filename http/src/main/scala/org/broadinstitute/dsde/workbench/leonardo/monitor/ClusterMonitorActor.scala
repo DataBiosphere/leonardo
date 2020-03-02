@@ -16,23 +16,8 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.{
-  GcsBlobName,
-  GetMetadataResponse,
-  GoogleComputeService,
-  GoogleStorageService
-}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{
-  Creating,
-  Deleted,
-  Deleting,
-  Error,
-  Running,
-  Starting,
-  Stopping,
-  Unknown,
-  Updating
-}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleComputeService, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Creating, Deleted, Deleting, Error, Running, Starting, Stopping, Unknown, Updating}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
@@ -40,17 +25,13 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
-  ClusterDeleted,
-  ClusterSupervisorMessage,
-  RemoveFromList
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{ClusterFollowupDetails, ClusterTransition}
-import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.{ClusterAlgebra, ClusterHelper, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -77,7 +58,7 @@ object ClusterMonitorActor {
     google2StorageDAO: GoogleStorageService[IO],
     dbRef: DbReference[IO],
     authProvider: LeoAuthProvider[IO],
-    clusterHelper: ClusterHelper,
+    clusterHelper: ClusterAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
@@ -140,7 +121,7 @@ class ClusterMonitorActor(
   val google2StorageDAO: GoogleStorageService[IO],
   val dbRef: DbReference[IO],
   val authProvider: LeoAuthProvider[IO],
-  val clusterHelper: ClusterHelper,
+  val clusterHelper: ClusterAlgebra[IO],
   val publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
 )(implicit metrics: NewRelicMetrics[IO],
@@ -231,7 +212,7 @@ class ClusterMonitorActor(
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)
             )
-            _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
+            _ <- clusterHelper.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
             now <- IO(Instant.now)
             _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
           } yield ScheduleMonitorPass

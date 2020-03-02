@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
@@ -14,7 +13,6 @@ import cats.data.{Ior, OptionT}
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -32,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateCluster, StopUpdate}
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
+import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -40,7 +38,6 @@ import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.util.control.NonFatal
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized",
@@ -127,20 +124,20 @@ object UpdateTransition {
 
 // Future runtime related APIs should be added to `RuntimeService`
 class LeonardoService(
-  protected val dataprocConfig: DataprocConfig,
-  protected val imageConfig: ImageConfig,
-  protected val welderDao: WelderDAO[IO],
-  protected val proxyConfig: ProxyConfig,
-  protected val swaggerConfig: SwaggerConfig,
-  protected val autoFreezeConfig: AutoFreezeConfig,
-  protected val welderConfig: WelderConfig,
-  protected val petGoogleStorageDAO: String => GoogleStorageDAO,
-  protected val authProvider: LeoAuthProvider[IO],
-  protected val serviceAccountProvider: ServiceAccountProvider[IO],
-  protected val bucketHelper: BucketHelper,
-  protected val clusterHelper: ClusterHelper,
-  protected val dockerDAO: DockerDAO[IO],
-  protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
+                       protected val dataprocConfig: DataprocConfig,
+                       protected val imageConfig: ImageConfig,
+                       protected val welderDao: WelderDAO[IO],
+                       protected val proxyConfig: ProxyConfig,
+                       protected val swaggerConfig: SwaggerConfig,
+                       protected val autoFreezeConfig: AutoFreezeConfig,
+                       protected val welderConfig: WelderConfig,
+                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
+                       protected val authProvider: LeoAuthProvider[IO],
+                       protected val serviceAccountProvider: ServiceAccountProvider[IO],
+                       protected val bucketHelper: BucketHelper,
+                       protected val clusterHelper: ClusterAlgebra[IO],
+                       protected val dockerDAO: DockerDAO[IO],
+                       protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
 )(implicit val executionContext: ExecutionContext,
   implicit override val system: ActorSystem,
   log: Logger[IO],
@@ -492,22 +489,9 @@ class LeonardoService(
               s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
             )
             // Resize the cluster
-            _ <- clusterHelper.resizeCluster(existingCluster,
+            _ <- clusterHelper.resizeCluster(ResizeClusterParams(existingCluster,
                                              updatedNumWorkersAndPreemptibles.left,
-                                             updatedNumWorkersAndPreemptibles.right) recoverWith {
-              case gjre: GoogleJsonResponseException =>
-                // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
-                // resize the cluster we need to revoke it manually here
-                for {
-                  _ <- clusterHelper.removeClusterIamRoles(existingCluster.googleProject,
-                                                           existingCluster.serviceAccountInfo)
-                  // Remove member from the Google Group that has the IAM role to pull the Dataproc image
-                  _ <- clusterHelper.updateDataprocImageGroupMembership(existingCluster.googleProject,
-                                                                        createCluster = false)
-                  _ <- log.error(gjre)(s"Could not successfully update cluster ${existingCluster.projectNameString}")
-                  _ <- IO.raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
-                } yield ()
-            }
+                                             updatedNumWorkersAndPreemptibles.right))
 
             // Update the DB
             now <- IO(Instant.now)
@@ -555,7 +539,7 @@ class LeonardoService(
       // Note: instance must be stopped in order to change machine type
       case Some(updatedMasterMachineType) if existingCluster.status == Stopped =>
         for {
-          _ <- clusterHelper.updateMasterMachineType(existingCluster, updatedMasterMachineType)
+          _ <- clusterHelper.updateMachineType(UpdateMachineTypeParams(existingCluster, updatedMasterMachineType))
         } yield UpdateResult(true, None)
 
       case Some(updatedMasterMachineType) =>
@@ -598,7 +582,7 @@ class LeonardoService(
             s"New target machine size present. Changing master disk size to $updatedMasterDiskSize GB for cluster ${existingCluster.projectNameString}..."
           )
           // Update the disk in Google
-          _ <- clusterHelper.updateMasterDiskSize(existingCluster, updatedMasterDiskSize)
+          _ <- clusterHelper.updateDiskSize(UpdateDiskSizeParams(existingCluster, updatedMasterDiskSize))
           // Update the DB
           now <- IO(Instant.now)
           _ <- RuntimeConfigQueries
@@ -635,20 +619,10 @@ class LeonardoService(
   def internalDeleteCluster(userEmail: WorkbenchEmail,
                             cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     if (cluster.status.isDeletable) {
+      val hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
       for {
-        // Delete the notebook service account key in Google, if present
-        keyIdOpt <- clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.runtimeName).transaction
-        _ <- clusterHelper
-          .removeServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount, keyIdOpt)
-          .recoverWith {
-            case NonFatal(e) =>
-              log.error(e)(
-                s"Error occurred removing service account key for ${cluster.googleProject} / ${cluster.runtimeName}"
-              )
-          }
-        hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
         // Delete the cluster in Google
-        _ <- if (hasDataprocInfo) clusterHelper.deleteCluster(cluster) else IO.unit
+        _ <- clusterHelper.deleteRuntime(DeleteRuntimeParams(cluster))
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
         now <- IO(Instant.now)
@@ -683,7 +657,7 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
+      _ <- clusterHelper.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
     } yield ()
 
   def internalStopCluster(cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
@@ -698,7 +672,7 @@ class LeonardoService(
 
         runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
         // Stop the cluster in Google
-        _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
+        _ <- clusterHelper.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
 
         // Update the cluster status to Stopping
         now <- IO(Instant.now)
@@ -721,8 +695,7 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      _ <- clusterHelper.startCluster(cluster, Instant.ofEpochMilli(now))
+      _ <- clusterHelper.startRuntime(StartRuntimeParams(cluster))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
