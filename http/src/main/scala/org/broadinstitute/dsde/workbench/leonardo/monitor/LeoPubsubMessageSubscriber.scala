@@ -1,39 +1,31 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import scala.util.control.NoStackTrace
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import cats.effect.{Async, Concurrent, ContextShift, IO, Timer}
-import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
-import fs2.{Pipe, Stream}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterErrorQuery,
-  clusterImageQuery,
-  clusterQuery,
-  followupQuery,
-  DbReference,
-  RuntimeConfigQueries,
-  UpdateAsyncClusterCreationFields
-}
-import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
+import cats.effect.{Async, Concurrent, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import fs2.{Pipe, Stream}
+import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.util.{ClusterAlgebra, StartRuntimeParams, StopRuntimeParams, UpdateMachineTypeParams}
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
 import scala.concurrent.ExecutionContext
+import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  clusterHelper: ClusterHelper
+  clusterHelper: ClusterAlgebra[IO]
 )(implicit executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage,
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
@@ -105,7 +97,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
             )
-            _ <- Async[F].liftIO(clusterHelper.stopCluster(resolvedCluster, runtimeConfig))
+            _ <- Async[F].liftIO(clusterHelper.stopRuntime(StopRuntimeParams(resolvedCluster, runtimeConfig)))
           } yield ()
         case Some(resolvedCluster) =>
           Async[F].raiseError(
@@ -141,10 +133,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                 case Some(machineType) =>
                   for {
                     // perform gddao and db updates for new resources
-                    _ <- Async[F].liftIO(clusterHelper.updateMasterMachineType(resolvedCluster, machineType))
+                    _ <- Async[F].liftIO(clusterHelper.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType)))
                     now <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
                     // start cluster
-                    _ <- Async[F].liftIO(clusterHelper.startCluster(resolvedCluster, Instant.ofEpochMilli(now)))
+                    _ <- Async[F].liftIO(clusterHelper.startRuntime(StartRuntimeParams(resolvedCluster)))
                     // clean-up info from follow-up table
                     _ <- dbRef.inTransaction { followupQuery.delete(message.clusterFollowupDetails) }
                   } yield ()
@@ -169,30 +161,21 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       traceIdValue <- traceId.ask
       traceIdIO = ApplicativeAsk.const[IO, TraceId](traceIdValue)
       _ <- logger.info(s"Attempting to create cluster ${msg.clusterProjectAndName} in Google...")
-      _ <- msg.runtimeConfig.cloudService match {
-        case CloudService.Dataproc =>
-          for {
-            clusterResult <- Async[F].liftIO(clusterHelper.createCluster(msg)(traceIdIO))
-            updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-              Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
-              clusterResult.serviceAccountKey,
-              msg.id,
-              Some(clusterResult.asyncRuntimeFields),
-              now
-            )
-            _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
-            clusterImage = RuntimeImage(RuntimeImageType.CustomDataProc,
-                                        clusterResult.customDataprocImage.asString,
-                                        now)
-            // Save dataproc image in the database
-            _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
-            _ <- logger.info(
-              s"Cluster ${msg.clusterProjectAndName} was successfully created. Will monitor the creation process."
-            )
-          } yield ()
-        case CloudService.GCE =>
-          Async[F].unit //TODO: Rob will replace this with appropriate implementation
-      }
+      clusterResult <- Async[F].liftIO(clusterHelper.createRuntime(msg)(traceIdIO))
+      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
+        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
+        clusterResult.serviceAccountKey,
+        msg.id,
+        Some(clusterResult.asyncRuntimeFields),
+        now
+      )
+      _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
+      clusterImage = RuntimeImage(RuntimeImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
+      // Save dataproc image in the database
+      _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
+      _ <- logger.info(
+        s"Cluster ${msg.clusterProjectAndName} was successfully created. Will monitor the creation process."
+      )
     } yield ()
 
     createCluster.handleErrorWith {

@@ -2,16 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import java.nio.charset.StandardCharsets
-import java.text.SimpleDateFormat
-import java.time.Instant
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
+import cats.Parallel
 import cats.data.OptionT
-import cats.effect._
+import cats.effect.{Async, _}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.services.admin.directory.model.Group
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
@@ -19,19 +19,14 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates.
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.Master
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
-import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  RuntimeCannotBeStartedException,
-  RuntimeCannotBeStoppedException,
-  RuntimeOutOfDateException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidDataprocMachineConfigException
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -40,7 +35,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.control.NonFatal
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
     extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
@@ -57,38 +52,33 @@ final case class ClusterResourceConstaintsException(clusterProjectAndName: Runti
       s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}"
     )
 
-class ClusterHelper(
-  dataprocConfig: DataprocConfig,
-  imageConfig: ImageConfig,
-  googleGroupsConfig: GoogleGroupsConfig,
-  proxyConfig: ProxyConfig,
-  clusterResourcesConfig: ClusterResourcesConfig,
-  clusterFilesConfig: ClusterFilesConfig,
-  monitorConfig: MonitorConfig,
-  welderConfig: WelderConfig,
+class ClusterHelper[F[_]: Async: Parallel: ContextShift: Logger](
+  config: DataprocInterpreterConfig,
   bucketHelper: BucketHelper,
   vpcHelper: VPCHelper,
   gdDAO: GoogleDataprocDAO,
-  googleComputeService: GoogleComputeService[IO],
+  googleComputeService: GoogleComputeService[F],
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
   googleProjectDAO: GoogleProjectDAO,
-  welderDao: WelderDAO[IO],
+  welderDao: WelderDAO[F],
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   val system: ActorSystem,
-  contextShift: ContextShift[IO],
-  log: Logger[IO],
-  metrics: NewRelicMetrics[IO],
-  dbRef: DbReference[IO])
-    extends LazyLogging
+  metrics: NewRelicMetrics[F],
+  dbRef: DbReference[F])
+    extends BaseRuntimeInterpreter[F](config, welderDao)
+    with ClusterAlgebra[F]
+    with LazyLogging
     with Retry {
 
   import dbRef._
 
-  def createCluster(
+  implicit val contextShiftIO = IO.contextShift(executionContext)
+
+  override def createRuntime(
     params: CreateCluster
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateClusterResponse] = {
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateClusterResponse] = {
     val initBucketName = generateUniqueBucketName("leoinit-" + params.clusterProjectAndName.runtimeName.asString)
     val stagingBucketName = generateUniqueBucketName("leostaging-" + params.clusterProjectAndName.runtimeName.asString)
 
@@ -98,9 +88,12 @@ class ClusterHelper(
     generateServiceAccountKey(params.clusterProjectAndName.googleProject,
                               params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
       val ioResult = for {
+        traceId <- ev.ask
+        evIO = ApplicativeAsk.const[IO, TraceId](traceId)
+
         // Set up VPC network and firewall
-        vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.clusterProjectAndName.googleProject)
-        _ <- vpcHelper.getOrCreateFirewallRule(params.clusterProjectAndName.googleProject)
+        vpcSettings <- Async[F].liftIO(vpcHelper.getOrCreateVPCSettings(params.clusterProjectAndName.googleProject))
+        firewallRule <- Async[F].liftIO(vpcHelper.getOrCreateFirewallRule(params.clusterProjectAndName.googleProject, vpcSettings)(evIO))
 
         resourceConstraints <- getClusterResourceContraints(params.clusterProjectAndName,
                                                             params.runtimeConfig.machineType)
@@ -113,52 +106,52 @@ class ClusterHelper(
 
         // Create the bucket in the cluster's google project and populate with initialization files.
         // ACLs are granted so the cluster service account can access the files at initialization time.
-        _ <- bucketHelper
+        _ <- Async[F].liftIO(bucketHelper
           .createInitBucket(params.clusterProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
           .compile
-          .drain
+          .drain)
 
         // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-        _ <- bucketHelper
+        _ <- Async[F].liftIO(bucketHelper
           .createStagingBucket(params.auditInfo.creator,
                                params.clusterProjectAndName.googleProject,
                                stagingBucketName,
-                               params.serviceAccountInfo)
+                               params.serviceAccountInfo)(evIO)
           .compile
-          .drain
+          .drain)
 
         templateParams = RuntimeTemplateValuesConfig.fromCreateCluster(
           params,
           Some(initBucketName),
           Some(stagingBucketName),
           serviceAccountKeyOpt,
-          dataprocConfig,
-          imageConfig,
-          welderConfig,
-          proxyConfig,
-          clusterFilesConfig,
-          clusterResourcesConfig,
+          config.dataprocConfig,
+          config.imageConfig,
+          config.welderConfig,
+          config.proxyConfig,
+          config.clusterFilesConfig,
+          config.clusterResourcesConfig,
           Some(resourceConstraints)
         )
-        _ <- bucketHelper
+        _ <- Async[F].liftIO(bucketHelper
           .initializeBucketObjects(initBucketName, templateParams, params.customClusterEnvironmentVariables)
           .compile
-          .drain
+          .drain)
 
         // build cluster configuration
-        initScriptResources = List(clusterResourcesConfig.initActionsScript)
+        initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
         initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
         credentialsFileName = params.serviceAccountInfo.notebookServiceAccount
           .map(_ => s"/etc/${RuntimeTemplateValues.serviceAccountCredentialsFilename}")
 
         // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
         // we will use the new custom dataproc image
-        dataprocImage = if (params.runtimeImages.exists(_.imageUrl == imageConfig.legacyJupyterImage.imageUrl))
-          dataprocConfig.legacyCustomDataprocImage
-        else dataprocConfig.customDataprocImage
+        dataprocImage = if (params.runtimeImages.exists(_.imageUrl == config.imageConfig.legacyJupyterImage.imageUrl))
+          config.dataprocConfig.legacyCustomDataprocImage
+        else config.dataprocConfig.customDataprocImage
 
         res <- params.runtimeConfig match {
-          case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedException)
+          case _: RuntimeConfig.GceConfig => Async[F].raiseError[CreateClusterResponse](new NotImplementedException)
           case x: RuntimeConfig.DataprocConfig =>
             val createClusterConfig = CreateClusterConfig(
               x,
@@ -168,12 +161,12 @@ class ClusterHelper(
               stagingBucketName,
               params.scopes,
               Some(vpcSettings),
-              x.properties,
+              params.properties,
               dataprocImage,
-              monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
+              config.monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
             )
             for { // Create the cluster
-              retryResult <- IO.fromFuture(
+              retryResult <- Async[F].liftIO(IO.fromFuture(
                 IO(
                   retryExponentially(whenGoogleZoneCapacityIssue,
                                      "Cluster creation failed because zone with adequate resources was not found") {
@@ -183,9 +176,9 @@ class ClusterHelper(
                                           createClusterConfig)
                   }
                 )
-              )
+              ))
               operation <- retryResult match {
-                case Right((errors, op)) if errors == List.empty => IO(op)
+                case Right((errors, op)) if errors == List.empty => Async[F].pure(op)
                 case Right((errors, op)) =>
                   metrics
                     .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
@@ -194,7 +187,7 @@ class ClusterHelper(
                   metrics
                     .incrementCounter("zoneCapacityClusterCreationFailure",
                                       errors.filter(whenGoogleZoneCapacityIssue).length)
-                    .flatMap(_ => IO.raiseError(errors.head))
+                    .flatMap(_ => Async[F].raiseError[Operation](errors.head))
               }
 
               asyncRuntimeFields = AsyncRuntimeFields(operation.uuid, operation.name, stagingBucketName, None)
@@ -207,48 +200,42 @@ class ClusterHelper(
                                       params.clusterProjectAndName.runtimeName,
                                       initBucketName,
                                       params.serviceAccountInfo,
-                                      serviceAccountKeyOpt) >> IO.raiseError(throwable)
+                                      serviceAccountKeyOpt) >> Async[F].raiseError(throwable)
       }
     }
   }
 
-  def deleteCluster(cluster: Runtime): IO[Unit] =
-    IO.fromFuture(IO(gdDAO.deleteCluster(cluster.googleProject, cluster.runtimeName)))
-
-  def stopCluster(cluster: Runtime, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    if (cluster.status.isStoppable) {
-      for {
-        // Flush the welder cache to disk
-        _ <- if (cluster.welderEnabled) {
-          welderDao
-            .flushCache(cluster.googleProject, cluster.runtimeName)
-            .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
-        } else IO.unit
-
-        // Stop the cluster in Google
-        _ <- stopGoogleCluster(cluster, runtimeConfig)
-
-        // Update the cluster status to Stopping
-        now <- IO(Instant.now)
-        _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
-      } yield ()
-
-    } else IO.raiseError(RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
-
-  private def stopGoogleCluster(cluster: Runtime,
-                                runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
     for {
-      metadata <- getMasterInstanceShutdownScript(cluster)
+      // Delete the notebook service account key in Google, if present
+      keyIdOpt <- dbRef.inTransaction {
+        clusterQuery.getServiceAccountKeyId(params.runtime.googleProject, params.runtime.runtimeName)
+      }
+      _ <- removeServiceAccountKey(params.runtime.googleProject, params.runtime.serviceAccountInfo.notebookServiceAccount, keyIdOpt)
+          .recoverWith {
+            case NonFatal(e) =>
+              Logger[F].error(e)(
+                s"Error occurred removing service account key for ${params.runtime.googleProject} / ${params.runtime.runtimeName}"
+              )
+          }
+      hasDataprocInfo = params.runtime.asyncRuntimeFields.isDefined
+      _ <- if (hasDataprocInfo) Async[F].liftIO(IO.fromFuture(IO(gdDAO.deleteCluster(params.runtime.googleProject, params.runtime.runtimeName)))) else Async[F].unit
+    } yield ()
+  }
+
+  protected override def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+    for {
+      metadata <- getMasterInstanceShutdownScript(runtime)
 
       // First remove all its preemptible instances, if any
       _ <- runtimeConfig match {
         case x: RuntimeConfig.DataprocConfig if x.numberOfPreemptibleWorkers.exists(_ > 0) =>
-          IO.fromFuture(IO(gdDAO.resizeCluster(cluster.googleProject, cluster.runtimeName, numPreemptibles = Some(0))))
-        case _ => IO.unit
+          Async[F].liftIO(IO.fromFuture(IO(gdDAO.resizeCluster(runtime.googleProject, runtime.runtimeName, numPreemptibles = Some(0)))))
+        case _ => Async[F].unit
       }
 
       // Now stop each instance individually
-      _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
+      _ <- runtime.nonPreemptibleInstances.toList.parTraverse { instance =>
         instance.dataprocRole match {
           case Master =>
             googleComputeService.addInstanceMetadata(
@@ -262,28 +249,27 @@ class ClusterHelper(
         }
       }
     } yield ()
+  }
 
-  private def startGoogleCluster(cluster: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Unit] =
+  protected override def startGoogleRuntime(runtime: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
-      metadata <- getMasterInstanceStartupScript(cluster, welderAction)
+      metadata <- getMasterInstanceStartupScript(runtime, welderAction)
 
       // Add back the preemptible instances, if any
       _ <- runtimeConfig match {
         case x: RuntimeConfig.DataprocConfig if (x.numberOfPreemptibleWorkers.exists(_ > 0)) =>
-          IO.fromFuture(
+          Async[F].liftIO(IO.fromFuture(
             IO(
-              gdDAO.resizeCluster(cluster.googleProject,
-                                  cluster.runtimeName,
+              gdDAO.resizeCluster(runtime.googleProject,
+                runtime.runtimeName,
                                   numPreemptibles = x.numberOfPreemptibleWorkers)
             )
-          )
-        case _ => IO.unit
+          ))
+        case _ => Async[F].unit
       }
 
       // Start each instance individually
-      _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
+      _ <- runtime.nonPreemptibleInstances.toList.parTraverse { instance =>
         // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
         instance.dataprocRole match {
           case Master =>
@@ -300,121 +286,50 @@ class ClusterHelper(
 
     } yield ()
 
-  def startCluster(cluster: Runtime, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    if (cluster.status.isStartable) {
-      val welderAction = getWelderAction(cluster)
-      for {
-        // Check if welder should be deployed or updated
-        now <- IO(Instant.now)
-        updatedCluster <- welderAction match {
-          case DeployWelder | UpdateWelder      => updateWelder(cluster, now)
-          case NoAction | DisableDelocalization => IO.pure(cluster)
-          case RuntimeOutOfDate                 => IO.raiseError(RuntimeOutOfDateException())
-        }
-        _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
-          dbRef.inTransaction { labelQuery.save(cluster.id, "welderInstallFailed", "true") }.void
-        else IO.unit
-
-        runtimeConfig <- dbRef.inTransaction(
-          RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)
-        )
-        // Start the cluster in Google
-        _ <- startGoogleCluster(updatedCluster, welderAction, runtimeConfig)
-
-        // Update the cluster status to Starting
-        now <- IO(Instant.now)
-        _ <- dbRef.inTransaction { clusterQuery.updateClusterStatus(updatedCluster.id, RuntimeStatus.Starting, now) }
-      } yield ()
-    } else IO.raiseError(RuntimeCannotBeStartedException(cluster.googleProject, cluster.runtimeName, cluster.status))
-
-  private def getWelderAction(cluster: Runtime): WelderAction =
-    if (cluster.welderEnabled) {
-      // Welder is already enabled; do we need to update it?
-      val labelFound = welderConfig.updateWelderLabel.exists(cluster.labels.contains)
-
-      val imageChanged = cluster.runtimeImages.find(_.imageType == Welder) match {
-        case Some(welderImage) if welderImage.imageUrl != imageConfig.welderImage => true
-        case _                                                                    => false
-      }
-
-      if (labelFound && imageChanged) UpdateWelder
-      else NoAction
-    } else {
-      // Welder is not enabled; do we need to deploy it?
-      val labelFound = welderConfig.deployWelderLabel.exists(cluster.labels.contains)
-      if (labelFound) {
-        if (isClusterBeforeCutoffDate(cluster)) DisableDelocalization
-        else DeployWelder
-      } else NoAction
-    }
-
-  private def isClusterBeforeCutoffDate(cluster: Runtime): Boolean =
+  override def resizeCluster(params: ResizeClusterParams): F[Unit] = {
     (for {
-      dateStr <- welderConfig.deployWelderCutoffDate
-      date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
-      isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
-    } yield isClusterBeforeCutoffDate) getOrElse false
+       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
+       _ <- createClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccountInfo)
 
-  private def updateWelder(cluster: Runtime, now: Instant): IO[Runtime] =
-    for {
-      _ <- log.info(s"Will deploy welder to cluster ${cluster.projectNameString}")
-      _ <- metrics.incrementCounter("welder/deploy")
-      now <- IO(Instant.now)
-      welderImage = RuntimeImage(Welder, imageConfig.welderImage.imageUrl, now)
-
-      _ <- dbRef.inTransaction {
-        clusterQuery.updateWelder(cluster.id, RuntimeImage(Welder, imageConfig.welderImage.imageUrl, now), now)
-      }
-
-      newCluster = cluster.copy(welderEnabled = true,
-                                runtimeImages = cluster.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
-    } yield newCluster
-
-  def resizeCluster(cluster: Runtime, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =
-    for {
-      // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
-      _ <- createClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo)
-
-      _ <- updateDataprocImageGroupMembership(cluster.googleProject, createCluster = true)
+       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = true)
 
       // Resize the cluster in Google
-      _ <- IO.fromFuture(
-        IO(gdDAO.resizeCluster(cluster.googleProject, cluster.runtimeName, numWorkers, numPreemptibles))
-      )
-    } yield ()
-
-  def updateMasterMachineType(existingCluster: Runtime,
-                              machineType: MachineTypeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    for {
-      _ <- log.info(
-        s"New machine config present. Changing machine type to ${machineType} for cluster ${existingCluster.projectNameString}..."
-      )
-      // Update the machine type in Google
-      _ <- setMasterMachineTypeInGoogle(existingCluster, machineType)
-      // Update the DB
-      now <- IO(Instant.now)
-      _ <- dbRef.inTransaction {
-        RuntimeConfigQueries.updateMachineType(existingCluster.runtimeConfigId, machineType, now)
-      }
-    } yield ()
+      _ <- Async[F].liftIO(IO.fromFuture(
+        IO(gdDAO.resizeCluster(params.runtime.googleProject, params.runtime.runtimeName, params.numWorkers, params.numPreemptibles))
+      ))
+    } yield ()) recoverWith {
+      case gjre: GoogleJsonResponseException =>
+        // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
+        // resize the cluster we need to revoke it manually here
+        for {
+          _ <- removeClusterIamRoles(params.runtime.googleProject,
+            params.runtime.serviceAccountInfo)
+          // Remove member from the Google Group that has the IAM role to pull the Dataproc image
+          _ <- updateDataprocImageGroupMembership(params.runtime.googleProject,
+            createCluster = false)
+          _ <- Logger[F].error(gjre)(s"Could not successfully update cluster ${params.runtime.projectNameString}")
+          _ <- Async[F].raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
+        } yield ()
+    }
+  }
 
   //updates machine type in gdDAO
-  private def setMasterMachineTypeInGoogle(cluster: Runtime, machineType: MachineTypeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Unit] =
-    cluster.dataprocInstances.toList.traverse_ { instance =>
+  protected override def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    runtime.dataprocInstances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
       // and rebuilding the cluster if new worker machine/disk sizes are needed.
       instance.dataprocRole match {
         case Master =>
           googleComputeService.setMachineType(instance.key.project, instance.key.zone, instance.key.name, machineType)
-        case _ => IO.unit
+        case _ => Async[F].unit
       }
     }
 
-  def updateMasterDiskSize(cluster: Runtime, diskSize: Int)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    cluster.dataprocInstances.toList.traverse_ { instance =>
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    params.runtime.dataprocInstances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
       // and rebuilding the cluster if new worker machine/disk sizes are needed.
@@ -424,59 +339,59 @@ class ClusterHelper(
           googleComputeService.resizeDisk(instance.key.project,
                                           instance.key.zone,
                                           DiskName(instance.key.name.value),
-                                          diskSize)
-        case _ => IO.unit
+            params.diskSize)
+        case _ => Async[F].unit
       }
     }
 
-  def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] =
+  def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = true)
 
-  def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] =
+  def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = false)
 
   def generateServiceAccountKey(googleProject: GoogleProject,
-                                serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] =
+                                serviceAccountEmailOpt: Option[WorkbenchEmail]): F[Option[ServiceAccountKey]] =
     serviceAccountEmailOpt.traverse { email =>
-      IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, email)))
+      Async[F].liftIO(IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, email))))
     }
 
   def removeServiceAccountKey(googleProject: GoogleProject,
                               serviceAccountEmailOpt: Option[WorkbenchEmail],
-                              serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): IO[Unit] =
+                              serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): F[Unit] =
     (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN {
       case (email, keyId) =>
-        IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
-    } getOrElse IO.unit
+        Async[F].liftIO(IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId))))
+    } getOrElse Async[F].unit
 
-  def setupDataprocImageGoogleGroup(): IO[Unit] =
+  def setupDataprocImageGoogleGroup(): F[Unit] =
     createDataprocImageUserGoogleGroupIfItDoesntExist() >>
-      addIamRoleToDataprocImageGroup(dataprocConfig.customDataprocImage)
+      addIamRoleToDataprocImageGroup(config.dataprocConfig.customDataprocImage)
 
   /**
    * Add the user's service account to the Google group.
    * This group has compute.imageUser role on the custom Dataproc image project,
    * which allows the user's cluster to pull the image.
    */
-  def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): IO[Unit] =
-    parseImageProject(dataprocConfig.customDataprocImage).traverse_ { imageProject =>
+  def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): F[Unit] =
+    parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
       for {
         count <- inTransaction { clusterQuery.countActiveByProject(googleProject) }
         // Note: Don't remove the account if there are existing active clusters in the same project,
         // because it could potentially break other clusters. We only check this for the 'remove' case.
         _ <- if (count > 0 && !createCluster) {
-          IO.unit
+          Async[F].unit
         } else {
           for {
-            projectNumberOptIO <- IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value)))
-            projectNumber <- IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject)))
+            projectNumberOptIO <- Async[F].liftIO(IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value))))
+            projectNumber <- Async[F].liftIO(IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject))))
             // Note that the Dataproc service account is used to retrieve the image, and not the user's
             // pet service account. There is one Dataproc service account per Google project. For more details:
             // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
             dataprocServiceAccountEmail = WorkbenchEmail(
               s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
             )
-            _ <- updateGroupMembership(googleGroupsConfig.dataprocImageProjectGroupEmail,
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
                                        dataprocServiceAccountEmail,
                                        createCluster)
           } yield ()
@@ -485,40 +400,40 @@ class ClusterHelper(
     }
 
   private def cleanUpGoogleResourcesOnError(googleProject: GoogleProject,
-                                            clusterName: RuntimeName,
+                                            clusterName: ClusterName,
                                             initBucketName: GcsBucketName,
                                             serviceAccountInfo: ServiceAccountInfo,
-                                            serviceAccountKeyOpt: Option[ServiceAccountKey]): IO[Unit] = {
+                                            serviceAccountKeyOpt: Option[ServiceAccountKey]): F[Unit] = {
     // Clean up resources in Google
-    val deleteBucket = bucketHelper.deleteInitBucket(initBucketName).attempt.flatMap {
+    val deleteBucket = Async[F].liftIO(bucketHelper.deleteInitBucket(initBucketName)).attempt.flatMap {
       case Left(e) =>
-        log.error(e)(
+        Logger[F].error(e)(
           s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"
         )
       case _ =>
-        log.info(
+        Logger[F].info(
           s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"
         )
     }
 
     // Don't delete the staging bucket so the user can see error logs.
 
-    val deleteCluster = IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName))).attempt.flatMap {
-      case Left(e) => log.error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.asString}")
-      case _       => log.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.asString}")
+    val deleteCluster = Async[F].liftIO(IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName)))).attempt.flatMap {
+      case Left(e) => Logger[F].error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.asString}")
+      case _       => Logger[F].info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.asString}")
     }
 
     val deleteServiceAccountKey = removeServiceAccountKey(googleProject,
                                                           serviceAccountInfo.notebookServiceAccount,
                                                           serviceAccountKeyOpt.map(_.id)).attempt.flatMap {
       case Left(e) =>
-        log.error(e)(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}")
-      case _ => log.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
+        Logger[F].error(e)(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}")
+      case _ => Logger[F].info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
     }
 
     val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).attempt.flatMap {
-      case Left(e) => log.error(e)(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.asString}")
-      case _       => log.info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.asString}")
+      case Left(e) => Logger[F].error(e)(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.asString}")
+      case _       => Logger[F].info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.asString}")
     }
 
     List(deleteBucket, deleteCluster, deleteServiceAccountKey, removeIamRoles).parSequence_
@@ -526,40 +441,40 @@ class ClusterHelper(
 
   private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
                                                      machineType: MachineTypeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[RuntimeResourceConstraints] = {
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[RuntimeResourceConstraints] = {
     val totalMemory = for {
       // Find a zone in which to query the machine type: either the configured zone or
       // an arbitrary zone in the configured region.
       zoneUri <- {
-        val configuredZone = OptionT.fromOption[IO](dataprocConfig.dataprocZone.map(ZoneName))
+        val configuredZone = OptionT.fromOption[F](config.dataprocConfig.dataprocZone.map(ZoneName))
         val zoneList = for {
           zones <- googleComputeService.getZones(runtimeProjectAndName.googleProject,
-                                                 RegionName(dataprocConfig.dataprocDefaultRegion))
-          _ <- log.debug(s"List of zones in project ${runtimeProjectAndName.googleProject}: ${zones}")
+                                                 RegionName(config.dataprocConfig.dataprocDefaultRegion))
+          _ <- Logger[F].debug(s"List of zones in project ${runtimeProjectAndName.googleProject}: ${zones}")
           zoneNames = zones.map(z => ZoneName(z.getName))
         } yield zoneNames
 
         configuredZone orElse OptionT(zoneList.map(_.headOption))
       }
-      _ <- OptionT.liftF(log.debug(s"Using zone ${zoneUri} to resolve machine type"))
+      _ <- OptionT.liftF(Logger[F].debug(s"Using zone ${zoneUri} to resolve machine type"))
 
       // Resolve the master machine type in Google to get the total memory.
-      machineType <- OptionT.pure[IO](machineType)
+      machineType <- OptionT.pure[F](machineType)
       resolvedMachineType <- OptionT(
         googleComputeService.getMachineType(runtimeProjectAndName.googleProject, zoneUri, machineType)
       )
-      _ <- OptionT.liftF(log.debug(s"Resolved machine type: ${resolvedMachineType.toString}"))
+      _ <- OptionT.liftF(Logger[F].debug(s"Resolved machine type: ${resolvedMachineType.toString}"))
     } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
 
     totalMemory.value.flatMap {
-      case None        => IO.raiseError(ClusterResourceConstaintsException(runtimeProjectAndName, machineType))
+      case None        => Async[F].raiseError(ClusterResourceConstaintsException(runtimeProjectAndName, machineType))
       case Some(total) =>
         // total - dataproc allocated - welder allocated
-        val dataprocAllocated = dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
-        val welderAllocated = welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
+        val dataprocAllocated = config.dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
+        val welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
         val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
-        IO.pure(RuntimeResourceConstraints(result))
+        Async[F].pure(RuntimeResourceConstraints(result))
     }
   }
 
@@ -570,16 +485,16 @@ class ClusterHelper(
    */
   private def updateClusterIamRoles(googleProject: GoogleProject,
                                     serviceAccountInfo: ServiceAccountInfo,
-                                    createCluster: Boolean): IO[Unit] = {
-    val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => IO[Unit] = (project, email, roles) =>
-      IO.fromFuture[Unit](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") {
+                                    createCluster: Boolean): F[Unit] = {
+    val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => F[Unit] = (project, email, roles) =>
+      Async[F].liftIO(IO.fromFuture[Unit](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") {
         () =>
           if (createCluster) {
             googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void
           } else {
             googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void
           }
-      }))
+      })))
 
     serviceAccountInfo.clusterServiceAccount.traverse_ { email =>
       // Note: don't remove the role if there are existing active clusters owned by the same user,
@@ -587,7 +502,7 @@ class ClusterHelper(
       // it's ok to re-add the roles.
       dbRef.inTransaction { clusterQuery.countActiveByClusterServiceAccount(email) }.flatMap { count =>
         if (count > 0 && !createCluster) {
-          IO.unit
+          Async[F].unit
         } else {
           retryIam(googleProject, email, Set("roles/dataproc.worker"))
         }
@@ -595,72 +510,72 @@ class ClusterHelper(
     }
   }
 
-  private def createDataprocImageUserGoogleGroupIfItDoesntExist(): IO[Unit] =
+  private def createDataprocImageUserGoogleGroupIfItDoesntExist(): F[Unit] =
     for {
-      _ <- log.debug(
-        s"Checking if Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' already exists..."
+      _ <- Logger[F].debug(
+        s"Checking if Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists..."
       )
 
-      groupOpt <- IO.fromFuture[Option[Group]](
-        IO(googleDirectoryDAO.getGoogleGroup(googleGroupsConfig.dataprocImageProjectGroupEmail))
-      )
+      groupOpt <- Async[F].liftIO(IO.fromFuture[Option[Group]](
+        IO(googleDirectoryDAO.getGoogleGroup(config.groupsConfig.dataprocImageProjectGroupEmail))
+      ))
       _ <- groupOpt.fold(
-        log.debug(
-          s"Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' does not exist. Attempting to create it..."
+        Logger[F].debug(
+          s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' does not exist. Attempting to create it..."
         ) >> createDataprocImageUserGoogleGroup()
       )(
         group =>
-          log.debug(
-            s"Dataproc image user Google group '${googleGroupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
+          Logger[F].debug(
+            s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
           )
       )
     } yield ()
 
-  private def createDataprocImageUserGoogleGroup(): IO[Unit] =
-    IO.fromFuture(
+  private def createDataprocImageUserGoogleGroup(): F[Unit] =
+    Async[F].liftIO(IO.fromFuture(
         IO(
           googleDirectoryDAO
-            .createGroup(googleGroupsConfig.dataprocImageProjectGroupName,
-                         googleGroupsConfig.dataprocImageProjectGroupEmail,
+            .createGroup(config.groupsConfig.dataprocImageProjectGroupName,
+              config.groupsConfig.dataprocImageProjectGroupEmail,
                          Option(googleDirectoryDAO.lockedDownGroupSettings))
         )
-      )
+      ))
       .handleErrorWith {
-        case t if when409(t) => IO.unit
+        case t if when409(t) => Async[F].unit
         case t =>
-          IO.raiseError(GoogleGroupCreationException(googleGroupsConfig.dataprocImageProjectGroupEmail, t.getMessage))
+          Async[F].raiseError(GoogleGroupCreationException(config.groupsConfig.dataprocImageProjectGroupEmail, t.getMessage))
       }
 
-  private def addIamRoleToDataprocImageGroup(customDataprocImage: CustomDataprocImage): IO[Unit] = {
+  private def addIamRoleToDataprocImageGroup(customDataprocImage: CustomDataprocImage): F[Unit] = {
     val computeImageUserRole = Set("roles/compute.imageUser")
-    parseImageProject(dataprocConfig.customDataprocImage).fold(
-      IO.raiseError[Unit](ImageProjectNotFoundException)
+    parseImageProject(config.dataprocConfig.customDataprocImage).fold(
+      Async[F].raiseError[Unit](ImageProjectNotFoundException)
     ) { imageProject =>
       for {
-        _ <- log.debug(
-          s"Attempting to grant 'compute.imageUser' permissions to '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
+        _ <- Logger[F].debug(
+          s"Attempting to grant 'compute.imageUser' permissions to '${config.groupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
         )
-        _ <- IO.fromFuture[Boolean](
+        _ <- Async[F].liftIO(IO.fromFuture[Boolean](
           IO(
             retryExponentially(
               when409,
-              s"IAM policy change failed for '${googleGroupsConfig.dataprocImageProjectGroupEmail}' on Google project '$imageProject'."
+              s"IAM policy change failed for '${config.groupsConfig.dataprocImageProjectGroupEmail}' on Google project '$imageProject'."
             ) { () =>
               googleIamDAO.addIamRoles(imageProject,
-                                       googleGroupsConfig.dataprocImageProjectGroupEmail,
+                config.groupsConfig.dataprocImageProjectGroupEmail,
                                        MemberType.Group,
                                        computeImageUserRole)
             }
           )
-        )
+        ))
       } yield ()
     }
   }
 
   private def updateGroupMembership(groupEmail: WorkbenchEmail,
                                     memberEmail: WorkbenchEmail,
-                                    addToGroup: Boolean): IO[Unit] =
-    IO.fromFuture[Unit] {
+                                    addToGroup: Boolean): F[Unit] =
+    Async[F].liftIO(IO.fromFuture[Unit] {
       IO {
         retryExponentially(when409, s"Could not update group '$groupEmail' for member '$memberEmail'") { () =>
           logger.debug(s"Checking if '$memberEmail' is part of group '$groupEmail'...")
@@ -675,7 +590,7 @@ class ClusterHelper(
           }
         }
       }
-    }
+    })
 
   // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri
   private def parseImageProject(customDataprocImage: CustomDataprocImage): Option[GoogleProject] = {
@@ -688,18 +603,18 @@ class ClusterHelper(
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private def getMasterInstanceStartupScript(runtime: Runtime, welderAction: WelderAction): IO[Map[String, String]] = {
+  private def getMasterInstanceStartupScript(runtime: Runtime, welderAction: WelderAction): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(runtime,
                                                                  None,
                                                                  None,
-                                                                 dataprocConfig,
-                                                                 imageConfig,
-                                                                 welderConfig,
-                                                                 proxyConfig,
-                                                                 clusterFilesConfig,
-                                                                 clusterResourcesConfig,
+      config.dataprocConfig,
+      config.imageConfig,
+      config.welderConfig,
+      config.proxyConfig,
+      config.clusterFilesConfig,
+      config.clusterResourcesConfig,
                                                                  None)
     val clusterInit = RuntimeTemplateValues(templateConfig)
     val replacements: Map[String, String] = clusterInit.toMap ++
@@ -709,29 +624,29 @@ class ClusterHelper(
         "disableDelocalization" -> (welderAction == DisableDelocalization).toString
       )
 
-    TemplateHelper.templateResource(replacements, clusterResourcesConfig.startupScript, blocker).compile.to[Array].map {
+    TemplateHelper.templateResource(replacements, config.clusterResourcesConfig.startupScript, blocker).compile.to[Array].map {
       bytes =>
         Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
     }
   }
 
-  private def getMasterInstanceShutdownScript(runtime: Runtime): IO[Map[String, String]] = {
+  private def getMasterInstanceShutdownScript(runtime: Runtime): F[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(runtime,
                                                                  None,
                                                                  None,
-                                                                 dataprocConfig,
-                                                                 imageConfig,
-                                                                 welderConfig,
-                                                                 proxyConfig,
-                                                                 clusterFilesConfig,
-                                                                 clusterResourcesConfig,
+      config.dataprocConfig,
+      config.imageConfig,
+      config.welderConfig,
+      config.proxyConfig,
+      config.clusterFilesConfig,
+      config.clusterResourcesConfig,
                                                                  None)
     val replacements = RuntimeTemplateValues(templateConfig).toMap
 
     TemplateHelper
-      .templateResource(replacements, clusterResourcesConfig.shutdownScript, blocker)
+      .templateResource(replacements, config.clusterResourcesConfig.shutdownScript, blocker)
       .compile
       .to[Array]
       .map { bytes =>

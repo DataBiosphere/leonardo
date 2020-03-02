@@ -15,12 +15,12 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleSt
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
-import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.{ClusterAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -41,7 +41,7 @@ object ClusterMonitorSupervisor {
     jupyterProxyDAO: JupyterDAO[IO],
     rstudioProxyDAO: RStudioDAO[IO],
     welderDAO: WelderDAO[IO],
-    clusterHelper: ClusterHelper,
+    clusterHelper: ClusterAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     dbRef: DbReference[IO],
@@ -106,7 +106,7 @@ class ClusterMonitorSupervisor(
   jupyterProxyDAO: JupyterDAO[IO],
   rstudioProxyDAO: RStudioDAO[IO],
   welderProxyDAO: WelderDAO[IO],
-  clusterHelper: ClusterHelper,
+  clusterHelper: ClusterAlgebra[IO],
   publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
 )(implicit metrics: NewRelicMetrics[IO],
   ec: ExecutionContext,
@@ -304,7 +304,7 @@ class ClusterMonitorSupervisor(
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
-      _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
+      _ <- clusterHelper.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
 
       // Update the cluster status to Stopping
       _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
