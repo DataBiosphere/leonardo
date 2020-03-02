@@ -235,11 +235,11 @@ class LeonardoServiceSpec
 
     // cluster images should contain welder and Jupyter
     clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
-      imageConfig.jupyterImage
+      imageConfig.jupyterImage.imageUrl
     )
     clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
-      imageConfig.welderImage
+      imageConfig.welderImage.imageUrl
     )
   }
 
@@ -262,7 +262,7 @@ class LeonardoServiceSpec
 
     // cluster images should contain welder and Jupyter
     clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
-      imageConfig.jupyterImage
+      imageConfig.jupyterImage.imageUrl
     )
     clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(customWelderImage.imageUrl)
@@ -298,7 +298,7 @@ class LeonardoServiceSpec
     clusterResponse.clusterImages.find(_.imageType == RStudio).map(_.imageUrl) shouldBe Some(rstudioImage.imageUrl)
     clusterResponse.clusterImages.find(_.imageType == Jupyter) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
-      imageConfig.welderImage
+      imageConfig.welderImage.imageUrl
     )
     clusterResponse.labels.get("tool") shouldBe Some("RStudio")
     clusterResponse.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name1.asString}/rstudio")

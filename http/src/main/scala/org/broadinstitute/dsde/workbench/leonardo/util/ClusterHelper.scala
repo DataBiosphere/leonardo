@@ -153,7 +153,7 @@ class ClusterHelper(
 
         // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
         // we will use the new custom dataproc image
-        dataprocImage = if (params.runtimeImages.exists(_.imageUrl == imageConfig.legacyJupyterImage))
+        dataprocImage = if (params.runtimeImages.exists(_.imageUrl == imageConfig.legacyJupyterImage.imageUrl))
           dataprocConfig.legacyCustomDataprocImage
         else dataprocConfig.customDataprocImage
 
