@@ -468,7 +468,7 @@ pipeline {
                     sh """
                         docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
                         
-                        docker rm -f hub-runtime | true
+                        docker rm -f hub-runtime || true
                         
                         docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
                         
@@ -484,7 +484,7 @@ pipeline {
 
                     sh """
                         docker stop hub-runtime
-                        docker rm -f hub-runtime | true
+                        docker rm -f hub-runtime || true
                     """
                 }
             }
