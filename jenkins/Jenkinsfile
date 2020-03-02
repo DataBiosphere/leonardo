@@ -409,7 +409,9 @@ pipeline {
 //                                            -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
 //                                            -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
 //                                            /daisy_source_files/leo_custom_gce_image.wf.json
-//                                        
+//                                        docker stop daisy
+//                                        docker rm -f daisy || true
+//
 //                                        # Daisy doesn't clean it up all so we remove the bucket manually
 //                                        gsutil rm -r $gceImageBucket
 //                                    """
@@ -449,7 +451,7 @@ pipeline {
                 sshagent(['jenkins-ssh-github']) {
                     sh """
                         git checkout -b $branchName$imageID
-                        git commit -m "automated custom image hash updates for image ID $imageID'"
+                        git commit -m "automated custom image hash updates for image ID $imageID"
                         git push origin $branchName$imageID
                     """
                 }
@@ -457,44 +459,42 @@ pipeline {
             }
     }
 
-//       stage('Create PR') {
-//         when { expression { !shouldAbortBuild } }
-//         steps {
-//           script {
-//             def changeDescription = getChangeDescription(versionMap)
-//             withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
-//               sh """
-//                 docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
-//
-//                 docker rm -f hub-runtime | true
-//
-//                 docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
-//
-//                 docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
-//                 docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
-//
-//               """
-//             }
-//
-//             prLink = sh(
-//               script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
-//               returnStdout: true
-//             ).trim()
-//
-//             sh """
-//               docker stop hub-runtime
-//               docker rm -f hub-runtime | true
-//             """
-//           }
-//         }
-//       }
-//
-//       stage('Notify Slack') {
-//         when { expression { !shouldAbortBuild } }
-//         steps {
-//           slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built a custom leo dataproc images for dataproc versions $dataproc_versions with the name: $customDataprocImageBaseName-$imageID. \nIf you would like to check the status of the PR, click: $prLink")
-//         }
-//       }
-//
+    stage('Create PR') {
+        when { expression { !shouldAbortBuild } }
+            steps {
+                script {
+                    def changeDescription = getChangeDescription(versionMap)
+                    withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
+                    sh """
+                        docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
+                        
+                        docker rm -f hub-runtime | true
+                        
+                        docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
+                        
+                        docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
+                        docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
+                    """
+                    }
+
+                    prLink = sh(
+                        script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
+                        returnStdout: true
+                    ).trim()
+
+                    sh """
+                        docker stop hub-runtime
+                        docker rm -f hub-runtime | true
+                    """
+                }
+            }
+    }
+
+    stage('Notify Slack') {
+        when { expression { !shouldAbortBuild } }
+            steps {
+                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
+            }
+    }
   }
 }
