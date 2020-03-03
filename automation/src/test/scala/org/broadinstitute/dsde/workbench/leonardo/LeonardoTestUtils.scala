@@ -351,7 +351,7 @@ trait LeonardoTestUtils
 
       caught.message should include("\"statusCode\":422")
       caught.message should include(
-        s"""ClusterCopy ${googleProject.value}/${clusterName.asString} is stopped. Start your cluster before proceeding."""
+        s"""Cluster ${googleProject.value}/${clusterName.asString} is stopped. Start your cluster before proceeding."""
       )
     }
   }
