@@ -4,7 +4,12 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoConfig, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  DataprocConfigCopy,
+  GPAllocFixtureSpec,
+  LeonardoConfig,
+  RuntimeConfig
+}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -197,9 +202,11 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         billingProject,
         request = defaultClusterRequest.copy(
           machineConfig = Some(
-            RuntimeConfig.DataprocConfig(numberOfWorkers = 0,
-                                         masterMachineType = MachineTypeName("n1-standard-2"),
-                                         masterDiskSize = 500)
+            DataprocConfigCopy.fromDataprocConfig(
+              RuntimeConfig.DataprocConfig(numberOfWorkers = 0,
+                                           masterMachineType = MachineTypeName("n1-standard-2"),
+                                           masterDiskSize = 500)
+            )
           ),
           toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)
         )

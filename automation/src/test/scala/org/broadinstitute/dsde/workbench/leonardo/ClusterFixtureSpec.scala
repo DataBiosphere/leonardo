@@ -94,17 +94,16 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   }
 
   def getClusterRequest(): ClusterRequest = {
-    val machineConfig = Some(
+    val machineConfig =
       RuntimeConfig.DataprocConfig(
         numberOfWorkers = 0,
         masterDiskSize = 500,
         masterMachineType = MachineTypeName("n1-standard-8"),
         workerMachineType = Some(MachineTypeName("n1-standard-8"))
       )
-    )
 
     ClusterRequest(
-      machineConfig = machineConfig,
+      machineConfig = Some(DataprocConfigCopy.fromDataprocConfig(machineConfig)),
       enableWelder = Some(enableWelder),
       toolDockerImage = toolDockerImage,
       autopause = Some(false)

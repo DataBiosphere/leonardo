@@ -26,11 +26,34 @@ case class ClusterCopy(clusterName: RuntimeName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
+// Same as DataprocConfig but uses String instead of MachineConfig because of jackson serialization problems
+// https://github.com/FasterXML/jackson-module-scala/issues/209
+final case class DataprocConfigCopy(numberOfWorkers: Int,
+                                    masterMachineType: String,
+                                    masterDiskSize: Int, //min 10
+                                    // worker settings are None when numberOfWorkers is 0
+                                    workerMachineType: Option[String] = None,
+                                    workerDiskSize: Option[Int] = None, //min 10
+                                    numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                                    numberOfPreemptibleWorkers: Option[Int] = None)
+object DataprocConfigCopy {
+  def fromDataprocConfig(dataprocConfig: RuntimeConfig.DataprocConfig): DataprocConfigCopy =
+    DataprocConfigCopy(
+      dataprocConfig.numberOfWorkers,
+      dataprocConfig.machineType.value,
+      dataprocConfig.masterDiskSize,
+      dataprocConfig.workerMachineType.map(_.value),
+      dataprocConfig.workerDiskSize,
+      dataprocConfig.numberOfWorkerLocalSSDs,
+      dataprocConfig.numberOfPreemptibleWorkers
+    )
+}
+
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           jupyterStartUserScriptUri: Option[String] = None,
-                          machineConfig: Option[RuntimeConfig.DataprocConfig] = None,
+                          machineConfig: Option[DataprocConfigCopy] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
