@@ -136,6 +136,7 @@ pipeline {
     string(name: "terra_jupyter_python", defaultValue: "0.0.6")
     string(name: "terra_jupyter_bioconductor", defaultValue: "0.0.9")
     string(name: "terra_jupyter_gatk", defaultValue: "0.0.8")
+    string(name: "terra_jupyter_aou", defaultValue: "0.0.1")
     string(name: "anvil_rstudio_base", defaultValue: "0.0.2")
     string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.3")
     string(name: "leonardo_jupyter", defaultValue: "5c51ce6935da",
