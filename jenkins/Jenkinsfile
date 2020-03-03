@@ -125,19 +125,16 @@ pipeline {
     parameters {
         booleanParam(name: "GENERATE_DATAPROC_IMAGE", defaultValue: true)
         booleanParam(name: "GENERATE_GCE_IMAGE", defaultValue: true)
-        // TODO: Revert to official name
-        string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-kyuksel-test-image",
+        string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
             description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters).")
         booleanParam(name: "USE_CUSTOM_IMAGE_IDENTIFIER", defaultValue: false)
         string(name: "CUSTOM_IMAGE_ID", defaultValue: "sampleUniqueID",
             description: "Specify along with USE_CUSTOM_IMAGE_IDENTIFIER to build the VM image with a specific name")
         string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
             description: "The google project to use")
-        // TODO: Rename to the eventual one
-        string(name: "DATAPROC_IMAGE_BUCKET", defaultValue: "gs://test-leo-dataproc-image",
+        string(name: "DATAPROC_IMAGE_BUCKET", defaultValue: "gs://leo-dataproc-image",
             description: "The path for the bucket where the custom Dataproc images will be stored")
-        // TODO: Rename to the eventual one
-        string(name: "GCE_IMAGE_BUCKET", defaultValue: "gs://test-leo-gce-image",
+        string(name: "GCE_IMAGE_BUCKET", defaultValue: "gs://leo-gce-image",
             description: "The path for the bucket where the custom GCE images will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
             description: "A custom image will be build for each of these dataproc versions")
@@ -361,22 +358,21 @@ pipeline {
                                     // Otherwise, a terra-docker image is used which must have python 3.7 installed
                                     def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.7.4"
                                     println("Installing Python $python_version on Dataproc $dp_version...")
-                                    // TODO: Uncomment out running of the script
-                                    //                        sh(
-                                    //                            script: """
-                                    //                                sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                                    //                                cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                                    //                                cd jenkins/dataproc-custom-images/dataproc-custom-images
-                                    //                                python generate_custom_image.py \
-                                    //                                    --image-name "$customDataprocImageBaseName-$dp_version_formatted-$imageID" \
-                                    //                                    --dataproc-version "$dp_version" \
-                                    //                                    --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-                                    //                                    --zone $ZONE \
-                                    //                                    --gcs-bucket $DATAPROC_IMAGE_BUCKET \
-                                    //                                    --project-id=$GOOGLE_PROJECT \
-                                    //                                    --disk-size=50
-                                    //                            """
-                                    //                        )
+                                    sh(
+                                        script: """
+                                            sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                            cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                            cd jenkins/dataproc-custom-images/dataproc-custom-images
+                                            python generate_custom_image.py \
+                                                --image-name "$customDataprocImageBaseName-$dp_version_formatted-$imageID" \
+                                                --dataproc-version "$dp_version" \
+                                                --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+                                                --zone $ZONE \
+                                                --gcs-bucket $DATAPROC_IMAGE_BUCKET \
+                                                --project-id=$GOOGLE_PROJECT \
+                                                --disk-size=50
+                                        """
+                                    )
                                 }
                             }
                         }
@@ -389,34 +385,34 @@ pipeline {
                                     docker pull gcr.io/compute-image-tools/daisy:latest
                                 """
 
-//                            script {
-//                                String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
-//                                sh """
-//                                        # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
-//                                        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
-//
-//                                        docker pull $daisyImage
-//                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
-//                                            $daisyImage \
-//                                            -project $GOOGLE_PROJECT \
-//                                            -zone $ZONE \
-//                                            -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
-//                                            -gcs_path $GCE_IMAGE_BUCKET \
-//                                            -default_timeout 45m \
-//                                            -var:base_image $GCE_BASE_IMAGE \
-//                                            -var:output_image "${customGceImageBaseName}-${imageID}" \
-//                                            -var:installation_script_dir /daisy_source_files \
-//                                            -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
-//                                            -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
-//                                            -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
-//                                            /daisy_source_files/leo_custom_gce_image.wf.json
-//                                        docker stop daisy
-//                                        docker rm -f daisy || true
-//
-//                                        # Daisy doesn't clean it up all so we remove the bucket manually
-//                                        gsutil rm -r $GCE_IMAGE_BUCKET
-//                                    """
-//                            }
+                            script {
+                                String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
+                                sh """
+                                        # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
+                                        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
+
+                                        docker pull $daisyImage
+                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
+                                            $daisyImage \
+                                            -project $GOOGLE_PROJECT \
+                                            -zone $ZONE \
+                                            -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
+                                            -gcs_path $GCE_IMAGE_BUCKET \
+                                            -default_timeout 45m \
+                                            -var:base_image $GCE_BASE_IMAGE \
+                                            -var:output_image "${customGceImageBaseName}-${imageID}" \
+                                            -var:installation_script_dir /daisy_source_files \
+                                            -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
+                                            -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
+                                            -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
+                                            /daisy_source_files/leo_custom_gce_image.wf.json
+                                        docker stop daisy
+                                        docker rm -f daisy || true
+
+                                        # Daisy doesn't clean it up all so we remove the bucket manually
+                                        gsutil rm -r $GCE_IMAGE_BUCKET
+                                    """
+                            }
                         }
                 }
             }
@@ -459,42 +455,42 @@ pipeline {
             }
     }
 
-//    stage('Create PR') {
-//        when { expression { !shouldAbortBuild } }
-//            steps {
-//                script {
-//                    def changeDescription = getChangeDescription(versionMap)
-//                    withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
-//                    sh """
-//                        docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
-//
-//                        docker rm -f hub-runtime || true
-//
-//                        docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
-//
-//                        docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
-//                        docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
-//                    """
-//                    }
-//
-//                    prLink = sh(
-//                        script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
-//                        returnStdout: true
-//                    ).trim()
-//
-//                    sh """
-//                        docker stop hub-runtime
-//                        docker rm -f hub-runtime || true
-//                    """
-//                }
-//            }
-//    }
-//
-//    stage('Notify Slack') {
-//        when { expression { !shouldAbortBuild } }
-//            steps {
-//                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
-//            }
-//    }
+    stage('Create PR') {
+        when { expression { !shouldAbortBuild } }
+            steps {
+                script {
+                    def changeDescription = getChangeDescription(versionMap)
+                    withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
+                    sh """
+                        docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
+
+                        docker rm -f hub-runtime || true
+
+                        docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
+
+                        docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
+                        docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
+                    """
+                    }
+
+                    prLink = sh(
+                        script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
+                        returnStdout: true
+                    ).trim()
+
+                    sh """
+                        docker stop hub-runtime
+                        docker rm -f hub-runtime || true
+                    """
+                }
+            }
+    }
+
+    stage('Notify Slack') {
+        when { expression { !shouldAbortBuild } }
+            steps {
+                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
+            }
+    }
   }
 }
