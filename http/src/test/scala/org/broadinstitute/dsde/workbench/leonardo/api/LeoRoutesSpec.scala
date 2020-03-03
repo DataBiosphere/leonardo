@@ -27,8 +27,8 @@ class LeoRoutesSpec
     extends FlatSpec
     with ScalatestRouteTest
     with LeonardoTestSuite
-    with TestLeoRoutes
-    with TestComponent {
+    with TestComponent
+    with TestLeoRoutes {
   // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
   implicit val timeout = RouteTestTimeout(5.seconds dilated)
 

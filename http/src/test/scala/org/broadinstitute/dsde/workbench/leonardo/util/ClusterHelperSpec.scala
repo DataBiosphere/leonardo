@@ -31,8 +31,8 @@ import scala.concurrent.duration._
 
 class ClusterHelperSpec
     extends TestKit(ActorSystem("leonardotest"))
-    with TestComponent
     with FlatSpecLike
+    with TestComponent
     with Matchers
     with BeforeAndAfterAll
     with ScalaFutures {

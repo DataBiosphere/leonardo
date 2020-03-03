@@ -8,7 +8,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Random
 import CommonTestData._
 
-class LabelComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils {
+class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
 
   "LabelComponent" should "save, get,and delete" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).save()

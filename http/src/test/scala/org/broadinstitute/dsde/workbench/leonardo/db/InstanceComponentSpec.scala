@@ -10,7 +10,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 /**
  * Created by rtitle on 2/19/18.
  */
-class InstanceComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils {
+class InstanceComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
 
   val cluster1 = makeCluster(1)
 

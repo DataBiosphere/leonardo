@@ -35,10 +35,10 @@ class ProxyRoutesSpec
     with ScalatestRouteTest
     with ScalaFutures
     with LeonardoTestSuite
-    with TestLeoRoutes
     with TestProxy
     with TestComponent
-    with GcsPathUtils {
+    with GcsPathUtils
+    with TestLeoRoutes {
   implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   implicit val routeTimeout = RouteTestTimeout(10 seconds)
   override def proxyConfig: ProxyConfig = CommonTestData.proxyConfig

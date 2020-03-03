@@ -10,7 +10,7 @@ import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class FollowupComponentSpec extends TestComponent with FlatSpecLike {
+class FollowupComponentSpec extends FlatSpecLike with TestComponent {
   "FollowupComponent" should "update a record when there's already an existing record" in isolatedDbTest {
     val cluster = makeCluster(1).save()
     val followUpDetails = ClusterFollowupDetails(cluster.id, ClusterStatus.Stopped)

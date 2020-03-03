@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import scala.util.Random
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class ExtensionComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils {
+class ExtensionComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
   "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
       .copy(jupyterExtensionUri = Some(jupyterExtensionUri), jupyterUserScriptUri = Some(jupyterUserScriptUri))

@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import LeonardoServiceDbQueries._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class LeonardoServiceDbQueriesSpec extends TestComponent with FlatSpecLike with GcsPathUtils with ScalaFutures {
+class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   it should "get by labels" in isolatedDbTest {
 
     val savedCluster1 =

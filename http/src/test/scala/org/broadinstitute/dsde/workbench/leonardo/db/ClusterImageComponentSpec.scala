@@ -6,7 +6,7 @@ import org.scalatest.FlatSpecLike
 import CommonTestData._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class ClusterImageComponentSpec extends TestComponent with FlatSpecLike {
+class ClusterImageComponentSpec extends FlatSpecLike with TestComponent {
 
   "ClusterImageComponent" should "save and get" in isolatedDbTest {
     val cluster = makeCluster(1).save()

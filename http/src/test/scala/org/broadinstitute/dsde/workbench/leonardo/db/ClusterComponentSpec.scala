@@ -18,7 +18,7 @@ import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class ClusterComponentSpec extends TestComponent with FlatSpecLike with GcsPathUtils with ScalaFutures {
+class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   "ClusterComponent" should "save cluster with properties properly" in isolatedDbTest {
     val cluster = makeCluster(1).copy(properties = Map("spark:spark.executor.memory" -> "10g"))
     val savedCluster = cluster.save()
