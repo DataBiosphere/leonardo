@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package api
 
+import io.circe.CursorOp.DownField
+import io.circe.DecodingFailure
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
@@ -27,7 +29,9 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       json <- io.circe.parser.parse(inputString)
       r <- json.as[RuntimeConfigRequest.DataprocConfig]
     } yield r
-    decodeResult shouldBe Left("machine type cannot be an empty string")
+    decodeResult shouldBe Left(
+      DecodingFailure("machine type cannot be an empty string", List(DownField("masterMachineType")))
+    )
   }
 
   it should "fail with negativeNumberDecodingFailure when numberOfPreemptibleWorkers is negative" in {
