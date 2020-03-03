@@ -75,7 +75,7 @@ private[util] abstract class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       } yield ()
     } else Async[F].raiseError(RuntimeCannotBeStartedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status))
 
-  private def getWelderAction(runtime: Runtime)(implicit ev: ApplicativeAsk[F, TraceId]): WelderAction =
+  private def getWelderAction(runtime: Runtime): WelderAction =
     if (runtime.welderEnabled) {
       // Welder is already enabled; do we need to update it?
       val labelFound = config.welderConfig.updateWelderLabel.exists(runtime.labels.contains)
@@ -96,22 +96,22 @@ private[util] abstract class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       } else NoAction
     }
 
-  private def isClusterBeforeCutoffDate(runtime: Runtime)(implicit ev: ApplicativeAsk[F, TraceId]): Boolean =
+  private def isClusterBeforeCutoffDate(runtime: Runtime): Boolean =
     (for {
       dateStr <- config.welderConfig.deployWelderCutoffDate
       date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
       isClusterBeforeCutoffDate = runtime.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(runtime: Runtime, now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Runtime] =
+  private def updateWelder(runtime: Runtime, now: Instant): F[Runtime] =
     for {
       _ <- Logger[F].info(s"Will deploy welder to cluster ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/deploy")
       now <- Async[F].delay(Instant.now)
-      welderImage = RuntimeImage(Welder, config.imageConfig.welderImage, now)
+      welderImage = RuntimeImage(Welder, config.imageConfig.welderImage.imageUrl, now)
 
       _ <- dbRef.inTransaction {
-        clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, config.imageConfig.welderImage, now), now)
+        clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, config.imageConfig.welderImage.imageUrl, now), now)
       }
 
       newRuntime = runtime.copy(welderEnabled = true,

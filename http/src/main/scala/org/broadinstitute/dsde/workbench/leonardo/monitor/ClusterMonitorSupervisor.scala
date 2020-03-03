@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
-import org.broadinstitute.dsde.workbench.leonardo.util.{ClusterAlgebra, StopRuntimeParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -41,7 +41,7 @@ object ClusterMonitorSupervisor {
     jupyterProxyDAO: JupyterDAO[IO],
     rstudioProxyDAO: RStudioDAO[IO],
     welderDAO: WelderDAO[IO],
-    clusterHelper: ClusterAlgebra[IO],
+    dataprocAlg: DataprocAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     dbRef: DbReference[IO],
@@ -62,7 +62,7 @@ object ClusterMonitorSupervisor {
                                    jupyterProxyDAO,
                                    rstudioProxyDAO,
                                    welderDAO,
-                                   clusterHelper,
+        dataprocAlg,
                                    publisherQueue)
     )
 
@@ -93,21 +93,21 @@ object ClusterMonitorSupervisor {
 }
 
 class ClusterMonitorSupervisor(
-  monitorConfig: MonitorConfig,
-  dataprocConfig: DataprocConfig,
-  imageConfig: ImageConfig,
-  clusterBucketConfig: ClusterBucketConfig,
-  gdDAO: GoogleDataprocDAO,
-  googleComputeService: GoogleComputeService[IO],
-  googleStorageDAO: GoogleStorageDAO,
-  google2StorageDAO: GoogleStorageService[IO],
-  authProvider: LeoAuthProvider[IO],
-  autoFreezeConfig: AutoFreezeConfig,
-  jupyterProxyDAO: JupyterDAO[IO],
-  rstudioProxyDAO: RStudioDAO[IO],
-  welderProxyDAO: WelderDAO[IO],
-  clusterHelper: ClusterAlgebra[IO],
-  publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
+                                monitorConfig: MonitorConfig,
+                                dataprocConfig: DataprocConfig,
+                                imageConfig: ImageConfig,
+                                clusterBucketConfig: ClusterBucketConfig,
+                                gdDAO: GoogleDataprocDAO,
+                                googleComputeService: GoogleComputeService[IO],
+                                googleStorageDAO: GoogleStorageDAO,
+                                google2StorageDAO: GoogleStorageService[IO],
+                                authProvider: LeoAuthProvider[IO],
+                                autoFreezeConfig: AutoFreezeConfig,
+                                jupyterProxyDAO: JupyterDAO[IO],
+                                rstudioProxyDAO: RStudioDAO[IO],
+                                welderProxyDAO: WelderDAO[IO],
+                                dataprocAlg: DataprocAlgebra[IO],
+                                publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
 )(implicit metrics: NewRelicMetrics[IO],
   ec: ExecutionContext,
   dbRef: DbReference[IO],
@@ -232,7 +232,7 @@ class ClusterMonitorSupervisor(
         google2StorageDAO,
         dbRef,
         authProvider,
-        clusterHelper,
+        dataprocAlg,
         publisherQueue
       )
     )
@@ -304,7 +304,7 @@ class ClusterMonitorSupervisor(
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
-      _ <- clusterHelper.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
 
       // Update the cluster status to Stopping
       _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
