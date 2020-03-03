@@ -123,25 +123,25 @@ pipeline {
     }
 
     parameters {
-        booleanParam(name: "generateDataprocImage", defaultValue: true)
-        booleanParam(name: "generateGceImage", defaultValue: true)
+        booleanParam(name: "GENERATE_DATAPROC_IMAGE", defaultValue: true)
+        booleanParam(name: "GENERATE_GCE_IMAGE", defaultValue: true)
         // TODO: Revert to official name
         string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-kyuksel-test-image",
             description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters).")
-        booleanParam(name: "useCustomImageIdentifier", defaultValue: false)
-        string(name: "custom_image_id", defaultValue: "sampleUniqueID",
-            description: "Specify along with useCustomImageIdentifier to build the VM image with a specific name")
+        booleanParam(name: "USE_CUSTOM_IMAGE_IDENTIFIER", defaultValue: false)
+        string(name: "CUSTOM_IMAGE_ID", defaultValue: "sampleUniqueID",
+            description: "Specify along with USE_CUSTOM_IMAGE_IDENTIFIER to build the VM image with a specific name")
         string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
             description: "The google project to use")
         // TODO: Rename to the eventual one
-        string(name: "dataprocImageBucket", defaultValue: "gs://test-leo-dataproc-image",
+        string(name: "DATAPROC_IMAGE_BUCKET", defaultValue: "gs://test-leo-dataproc-image",
             description: "The path for the bucket where the custom Dataproc images will be stored")
         // TODO: Rename to the eventual one
-        string(name: "gceImageBucket", defaultValue: "gs://test-leo-gce-image",
+        string(name: "GCE_IMAGE_BUCKET", defaultValue: "gs://test-leo-gce-image",
             description: "The path for the bucket where the custom GCE images will be stored")
-        string(name: "dataproc_versions", defaultValue: "1.2.79-debian9 1.4.15-debian9",
+        string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
             description: "A custom image will be build for each of these dataproc versions")
-        booleanParam(name: "useCustomDockerImageVersions", defaultValue: false,
+        booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")
         string(name: "terra_jupyter_base", defaultValue: "0.0.6")
         string(name: "terra_jupyter_hail", defaultValue: "0.0.5")
@@ -207,8 +207,8 @@ pipeline {
     stage('Set image ID') {
         steps {
             script {
-                if (useCustomImageIdentifier == "true") {
-                    imageID = "$custom_image_id"
+                if (USE_CUSTOM_IMAGE_IDENTIFIER == "true") {
+                    imageID = "$CUSTOM_IMAGE_ID"
                 } else {
                     imageID = getShortHash(sh(
                         script: "git rev-parse HEAD",
@@ -217,10 +217,10 @@ pipeline {
                 }
 
                 String buildDisplayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME"
-                if (generateDataprocImage == "true") {
-                    buildDisplayName += "-dataproc-$dataproc_versions"
+                if (GENERATE_DATAPROC_IMAGE == "true") {
+                    buildDisplayName += "-dataproc-$DATAPROC_VERSIONS"
                 }
-                if (generateGceImage == "true") {
+                if (GENERATE_GCE_IMAGE == "true") {
                     buildDisplayName += "-gce-debian9"
                 }
 
@@ -241,7 +241,7 @@ pipeline {
     }
 
     stage ('Detect Hash Changes') {
-        when { expression { useCustomDockerImageVersions == "false" } }
+        when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" } }
             steps {
                 script {
                     def shouldUpdate = hasHashChanges(images, configPaths)
@@ -255,14 +255,14 @@ pipeline {
                             if (image in versionMap.keySet() && !versionMap[image].isEmpty()) {
                                 version = versionMap[image]
 
-                                if (generateDataprocImage == "true" && dataprocImages.contains(image)) {
+                                if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image)) {
                                     println("Using version $version for $image in this build of custom Dataproc images")
                                     sh """
                                         sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                     """
                                 }
 
-                                if (generateGceImage == "true" && gceImages.contains(image)) {
+                                if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
                                     println("Using version $version for $image in this build of custom GCE images")
                                     sh """
                                         sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
@@ -271,14 +271,14 @@ pipeline {
                             }
                         }
 
-                        if (generateDataprocImage == "true") {
+                        if (GENERATE_DATAPROC_IMAGE == "true") {
                             sh """
                                 printf 'Printing any changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh:\\n\\n'
                                 git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                             """
                         }
 
-                        if (generateGceImage == "true") {
+                        if (GENERATE_GCE_IMAGE == "true") {
                             sh """
                                 printf 'Printing any changed versions in prepare_custom_leonardo_gce_image.sh:\\n\\n'
                                 git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
@@ -290,7 +290,7 @@ pipeline {
     }
 
     stage ('Use manually specified hashes') {
-        when { expression { useCustomDockerImageVersions == "true" } }
+        when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "true" } }
             steps {
                 script {
                     for (String image: images) {
@@ -308,14 +308,14 @@ pipeline {
 
                         println("Manually replacing line with $image with $image:$version...")
 
-                        if (generateDataprocImage == "true" && dataprocImages.contains(image)) {
+                        if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image)) {
                             println("Using version $version for $image in this build of custom Dataproc images")
                             sh """
                                 sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                             """
                         }
 
-                        if (generateGceImage == "true" && gceImages.contains(image)) {
+                        if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
                             println("Using version $version for $image in this build of custom GCE images")
                             sh """
                                 sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
@@ -325,14 +325,14 @@ pipeline {
                         versionMap[image] = version
                     }
 
-                    if (generateDataprocImage == "true") {
+                    if (GENERATE_DATAPROC_IMAGE == "true") {
                         sh """
                             printf 'Printing any changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh:\\n\\n'
                             git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                         """
                     }
 
-                    if (generateGceImage == "true") {
+                    if (GENERATE_GCE_IMAGE == "true") {
                         sh """
                             printf 'Printing any changed versions in prepare_custom_leonardo_gce_image.sh:\\n\\n'
                             git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
@@ -348,14 +348,14 @@ pipeline {
             failFast true
             parallel {
                 stage('Run Dataproc image generation script') {
-                    when { expression { generateDataprocImage == "true" } }
+                    when { expression { GENERATE_DATAPROC_IMAGE == "true" } }
                         steps {
                             sh """
                                    git submodule init && git submodule update
                                 """
 
                             script {
-                                for (String dp_version : dataproc_versions.trim().split(' ')) {
+                                for (String dp_version : DATAPROC_VERSIONS.trim().split(' ')) {
                                     def dp_version_formatted = dp_version.replace(".", "-")
                                     // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
                                     // Otherwise, a terra-docker image is used which must have python 3.7 installed
@@ -372,7 +372,7 @@ pipeline {
                                     //                                    --dataproc-version "$dp_version" \
                                     //                                    --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
                                     //                                    --zone $ZONE \
-                                    //                                    --gcs-bucket $dataprocImageBucket \
+                                    //                                    --gcs-bucket $DATAPROC_IMAGE_BUCKET \
                                     //                                    --project-id=$GOOGLE_PROJECT \
                                     //                                    --disk-size=50
                                     //                            """
@@ -383,7 +383,7 @@ pipeline {
                 }
 
                 stage('Run GCE image generation script') {
-                    when { expression { generateGceImage == "true" } }
+                    when { expression { GENERATE_GCE_IMAGE == "true" } }
                         steps {
                             sh """
                                     docker pull gcr.io/compute-image-tools/daisy:latest
@@ -393,7 +393,7 @@ pipeline {
 //                                String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
 //                                sh """
 //                                        # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
-//                                        gsutil ls $gceImageBucket || gsutil mb -p $GOOGLE_PROJECT -l $REGION $gceImageBucket
+//                                        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
 //
 //                                        docker pull $daisyImage
 //                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
@@ -401,7 +401,7 @@ pipeline {
 //                                            -project $GOOGLE_PROJECT \
 //                                            -zone $ZONE \
 //                                            -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
-//                                            -gcs_path $gceImageBucket \
+//                                            -gcs_path $GCE_IMAGE_BUCKET \
 //                                            -default_timeout 45m \
 //                                            -var:base_image $GCE_BASE_IMAGE \
 //                                            -var:output_image "${customGceImageBaseName}-${imageID}" \
@@ -414,7 +414,7 @@ pipeline {
 //                                        docker rm -f daisy || true
 //
 //                                        # Daisy doesn't clean it up all so we remove the bucket manually
-//                                        gsutil rm -r $gceImageBucket
+//                                        gsutil rm -r $GCE_IMAGE_BUCKET
 //                                    """
 //                            }
                         }
@@ -427,8 +427,8 @@ pipeline {
             steps {
                 script {
                     for (String configFile: configPaths) {
-                        if (generateDataprocImage == "true") {
-                            for (String dp_version : dataproc_versions.trim().split(' ')) {
+                        if (GENERATE_DATAPROC_IMAGE == "true") {
+                            for (String dp_version : DATAPROC_VERSIONS.trim().split(' ')) {
                                 def dp_version_formatted = dp_version.replace(".", "-")
                                 sh(
                                     script: """
@@ -438,7 +438,7 @@ pipeline {
                             }
                         }
 
-                        if (generateGceImage == "true") {
+                        if (GENERATE_GCE_IMAGE == "true") {
                             sh(
                                 script: """
                                     sed -i "s/$customGceImageBaseName-.*/$customGceImageBaseName-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
