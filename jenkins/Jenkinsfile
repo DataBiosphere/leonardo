@@ -11,7 +11,7 @@ String ZONE = "${REGION}-a"
 String GCE_BASE_IMAGE = "projects/debian-cloud/global/images/debian-9-stretch-v20200210"
 String GOOGLE_CREDENTIAL_FILE_NAME = "image-build-account.json"
 
-// Variables populated by first step
+// Variables populated by the first stages
 ArrayList<String> dataprocImages = []
 ArrayList<String> gceImages = []
 Set<String> images = [] // Union of dataprocImages and gceImages
@@ -20,8 +20,8 @@ String customDataprocImageBaseName = ""
 String customGceImageBaseName = ""
 String prLink = ""
 String googleCredentialFile = ""
-
 LinkedHashMap<String, String> versionMap = [:]
+String[] configPaths = []
 
 boolean shouldAbortBuild = false
 LinkedHashMap<String, String> imageToParamMap = [:]
@@ -33,10 +33,8 @@ String getShortHash(hash) {
     return shortHash
 }
 
-boolean hasHashChanges(Set<String> images) {
+boolean hasHashChanges(Set<String> images, String[] configPaths) {
     Set imagesChanged = []
-
-    String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
     for (String configFile: configPaths) {
         println("Checking config file '$configFile' for any hash changes...")
         def gitOutput = sh(
@@ -58,11 +56,10 @@ boolean hasHashChanges(Set<String> images) {
 }
 
 // If an image is in imageNames but not the confFile, the returned version will be an empty string
-LinkedHashMap<String,String> getVersionMap(Set<String> imageNames) {
+LinkedHashMap<String,String> getVersionMap(Set<String> imageNames, String[] configPaths) {
     LinkedHashMap<String, String> tempVersionMap = [:]
     LinkedHashMap<String, String> finalVersionMap = [:]
 
-    String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
     for (String configFile: configPaths) {
         tempVersionMap = getVersionMap(imageNames, configFile)
         for (String image in tempVersionMap.keySet()) {
@@ -199,6 +196,10 @@ pipeline {
         steps {
             // TODO: switch 'branch' back to 'develop'
             git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'ky_ia_1596_jenkinsify_gce_image_creation'
+
+            script {
+                configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+            }
         }
     }
 
@@ -243,10 +244,10 @@ pipeline {
         when { expression { useCustomDockerImageVersions == "false" } }
             steps {
                 script {
-                    def shouldUpdate = hasHashChanges(images)
+                    def shouldUpdate = hasHashChanges(images, configPaths)
                     // Set variable to control if future steps get run
                     shouldAbortBuild = !shouldUpdate
-                    versionMap = getVersionMap(images)
+                    versionMap = getVersionMap(images, configPaths)
 
                     if (shouldUpdate) {
                         for (String image: images) {
@@ -425,7 +426,6 @@ pipeline {
         when { expression { !shouldAbortBuild } }
             steps {
                 script {
-                    def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
                     for (String configFile: configPaths) {
                         if (generateDataprocImage == "true") {
                             for (String dp_version : dataproc_versions.trim().split(' ')) {
@@ -459,42 +459,42 @@ pipeline {
             }
     }
 
-    stage('Create PR') {
-        when { expression { !shouldAbortBuild } }
-            steps {
-                script {
-                    def changeDescription = getChangeDescription(versionMap)
-                    withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
-                    sh """
-                        docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
-                        
-                        docker rm -f hub-runtime || true
-                        
-                        docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
-                        
-                        docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
-                        docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
-                    """
-                    }
-
-                    prLink = sh(
-                        script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
-                        returnStdout: true
-                    ).trim()
-
-                    sh """
-                        docker stop hub-runtime
-                        docker rm -f hub-runtime || true
-                    """
-                }
-            }
-    }
-
-    stage('Notify Slack') {
-        when { expression { !shouldAbortBuild } }
-            steps {
-                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
-            }
-    }
+//    stage('Create PR') {
+//        when { expression { !shouldAbortBuild } }
+//            steps {
+//                script {
+//                    def changeDescription = getChangeDescription(versionMap)
+//                    withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
+//                    sh """
+//                        docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
+//
+//                        docker rm -f hub-runtime || true
+//
+//                        docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
+//
+//                        docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
+//                        docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
+//                    """
+//                    }
+//
+//                    prLink = sh(
+//                        script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
+//                        returnStdout: true
+//                    ).trim()
+//
+//                    sh """
+//                        docker stop hub-runtime
+//                        docker rm -f hub-runtime || true
+//                    """
+//                }
+//            }
+//    }
+//
+//    stage('Notify Slack') {
+//        when { expression { !shouldAbortBuild } }
+//            steps {
+//                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
+//            }
+//    }
   }
 }
