@@ -23,7 +23,6 @@ object JsonCodec {
     "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more.",
     List.empty
   )
-  val emptyMasterMachineType = DecodingFailure("masterMachineType can not be an empty string", List.empty)
 
   // Encoders
   implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
@@ -124,7 +123,9 @@ object JsonCodec {
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
   implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
   implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
-  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.map(MachineTypeName)
+  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(
+    s => if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
+  )
   implicit val instantDecoder: Decoder[Instant] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
   implicit val gcsBucketNameDecoder: Decoder[GcsBucketName] = Decoder.decodeString.map(GcsBucketName)

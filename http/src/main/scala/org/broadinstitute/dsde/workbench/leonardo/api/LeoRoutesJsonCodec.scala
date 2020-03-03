@@ -16,8 +16,6 @@ object LeoRoutesJsonCodec {
     for {
       numberOfWorkersInput <- c.downField("numberOfWorkers").as[Option[Int]]
       masterMachineType <- c.downField("masterMachineType").as[Option[MachineTypeName]]
-      _ <- if (masterMachineType.nonEmpty && masterMachineType.exists(_.value.isEmpty)) Left(emptyMasterMachineType)
-      else Right(())
       masterDiskSize <- c
         .downField("masterDiskSize")
         .as[Option[Int]]
