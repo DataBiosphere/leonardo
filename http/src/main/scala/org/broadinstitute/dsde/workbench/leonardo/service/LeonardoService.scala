@@ -10,7 +10,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
 import cats.data.{Ior, OptionT}
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.api.client.http.HttpResponseException
@@ -135,7 +135,7 @@ class LeonardoService(
                        protected val authProvider: LeoAuthProvider[IO],
                        protected val serviceAccountProvider: ServiceAccountProvider[IO],
                        protected val bucketHelper: BucketHelper,
-                       protected val clusterHelper: ClusterAlgebra[IO],
+                       protected val dataprocAlg: DataprocAlgebra[IO],
                        protected val dockerDAO: DockerDAO[IO],
                        protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
 )(implicit val executionContext: ExecutionContext,
@@ -143,8 +143,7 @@ class LeonardoService(
   log: Logger[IO],
   cs: ContextShift[IO],
   metrics: NewRelicMetrics[IO],
-  dbRef: DbReference[IO],
-  timer: Timer[IO])
+  dbRef: DbReference[IO])
     extends LazyLogging
     with Retry {
 
@@ -489,7 +488,7 @@ class LeonardoService(
               s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
             )
             // Resize the cluster
-            _ <- clusterHelper.resizeCluster(ResizeClusterParams(existingCluster,
+            _ <- dataprocAlg.resizeCluster(ResizeClusterParams(existingCluster,
                                              updatedNumWorkersAndPreemptibles.left,
                                              updatedNumWorkersAndPreemptibles.right))
 
@@ -539,7 +538,7 @@ class LeonardoService(
       // Note: instance must be stopped in order to change machine type
       case Some(updatedMasterMachineType) if existingCluster.status == Stopped =>
         for {
-          _ <- clusterHelper.updateMachineType(UpdateMachineTypeParams(existingCluster, updatedMasterMachineType))
+          _ <- dataprocAlg.updateMachineType(UpdateMachineTypeParams(existingCluster, updatedMasterMachineType))
         } yield UpdateResult(true, None)
 
       case Some(updatedMasterMachineType) =>
@@ -582,7 +581,7 @@ class LeonardoService(
             s"New target machine size present. Changing master disk size to $updatedMasterDiskSize GB for cluster ${existingCluster.projectNameString}..."
           )
           // Update the disk in Google
-          _ <- clusterHelper.updateDiskSize(UpdateDiskSizeParams(existingCluster, updatedMasterDiskSize))
+          _ <- dataprocAlg.updateDiskSize(UpdateDiskSizeParams(existingCluster, updatedMasterDiskSize))
           // Update the DB
           now <- IO(Instant.now)
           _ <- RuntimeConfigQueries
@@ -622,7 +621,7 @@ class LeonardoService(
       val hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
       for {
         // Delete the cluster in Google
-        _ <- clusterHelper.deleteRuntime(DeleteRuntimeParams(cluster))
+        _ <- dataprocAlg.deleteRuntime(DeleteRuntimeParams(cluster))
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
         now <- IO(Instant.now)
@@ -657,7 +656,7 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      _ <- clusterHelper.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
     } yield ()
 
   def internalStopCluster(cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
@@ -672,7 +671,7 @@ class LeonardoService(
 
         runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
         // Stop the cluster in Google
-        _ <- clusterHelper.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+        _ <- dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
 
         // Update the cluster status to Stopping
         now <- IO(Instant.now)
@@ -695,7 +694,7 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      _ <- clusterHelper.startRuntime(StartRuntimeParams(cluster))
+      _ <- dataprocAlg.startRuntime(StartRuntimeParams(cluster))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(

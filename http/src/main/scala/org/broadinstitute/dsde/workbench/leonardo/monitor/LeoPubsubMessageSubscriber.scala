@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.util.{ClusterAlgebra, StartRuntimeParams, StopRuntimeParams, UpdateMachineTypeParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, StartRuntimeParams, StopRuntimeParams, UpdateMachineTypeParams}
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
@@ -25,7 +25,7 @@ import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  clusterHelper: ClusterAlgebra[IO]
+  dataprocAlg: DataprocAlgebra[IO]
 )(implicit executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage,
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
@@ -97,7 +97,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
             )
-            _ <- Async[F].liftIO(clusterHelper.stopRuntime(StopRuntimeParams(resolvedCluster, runtimeConfig)))
+            _ <- Async[F].liftIO(dataprocAlg.stopRuntime(StopRuntimeParams(resolvedCluster, runtimeConfig)))
           } yield ()
         case Some(resolvedCluster) =>
           Async[F].raiseError(
@@ -133,10 +133,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                 case Some(machineType) =>
                   for {
                     // perform gddao and db updates for new resources
-                    _ <- Async[F].liftIO(clusterHelper.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType)))
+                    _ <- Async[F].liftIO(dataprocAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType)))
                     now <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
                     // start cluster
-                    _ <- Async[F].liftIO(clusterHelper.startRuntime(StartRuntimeParams(resolvedCluster)))
+                    _ <- Async[F].liftIO(dataprocAlg.startRuntime(StartRuntimeParams(resolvedCluster)))
                     // clean-up info from follow-up table
                     _ <- dbRef.inTransaction { followupQuery.delete(message.clusterFollowupDetails) }
                   } yield ()
@@ -161,7 +161,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       traceIdValue <- traceId.ask
       traceIdIO = ApplicativeAsk.const[IO, TraceId](traceIdValue)
       _ <- logger.info(s"Attempting to create cluster ${msg.clusterProjectAndName} in Google...")
-      clusterResult <- Async[F].liftIO(clusterHelper.createRuntime(msg)(traceIdIO))
+      clusterResult <- Async[F].liftIO(dataprocAlg.createRuntime(msg)(traceIdIO))
       updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
         Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
         clusterResult.serviceAccountKey,

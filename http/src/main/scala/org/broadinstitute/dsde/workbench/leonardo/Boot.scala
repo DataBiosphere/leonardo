@@ -80,7 +80,7 @@ object Boot extends IOApp {
       val vpcHelper =
         new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
 
-      val clusterHelper = new ClusterHelper(DataprocInterpreterConfig(dataprocConfig,
+      val clusterHelper = new DataprocInterpreter(DataprocInterpreterConfig(dataprocConfig,
         googleGroupsConfig,
         welderConfig,
                                             imageConfig,

@@ -52,7 +52,7 @@ final case class ClusterResourceConstaintsException(clusterProjectAndName: Runti
       s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}"
     )
 
-class ClusterHelper[F[_]: Async: Parallel: ContextShift: Logger](
+class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   config: DataprocInterpreterConfig,
   bucketHelper: BucketHelper,
   vpcHelper: VPCHelper,
@@ -68,7 +68,7 @@ class ClusterHelper[F[_]: Async: Parallel: ContextShift: Logger](
   metrics: NewRelicMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
-    with ClusterAlgebra[F]
+    with DataprocAlgebra[F]
     with LazyLogging
     with Retry {
 
@@ -222,6 +222,12 @@ class ClusterHelper[F[_]: Async: Parallel: ContextShift: Logger](
       _ <- if (hasDataprocInfo) Async[F].liftIO(IO.fromFuture(IO(gdDAO.deleteCluster(params.runtime.googleProject, params.runtime.runtimeName)))) else Async[F].unit
     } yield ()
   }
+
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    for {
+      _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccountInfo)
+      _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
+    } yield ()
 
   protected override def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
     for {
@@ -624,7 +630,7 @@ class ClusterHelper[F[_]: Async: Parallel: ContextShift: Logger](
         "disableDelocalization" -> (welderAction == DisableDelocalization).toString
       )
 
-    TemplateHelper.templateResource(replacements, config.clusterResourcesConfig.startupScript, blocker).compile.to[Array].map {
+    TemplateHelper.templateResource[F](replacements, config.clusterResourcesConfig.startupScript, blocker).compile.to[Array].map {
       bytes =>
         Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
     }
@@ -646,7 +652,7 @@ class ClusterHelper[F[_]: Async: Parallel: ContextShift: Logger](
     val replacements = RuntimeTemplateValues(templateConfig).toMap
 
     TemplateHelper
-      .templateResource(replacements, config.clusterResourcesConfig.shutdownScript, blocker)
+      .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript, blocker)
       .compile
       .to[Array]
       .map { bytes =>
