@@ -5,7 +5,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
-import org.broadinstitute.dsde.workbench.service.util.Tags
+
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._
@@ -22,7 +22,7 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
 
   "NotebookHailSpec" - {
-    "should install the right Hail version" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should install the right Hail version" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
           // Verify we have the right hail version
