@@ -348,8 +348,8 @@ pipeline {
                     when { expression { GENERATE_DATAPROC_IMAGE == "true" } }
                         steps {
                             sh """
-                                   git submodule init && git submodule update
-                                """
+                               git submodule init && git submodule update
+                            """
 
                             script {
                                 for (String dp_version : DATAPROC_VERSIONS.trim().split(' ')) {
@@ -382,36 +382,36 @@ pipeline {
                     when { expression { GENERATE_GCE_IMAGE == "true" } }
                         steps {
                             sh """
-                                    docker pull gcr.io/compute-image-tools/daisy:latest
-                                """
+                                docker pull gcr.io/compute-image-tools/daisy:latest
+                            """
 
                             script {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
                                 sh """
-                                        # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
-                                        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
+                                    # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
+                                    gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
 
-                                        docker pull $daisyImage
-                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
-                                            $daisyImage \
-                                            -project $GOOGLE_PROJECT \
-                                            -zone $ZONE \
-                                            -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
-                                            -gcs_path $GCE_IMAGE_BUCKET \
-                                            -default_timeout 45m \
-                                            -var:base_image $GCE_BASE_IMAGE \
-                                            -var:output_image "${customGceImageBaseName}-${imageID}" \
-                                            -var:installation_script_dir /daisy_source_files \
-                                            -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
-                                            -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
-                                            -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
-                                            /daisy_source_files/leo_custom_gce_image.wf.json
-                                        docker stop daisy
-                                        docker rm -f daisy || true
+                                    docker pull $daisyImage
+                                    docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
+                                        $daisyImage \
+                                        -project $GOOGLE_PROJECT \
+                                        -zone $ZONE \
+                                        -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
+                                        -gcs_path $GCE_IMAGE_BUCKET \
+                                        -default_timeout 45m \
+                                        -var:base_image $GCE_BASE_IMAGE \
+                                        -var:output_image "${customGceImageBaseName}-${imageID}" \
+                                        -var:installation_script_dir /daisy_source_files \
+                                        -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
+                                        -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
+                                        -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
+                                        /daisy_source_files/leo_custom_gce_image.wf.json
+                                    docker stop daisy
+                                    docker rm -f daisy || true
 
-                                        # Daisy doesn't clean it up all so we remove the bucket manually
-                                        gsutil rm -r $GCE_IMAGE_BUCKET
-                                    """
+                                    # Daisy doesn't clean it up all so we remove the bucket manually
+                                    gsutil rm -r $GCE_IMAGE_BUCKET
+                                """
                             }
                         }
                 }
