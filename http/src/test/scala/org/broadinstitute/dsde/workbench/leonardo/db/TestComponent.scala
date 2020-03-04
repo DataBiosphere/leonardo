@@ -6,9 +6,14 @@ import cats.effect.concurrent.Semaphore
 import cats.effect.{IO, Resource}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, LeonardoTestSuite, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  CommonTestData,
+  GcsPathUtils,
+  LeonardoTestSuite,
+  Runtime,
+  RuntimeConfig,
+  RuntimeName
+}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -76,16 +81,16 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     getClusterId(getClusterIdRequest.googleProject, getClusterIdRequest.clusterName, getClusterIdRequest.destroyedDate)
 
   protected def getClusterId(googleProject: GoogleProject,
-                             clusterName: ClusterName,
+                             clusterName: RuntimeName,
                              destroyedDateOpt: Option[Instant]): Long =
     dbFutureValue { clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt) }.get
 
-  implicit class ClusterExtensions(cluster: Cluster) {
-    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Cluster =
+  implicit class ClusterExtensions(cluster: Runtime) {
+    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Runtime =
       dbFutureValue {
         clusterQuery.save(
           SaveCluster(cluster,
-                      Some(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
+                      Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
                       serviceAccountKeyId,
                       CommonTestData.defaultRuntimeConfig,
                       Instant.now)
@@ -95,11 +100,11 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     def saveWithRuntimeConfig(
       runtimeConfig: RuntimeConfig,
       serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)
-    ): Cluster =
+    ): Runtime =
       dbFutureValue {
         clusterQuery.save(
           SaveCluster(cluster,
-                      Some(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
+                      Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
                       serviceAccountKeyId,
                       runtimeConfig,
                       Instant.now)

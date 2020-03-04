@@ -18,13 +18,13 @@ trait LabTestUtils extends LeonardoTestUtils {
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 
-  def withLabLauncherPage[T](cluster: Cluster)(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver,
-                                                                               token: AuthToken): T = {
+  def withLabLauncherPage[T](cluster: ClusterCopy)(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver,
+                                                                                   token: AuthToken): T = {
     val labLauncherPage = lab.Lab.get(cluster.googleProject, cluster.clusterName)
     testCode(labLauncherPage.open)
   }
 
-  def withNewLabNotebook[T](cluster: Cluster, kernel: LabKernel = lab.Python2, timeout: FiniteDuration = 2.minutes)(
+  def withNewLabNotebook[T](cluster: ClusterCopy, kernel: LabKernel = lab.Python2, timeout: FiniteDuration = 2.minutes)(
     testCode: LabNotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withLabLauncherPage(cluster) { labLauncherPage =>

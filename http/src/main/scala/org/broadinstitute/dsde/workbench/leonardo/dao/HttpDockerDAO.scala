@@ -8,7 +8,7 @@ import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterImageType.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -42,7 +42,7 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
 
   override def detectTool(image: ContainerImage, petTokenOpt: Option[String])(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Option[ClusterImageType]] =
+  ): F[Option[RuntimeImageType]] =
     for {
       parsed <- parseImage(image)
       tokenOpt <- getToken(parsed, petTokenOpt)

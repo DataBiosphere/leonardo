@@ -96,9 +96,8 @@ private[db] class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[Jdbc
       blocker.blockOn(Async.fromFuture(Async[F].delay(inTransactionFuture(dbio, isolationLevel))))
     )
 
-  private[db] def close(): Unit = {
+  private[db] def close(): Unit =
     database.close()
-  }
 }
 
 final class DataAccess(blocker: Blocker) {

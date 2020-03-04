@@ -1,16 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import scala.util.control.NoStackTrace
-
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import cats.effect.{Async, Concurrent, ContextShift, IO, Timer}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
 import fs2.{Pipe, Stream}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterErrorQuery,
   clusterImageQuery,
@@ -22,14 +20,15 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
+
 import scala.concurrent.ExecutionContext
 
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
@@ -40,8 +39,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
       case msg: StopUpdate =>
+        implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
         handleStopUpdateMessage(msg)
       case msg: ClusterTransition =>
+        implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
         handleClusterTransitionFinished(msg)
       case msg: CreateCluster =>
         handleCreateCluster(msg, now)
@@ -87,12 +88,12 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       event.consumer.ack()
     )
 
-  private def handleStopUpdateMessage(message: StopUpdate): F[Unit] =
+  private def handleStopUpdateMessage(message: StopUpdate)(implicit ev: ApplicativeAsk[IO, TraceId]): F[Unit] =
     dbRef
       .inTransaction { clusterQuery.getClusterById(message.clusterId) }
       .flatMap {
-        case Some(resolvedCluster) if ClusterStatus.stoppableStatuses.contains(resolvedCluster.status) =>
-          val followupDetails = ClusterFollowupDetails(message.clusterId, ClusterStatus.Stopped)
+        case Some(resolvedCluster) if RuntimeStatus.stoppableStatuses.contains(resolvedCluster.status) =>
+          val followupDetails = ClusterFollowupDetails(message.clusterId, RuntimeStatus.Stopped)
 
           for {
             _ <- logger.info(
@@ -101,7 +102,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             _ <- dbRef.inTransaction(
               followupQuery.save(followupDetails, Some(message.updatedMachineConfig.machineType))
             )
-            runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntime(resolvedCluster.runtimeConfigId))
+            runtimeConfig <- dbRef.inTransaction(
+              RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
+            )
             _ <- Async[F].liftIO(clusterHelper.stopCluster(resolvedCluster, runtimeConfig))
           } yield ()
         case Some(resolvedCluster) =>
@@ -113,8 +116,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
           Async[F].raiseError(PubsubHandleMessageError.ClusterNotFound(message.clusterId, message))
       }
 
-  private def handleClusterTransitionFinished(message: ClusterTransition): F[Unit] =
-    message.clusterFollowupDetails.clusterStatus match {
+  private def handleClusterTransitionFinished(
+    message: ClusterTransition
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): F[Unit] =
+    message.clusterFollowupDetails.runtimeStatus match {
       case Stopped =>
         for {
           clusterOpt <- dbRef.inTransaction { clusterQuery.getClusterById(message.clusterFollowupDetails.clusterId) }
@@ -124,7 +129,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
 
           result <- clusterOpt match {
             case Some(resolvedCluster)
-                if resolvedCluster.status != ClusterStatus.Stopped && savedMasterMachineType.isDefined =>
+                if resolvedCluster.status != RuntimeStatus.Stopped && savedMasterMachineType.isDefined =>
               Async[F].raiseError[Unit](
                 PubsubHandleMessageError.ClusterNotStopped(resolvedCluster.id,
                                                            resolvedCluster.projectNameString,
@@ -139,7 +144,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                     _ <- Async[F].liftIO(clusterHelper.updateMasterMachineType(resolvedCluster, machineType))
                     now <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
                     // start cluster
-                    _ <- Async[F].liftIO(clusterHelper.internalStartCluster(resolvedCluster, Instant.ofEpochMilli(now)))
+                    _ <- Async[F].liftIO(clusterHelper.startCluster(resolvedCluster, Instant.ofEpochMilli(now)))
                     // clean-up info from follow-up table
                     _ <- dbRef.inTransaction { followupQuery.delete(message.clusterFollowupDetails) }
                   } yield ()
@@ -169,11 +174,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
         clusterResult.serviceAccountKey,
         msg.id,
-        Some(clusterResult.dataprocInfo),
+        Some(clusterResult.asyncRuntimeFields),
         now
       )
       _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
-      clusterImage = ClusterImage(ClusterImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
+      clusterImage = RuntimeImage(RuntimeImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
       // Save dataproc image in the database
       _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
       _ <- logger.info(
@@ -191,7 +196,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             case _ =>
               s"Failed to create cluster ${msg.clusterProjectAndName} due to ${e.toString}"
           }
-          _ <- clusterErrorQuery.save(msg.id, ClusterError(errorMessage, -1, now)).transaction[F]
+          _ <- (clusterErrorQuery.save(msg.id, RuntimeError(errorMessage, -1, now)) >>
+            clusterQuery.updateClusterStatus(msg.id, RuntimeStatus.Error, now)).transaction[F]
         } yield ()
     }
   }
@@ -208,7 +214,7 @@ object PubsubHandleMessageError {
   }
   final case class ClusterNotStopped(clusterId: Long,
                                      projectName: String,
-                                     clusterStatus: ClusterStatus,
+                                     clusterStatus: RuntimeStatus,
                                      message: LeoPubsubMessage)
       extends PubsubHandleMessageError {
     override def getMessage: String =

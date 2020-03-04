@@ -10,7 +10,6 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers._
@@ -42,7 +41,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
 
         pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
           val googleProject = GoogleProject(googleProjectParam)
-          val clusterName = ClusterName(clusterNameParam)
+          val clusterName = RuntimeName(clusterNameParam)
 
           path("setCookie") {
             extractUserInfo { userInfo =>

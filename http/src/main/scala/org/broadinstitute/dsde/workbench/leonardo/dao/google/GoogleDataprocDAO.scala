@@ -5,38 +5,54 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 
 import scala.concurrent.Future
+import scala.concurrent.duration.FiniteDuration
 
 case class DataprocDisabledException(errorMsg: String) extends LeoException(s"${errorMsg}", StatusCodes.Forbidden)
 
+// TODO: use google2 DataprocService
 trait GoogleDataprocDAO {
   def createCluster(googleProject: GoogleProject,
-                    clusterName: ClusterName,
+                    clusterName: RuntimeName,
                     createClusterConfig: CreateClusterConfig): Future[Operation]
 
-  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit]
+  def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName): Future[Unit]
 
-  def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus]
+  def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus]
 
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 
-  def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]]
+  def getClusterMasterInstance(googleProject: GoogleProject,
+                               clusterName: RuntimeName): Future[Option[DataprocInstanceKey]]
 
   def getClusterInstances(googleProject: GoogleProject,
-                          clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]]
+                          clusterName: RuntimeName): Future[Map[DataprocRole, Set[DataprocInstanceKey]]]
 
-  def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]]
+  def getClusterStagingBucket(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[GcsBucketName]]
 
-  def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]]
+  def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[RuntimeErrorDetails]]
 
   def resizeCluster(googleProject: GoogleProject,
-                    clusterName: ClusterName,
+                    clusterName: RuntimeName,
                     numWorkers: Option[Int] = None,
                     numPreemptibles: Option[Int] = None): Future[Unit]
 
   def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)]
 }
+
+final case class CreateClusterConfig(
+  machineConfig: RuntimeConfig.DataprocConfig,
+  initScripts: List[GcsPath],
+  clusterServiceAccount: Option[WorkbenchEmail],
+  credentialsFileName: Option[String],
+  stagingBucket: GcsBucketName,
+  clusterScopes: Set[String],
+  clusterVPCSettings: Option[VPCConfig],
+  properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+  dataprocCustomImage: CustomDataprocImage,
+  creationTimeout: FiniteDuration
+)

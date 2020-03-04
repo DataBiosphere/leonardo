@@ -4,7 +4,6 @@ package monitor
 import java.time.{Duration, Instant}
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.http._
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.{ContextShift, IO}
@@ -12,14 +11,15 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterContainerServiceType, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -33,7 +33,7 @@ object ClusterMonitorSupervisor {
     imageConfig: ImageConfig,
     clusterBucketConfig: ClusterBucketConfig,
     gdDAO: GoogleDataprocDAO,
-    googleComputeDAO: GoogleComputeDAO,
+    googleComputeService: GoogleComputeService[IO],
     googleStorageDAO: GoogleStorageDAO,
     google2StorageDAO: GoogleStorageService[IO],
     authProvider: LeoAuthProvider[IO],
@@ -46,7 +46,7 @@ object ClusterMonitorSupervisor {
   )(implicit metrics: NewRelicMetrics[IO],
     dbRef: DbReference[IO],
     ec: ExecutionContext,
-    clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+    clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
     cs: ContextShift[IO]): Props =
     Props(
       new ClusterMonitorSupervisor(monitorConfig,
@@ -54,7 +54,7 @@ object ClusterMonitorSupervisor {
                                    imageConfig,
                                    clusterBucketConfig,
                                    gdDAO,
-                                   googleComputeDAO,
+                                   googleComputeService,
                                    googleStorageDAO,
                                    google2StorageDAO,
                                    authProvider,
@@ -98,7 +98,7 @@ class ClusterMonitorSupervisor(
   imageConfig: ImageConfig,
   clusterBucketConfig: ClusterBucketConfig,
   gdDAO: GoogleDataprocDAO,
-  googleComputeDAO: GoogleComputeDAO,
+  googleComputeService: GoogleComputeService[IO],
   googleStorageDAO: GoogleStorageDAO,
   google2StorageDAO: GoogleStorageService[IO],
   authProvider: LeoAuthProvider[IO],
@@ -111,7 +111,7 @@ class ClusterMonitorSupervisor(
 )(implicit metrics: NewRelicMetrics[IO],
   ec: ExecutionContext,
   dbRef: DbReference[IO],
-  clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+  clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
   cs: ContextShift[IO])
     extends Actor
     with Timers
@@ -155,9 +155,9 @@ class ClusterMonitorSupervisor(
         for {
           now <- IO(Instant.now)
           _ <- (clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
-            clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Creating, now)).transaction
-          runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction[IO]
-          _ <- publisherQueue.enqueue1(cluster.toCreateCluster(runtimeConfig, Some(traceId)))
+            clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Creating, now)).transaction
+          runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+          _ <- publisherQueue.enqueue1(CreateCluster.fromRuntime(cluster, runtimeConfig, Some(traceId)))
         } yield ()
       } else {
         IO(
@@ -170,6 +170,9 @@ class ClusterMonitorSupervisor(
       res.unsafeRunSync()
 
     case StopClusterAfterCreation(cluster) =>
+      val traceId = UUID.randomUUID()
+      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
+
       logger.info(s"Stopping cluster ${cluster.projectNameString} after creation...")
       val res = clusterQuery
         .getClusterById(cluster.id)
@@ -204,6 +207,8 @@ class ClusterMonitorSupervisor(
       startClusterMonitorActor(cluster)
 
     case AutoFreezeClusters =>
+      val traceId = UUID.randomUUID()
+      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
       autoFreezeClusters().unsafeToFuture()
 
     case CheckForClusters =>
@@ -222,7 +227,7 @@ class ClusterMonitorSupervisor(
         imageConfig,
         clusterBucketConfig,
         gdDAO,
-        googleComputeDAO,
+        googleComputeService,
         googleStorageDAO,
         google2StorageDAO,
         dbRef,
@@ -242,14 +247,14 @@ class ClusterMonitorSupervisor(
     }
   }
 
-  def autoFreezeClusters(): IO[Unit] =
+  def autoFreezeClusters()(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
       now <- IO(Instant.now)
       pauseableClusters <- clusters.toList.filterA { cluster =>
-        jupyterProxyDAO.isAllKernelsIdle(cluster.googleProject, cluster.clusterName).attempt.flatMap {
+        jupyterProxyDAO.isAllKernelsIdle(cluster.googleProject, cluster.runtimeName).attempt.flatMap {
           case Left(t) =>
-            IO(logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t"))
+            IO(logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.runtimeName} due to $t"))
               .as(true)
           case Right(isIdle) =>
             if (!isIdle) {
@@ -267,12 +272,12 @@ class ClusterMonitorSupervisor(
                 metrics.incrementCounter("autoPause/maxKernelActiveTimeExceeded") >>
                   IO(
                     logger.info(
-                      s"Auto pausing ${cluster.googleProject}/${cluster.clusterName} due to exceeded max kernel active time"
+                      s"Auto pausing ${cluster.googleProject}/${cluster.runtimeName} due to exceeded max kernel active time"
                     )
                   ).as(true),
                 metrics.incrementCounter("autoPause/activeKernelClusters") >> IO(
                   logger.info(
-                    s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels"
+                    s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.runtimeName} due to active kernels"
                   )
                 ).as(false)
               )
@@ -281,23 +286,23 @@ class ClusterMonitorSupervisor(
       }
       _ <- metrics.gauge("autoPause/numOfCusters", pauseableClusters.length)
       _ <- pauseableClusters.traverse_ { cl =>
-        IO(logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")) >>
+        IO(logger.info(s"Auto freezing cluster ${cl.runtimeName} in project ${cl.googleProject}")) >>
           stopCluster(cl, now).attempt.map { e =>
             e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
           }
       }
     } yield ()
 
-  private def stopCluster(cluster: Cluster, now: Instant): IO[Unit] =
+  private def stopCluster(cluster: Cluster, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       // Flush the welder cache to disk
       _ <- if (cluster.welderEnabled) {
         welderProxyDAO
-          .flushCache(cluster.googleProject, cluster.clusterName)
+          .flushCache(cluster.googleProject, cluster.runtimeName)
           .handleError(e => logger.error(s"Failed to flush welder cache for ${cluster.projectNameString}", e))
       } else IO.unit
 
-      runtimeConfig <- RuntimeConfigQueries.getRuntime(cluster.runtimeConfigId).transaction
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
       _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
 
@@ -314,15 +319,15 @@ class ClusterMonitorSupervisor(
           val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
 
           clustersNotAlreadyBeingMonitored.toList traverse_ {
-            case c if c.status == ClusterStatus.Deleting => IO(self ! ClusterDeleted(c))
+            case c if c.status == RuntimeStatus.Deleting => IO(self ! ClusterDeleted(c))
 
-            case c if c.status == ClusterStatus.Stopping => IO(self ! ClusterStopped(c))
+            case c if c.status == RuntimeStatus.Stopping => IO(self ! ClusterStopped(c))
 
-            case c if c.status == ClusterStatus.Starting => IO(self ! ClusterStarted(c))
+            case c if c.status == RuntimeStatus.Starting => IO(self ! ClusterStarted(c))
 
-            case c if c.status == ClusterStatus.Updating => IO(self ! ClusterUpdated(c))
+            case c if c.status == RuntimeStatus.Updating => IO(self ! ClusterUpdated(c))
 
-            case c if c.status == ClusterStatus.Creating && c.dataprocInfo.isDefined =>
+            case c if c.status == RuntimeStatus.Creating && c.asyncRuntimeFields.isDefined =>
               IO(self ! ClusterCreated(c, c.stopAfterCreation))
 
             case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))

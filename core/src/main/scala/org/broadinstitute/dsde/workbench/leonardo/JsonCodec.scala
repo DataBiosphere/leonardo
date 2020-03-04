@@ -6,7 +6,7 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.google2.ClusterName
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -17,21 +17,25 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 
 object JsonCodec {
+  // Errors
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)
   val oneWorkerSpecifiedDecodingFailure = DecodingFailure(
     "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more.",
     List.empty
   )
-  val emptyMasterMachineType = DecodingFailure("masterMachineType can not be an empty string", List.empty)
 
+  // Encoders
+  implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
+  implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.value)
   implicit val gcsBucketNameEncoder: Encoder[GcsBucketName] = Encoder.encodeString.contramap(_.value)
   implicit val workbenchEmailEncoder: Encoder[WorkbenchEmail] = Encoder.encodeString.contramap(_.value)
   implicit val gcsObjectNameEncoder: Encoder[GcsObjectName] = Encoder.encodeString.contramap(_.value)
   implicit val googleProjectEncoder: Encoder[GoogleProject] = Encoder.encodeString.contramap(_.value)
   implicit val gcsPathEncoder: Encoder[GcsPath] = Encoder.encodeString.contramap(_.toUri)
   implicit val userScriptPathEncoder: Encoder[UserScriptPath] = Encoder.encodeString.contramap(_.asString)
-  implicit val machineTypeEncoder: Encoder[MachineType] = Encoder.encodeString.contramap(_.value)
+  implicit val machineTypeEncoder: Encoder[MachineTypeName] = Encoder.encodeString.contramap(_.value)
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
+  implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
     "numberOfWorkers",
     "masterMachineType",
@@ -53,7 +57,7 @@ object JsonCodec {
        x.numberOfPreemptibleWorkers,
        x.cloudService)
   )
-  implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct3(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct3(
     "machineType",
     "diskSize",
     "cloudService"
@@ -71,13 +75,13 @@ object JsonCodec {
     "dateAccessed",
     "kernelFoundBusyDate"
   )(x => AuditInfo.unapply(x).get)
-  implicit val clusterImageTypeEncoder: Encoder[ClusterImageType] = Encoder.encodeString.contramap(_.toString)
-  implicit val clusterImageEncoder: Encoder[ClusterImage] = Encoder.forProduct3(
+  implicit val runtimeImageTypeEncoder: Encoder[RuntimeImageType] = Encoder.encodeString.contramap(_.toString)
+  implicit val containerImageEncoder: Encoder[ContainerImage] = Encoder.encodeString.contramap(_.imageUrl)
+  implicit val runtimeImageEncoder: Encoder[RuntimeImage] = Encoder.forProduct3(
     "imageType",
     "imageUrl",
     "timestamp"
-  )(x => ClusterImage.unapply(x).get)
-
+  )(x => RuntimeImage.unapply(x).get)
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(
     x =>
       x match {
@@ -85,20 +89,43 @@ object JsonCodec {
         case x: RuntimeConfig.GceConfig      => x.asJson
       }
   )
-  implicit val containerImageEncoder: Encoder[ContainerImage] = Encoder.encodeString.contramap(_.imageUrl)
   implicit val serviceAccountInfoEncoder: Encoder[ServiceAccountInfo] = Encoder.forProduct2(
     "clusterServiceAccount",
     "notebookServiceAccount"
   )(x => ServiceAccountInfo.unapply(x).get)
+  implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
+  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct8(
+    "clusterName",
+    "googleProject",
+    "creator",
+    "clusterServiceAccount",
+    "notebookServiceAccount",
+    "notebookUserScript",
+    "notebookStartUserScript",
+    "tool"
+  )(x => DefaultLabels.unapply(x).get)
+  implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
+    Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
 
+  implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
+    "googleProject",
+    "clusterName"
+  )(x => RuntimeProjectAndName.unapply(x).get)
+
+  // Decoders
+  implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
+  implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
   implicit val containerImageDecoder: Decoder[ContainerImage] = Decoder.decodeString.emap(
-    s => ContainerImage.stringToJupyterDockerImage(s).toRight(s"invalid container image ${s}")
+    s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}")
   )
   implicit val cloudServiceDecoder: Decoder[CloudService] =
     Decoder.decodeString.emap(s => CloudService.withNameOption(s).toRight(s"Unsupported cloud service ${s}"))
-  implicit val clusterNameDecoder: Decoder[ClusterName] = Decoder.decodeString.map(ClusterName)
-  implicit val clusterInternalIdDecoder: Decoder[ClusterInternalId] = Decoder.decodeString.map(ClusterInternalId)
-  implicit val machineTypeDecoder: Decoder[MachineType] = Decoder.decodeString.map(MachineType)
+  implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
+  implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
+  implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
+  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(
+    s => if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
+  )
   implicit val instantDecoder: Decoder[Instant] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
   implicit val gcsBucketNameDecoder: Decoder[GcsBucketName] = Decoder.decodeString.map(GcsBucketName)
@@ -106,14 +133,14 @@ object JsonCodec {
   implicit val urlDecoder: Decoder[URL] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
-  implicit val clusterImageTypeDecoder: Decoder[ClusterImageType] = Decoder.decodeString.emap(
-    s => ClusterImageType.stringToClusterImageType.get(s).toRight(s"invalid ClusterImageType ${s}")
+  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(
+    s => RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
   )
-  implicit val clusterImageDecoder: Decoder[ClusterImage] = Decoder.forProduct3(
+  implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct3(
     "imageType",
     "imageUrl",
     "timestamp"
-  )(ClusterImage.apply)
+  )(RuntimeImage.apply)
   implicit val auditInfoDecoder: Decoder[AuditInfo] = Decoder.forProduct5(
     "creator",
     "createdDate",
@@ -124,9 +151,9 @@ object JsonCodec {
   implicit val rtDataprocConfigDecoder: Decoder[RuntimeConfig.DataprocConfig] = Decoder.instance { c =>
     for {
       numberOfWorkers <- c.downField("numberOfWorkers").as[Int]
-      masterMachineType <- c.downField("masterMachineType").as[String]
+      masterMachineType <- c.downField("masterMachineType").as[MachineTypeName]
       masterDiskSize <- c.downField("masterDiskSize").as[Int]
-      workerMachineType <- c.downField("workerMachineType").as[Option[String]]
+      workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
       workerDiskSize <- c.downField("workerDiskSize").as[Option[Int]]
       numberOfWorkerLocalSSDs <- c.downField("numberOfWorkerLocalSSDs").as[Option[Int]]
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
@@ -143,7 +170,6 @@ object JsonCodec {
     "machineType",
     "diskSize"
   )((mt, ds) => RuntimeConfig.GceConfig(mt, ds))
-
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
     for {
       cloudService <- x.downField("cloudService").as[CloudService]
@@ -155,17 +181,16 @@ object JsonCodec {
       }
     } yield r
   }
-
   implicit val serviceAccountInfoDecoder: Decoder[ServiceAccountInfo] = Decoder.forProduct2(
     "clusterServiceAccount",
     "notebookServiceAccount"
   )(ServiceAccountInfo.apply)
 
-  implicit val clusterErrorDecoder: Decoder[ClusterError] = Decoder.forProduct3(
+  implicit val runtimeErrorDecoder: Decoder[RuntimeError] = Decoder.forProduct3(
     "errorMessage",
     "errorCode",
     "timestamp"
-  )(ClusterError.apply)
+  )(RuntimeError.apply)
   implicit val gcsPathDecoder: Decoder[GcsPath] = Decoder.decodeString.emap(s => parseGcsPath(s).leftMap(_.value))
   implicit val userScriptPathDecoder: Decoder[UserScriptPath] = Decoder.decodeString.emap { s =>
     UserScriptPath.stringToUserScriptPath(s).leftMap(_.getMessage)
@@ -176,4 +201,10 @@ object JsonCodec {
     "combinedExtensions",
     "labExtensions"
   )(UserJupyterExtensionConfig.apply)
+  implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =
+    Decoder.forProduct2("googleProject", "clusterName")(RuntimeProjectAndName.apply)
+
+  implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
+    Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
+
 }

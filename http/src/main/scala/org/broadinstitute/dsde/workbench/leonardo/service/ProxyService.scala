@@ -26,7 +26,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
@@ -37,18 +36,18 @@ import scala.concurrent.{ExecutionContext, Future}
 
 final case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName)
     extends LeoException(
-      s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet. It may be updating, try again later",
+      s"Cluster ${googleProject.value}/${clusterName.asString} is not ready yet. It may be updating, try again later",
       StatusCodes.Locked
     )
 
 final case class ClusterPausedException(googleProject: GoogleProject, clusterName: ClusterName)
     extends LeoException(
-      s"Cluster ${googleProject.value}/${clusterName.value} is stopped. Start your cluster before proceeding.",
+      s"Cluster ${googleProject.value}/${clusterName.asString} is stopped. Start your cluster before proceeding.",
       StatusCodes.UnprocessableEntity
     )
 
 final case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
-    extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.value}",
+    extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.asString}",
                          StatusCodes.InternalServerError)
 
 final case object AccessTokenExpiredException
@@ -125,9 +124,9 @@ class ProxyService(
       case None =>
         IO(
           logger.error(
-            s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.value}"
+            s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.asString}"
           )
-        ) >> IO.raiseError[ClusterInternalId](ClusterNotFoundException(googleProject, clusterName))
+        ) >> IO.raiseError[ClusterInternalId](RuntimeNotFoundException(googleProject, clusterName))
     }
 
   /*
@@ -147,7 +146,7 @@ class ProxyService(
       hasRequiredPermission <- authProvider
         .hasNotebookClusterPermission(internalId, userInfo, notebookAction, googleProject, clusterName)
       _ <- if (!hasViewPermission) {
-        IO.raiseError(ClusterNotFoundException(googleProject, clusterName))
+        IO.raiseError(RuntimeNotFoundException(googleProject, clusterName))
       } else if (!hasRequiredPermission) {
         IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
       } else IO.unit
@@ -229,13 +228,13 @@ class ProxyService(
         )
       case HostNotFound =>
         IO(logger.warn(s"proxy host not found for ${googleProject}/${clusterName}")) >> IO.raiseError(
-          ClusterNotFoundException(googleProject, clusterName)
+          RuntimeNotFoundException(googleProject, clusterName)
         )
     }
   }
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.jupyterPort}")
+    logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
 
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
@@ -245,7 +244,7 @@ class ProxyService(
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http().outgoingConnectionHttps(targetHost.address, proxyConfig.jupyterPort)
+    val flow = Http().outgoingConnectionHttps(targetHost.address, proxyConfig.proxyPort)
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -321,7 +320,7 @@ class ProxyService(
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
       WebSocketRequest(
         request.uri.copy(path = rewriteJupyterPath(request.uri.path),
-                         authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.jupyterPort),
+                         authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
                          scheme = "wss"),
         extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption

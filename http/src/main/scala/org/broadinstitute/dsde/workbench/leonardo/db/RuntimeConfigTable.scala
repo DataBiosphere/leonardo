@@ -3,6 +3,7 @@ package db
 
 import java.time.Instant
 
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -10,9 +11,9 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def id = column[RuntimeConfigId]("id", O.PrimaryKey, O.AutoInc)
   def cloudService = column[CloudService]("cloudService", O.Length(254))
   def numberOfWorkers = column[Int]("numberOfWorkers")
-  def machineType = column[MachineType]("machineType", O.Length(254))
+  def machineType = column[MachineTypeName]("machineType", O.Length(254))
   def diskSize = column[Int]("diskSize")
-  def workerMachineType = column[Option[MachineType]]("workerMachineType", O.Length(254))
+  def workerMachineType = column[Option[MachineTypeName]]("workerMachineType", O.Length(254))
   def workerDiskSize = column[Option[Int]]("workerDiskSize")
   def numberOfWorkerLocalSSDs = column[Option[Int]]("numberOfWorkerLocalSSDs")
   def numberOfPreemptibleWorkers = column[Option[Int]]("numberOfPreemptibleWorkers")
@@ -47,9 +48,9 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
 
           case CloudService.Dataproc =>
             RuntimeConfig.DataprocConfig(numberOfWorkers,
-                                         machineType.value,
+                                         machineType,
                                          diskSize,
-                                         workerMachineType.map(_.value),
+                                         workerMachineType,
                                          workerDiskSize,
                                          numberOfWorkerLocalSSDs,
                                          numberOfPreemptibleWorkers)
@@ -66,9 +67,9 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
             x.id,
             (CloudService.Dataproc: CloudService,
              r.numberOfWorkers,
-             MachineType(r.masterMachineType),
+             r.masterMachineType,
              r.masterDiskSize,
-             r.workerMachineType.map(MachineType),
+             r.workerMachineType,
              r.workerDiskSize,
              r.numberOfWorkerLocalSSDs,
              r.numberOfPreemptibleWorkers),
@@ -78,5 +79,4 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
     })
 }
 
-final case class RuntimeConfigId(value: Long) extends AnyVal with MappedTo[Long]
 final case class RuntimeConfigRecord(id: RuntimeConfigId, runtimeConfig: RuntimeConfig, dateAccessed: Instant)

@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
@@ -22,16 +21,16 @@ trait SamDAO[F[_]] {
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[A]]
 
-  def createClusterResource(internalId: ClusterInternalId,
+  def createClusterResource(internalId: RuntimeInternalId,
                             creatorEmail: WorkbenchEmail,
                             googleProject: GoogleProject,
-                            clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
-  def deleteClusterResource(internalId: ClusterInternalId,
+  def deleteClusterResource(internalId: RuntimeInternalId,
                             userEmail: WorkbenchEmail,
                             creatorEmail: WorkbenchEmail,
                             googleProject: GoogleProject,
-                            clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]

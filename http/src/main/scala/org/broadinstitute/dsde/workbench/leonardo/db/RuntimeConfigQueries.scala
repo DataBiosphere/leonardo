@@ -3,6 +3,7 @@ package db
 
 import java.time.Instant
 
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeonardoServiceDbQueries.ClusterJoinLabel
@@ -27,12 +28,12 @@ object RuntimeConfigQueries {
   /**
    * return DB generated id
    */
-  def insertRuntime(runtimeConfig: RuntimeConfig, dateAccessed: Instant): DBIO[RuntimeConfigId] =
+  def insertRuntimeConfig(runtimeConfig: RuntimeConfig, dateAccessed: Instant): DBIO[RuntimeConfigId] =
     runtimeConfigs.returning(runtimeConfigs.map(_.id)) += RuntimeConfigRecord(RuntimeConfigId(0),
                                                                               runtimeConfig,
                                                                               dateAccessed)
 
-  def getRuntime(id: RuntimeConfigId)(implicit ec: ExecutionContext): DBIO[RuntimeConfig] =
+  def getRuntimeConfig(id: RuntimeConfigId)(implicit ec: ExecutionContext): DBIO[RuntimeConfig] =
     runtimeConfigs.filter(x => x.id === id).result.flatMap { x =>
       val res = x.headOption.map { x =>
         x.runtimeConfig
@@ -56,7 +57,7 @@ object RuntimeConfigQueries {
       .map(c => (c.numberOfPreemptibleWorkers, c.dateAccessed))
       .update((numberOfPreemptibleWorkers, dateAccessed))
 
-  def updateMachineType(id: RuntimeConfigId, machineType: MachineType, dateAccessed: Instant): DBIO[Int] =
+  def updateMachineType(id: RuntimeConfigId, machineType: MachineTypeName, dateAccessed: Instant): DBIO[Int] =
     runtimeConfigs
       .filter(x => x.id === id)
       .map(c => (c.machineType, c.dateAccessed))

@@ -6,7 +6,6 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
@@ -37,7 +36,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
       case ResourceTypeName.NotebookCluster =>
         val res = notebookClusters
-          .get((ClusterInternalId(resourceId), authHeader)) //look it up: Option[Set]
+          .get((RuntimeInternalId(resourceId), authHeader)) //look it up: Option[Set]
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
           .getOrElse(false) //unpack the resulting option and handle the project never having existed
         IO.pure(res)
