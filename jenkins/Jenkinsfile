@@ -402,7 +402,7 @@ pipeline {
                                         -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
                                         -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
                                         /daisy_source_files/leo_custom_gce_image.wf.json
-                                    docker stop daisy
+                                    docker stop daisy || true
                                     docker rm -f daisy || true
 
                                     # Daisy doesn't clean it up all so we remove the bucket manually
