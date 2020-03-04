@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleSt
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
@@ -62,7 +62,7 @@ object ClusterMonitorSupervisor {
                                    jupyterProxyDAO,
                                    rstudioProxyDAO,
                                    welderDAO,
-        dataprocAlg,
+                                   dataprocAlg,
                                    publisherQueue)
     )
 
@@ -93,21 +93,21 @@ object ClusterMonitorSupervisor {
 }
 
 class ClusterMonitorSupervisor(
-                                monitorConfig: MonitorConfig,
-                                dataprocConfig: DataprocConfig,
-                                imageConfig: ImageConfig,
-                                clusterBucketConfig: ClusterBucketConfig,
-                                gdDAO: GoogleDataprocDAO,
-                                googleComputeService: GoogleComputeService[IO],
-                                googleStorageDAO: GoogleStorageDAO,
-                                google2StorageDAO: GoogleStorageService[IO],
-                                authProvider: LeoAuthProvider[IO],
-                                autoFreezeConfig: AutoFreezeConfig,
-                                jupyterProxyDAO: JupyterDAO[IO],
-                                rstudioProxyDAO: RStudioDAO[IO],
-                                welderProxyDAO: WelderDAO[IO],
-                                dataprocAlg: DataprocAlgebra[IO],
-                                publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
+  monitorConfig: MonitorConfig,
+  dataprocConfig: DataprocConfig,
+  imageConfig: ImageConfig,
+  clusterBucketConfig: ClusterBucketConfig,
+  gdDAO: GoogleDataprocDAO,
+  googleComputeService: GoogleComputeService[IO],
+  googleStorageDAO: GoogleStorageDAO,
+  google2StorageDAO: GoogleStorageService[IO],
+  authProvider: LeoAuthProvider[IO],
+  autoFreezeConfig: AutoFreezeConfig,
+  jupyterProxyDAO: JupyterDAO[IO],
+  rstudioProxyDAO: RStudioDAO[IO],
+  welderProxyDAO: WelderDAO[IO],
+  dataprocAlg: DataprocAlgebra[IO],
+  publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
 )(implicit metrics: NewRelicMetrics[IO],
   ec: ExecutionContext,
   dbRef: DbReference[IO],

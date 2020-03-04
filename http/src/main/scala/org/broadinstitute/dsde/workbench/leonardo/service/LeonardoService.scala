@@ -124,20 +124,20 @@ object UpdateTransition {
 
 // Future runtime related APIs should be added to `RuntimeService`
 class LeonardoService(
-                       protected val dataprocConfig: DataprocConfig,
-                       protected val imageConfig: ImageConfig,
-                       protected val welderDao: WelderDAO[IO],
-                       protected val proxyConfig: ProxyConfig,
-                       protected val swaggerConfig: SwaggerConfig,
-                       protected val autoFreezeConfig: AutoFreezeConfig,
-                       protected val welderConfig: WelderConfig,
-                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
-                       protected val authProvider: LeoAuthProvider[IO],
-                       protected val serviceAccountProvider: ServiceAccountProvider[IO],
-                       protected val bucketHelper: BucketHelper,
-                       protected val dataprocAlg: DataprocAlgebra[IO],
-                       protected val dockerDAO: DockerDAO[IO],
-                       protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
+  protected val dataprocConfig: DataprocConfig,
+  protected val imageConfig: ImageConfig,
+  protected val welderDao: WelderDAO[IO],
+  protected val proxyConfig: ProxyConfig,
+  protected val swaggerConfig: SwaggerConfig,
+  protected val autoFreezeConfig: AutoFreezeConfig,
+  protected val welderConfig: WelderConfig,
+  protected val petGoogleStorageDAO: String => GoogleStorageDAO,
+  protected val authProvider: LeoAuthProvider[IO],
+  protected val serviceAccountProvider: ServiceAccountProvider[IO],
+  protected val bucketHelper: BucketHelper,
+  protected val dataprocAlg: DataprocAlgebra[IO],
+  protected val dockerDAO: DockerDAO[IO],
+  protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
 )(implicit val executionContext: ExecutionContext,
   implicit override val system: ActorSystem,
   log: Logger[IO],
@@ -488,9 +488,11 @@ class LeonardoService(
               s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
             )
             // Resize the cluster
-            _ <- dataprocAlg.resizeCluster(ResizeClusterParams(existingCluster,
-                                             updatedNumWorkersAndPreemptibles.left,
-                                             updatedNumWorkersAndPreemptibles.right))
+            _ <- dataprocAlg.resizeCluster(
+              ResizeClusterParams(existingCluster,
+                                  updatedNumWorkersAndPreemptibles.left,
+                                  updatedNumWorkersAndPreemptibles.right)
+            )
 
             // Update the DB
             now <- IO(Instant.now)

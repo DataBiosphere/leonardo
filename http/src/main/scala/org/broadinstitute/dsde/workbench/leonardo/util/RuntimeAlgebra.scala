@@ -2,7 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, GoogleGroupsConfig, ImageConfig, MonitorConfig, ProxyConfig, WelderConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  ClusterFilesConfig,
+  ClusterResourcesConfig,
+  DataprocConfig,
+  GoogleGroupsConfig,
+  ImageConfig,
+  MonitorConfig,
+  ProxyConfig,
+  WelderConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfig}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -53,5 +62,6 @@ object RuntimeInterpreterConfig {
                                              proxyConfig: ProxyConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: ClusterFilesConfig,
-                                             monitorConfig: MonitorConfig) extends RuntimeInterpreterConfig
+                                             monitorConfig: MonitorConfig)
+      extends RuntimeInterpreterConfig
 }
