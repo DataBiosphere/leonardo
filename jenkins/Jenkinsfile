@@ -269,15 +269,15 @@ pipeline {
                         }
 
                         if (GENERATE_DATAPROC_IMAGE == "true") {
+                            println("Printing any changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh:\n")
                             sh """
-                                printf 'Printing any changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh:\\n\\n'
                                 git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                             """
                         }
 
                         if (GENERATE_GCE_IMAGE == "true") {
-                            sh """
-                                printf 'Printing any changed versions in prepare_custom_leonardo_gce_image.sh:\\n\\n'
+                            println("Printing any changed versions in prepare_custom_leonardo_gce_image.sh:\n")
+                            sh """                  
                                 git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
                             """
                         }
@@ -381,10 +381,6 @@ pipeline {
                 stage('Run GCE image generation script') {
                     when { expression { GENERATE_GCE_IMAGE == "true" } }
                         steps {
-                            sh """
-                                docker pull gcr.io/compute-image-tools/daisy:latest
-                            """
-
                             script {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
                                 sh """
