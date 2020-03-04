@@ -1,8 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.{Async, Blocker, ContextShift, IO}
+import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{Allowed, Firewall}
+import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.{NetworkTag, VPCConfig}
@@ -12,33 +14,34 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
 
-class VPCHelper(config: VPCHelperConfig,
-                googleProjectDAO: GoogleProjectDAO,
-                googleComputeService: GoogleComputeService[IO])(implicit contextShift: ContextShift[IO]
-                                                                //  log: Logger[IO]
-) {
+class VPCHelper[F[_]: Async: ContextShift: Logger](config: VPCHelperConfig,
+                                                   googleProjectDAO: GoogleProjectDAO,
+                                                   googleComputeService: GoogleComputeService[F],
+                                                   blocker: Blocker) {
 
-  private def getVPCSettingsFromProjectLabel(googleProject: GoogleProject): IO[Option[VPCConfig]] =
-    IO.fromFuture(IO(googleProjectDAO.getLabels(googleProject.value))).map { labelMap =>
+  implicit val contextShiftIO = IO.contextShift(blocker.blockingContext)
+
+  private def getVPCSettingsFromProjectLabel(googleProject: GoogleProject): F[Option[VPCConfig]] =
+    Async[F].liftIO(IO.fromFuture(IO(googleProjectDAO.getLabels(googleProject.value)))).map { labelMap =>
       labelMap.get(config.projectVPCNetworkLabelName).map(VPCNetwork) orElse
         labelMap.get(config.projectVPCSubnetLabelName).map(VPCSubnet)
     }
 
   // TODO
-  private def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = IO(VPCNetwork("default"))
+  private def createVPCSubnet(googleProject: GoogleProject): F[VPCConfig] = Async[F].pure(VPCNetwork("default"))
 
-  def getOrCreateVPCSettings(googleProject: GoogleProject): IO[VPCConfig] =
+  def getOrCreateVPCSettings(googleProject: GoogleProject): F[VPCConfig] =
     for {
       fromProjectLabels <- getVPCSettingsFromProjectLabel(googleProject)
-      res <- fromProjectLabels.fold(createVPCSubnet(googleProject))(IO.pure)
+      res <- fromProjectLabels.fold(createVPCSubnet(googleProject))(Async[F].pure)
     } yield res
 
   def getOrCreateFirewallRule(googleProject: GoogleProject,
-                              vpcConfig: VPCConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                              vpcConfig: VPCConfig)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
       rule <- googleComputeService.getFirewallRule(googleProject, config.firewallRuleName)
       _ <- rule.fold(googleComputeService.addFirewallRule(googleProject, buildFirewall(googleProject, vpcConfig)))(
-        _ => IO.unit
+        _ => Async[F].unit
       )
     } yield ()
 

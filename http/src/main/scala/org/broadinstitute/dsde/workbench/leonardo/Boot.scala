@@ -96,7 +96,10 @@ object Boot extends IOApp {
         List(NetworkTag(proxyConfig.networkTag))
       )
       val vpcHelper =
-        new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
+        new VPCHelper(vpcHelperConfig,
+                      appDependencies.googleProjectDAO,
+                      appDependencies.googleComputeService,
+                      appDependencies.blocker)
 
       val clusterHelper = new DataprocInterpreter(DataprocInterpreterConfig(dataprocConfig,
                                                                             googleGroupsConfig,

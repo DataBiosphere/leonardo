@@ -12,7 +12,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleTopicAdminInterpreter,
   MachineTypeName,
   PublisherConfig,
-  SubscriberConfig
+  SubscriberConfig,
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
@@ -40,7 +41,7 @@ object Config {
   implicit val dataprocRuntimeConfigReader: ValueReader[RuntimeConfig.DataprocConfig] = ValueReader.relative { config =>
     RuntimeConfig.DataprocConfig(
       config.getInt("numberOfWorkers"),
-      MachineTypeName(config.getString("masterMachineType")),
+      config.as[MachineTypeName]("masterMachineType"),
       config.getInt("masterDiskSize"),
       config.getAs[String]("workerMachineType").map(MachineTypeName),
       config.getAs[Int]("workerDiskSize"),
@@ -52,7 +53,7 @@ object Config {
 
   implicit val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
     RuntimeConfig.GceConfig(
-      MachineTypeName(config.getString("machineType")),
+      config.as[MachineTypeName]("machineType"),
       config.getInt("diskSize")
     )
   }
@@ -71,6 +72,7 @@ object Config {
 
   implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
+      config.as[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
@@ -254,6 +256,8 @@ object Config {
   implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
   implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
   implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
+  implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
+  implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
   implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
     s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )

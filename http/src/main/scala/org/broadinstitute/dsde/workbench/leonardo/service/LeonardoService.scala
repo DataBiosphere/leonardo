@@ -134,7 +134,7 @@ class LeonardoService(
   protected val petGoogleStorageDAO: String => GoogleStorageDAO,
   protected val authProvider: LeoAuthProvider[IO],
   protected val serviceAccountProvider: ServiceAccountProvider[IO],
-  protected val bucketHelper: BucketHelper,
+  protected val bucketHelper: BucketHelper[IO],
   protected val dataprocAlg: DataprocAlgebra[IO],
   protected val dockerDAO: DockerDAO[IO],
   protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]

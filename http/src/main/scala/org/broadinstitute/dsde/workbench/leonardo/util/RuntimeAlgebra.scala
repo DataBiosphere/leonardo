@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   ClusterFilesConfig,
   ClusterResourcesConfig,
   DataprocConfig,
+  GceConfig,
   GoogleGroupsConfig,
   ImageConfig,
   MonitorConfig,
@@ -64,7 +65,7 @@ final case class CreateRuntimeParams(id: Long,
                                      runtimeImages: Set[RuntimeImage],
                                      scopes: Set[String],
                                      welderEnabled: Boolean,
-                                     customClusterEnvironmentVariables: Map[String, String],
+                                     customEnvironmentVariables: Map[String, String],
                                      runtimeConfig: RuntimeConfig)
 object CreateRuntimeParams {
   def fromCreateRuntimeMessage(message: CreateRuntimeMessage): CreateRuntimeParams =
@@ -83,7 +84,7 @@ object CreateRuntimeParams {
       message.runtimeImages,
       message.scopes,
       message.welderEnabled,
-      message.customClusterEnvironmentVariables,
+      message.customEnvironmentVariables,
       message.runtimeConfig
     )
 }
@@ -117,5 +118,14 @@ object RuntimeInterpreterConfig {
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: ClusterFilesConfig,
                                              monitorConfig: MonitorConfig)
+      extends RuntimeInterpreterConfig
+
+  final case class GceInterpreterConfig(gceConfig: GceConfig,
+                                        welderConfig: WelderConfig,
+                                        imageConfig: ImageConfig,
+                                        proxyConfig: ProxyConfig,
+                                        clusterResourcesConfig: ClusterResourcesConfig,
+                                        clusterFilesConfig: ClusterFilesConfig,
+                                        monitorConfig: MonitorConfig)
       extends RuntimeInterpreterConfig
 }

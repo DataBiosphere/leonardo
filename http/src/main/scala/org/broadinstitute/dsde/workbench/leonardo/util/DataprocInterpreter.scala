@@ -53,8 +53,8 @@ final case class ClusterResourceConstaintsException(clusterProjectAndName: Runti
 
 class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   config: DataprocInterpreterConfig,
-  bucketHelper: BucketHelper,
-  vpcHelper: VPCHelper,
+  bucketHelper: BucketHelper[F],
+  vpcHelper: VPCHelper[F],
   gdDAO: GoogleDataprocDAO,
   googleComputeService: GoogleComputeService[F],
   googleDirectoryDAO: GoogleDirectoryDAO,
@@ -73,7 +73,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   import dbRef._
 
-  implicit val contextShiftIO = IO.contextShift(executionContext)
+  implicit val contextShiftIO = IO.contextShift(blocker.blockingContext)
 
   override def createRuntime(
     params: CreateRuntimeParams
@@ -91,10 +91,8 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         evIO = ApplicativeAsk.const[IO, TraceId](traceId)
 
         // Set up VPC network and firewall
-        vpcSettings <- Async[F].liftIO(vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject))
-        firewallRule <- Async[F].liftIO(
-          vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)(evIO)
-        )
+        vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
+        firewallRule <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)
 
         resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             params.runtimeConfig.machineType)
@@ -107,23 +105,19 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
         // Create the bucket in the cluster's google project and populate with initialization files.
         // ACLs are granted so the cluster service account can access the files at initialization time.
-        _ <- Async[F].liftIO(
-          bucketHelper
-            .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
-            .compile
-            .drain
-        )
+        _ <- bucketHelper
+          .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
+          .compile
+          .drain
 
         // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-        _ <- Async[F].liftIO(
-          bucketHelper
-            .createStagingBucket(params.auditInfo.creator,
-                                 params.runtimeProjectAndName.googleProject,
-                                 stagingBucketName,
-                                 params.serviceAccountInfo)(evIO)
-            .compile
-            .drain
-        )
+        _ <- bucketHelper
+          .createStagingBucket(params.auditInfo.creator,
+                               params.runtimeProjectAndName.googleProject,
+                               stagingBucketName,
+                               params.serviceAccountInfo)
+          .compile
+          .drain
 
         templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
           params,
@@ -138,12 +132,10 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
           config.clusterResourcesConfig,
           Some(resourceConstraints)
         )
-        _ <- Async[F].liftIO(
-          bucketHelper
-            .initializeBucketObjects(initBucketName, templateParams, params.customClusterEnvironmentVariables)
-            .compile
-            .drain
-        )
+        _ <- bucketHelper
+          .initializeBucketObjects(initBucketName, templateParams, params.customEnvironmentVariables)
+          .compile
+          .drain
 
         // build cluster configuration
         initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
@@ -442,7 +434,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                             serviceAccountInfo: ServiceAccountInfo,
                                             serviceAccountKeyOpt: Option[ServiceAccountKey]): F[Unit] = {
     // Clean up resources in Google
-    val deleteBucket = Async[F].liftIO(bucketHelper.deleteInitBucket(initBucketName)).attempt.flatMap {
+    val deleteBucket = bucketHelper.deleteInitBucket(initBucketName).attempt.flatMap {
       case Left(e) =>
         Logger[F].error(e)(
           s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"

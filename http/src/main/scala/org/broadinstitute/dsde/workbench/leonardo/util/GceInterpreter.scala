@@ -1,13 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import cats.effect.{ContextShift, IO}
+import java.util.UUID
+
+import akka.actor.ActorSystem
+import cats.Parallel
+import cats.effect.{Async, Blocker, ContextShift}
+import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Instance
-import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
+import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{
   generateUniqueBucketName,
@@ -15,23 +22,33 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey
 }
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+
+import scala.concurrent.ExecutionContext
 
 final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
       s"Unable to calculate memory constraints for instance in project ${project.value} with machine type ${machineType.value}"
     )
 
-class ComputeHelper(config: ComputeHelperConfig,
-                    googleProjectDAO: GoogleProjectDAO,
-                    googleComputeService: GoogleComputeService[IO],
-                    bucketHelper: BucketHelper,
-                    vpcHelper: VPCHelper)(
-  implicit contextShift: ContextShift[IO]
-  // log: Logger[IO],
-  // metrics: NewRelicMetrics[IO]
-) {
+class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
+  config: GceInterpreterConfig,
+  bucketHelper: BucketHelper[F],
+  vpcHelper: VPCHelper[F],
+  googleComputeService: GoogleComputeService[F],
+  welderDao: WelderDAO[F],
+  blocker: Blocker
+)(implicit val executionContext: ExecutionContext,
+  val system: ActorSystem,
+  metrics: NewRelicMetrics[F],
+  dbRef: DbReference[F])
+    extends BaseRuntimeInterpreter[F](config, welderDao)
+    with RuntimeAlgebra[F] {
 
-  def createInstance(params: CreateInstanceParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def createRuntime(
+    params: CreateRuntimeParams
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateRuntimeResponse] =
+    // TODO clean up on error
     for {
       // Set up VPC network and firewall
       vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
@@ -39,8 +56,8 @@ class ComputeHelper(config: ComputeHelperConfig,
 
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
-                                                    params.zoneName,
-                                                    params.machineConfig.machineType)
+                                                    config.gceConfig.zoneName,
+                                                    params.runtimeConfig.machineType)
 
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
@@ -61,12 +78,12 @@ class ComputeHelper(config: ComputeHelperConfig,
 
       templateParams = RuntimeTemplateValuesConfig(
         params.runtimeProjectAndName,
-        params.stagingBucketName,
+        Some(stagingBucketName),
         params.runtimeImages,
-        params.initBucketName,
+        Some(initBucketName),
         params.jupyterUserScriptUri,
         params.jupyterStartUserScriptUri,
-        params.serviceAccountKey,
+        None,
         params.userJupyterExtensionConfig,
         params.defaultClientId,
         params.welderEnabled,
@@ -87,26 +104,52 @@ class ComputeHelper(config: ComputeHelperConfig,
         .setName(params.runtimeProjectAndName.runtimeName.asString)
         .build
 
-      _ <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, params.zoneName, instance)
-    } yield ()
+      operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject,
+                                                       config.gceConfig.zoneName,
+                                                       instance)
+
+      // TODO do we have a google uuid for this?
+      // TODO custom image
+      asyncRuntimeFields = AsyncRuntimeFields(UUID.randomUUID(),
+                                              OperationName(operation.getName),
+                                              stagingBucketName,
+                                              None)
+    } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, CustomDataprocImage("foo"))
 
   private[leonardo] def getResourceConstraints(
     googleProject: GoogleProject,
     zoneName: ZoneName,
     machineTypeName: MachineTypeName
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[RuntimeResourceConstraints] =
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeResourceConstraints] =
     for {
       // Resolve the machine type in Google to get the total available memory
       machineType <- googleComputeService.getMachineType(googleProject, zoneName, machineTypeName)
       total <- machineType.fold(
-        IO.raiseError[MemorySize](InstanceResourceConstaintsException(googleProject, machineTypeName))
-      )(mt => IO.pure(MemorySize.fromMb(mt.getMemoryMb.toDouble)))
+        Async[F].raiseError[MemorySize](InstanceResourceConstaintsException(googleProject, machineTypeName))
+      )(mt => Async[F].pure(MemorySize.fromMb(mt.getMemoryMb.toDouble)))
       // result = total - os allocated - welder allocated
       gceAllocated = config.gceConfig.gceReservedMemory.map(_.bytes).getOrElse(0L)
       welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
       result = MemorySize(total.bytes - gceAllocated - welderAllocated)
     } yield RuntimeResourceConstraints(result)
 
+  override protected def stopGoogleRuntime(runtime: Cluster, runtimeConfig: RuntimeConfig)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit] = ???
+
+  override protected def startGoogleRuntime(runtime: Cluster, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit] = ???
+
+  override protected def setMachineTypeInGoogle(runtime: Cluster, machineType: MachineTypeName)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit] = ???
+
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = ???
+
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = ???
+
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = ???
 }
 
 final case class CreateInstanceParams(runtimeProjectAndName: RuntimeProjectAndName,
@@ -124,12 +167,3 @@ final case class CreateInstanceParams(runtimeProjectAndName: RuntimeProjectAndNa
                                       welderEnabled: Boolean,
                                       auditInfo: AuditInfo,
                                       customEnvVars: Map[String, String])
-
-final case class ComputeHelperConfig(projectVPCNetworkLabelName: String,
-                                     projectVPCSubnetLabelName: String,
-                                     gceConfig: GceConfig,
-                                     imageConfig: ImageConfig,
-                                     welderConfig: WelderConfig,
-                                     proxyConfig: ProxyConfig,
-                                     clusterFilesConfig: ClusterFilesConfig,
-                                     clusterResourcesConfig: ClusterResourcesConfig)
