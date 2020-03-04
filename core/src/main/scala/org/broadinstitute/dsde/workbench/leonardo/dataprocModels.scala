@@ -45,7 +45,11 @@ object DataprocRole extends Enum[DataprocRole] {
   case object SecondaryWorker extends DataprocRole
 }
 
-/** Dataproc properties */
+/**
+ * Dataproc properties
+ *
+ * See: https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+ */
 sealed abstract class PropertyFilePrefix
 object PropertyFilePrefix {
   case object CapacityScheduler extends PropertyFilePrefix {

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import monocle.Lens
 import monocle.macros.GenLens
 import org.broadinstitute.dsde.workbench.leonardo.db.GetClusterKey
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeAPIResponse, ListRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeResponse, ListRuntimeResponse}
 
 object LeoLenses {
   val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
@@ -14,7 +14,7 @@ object LeoLenses {
 
   val runtimeToAsyncRuntimeFields: Lens[Runtime, Option[AsyncRuntimeFields]] = GenLens[Runtime](_.asyncRuntimeFields)
 
-  val createRuntimeAPIRespToGetClusterKey = Lens[CreateRuntimeAPIResponse, GetClusterKey](
+  val createRuntimeRespToGetClusterKey = Lens[CreateRuntimeResponse, GetClusterKey](
     x => GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
   )(
     x =>
@@ -24,7 +24,7 @@ object LeoLenses {
                auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate))
   )
 
-  val createRuntimeAPIRespToListRuntimeResp = Lens[CreateRuntimeAPIResponse, ListRuntimeResponse](
+  val createRuntimeRespToListRuntimeResp = Lens[CreateRuntimeResponse, ListRuntimeResponse](
     x =>
       ListRuntimeResponse(
         x.id,

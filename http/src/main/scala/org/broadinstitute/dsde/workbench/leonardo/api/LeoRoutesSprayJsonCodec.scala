@@ -3,7 +3,7 @@ package http
 package api
 
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  CreateRuntimeAPIResponse,
+  CreateRuntimeResponse,
   GetRuntimeResponse,
   ListRuntimeResponse,
   UpdateRuntimeResponse
@@ -194,8 +194,8 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     JsObject(presentFields: _*)
   }
 
-  implicit val CreateRuntimeAPIResponseFormat: RootJsonWriter[CreateRuntimeAPIResponse] =
-    (obj: CreateRuntimeAPIResponse) => {
+  implicit val CreateRuntimeResponseFormat: RootJsonWriter[CreateRuntimeResponse] =
+    (obj: CreateRuntimeResponse) => {
       val allFields = List(
         "id" -> obj.id.toJson,
         "internalId" -> obj.internalId.asString.toJson,

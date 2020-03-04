@@ -306,7 +306,7 @@ class LeonardoServiceSpec
     // list clusters should return RStudio information
     val clusterList = leoForTest.listClusters(userInfo, Map.empty, Some(project)).unsafeToFuture.futureValue
     clusterList.size shouldBe 1
-    clusterList.toSet shouldBe Set(clusterResponse).map(x => LeoLenses.createRuntimeAPIRespToListRuntimeResp.get(x))
+    clusterList.toSet shouldBe Set(clusterResponse).map(x => LeoLenses.createRuntimeRespToListRuntimeResp.get(x))
     clusterList.head.labels.get("tool") shouldBe Some("RStudio")
     clusterList.head.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name1.asString}/rstudio")
   }
@@ -672,7 +672,7 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // populate some instances for the cluster
-    val getClusterKey = LeoLenses.createRuntimeAPIRespToGetClusterKey.get(cluster)
+    val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
     dbFutureValue {
       instanceQuery.saveAllForCluster(getClusterId(getClusterKey),
                                       Seq(masterInstance, workerInstance1, workerInstance2))
@@ -699,7 +699,7 @@ class LeonardoServiceSpec
       .map(_.status) shouldBe Some(RuntimeStatus.Deleting)
 
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
-    val getClusterIdKey = LeoLenses.createRuntimeAPIRespToGetClusterKey.get(cluster)
+    val getClusterIdKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
     val instances = dbFutureValue { instanceQuery.getAllForCluster(getClusterId(getClusterIdKey)) }
     instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
   }
@@ -798,7 +798,7 @@ class LeonardoServiceSpec
       .futureValue
 
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
   }
 
@@ -828,13 +828,13 @@ class LeonardoServiceSpec
       cluster1,
       cluster2
     ).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
 
     val clusterName3 = RuntimeName("test-cluster-3")
@@ -846,13 +846,13 @@ class LeonardoServiceSpec
     dbFutureValue { clusterQuery.completeDeletion(cluster3.id, Instant.now) }
 
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("includeDeleted" -> "false")).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1,
       cluster2
     ).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("includeDeleted" -> "true")).unsafeToFuture.futureValue.toSet.size shouldBe 3
   }
@@ -870,12 +870,12 @@ class LeonardoServiceSpec
 
     leo.listClusters(userInfo, Map("foo" -> "bar")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2)
       .map(
-        LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+        LeoLenses.createRuntimeRespToListRuntimeResp.get
       )
     leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1
     ).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo
       .listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no"))
@@ -883,16 +883,16 @@ class LeonardoServiceSpec
       .futureValue
       .toSet shouldBe Set(
       cluster1
-    ).map(LeoLenses.createRuntimeAPIRespToListRuntimeResp.get)
+    ).map(LeoLenses.createRuntimeRespToListRuntimeResp.get)
     leo.listClusters(userInfo, Map("a" -> "b")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).unsafeToFuture.futureValue.toSet shouldBe Set.empty
     leo
       .listClusters(userInfo, Map("A" -> "B"))
       .unsafeToFuture
       .futureValue
-      .toSet shouldBe Set(cluster2).map(LeoLenses.createRuntimeAPIRespToListRuntimeResp.get) // labels are not case sensitive because MySQL
+      .toSet shouldBe Set(cluster2).map(LeoLenses.createRuntimeRespToListRuntimeResp.get) // labels are not case sensitive because MySQL
     //Assert that extensions were added as labels as well
     leo
       .listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz"))
@@ -901,7 +901,7 @@ class LeonardoServiceSpec
       .toSet shouldBe Set(
       cluster1,
       cluster2
-    ).map(LeoLenses.createRuntimeAPIRespToListRuntimeResp.get)
+    ).map(LeoLenses.createRuntimeRespToListRuntimeResp.get)
   }
 
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
@@ -926,26 +926,26 @@ class LeonardoServiceSpec
 
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1,
                                                                                                           cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1
     ).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo
       .listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
       .unsafeToFuture
       .futureValue
       .toSet shouldBe Set(cluster1).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("_labels" -> "a=b")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("_labels" -> "baz=biz")).unsafeToFuture.futureValue.toSet shouldBe Set.empty
     leo.listClusters(userInfo, Map("_labels" -> "A=B")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     ) // labels are not case sensitive because MySQL
     leo
       .listClusters(userInfo, Map("_labels" -> "foo%3Dbar"))
@@ -983,20 +983,20 @@ class LeonardoServiceSpec
       .futureValue
 
     leo.listClusters(userInfo, Map.empty, Some(project)).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map.empty, Some(project2)).unsafeToFuture.futureValue.toSet shouldBe Set(cluster2).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project)).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster1
     ).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project2)).unsafeToFuture.futureValue.toSet shouldBe Set(
       cluster2
     ).map(
-      LeoLenses.createRuntimeAPIRespToListRuntimeResp.get
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("k" -> "v"), Some(project)).unsafeToFuture.futureValue.toSet shouldBe Set.empty
     leo.listClusters(userInfo, Map("k" -> "v"), Some(project2)).unsafeToFuture.futureValue.toSet shouldBe Set.empty
@@ -1018,7 +1018,7 @@ class LeonardoServiceSpec
 
     // populate some instances for the cluster
     val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
-    val getClusterKey = LeoLenses.createRuntimeAPIRespToGetClusterKey.get(cluster)
+    val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
     dbFutureValue { instanceQuery.saveAllForCluster(getClusterId(getClusterKey), clusterInstances) }
     // TODO
 //    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
@@ -1436,7 +1436,7 @@ class LeonardoServiceSpec
     val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
-    val getClusterKey = LeoLenses.createRuntimeAPIRespToGetClusterKey.get(cluster)
+    val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
 
     // populate some instances for the cluster and set its status to Stopped
     val clusterInstances =
@@ -1489,7 +1489,7 @@ class LeonardoServiceSpec
     leo.startCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
     // cluster status should Starting and have new label
-    val getClusterKey = LeoLenses.createRuntimeAPIRespToGetClusterKey.get(cluster)
+    val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
     val dbCluster = dbFutureValue { clusterQuery.getClusterByUniqueKey(getClusterKey) }.get
     dbCluster.status shouldBe RuntimeStatus.Starting
     dbCluster.labels.exists(_ == "welderInstallFailed" -> "true")

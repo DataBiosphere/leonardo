@@ -120,7 +120,64 @@ object CreateRuntimeRequest {
       customClusterEnvironmentVariables = request.customClusterEnvironmentVariables,
       runtimeConfigId = RuntimeConfigId(-1)
     )
+}
 
+// Currently, CreateRuntimeResponse has exactly the same fields as GetRuntimeResponse, but going forward, when we can,
+// we should deprecate and remove some of fields for createRuntime request
+final case class CreateRuntimeResponse(id: Long,
+                                       internalId: RuntimeInternalId,
+                                       clusterName: RuntimeName,
+                                       googleProject: GoogleProject,
+                                       serviceAccountInfo: ServiceAccountInfo,
+                                       asyncRuntimeFields: Option[AsyncRuntimeFields],
+                                       auditInfo: AuditInfo,
+                                       dataprocProperties: Map[String, String],
+                                       runtimeConfig: RuntimeConfig,
+                                       clusterUrl: URL,
+                                       status: RuntimeStatus,
+                                       labels: LabelMap,
+                                       jupyterExtensionUri: Option[GcsPath],
+                                       jupyterUserScriptUri: Option[UserScriptPath],
+                                       jupyterStartUserScriptUri: Option[UserScriptPath],
+                                       errors: List[RuntimeError],
+                                       dataprocInstances: Set[DataprocInstance],
+                                       userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                       autopauseThreshold: Int,
+                                       defaultClientId: Option[String],
+                                       stopAfterCreation: Boolean,
+                                       clusterImages: Set[RuntimeImage],
+                                       scopes: Set[String],
+                                       welderEnabled: Boolean,
+                                       customClusterEnvironmentVariables: Map[String, String])
+
+object CreateRuntimeResponse {
+  def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig) = CreateRuntimeResponse(
+    runtime.id,
+    runtime.internalId,
+    runtime.runtimeName,
+    runtime.googleProject,
+    runtime.serviceAccountInfo,
+    runtime.asyncRuntimeFields,
+    runtime.auditInfo,
+    runtime.dataprocProperties,
+    runtimeConfig,
+    runtime.proxyUrl,
+    runtime.status,
+    runtime.labels,
+    runtime.jupyterExtensionUri,
+    runtime.jupyterUserScriptUri,
+    runtime.jupyterStartUserScriptUri,
+    runtime.errors,
+    runtime.dataprocInstances,
+    runtime.userJupyterExtensionConfig,
+    runtime.autopauseThreshold,
+    runtime.defaultClientId,
+    runtime.stopAfterCreation,
+    runtime.runtimeImages,
+    runtime.scopes,
+    runtime.welderEnabled,
+    runtime.customClusterEnvironmentVariables
+  )
 }
 
 final case class ListRuntimeResponse(id: Long,
@@ -194,64 +251,6 @@ final case class GetRuntimeResponse(id: Long,
 
 object GetRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig) = GetRuntimeResponse(
-    runtime.id,
-    runtime.internalId,
-    runtime.runtimeName,
-    runtime.googleProject,
-    runtime.serviceAccountInfo,
-    runtime.asyncRuntimeFields,
-    runtime.auditInfo,
-    runtime.dataprocProperties,
-    runtimeConfig,
-    runtime.proxyUrl,
-    runtime.status,
-    runtime.labels,
-    runtime.jupyterExtensionUri,
-    runtime.jupyterUserScriptUri,
-    runtime.jupyterStartUserScriptUri,
-    runtime.errors,
-    runtime.dataprocInstances,
-    runtime.userJupyterExtensionConfig,
-    runtime.autopauseThreshold,
-    runtime.defaultClientId,
-    runtime.stopAfterCreation,
-    runtime.runtimeImages,
-    runtime.scopes,
-    runtime.welderEnabled,
-    runtime.customClusterEnvironmentVariables
-  )
-}
-
-// Currently, CreateRuntimeAPIResponse has exactly the same fields as GetRuntimeResponse, but going forward, when we can,
-// we should deprecate and remove some of fields for createRuntime request
-final case class CreateRuntimeAPIResponse(id: Long,
-                                          internalId: RuntimeInternalId,
-                                          clusterName: RuntimeName,
-                                          googleProject: GoogleProject,
-                                          serviceAccountInfo: ServiceAccountInfo,
-                                          asyncRuntimeFields: Option[AsyncRuntimeFields],
-                                          auditInfo: AuditInfo,
-                                          dataprocProperties: Map[String, String],
-                                          runtimeConfig: RuntimeConfig,
-                                          clusterUrl: URL,
-                                          status: RuntimeStatus,
-                                          labels: LabelMap,
-                                          jupyterExtensionUri: Option[GcsPath],
-                                          jupyterUserScriptUri: Option[UserScriptPath],
-                                          jupyterStartUserScriptUri: Option[UserScriptPath],
-                                          errors: List[RuntimeError],
-                                          dataprocInstances: Set[DataprocInstance],
-                                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                                          autopauseThreshold: Int,
-                                          defaultClientId: Option[String],
-                                          stopAfterCreation: Boolean,
-                                          clusterImages: Set[RuntimeImage],
-                                          scopes: Set[String],
-                                          welderEnabled: Boolean,
-                                          customClusterEnvironmentVariables: Map[String, String])
-
-object CreateRuntimeAPIResponse {
-  def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig) = CreateRuntimeAPIResponse(
     runtime.id,
     runtime.internalId,
     runtime.runtimeName,

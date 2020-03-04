@@ -164,7 +164,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(x => LeoLenses.createRuntimeAPIRespToListRuntimeResp.get(x))
+      listResponse shouldBe Seq(cluster1).map(x => LeoLenses.createRuntimeRespToListRuntimeResp.get(x))
 
       //connect
       val proxyRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
@@ -367,7 +367,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue
-      listResponse shouldBe Seq(cluster1).map(LeoLenses.createRuntimeAPIRespToListRuntimeResp.get)
+      listResponse shouldBe Seq(cluster1).map(LeoLenses.createRuntimeRespToListRuntimeResp.get)
     }
 
     "should return clusters the user didn't create if the auth provider says yes" in isolatedDbTest {
@@ -381,7 +381,7 @@ class AuthProviderSpec
 
       // list
       val listResponse = leo.listClusters(newUserInfo, Map()).unsafeToFuture().futureValue
-      listResponse shouldBe Seq(cluster1).map(LeoLenses.createRuntimeAPIRespToListRuntimeResp.get)
+      listResponse shouldBe Seq(cluster1).map(LeoLenses.createRuntimeRespToListRuntimeResp.get)
     }
   }
 }

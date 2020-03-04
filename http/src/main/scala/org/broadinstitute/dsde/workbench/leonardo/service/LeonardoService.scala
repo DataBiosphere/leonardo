@@ -203,7 +203,7 @@ class LeonardoService(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     request: CreateRuntimeRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeAPIResponse] =
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeResponse] =
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
       // Grab the service accounts from serviceAccountProvider for use later
@@ -227,7 +227,7 @@ class LeonardoService(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     request: CreateRuntimeRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeAPIResponse] =
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeResponse] =
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     for {
@@ -279,7 +279,7 @@ class LeonardoService(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
       _ <- publisherQueue.enqueue1(CreateCluster.fromRuntime(cluster, machineConfig, Some(traceId)))
-    } yield CreateRuntimeAPIResponse.fromRuntime(cluster, machineConfig)
+    } yield CreateRuntimeResponse.fromRuntime(cluster, machineConfig)
 
   // throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(

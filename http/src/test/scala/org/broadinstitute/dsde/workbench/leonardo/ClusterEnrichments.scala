@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeAPIResponse
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeResponse
 import org.scalactic.Equality
 import org.scalatest.{Assertion, Matchers}
 
@@ -58,7 +58,7 @@ object ClusterEnrichments extends Matchers {
                  userJupyterExtensionConfig = None)
   }
 
-  def compareClusterAndCreateClusterAPIResponse(c: Cluster, createCluster: CreateRuntimeAPIResponse): Assertion = {
+  def compareClusterAndCreateClusterAPIResponse(c: Cluster, createCluster: CreateRuntimeResponse): Assertion = {
     c.id shouldBe createCluster.id
     c.internalId shouldBe createCluster.internalId
     c.runtimeName shouldBe createCluster.clusterName
