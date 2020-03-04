@@ -25,7 +25,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidDataprocMachineConfigException
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -77,40 +76,40 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   implicit val contextShiftIO = IO.contextShift(executionContext)
 
   override def createRuntime(
-    params: CreateCluster
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateClusterResponse] = {
-    val initBucketName = generateUniqueBucketName("leoinit-" + params.clusterProjectAndName.runtimeName.asString)
-    val stagingBucketName = generateUniqueBucketName("leostaging-" + params.clusterProjectAndName.runtimeName.asString)
+    params: CreateRuntimeParams
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateRuntimeResponse] = {
+    val initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
+    val stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
 
     // Generate a service account key for the notebook service account (if present) to localize on the cluster.
     // We don't need to do this for the cluster service account because its credentials are already
     // on the metadata server.
-    generateServiceAccountKey(params.clusterProjectAndName.googleProject,
+    generateServiceAccountKey(params.runtimeProjectAndName.googleProject,
                               params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
       val ioResult = for {
         traceId <- ev.ask
         evIO = ApplicativeAsk.const[IO, TraceId](traceId)
 
         // Set up VPC network and firewall
-        vpcSettings <- Async[F].liftIO(vpcHelper.getOrCreateVPCSettings(params.clusterProjectAndName.googleProject))
+        vpcSettings <- Async[F].liftIO(vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject))
         firewallRule <- Async[F].liftIO(
-          vpcHelper.getOrCreateFirewallRule(params.clusterProjectAndName.googleProject, vpcSettings)(evIO)
+          vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)(evIO)
         )
 
-        resourceConstraints <- getClusterResourceContraints(params.clusterProjectAndName,
+        resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             params.runtimeConfig.machineType)
 
         // Set up IAM roles necessary to create a cluster.
-        _ <- createClusterIamRoles(params.clusterProjectAndName.googleProject, params.serviceAccountInfo)
+        _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
 
         // Add member to the Google Group that has the IAM role to pull the Dataproc image
-        _ <- updateDataprocImageGroupMembership(params.clusterProjectAndName.googleProject, createCluster = true)
+        _ <- updateDataprocImageGroupMembership(params.runtimeProjectAndName.googleProject, createCluster = true)
 
         // Create the bucket in the cluster's google project and populate with initialization files.
         // ACLs are granted so the cluster service account can access the files at initialization time.
         _ <- Async[F].liftIO(
           bucketHelper
-            .createInitBucket(params.clusterProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
+            .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
             .compile
             .drain
         )
@@ -119,14 +118,14 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         _ <- Async[F].liftIO(
           bucketHelper
             .createStagingBucket(params.auditInfo.creator,
-                                 params.clusterProjectAndName.googleProject,
+                                 params.runtimeProjectAndName.googleProject,
                                  stagingBucketName,
                                  params.serviceAccountInfo)(evIO)
             .compile
             .drain
         )
 
-        templateParams = RuntimeTemplateValuesConfig.fromCreateCluster(
+        templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
           params,
           Some(initBucketName),
           Some(stagingBucketName),
@@ -159,7 +158,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         else config.dataprocConfig.customDataprocImage
 
         res <- params.runtimeConfig match {
-          case _: RuntimeConfig.GceConfig => Async[F].raiseError[CreateClusterResponse](new NotImplementedException)
+          case _: RuntimeConfig.GceConfig => Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
           case x: RuntimeConfig.DataprocConfig =>
             val createClusterConfig = CreateClusterConfig(
               x,
@@ -180,8 +179,8 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                     retryExponentially(whenGoogleZoneCapacityIssue,
                                        "Cluster creation failed because zone with adequate resources was not found") {
                       () =>
-                        gdDAO.createCluster(params.clusterProjectAndName.googleProject,
-                                            params.clusterProjectAndName.runtimeName,
+                        gdDAO.createCluster(params.runtimeProjectAndName.googleProject,
+                                            params.runtimeProjectAndName.runtimeName,
                                             createClusterConfig)
                     }
                   )
@@ -201,13 +200,13 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
               }
 
               asyncRuntimeFields = AsyncRuntimeFields(operation.uuid, operation.name, stagingBucketName, None)
-            } yield CreateClusterResponse(asyncRuntimeFields, initBucketName, serviceAccountKeyOpt, dataprocImage)
+            } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, serviceAccountKeyOpt, dataprocImage)
         }
       } yield res
 
       ioResult.handleErrorWith { throwable =>
-        cleanUpGoogleResourcesOnError(params.clusterProjectAndName.googleProject,
-                                      params.clusterProjectAndName.runtimeName,
+        cleanUpGoogleResourcesOnError(params.runtimeProjectAndName.googleProject,
+                                      params.runtimeProjectAndName.runtimeName,
                                       initBucketName,
                                       params.serviceAccountInfo,
                                       serviceAccountKeyOpt) >> Async[F].raiseError(throwable)
@@ -717,8 +716,3 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   }
 
 }
-
-final case class CreateClusterResponse(asyncRuntimeFields: AsyncRuntimeFields,
-                                       initBucket: GcsBucketName,
-                                       serviceAccountKey: Option[ServiceAccountKey],
-                                       customDataprocImage: CustomDataprocImage)

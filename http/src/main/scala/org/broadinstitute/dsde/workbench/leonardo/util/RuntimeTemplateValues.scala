@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
@@ -66,29 +65,31 @@ case class RuntimeTemplateValuesConfig(runtimeProjectAndName: RuntimeProjectAndN
                                        clusterResourcesConfig: ClusterResourcesConfig,
                                        clusterResourceConstraints: Option[RuntimeResourceConstraints])
 object RuntimeTemplateValuesConfig {
-  def fromCreateCluster(createCluster: CreateCluster,
-                        initBucketName: Option[GcsBucketName],
-                        stagingBucketName: Option[GcsBucketName],
-                        serviceAccountKey: Option[ServiceAccountKey],
-                        dataprocConfig: DataprocConfig,
-                        imageConfig: ImageConfig,
-                        welderConfig: WelderConfig,
-                        proxyConfig: ProxyConfig,
-                        clusterFilesConfig: ClusterFilesConfig,
-                        clusterResourcesConfig: ClusterResourcesConfig,
-                        clusterResourceConstraints: Option[RuntimeResourceConstraints]): RuntimeTemplateValuesConfig =
+  def fromCreateRuntimeParams(
+    params: CreateRuntimeParams,
+    initBucketName: Option[GcsBucketName],
+    stagingBucketName: Option[GcsBucketName],
+    serviceAccountKey: Option[ServiceAccountKey],
+    dataprocConfig: DataprocConfig,
+    imageConfig: ImageConfig,
+    welderConfig: WelderConfig,
+    proxyConfig: ProxyConfig,
+    clusterFilesConfig: ClusterFilesConfig,
+    clusterResourcesConfig: ClusterResourcesConfig,
+    clusterResourceConstraints: Option[RuntimeResourceConstraints]
+  ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
-      createCluster.clusterProjectAndName,
+      params.runtimeProjectAndName,
       stagingBucketName,
-      createCluster.runtimeImages,
+      params.runtimeImages,
       initBucketName,
-      createCluster.jupyterUserScriptUri,
-      createCluster.jupyterStartUserScriptUri,
+      params.jupyterUserScriptUri,
+      params.jupyterStartUserScriptUri,
       serviceAccountKey,
-      createCluster.userJupyterExtensionConfig,
-      createCluster.defaultClientId,
-      createCluster.welderEnabled,
-      createCluster.auditInfo,
+      params.userJupyterExtensionConfig,
+      params.defaultClientId,
+      params.welderEnabled,
+      params.auditInfo,
       imageConfig,
       welderConfig,
       proxyConfig,

@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateCluster, StopUpdate}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
@@ -278,7 +278,7 @@ class LeonardoService(
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
-      _ <- publisherQueue.enqueue1(CreateCluster.fromRuntime(cluster, machineConfig, Some(traceId)))
+      _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(cluster, machineConfig, Some(traceId)))
     } yield CreateRuntimeResponse.fromRuntime(cluster, machineConfig)
 
   // throws 404 if nonexistent or no permissions
@@ -431,7 +431,7 @@ class LeonardoService(
           traceId <- ev.ask
           _ <- metrics.incrementCounter(s"pubsub/LeonardoService/StopStartTransition")
           //sends a message with the config to google pub/sub queue for processing by back leo
-          _ <- publisherQueue.enqueue1(StopUpdate(machineConfig, existingCluster.id, Some(traceId)))
+          _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id, Some(traceId)))
         } yield ()
 
       //TODO: we currently do not support this

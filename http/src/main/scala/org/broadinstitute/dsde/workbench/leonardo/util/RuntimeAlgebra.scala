@@ -12,15 +12,28 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   ProxyConfig,
   WelderConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
-import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AsyncRuntimeFields,
+  AuditInfo,
+  CustomDataprocImage,
+  Runtime,
+  RuntimeConfig,
+  RuntimeImage,
+  RuntimeProjectAndName,
+  ServiceAccountInfo,
+  UserJupyterExtensionConfig,
+  UserScriptPath
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, ServiceAccountKey}
 
 /**
- * Defines an algebra for manipulating Leo runtimes. Currently has interpreters for Dataproc and GCE.
+ * Defines an algebra for manipulating Leo Runtimes.
+ * Currently has interpreters for Dataproc and GCE.
  */
 trait RuntimeAlgebra[F[_]] {
-  def createRuntime(params: CreateCluster)(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateClusterResponse]
+  def createRuntime(params: CreateRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateRuntimeResponse]
   def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
@@ -37,6 +50,47 @@ trait DataprocAlgebra[F[_]] extends RuntimeAlgebra[F] {
 }
 
 // Parameters
+final case class CreateRuntimeParams(id: Long,
+                                     runtimeProjectAndName: RuntimeProjectAndName,
+                                     serviceAccountInfo: ServiceAccountInfo,
+                                     asyncRuntimeFields: Option[AsyncRuntimeFields],
+                                     auditInfo: AuditInfo,
+                                     properties: Map[String, String],
+                                     jupyterExtensionUri: Option[GcsPath],
+                                     jupyterUserScriptUri: Option[UserScriptPath],
+                                     jupyterStartUserScriptUri: Option[UserScriptPath],
+                                     userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                     defaultClientId: Option[String],
+                                     runtimeImages: Set[RuntimeImage],
+                                     scopes: Set[String],
+                                     welderEnabled: Boolean,
+                                     customClusterEnvironmentVariables: Map[String, String],
+                                     runtimeConfig: RuntimeConfig)
+object CreateRuntimeParams {
+  def fromCreateRuntimeMessage(message: CreateRuntimeMessage): CreateRuntimeParams =
+    CreateRuntimeParams(
+      message.id,
+      message.runtimeProjectAndName,
+      message.serviceAccountInfo,
+      message.asyncRuntimeFields,
+      message.auditInfo,
+      message.properties,
+      message.jupyterExtensionUri,
+      message.jupyterStartUserScriptUri,
+      message.jupyterStartUserScriptUri,
+      message.userJupyterExtensionConfig,
+      message.defaultClientId,
+      message.runtimeImages,
+      message.scopes,
+      message.welderEnabled,
+      message.customClusterEnvironmentVariables,
+      message.runtimeConfig
+    )
+}
+final case class CreateRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
+                                       initBucket: GcsBucketName,
+                                       serviceAccountKey: Option[ServiceAccountKey],
+                                       customDataprocImage: CustomDataprocImage)
 final case class DeleteRuntimeParams(runtime: Runtime)
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtime: Runtime, runtimeConfig: RuntimeConfig)

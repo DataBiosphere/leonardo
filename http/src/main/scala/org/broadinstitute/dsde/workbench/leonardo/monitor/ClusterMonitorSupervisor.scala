@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference,
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -157,7 +157,7 @@ class ClusterMonitorSupervisor(
           _ <- (clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
             clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Creating, now)).transaction
           runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-          _ <- publisherQueue.enqueue1(CreateCluster.fromRuntime(cluster, runtimeConfig, Some(traceId)))
+          _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(cluster, runtimeConfig, Some(traceId)))
         } yield ()
       } else {
         IO(
