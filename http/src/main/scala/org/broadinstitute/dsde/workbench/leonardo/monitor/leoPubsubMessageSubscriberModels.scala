@@ -38,7 +38,7 @@ object LeoPubsubMessage {
                                         runtimeImages: Set[RuntimeImage],
                                         scopes: Set[String],
                                         welderEnabled: Boolean,
-                                        customClusterEnvironmentVariables: Map[String, String],
+                                        customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfig,
                                         traceId: Option[TraceId])
       extends LeoPubsubMessage {
@@ -163,7 +163,7 @@ object LeoPubsubCodec {
          x.runtimeImages,
          x.scopes,
          x.welderEnabled,
-         x.customClusterEnvironmentVariables,
+         x.customEnvironmentVariables,
          x.runtimeConfig,
          x.traceId)
     )
