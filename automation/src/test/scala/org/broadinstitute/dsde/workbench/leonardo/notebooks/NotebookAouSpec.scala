@@ -34,7 +34,5 @@ class NotebookAouSpec extends ClusterFixtureSpec with NotebookTestUtils {
         }
       }
     }
-
-
   }
 }
