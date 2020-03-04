@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
@@ -102,7 +101,7 @@ class StatusRoutesSpec
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =
-      new StatusService(badDataproc, badSam, dbRef, dataprocConfig, pollInterval = 1.second)
+      new StatusService(badDataproc, badSam, dbRef, applicationConfig, pollInterval = 1.second)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
     with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo

@@ -8,21 +8,18 @@ import java.util.concurrent.TimeUnit
 import _root_.io.circe.{Decoder, Json, KeyDecoder}
 import ca.mrvisser.sealerate
 import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect}
+import cats.effect.{Blocker, ContextShift, Effect, Resource}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
-import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import io.chrisdavenport.log4cats.Logger
+import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
@@ -103,13 +100,13 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
    * @param creatorEmail     The email address of the user in question
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def createClusterResource(internalId: ClusterInternalId,
+  def createClusterResource(internalId: RuntimeInternalId,
                             creatorEmail: WorkbenchEmail,
                             googleProject: GoogleProject,
-                            clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
@@ -121,7 +118,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- logger.info(
-        s"${traceId} | creating notebook-cluster resource in sam for ${googleProject}/${clusterName}/${internalId}"
+        s"${traceId} | creating notebook-cluster resource in sam for ${googleProject}/${runtimeName}/${internalId}"
       )
       _ <- httpClient.fetch[Unit](
         Request[F](
@@ -147,14 +144,14 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
    * @param userEmail        The email address of the user in question
    * @param creatorEmail     The email address of the creator of the cluster
    * @param googleProject    The Google project the cluster was created in
-   * @param clusterName      The user-provided name of the Dataproc cluster
+   * @param runtimeName      The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def deleteClusterResource(internalId: ClusterInternalId,
+  def deleteClusterResource(internalId: RuntimeInternalId,
                             userEmail: WorkbenchEmail,
                             creatorEmail: WorkbenchEmail,
                             googleProject: GoogleProject,
-                            clusterName: ClusterName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
@@ -193,16 +190,17 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
     )(onError)
 
-  def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[WorkbenchEmail]] = {
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, getAccessTokenUsingLeoPem))
-    httpClient.expectOptionOr[WorkbenchEmail](
-      Request[F](
-        method = Method.GET,
-        uri = config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${userEmail.value}"),
-        headers = Headers.of(authHeader)
-      )
-    )(onError)
-  }
+  def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[WorkbenchEmail]] =
+    getAccessTokenUsingLeoJson.use { leoToken =>
+      val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
+      httpClient.expectOptionOr[WorkbenchEmail](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${userEmail.value}"),
+          headers = Headers.of(authHeader)
+        )
+      )(onError)
+    }
 
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
@@ -213,41 +211,37 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       getPetAccessToken(userEmail, googleProject)
     }
 
-  private def getAccessTokenUsingLeoPem: String = {
-    val credential = new GoogleCredential.Builder()
-      .setTransport(GoogleNetHttpTransport.newTrustedTransport)
-      .setJsonFactory(JacksonFactory.getDefaultInstance)
-      .setServiceAccountId(config.serviceAccountProviderConfig.leoServiceAccount.value)
-      .setServiceAccountScopes(saScopes.asJava)
-      .setServiceAccountPrivateKeyFromPemFile(config.serviceAccountProviderConfig.leoPemFile)
-      .build()
-
-    credential.refreshToken
-    credential.getAccessToken
-  }
+  private def getAccessTokenUsingLeoJson: Resource[F, String] =
+    for {
+      credential <- credentialResource(
+        config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
+      )
+      scopedCredential = credential.createScoped(saScopes.asJava)
+      _ <- Resource.liftF(Effect[F].delay(scopedCredential.refresh))
+    } yield scopedCredential.getAccessToken.getTokenValue
 
   private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Option[String]] = {
-    val leoToken = getAccessTokenUsingLeoPem
-    val leoAuth = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
-    for {
-      // fetch user's pet SA key with leo's authorization token
-      userPetKey <- httpClient.expectOptionOr[Json](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(s"/api/google/v1/petServiceAccount/${googleProject.value}/${userEmail.value}"),
-          headers = Headers.of(leoAuth)
-        )
-      )(onError)
-      token <- userPetKey.traverse { key =>
-        val keyStream = new ByteArrayInputStream(key.toString().getBytes)
-        Effect[F]
-          .delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
-          .map(_.refreshAccessToken.getTokenValue)
-      }
-    } yield token
-  }
+  ): F[Option[String]] =
+    getAccessTokenUsingLeoJson.use { leoToken =>
+      val leoAuth = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
+      for {
+        // fetch user's pet SA key with leo's authorization token
+        userPetKey <- httpClient.expectOptionOr[Json](
+          Request[F](
+            method = Method.GET,
+            uri = config.samUri.withPath(s"/api/google/v1/petServiceAccount/${googleProject.value}/${userEmail.value}"),
+            headers = Headers.of(leoAuth)
+          )
+        )(onError)
+        token <- userPetKey.traverse { key =>
+          val keyStream = new ByteArrayInputStream(key.toString().getBytes)
+          Effect[F]
+            .delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
+            .map(_.refreshAccessToken.getTokenValue)
+        }
+      } yield token
+    }
 
   private def onError(response: Response[F])(implicit ev: ApplicativeAsk[F, TraceId]): F[Throwable] =
     for {
@@ -268,8 +262,8 @@ object HttpSamDAO {
   implicit val samResourcePolicyDecoder: Decoder[SamNotebookClusterPolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
-      clusterInternalId <- c.downField("resourceId").as[ClusterInternalId]
-    } yield SamNotebookClusterPolicy(policyName, clusterInternalId)
+      runtimeInternalId <- c.downField("resourceId").as[RuntimeInternalId]
+    } yield SamNotebookClusterPolicy(policyName, runtimeInternalId)
   }
   implicit val samProjectPolicyDecoder: Decoder[SamProjectPolicy] = Decoder.instance { c =>
     for {
@@ -314,7 +308,7 @@ object AccessPolicyName {
     sealerate.collect[AccessPolicyName].map(p => (p.toString, p)).toMap
 
 }
-final case class SamNotebookClusterPolicy(accessPolicyName: AccessPolicyName, internalId: ClusterInternalId)
+final case class SamNotebookClusterPolicy(accessPolicyName: AccessPolicyName, internalId: RuntimeInternalId)
 final case class SamProjectPolicy(accessPolicyName: AccessPolicyName, googleProject: GoogleProject)
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 

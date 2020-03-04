@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import org.broadinstitute.dsde.workbench.leonardo.model.ExtensionType
 import LeoProfile.api._
 
 import scala.concurrent.ExecutionContext

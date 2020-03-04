@@ -14,7 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -115,19 +114,20 @@ class ZombieClusterMonitor(
     }
   }
 
-  private def isClusterActiveInGoogle(cluster: PotentialZombieCluster, now: Instant): IO[Boolean] = {
-    val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, now).getSeconds
+  // TODO this is dataproc specific
+  private def isClusterActiveInGoogle(runtime: PotentialZombieRuntime, now: Instant): IO[Boolean] = {
+    val secondsSinceClusterCreation: Long = Duration.between(runtime.auditInfo.createdDate, now).getSeconds
     // this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
-    if (cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation < config.creationHangTolerance.toSeconds) {
+    if (runtime.status == RuntimeStatus.Creating && secondsSinceClusterCreation < config.creationHangTolerance.toSeconds) {
       IO.pure(true)
     } else {
-      IO.fromFuture(IO(gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)))
-        .map(ClusterStatus.activeStatuses contains)
+      IO.fromFuture(IO(gdDAO.getClusterStatus(runtime.googleProject, runtime.runtimeName)))
+        .map(RuntimeStatus.activeStatuses contains)
         .recoverWith {
           case e =>
             logger
               .warn(e)(
-                s"Unable to check status of cluster ${cluster.googleProject} / ${cluster.clusterName} for zombie cluster detection"
+                s"Unable to check status of cluster ${runtime.googleProject} / ${runtime.runtimeName} for zombie cluster detection"
               )
               .as(true)
         }
@@ -135,18 +135,18 @@ class ZombieClusterMonitor(
 
   }
 
-  private def handleZombieCluster(cluster: PotentialZombieCluster): IO[Unit] =
+  private def handleZombieCluster(runtime: PotentialZombieRuntime): IO[Unit] =
     for {
-      _ <- logger.info(s"Deleting zombie cluster: ${cluster.googleProject} / ${cluster.clusterName}")
+      _ <- logger.info(s"Deleting zombie cluster: ${runtime.googleProject} / ${runtime.runtimeName}")
       _ <- metrics.incrementCounter("zombieClusters")
       now <- IO(Instant.now)
       _ <- dbRef.inTransaction {
         for {
-          _ <- clusterQuery.completeDeletion(cluster.id, now)
-          error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
+          _ <- clusterQuery.completeDeletion(runtime.id, now)
+          error = RuntimeError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
                                -1,
                                now)
-          _ <- clusterErrorQuery.save(cluster.id, error)
+          _ <- clusterErrorQuery.save(runtime.id, error)
         } yield ()
       }
     } yield ()

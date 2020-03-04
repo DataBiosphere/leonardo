@@ -1,13 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterContainerServiceType._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.{
+  JupyterService,
+  RStudioService,
+  WelderService
+}
+import org.broadinstitute.dsde.workbench.leonardo.{RuntimeContainerServiceType, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait ToolDAO[A] {
-  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): IO[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): IO[Boolean]
 }
 
 object ToolDAO {
@@ -15,17 +18,17 @@ object ToolDAO {
     jupyterDAO: JupyterDAO[IO],
     welderDAO: WelderDAO[IO],
     rstudioDAO: RStudioDAO[IO]
-  ): ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType] =
+  ): RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType] =
     clusterTool =>
       clusterTool match {
         case JupyterService =>
-          (googleProject: GoogleProject, clusterName: ClusterName) =>
-            jupyterDAO.isProxyAvailable(googleProject, clusterName)
+          (googleProject: GoogleProject, runtimeName: RuntimeName) =>
+            jupyterDAO.isProxyAvailable(googleProject, runtimeName)
         case WelderService =>
-          (googleProject: GoogleProject, clusterName: ClusterName) =>
-            welderDAO.isProxyAvailable(googleProject, clusterName)
+          (googleProject: GoogleProject, runtimeName: RuntimeName) =>
+            welderDAO.isProxyAvailable(googleProject, runtimeName)
         case RStudioService =>
-          (googleProject: GoogleProject, clusterName: ClusterName) =>
-            rstudioDAO.isProxyAvailable(googleProject, clusterName)
+          (googleProject: GoogleProject, runtimeName: RuntimeName) =>
+            rstudioDAO.isProxyAvailable(googleProject, runtimeName)
       }
 }

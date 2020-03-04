@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterContainerServiceType, RunningCluster}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterToolMonitor._
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -24,7 +23,7 @@ object ClusterToolMonitor {
     googleProjectDAO: GoogleProjectDAO,
     dbRef: DbReference[IO],
     newRelic: NewRelicMetrics[IO]
-  )(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+  )(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
     ec: ExecutionContext,
     cs: ContextShift[IO]): Props =
     Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, newRelic))
@@ -33,7 +32,7 @@ object ClusterToolMonitor {
   case object DetectClusterStatus extends ClusterToolMonitorMessage
   case object TimerKey extends ClusterToolMonitorMessage
 
-  final case class ToolStatus(isUp: Boolean, tool: ClusterContainerServiceType, cluster: RunningCluster)
+  final case class ToolStatus(isUp: Boolean, tool: RuntimeContainerServiceType, runtime: RunningRuntime)
 }
 
 /**
@@ -45,7 +44,7 @@ class ClusterToolMonitor(
   googleProjectDAO: GoogleProjectDAO,
   dbRef: DbReference[IO],
   newRelic: NewRelicMetrics[IO]
-)(implicit clusterToolToToolDao: ClusterContainerServiceType => ToolDAO[ClusterContainerServiceType],
+)(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
   ec: ExecutionContext,
   cs: ContextShift[IO])
     extends Actor
@@ -74,22 +73,22 @@ class ClusterToolMonitor(
       val toolName = status.tool.toString
       IO(
         logger.warn(
-          s"The tool ${toolName} is down on cluster ${status.cluster.googleProject.value}/${status.cluster.clusterName.value}"
+          s"The tool ${toolName} is down on cluster ${status.runtime.googleProject.value}/${status.runtime.runtimeName.asString}"
         )
       ) >> newRelic.incrementCounter(toolName + "Down")
     } else IO.unit
 
-  private def getActiveClustersFromDatabase: IO[Seq[RunningCluster]] =
+  private def getActiveClustersFromDatabase: IO[Seq[RunningRuntime]] =
     dbRef.inTransaction(
       clusterQuery.listRunningOnly
     )
 
-  def checkClusterStatus(cluster: RunningCluster): IO[List[ToolStatus]] =
-    cluster.containers.traverse { tool =>
+  def checkClusterStatus(runtime: RunningRuntime): IO[List[ToolStatus]] =
+    runtime.containers.traverse { tool =>
       tool
-        .isProxyAvailable(cluster.googleProject, cluster.clusterName)
+        .isProxyAvailable(runtime.googleProject, runtime.runtimeName)
         .map { status =>
-          ToolStatus(status, tool, cluster)
+          ToolStatus(status, tool, runtime)
         }
     }
 }

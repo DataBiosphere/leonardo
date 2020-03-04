@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, HttpGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.auth.IamProxyAuthProvider.{CacheKey, ProjectAuthCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.ProjectAction
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, IamPermission}
@@ -96,18 +95,18 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
     checkUserAccess(userInfo, googleProject)
 
   /**
-   * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
+   * @param internalId     The internal ID for the runtime (i.e. used for Sam resources)
    * @param userInfo The user in question
    * @param action   The cluster-level action (above) the user is requesting
-   * @param clusterName The user-provided name of the Dataproc cluster
+   * @param runtimeName The user-provided name of the Dataproc cluster
    * @return If the userEmail has permission on this individual notebook cluster to perform this action
    */
   override def hasNotebookClusterPermission(
-    internalId: ClusterInternalId,
+    internalId: RuntimeInternalId,
     userInfo: UserInfo,
     action: NotebookClusterAction,
     googleProject: GoogleProject,
-    clusterName: ClusterName
+    runtimeName: RuntimeName
   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean] =
     checkUserAccess(userInfo, googleProject)
 
@@ -119,9 +118,9 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
    * @param clusters All non-deleted clusters from the database
    * @return         Filtered list of clusters that the user is allowed to see
    */
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[Future, TraceId]
-  ): Future[List[(GoogleProject, ClusterInternalId)]] = {
+  ): Future[List[(GoogleProject, RuntimeInternalId)]] = {
     // Check each project for user-access exactly once, then filter by project.
     val projects = clusters.map(lv => lv._1).toSet
     val projectAccess = projects.map(p => p.value -> checkUserAccess(userInfo, p)).toMap
@@ -141,14 +140,14 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
    * @param creatorEmail     The email address of the user in question
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
   override def notifyClusterCreated(
-    internalId: ClusterInternalId,
+    internalId: RuntimeInternalId,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject,
-    clusterName: ClusterName
+    runtimeName: RuntimeName
   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
   /**
@@ -160,15 +159,15 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
    * @param userEmail     The email address of the user in question
    * @param creatorEmail     The email address of the creator of the cluster
    * @param googleProject The Google project the cluster was created in
-   * @param clusterName   The user-provided name of the Dataproc cluster
+   * @param runtimeName   The user-provided name of the Dataproc cluster
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
   override def notifyClusterDeleted(
-    internalId: ClusterInternalId,
+    internalId: RuntimeInternalId,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject,
-    clusterName: ClusterName
+    runtimeName: RuntimeName
   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
 }

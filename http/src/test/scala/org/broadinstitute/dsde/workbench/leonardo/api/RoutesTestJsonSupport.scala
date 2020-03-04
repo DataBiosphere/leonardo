@@ -10,19 +10,18 @@ import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.ListClusterResponse
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, DataprocInfo, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  CreateRuntimeRequest,
+  ListRuntimeResponse,
+  RuntimeConfigRequest
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
 import spray.json.DefaultJsonProtocol
 
 object RoutesTestJsonSupport extends DefaultJsonProtocol {
-  implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
-  implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
-
-  implicit val listClusterResponseDecoder: Decoder[ListClusterResponse] = Decoder.instance { x =>
+  implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]
       internalId <- x.downField("internalId").as[ClusterInternalId]
@@ -35,7 +34,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
         stagingBucket <- x.downField("stagingBucket").as[Option[GcsBucketName]]
         hostIp <- x.downField("hostIp").as[Option[IP]]
       } yield {
-        (googleId, operationName, stagingBucket).mapN((x, y, z) => DataprocInfo(x, y, z, hostIp))
+        (googleId, operationName, stagingBucket).mapN((x, y, z) => AsyncRuntimeFields(x, y, z, hostIp))
       }
       machineConfig <- x.downField("machineConfig").as[RuntimeConfig]
       clusterUrl <- x.downField("clusterUrl").as[URL]
@@ -52,7 +51,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       defaultClientId <- x.downField("defaultClientId").as[Option[String]]
       stopAfterCreation <- x.downField("stopAfterCreation").as[Boolean]
       welderEnabled <- x.downField("welderEnabled").as[Boolean]
-    } yield ListClusterResponse(
+    } yield ListRuntimeResponse(
       id,
       internalId,
       clusterName,
@@ -62,7 +61,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       AuditInfo(creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
       machineConfig,
       clusterUrl,
-      ClusterStatus.Running, //TODO: fill real value when this field is needed in test
+      RuntimeStatus.Running, //TODO: fill real value when this field is needed in test
       labels,
       jupyterExtensionUri,
       jupyterUserScriptUri,
@@ -73,8 +72,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       welderEnabled
     )
   }
-
-  implicit val clusterNameDecoder: Decoder[ClusterName] = Decoder.decodeString.map(ClusterName)
 
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct7(
     "numberOfWorkers",
@@ -106,7 +103,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       case x: RuntimeConfigRequest.GceConfig      => x.asJson
     }
   }
-  implicit val clusterRequestEncoder: Encoder[ClusterRequest] = Encoder.forProduct18(
+  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct18(
     "labels",
     "jupyterExtensionUri",
     "jupyterUserScriptUri",
@@ -125,7 +122,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     "scopes",
     "enableWelder",
     "customClusterEnvironmentVariables"
-  )(x => ClusterRequest.unapply(x).get)
+  )(x => CreateRuntimeRequest.unapply(x).get)
 
   implicit val getClusterResponseTestDecoder: Decoder[GetClusterResponseTest] = Decoder.forProduct4(
     "id",

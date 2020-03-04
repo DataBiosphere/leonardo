@@ -5,9 +5,10 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, SecondaryWorker, Worker}
+import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 
@@ -20,9 +21,9 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   val clusters: mutable.Map[ClusterName, Operation] = new TrieMap()
   val instances: mutable.Map[ClusterName, mutable.Map[DataprocRole, Set[InstanceKey]]] = new TrieMap()
-  val badClusterName = ClusterName("badCluster")
-  val errorClusterName1 = ClusterName("erroredCluster1")
-  val errorClusterName2 = ClusterName("erroredCluster2")
+  val badClusterName = RuntimeName("badCluster")
+  val errorClusterName1 = RuntimeName("erroredCluster1")
+  val errorClusterName2 = RuntimeName("erroredCluster2")
   val errorClusters = Seq(errorClusterName1, errorClusterName2)
 
   private def googleID = UUID.randomUUID()
@@ -36,11 +37,11 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
       val operation = Operation(OperationName("op-name"), UUID.randomUUID())
       clusters += clusterName -> operation
 
-      val masterInstance = Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance")))
+      val masterInstance = Set(DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName("master-instance")))
       val workerInstances =
         List
           .tabulate(config.machineConfig.numberOfWorkers) { i =>
-            InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i"))
+            DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"worker-instance-$i"))
           }
           .toSet
       val secondaryWorkerInstances = config.machineConfig.numberOfPreemptibleWorkers
@@ -48,7 +49,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
           num =>
             List
               .tabulate(num) { i =>
-                InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
+                DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
               }
               .toSet
         )
@@ -64,11 +65,11 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     Future.successful(())
   }
 
-  override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] =
+  override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[RuntimeStatus] =
     Future.successful {
-      if (clusters.contains(clusterName) && errorClusters.contains(clusterName)) ClusterStatus.Error
-      else if (clusters.contains(clusterName)) ClusterStatus.Running
-      else ClusterStatus.Unknown
+      if (clusters.contains(clusterName) && errorClusters.contains(clusterName)) RuntimeStatus.Error
+      else if (clusters.contains(clusterName)) RuntimeStatus.Running
+      else RuntimeStatus.Unknown
     }
 
   override def listClusters(googleProject: GoogleProject): Future[List[UUID]] =
@@ -79,7 +80,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
                                         clusterName: ClusterName): Future[Option[InstanceKey]] =
     Future.successful {
       if (clusters.contains(clusterName))
-        Some(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance")))
+        Some(DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName("master-instance")))
       else None
     }
 
@@ -91,7 +92,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
       else Map.empty
     }
 
-  override def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]] =
+  override def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[RuntimeErrorDetails]] =
     Future.successful(None)
 
   override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] =
@@ -132,7 +133,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
           num =>
             List
               .tabulate(num) { i =>
-                InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i"))
+                DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"worker-instance-$i"))
               }
               .toSet
         )
@@ -151,7 +152,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
           num =>
             List
               .tabulate(num) { i =>
-                InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
+                DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
               }
               .toSet
         )

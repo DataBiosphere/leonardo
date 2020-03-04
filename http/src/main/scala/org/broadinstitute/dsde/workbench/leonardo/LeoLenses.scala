@@ -2,18 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import monocle.Lens
 import monocle.macros.GenLens
-import org.broadinstitute.dsde.workbench.leonardo.db.{GetClusterKey, RuntimeConfigId}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateClusterAPIResponse, ListClusterResponse}
-import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.db.GetClusterKey
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeResponse, ListRuntimeResponse}
 
 object LeoLenses {
-  val clusterToClusterImages: Lens[Cluster, Set[ClusterImage]] = GenLens[Cluster](_.clusterImages)
+  val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
 
-  val clusterToAuditInfo: Lens[Cluster, AuditInfo] = GenLens[Cluster](_.auditInfo)
+  val runtimeToAuditInfo: Lens[Runtime, AuditInfo] = GenLens[Runtime](_.auditInfo)
 
-  val clusterToRuntimeConfigId: Lens[Cluster, RuntimeConfigId] = GenLens[Cluster](_.runtimeConfigId)
+  val runtimeToRuntimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 
-  val createClusterAPIRespToGetClusterKey = Lens[CreateClusterAPIResponse, GetClusterKey](
+  val runtimeToAsyncRuntimeFields: Lens[Runtime, Option[AsyncRuntimeFields]] = GenLens[Runtime](_.asyncRuntimeFields)
+
+  val createRuntimeRespToGetClusterKey = Lens[CreateRuntimeResponse, GetClusterKey](
     x => GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
   )(
     x =>
@@ -23,15 +24,15 @@ object LeoLenses {
                auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate))
   )
 
-  val createClusterAPIRespToListClusterResp = Lens[CreateClusterAPIResponse, ListClusterResponse](
+  val createRuntimeRespToListRuntimeResp = Lens[CreateRuntimeResponse, ListRuntimeResponse](
     x =>
-      ListClusterResponse(
+      ListRuntimeResponse(
         x.id,
         x.internalId,
         x.clusterName,
         x.googleProject,
         x.serviceAccountInfo,
-        x.dataprocInfo,
+        x.asyncRuntimeFields,
         x.auditInfo,
         x.runtimeConfig,
         x.clusterUrl,
@@ -39,7 +40,7 @@ object LeoLenses {
         x.labels,
         x.jupyterExtensionUri,
         x.jupyterUserScriptUri,
-        x.instances,
+        x.dataprocInstances,
         x.autopauseThreshold,
         x.defaultClientId,
         x.stopAfterCreation,
@@ -54,14 +55,14 @@ object LeoLenses {
           clusterName = x.clusterName,
           googleProject = x.googleProject,
           serviceAccountInfo = x.serviceAccountInfo,
-          dataprocInfo = x.dataprocInfo,
+          asyncRuntimeFields = x.asyncRuntimeFields,
           auditInfo = x.auditInfo,
           clusterUrl = x.clusterUrl,
           status = x.status,
           labels = x.labels,
           jupyterExtensionUri = x.jupyterExtensionUri,
           jupyterUserScriptUri = x.jupyterUserScriptUri,
-          instances = x.instances,
+          dataprocInstances = x.dataprocInstances,
           autopauseThreshold = x.autopauseThreshold,
           defaultClientId = x.defaultClientId,
           stopAfterCreation = x.stopAfterCreation,

@@ -3,17 +3,16 @@ package db
 
 import cats.data.Chain
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{fullClusterQueryByUniqueKey, unmarshalFullCluster}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  ClusterNotFoundException,
-  GetClusterResponse,
-  ListClusterResponse
+  GetRuntimeResponse,
+  ListRuntimeResponse,
+  RuntimeNotFoundException
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus, IP, OperationName}
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, DataprocInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
@@ -30,7 +29,7 @@ object LeonardoServiceDbQueries {
 
   def getGetClusterResponse(googleProject: GoogleProject, clusterName: ClusterName)(
     implicit executionContext: ExecutionContext
-  ): DBIO[GetClusterResponse] = {
+  ): DBIO[GetRuntimeResponse] = {
     val activeCluster = fullClusterQueryByUniqueKey(googleProject, clusterName, None)
       .joinLeft(runtimeConfigs)
       .on(_._1.runtimeConfigId === _.id)
@@ -39,8 +38,8 @@ object LeonardoServiceDbQueries {
       val res = for {
         cluster <- unmarshalFullCluster(clusterRecs).headOption
         runtimeConfig <- recs.headOption.flatMap(_._2)
-      } yield GetClusterResponse.fromCluster(cluster, runtimeConfig.runtimeConfig)
-      res.fold[DBIO[GetClusterResponse]](DBIO.failed(ClusterNotFoundException(googleProject, clusterName)))(
+      } yield GetRuntimeResponse.fromRuntime(cluster, runtimeConfig.runtimeConfig)
+      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, clusterName)))(
         r => DBIO.successful(r)
       )
     }
@@ -48,7 +47,7 @@ object LeonardoServiceDbQueries {
 
   def listClusters(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ec: ExecutionContext
-  ): DBIO[List[ListClusterResponse]] = {
+  ): DBIO[List[ListRuntimeResponse]] = {
     val clusterQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === "Deleted")
     val clusterQueryFilteredByProject = googleProjectOpt.fold(clusterQueryFilteredByDeletion)(
@@ -90,19 +89,19 @@ object LeonardoServiceDbQueries {
           val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
           val dataprocInfo = (clusterRec.googleId, clusterRec.operationName, clusterRec.stagingBucket).mapN {
             (googleId, operationName, stagingBucket) =>
-              DataprocInfo(googleId,
-                           OperationName(operationName),
-                           GcsBucketName(stagingBucket),
-                           clusterRec.hostIp map IP)
+              AsyncRuntimeFields(googleId,
+                                 OperationName(operationName),
+                                 GcsBucketName(stagingBucket),
+                                 clusterRec.hostIp map IP)
           }
 
           val serviceAccountInfo = ServiceAccountInfo(
             clusterRec.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
             clusterRec.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
           )
-          ListClusterResponse(
+          ListRuntimeResponse(
             clusterRec.id,
-            ClusterInternalId(clusterRec.internalId),
+            RuntimeInternalId(clusterRec.internalId),
             clusterRec.clusterName,
             clusterRec.googleProject,
             serviceAccountInfo,
@@ -110,8 +109,12 @@ object LeonardoServiceDbQueries {
             clusterRec.auditInfo,
             runTimeConfigRecOpt
               .getOrElse(throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")), //In theory, the exception should never happen because it's enforced by db foreign key
-            Cluster.getClusterUrl(clusterRec.googleProject, clusterRec.clusterName, Set.empty, lmp), //TODO: remove clusterImages field
-            ClusterStatus.withName(clusterRec.status),
+            Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
+                                clusterRec.googleProject,
+                                clusterRec.clusterName,
+                                Set.empty,
+                                lmp), //TODO: remove clusterImages field
+            RuntimeStatus.withName(clusterRec.status),
             lmp,
             clusterRec.jupyterExtensionUri,
             clusterRec.jupyterUserScriptUri,

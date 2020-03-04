@@ -9,29 +9,51 @@ import org.broadinstitute.dsde.workbench.model.google._
 import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
-case class ClusterName(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 
-case class Cluster(clusterName: ClusterName,
-                   googleProject: GoogleProject,
-                   serviceAccountInfo: ServiceAccountInfo,
-                   machineConfig: RuntimeConfig.DataprocConfig,
-                   status: ClusterStatus,
-                   creator: WorkbenchEmail,
-                   labels: LabelMap,
-                   stagingBucket: Option[GcsBucketName],
-                   errors: List[ClusterError],
-                   dateAccessed: Instant,
-                   stopAfterCreation: Boolean,
-                   autopauseThreshold: Int) {
-  def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
+case class ClusterCopy(clusterName: RuntimeName,
+                       googleProject: GoogleProject,
+                       serviceAccountInfo: ServiceAccountInfo,
+                       machineConfig: RuntimeConfig.DataprocConfig,
+                       status: ClusterStatus,
+                       creator: WorkbenchEmail,
+                       labels: LabelMap,
+                       stagingBucket: Option[GcsBucketName],
+                       errors: List[ClusterError],
+                       dateAccessed: Instant,
+                       stopAfterCreation: Boolean,
+                       autopauseThreshold: Int) {
+  def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
+}
+
+// Same as DataprocConfig but uses String instead of MachineConfig because of jackson serialization problems
+// https://github.com/FasterXML/jackson-module-scala/issues/209
+final case class DataprocConfigCopy(numberOfWorkers: Int,
+                                    masterMachineType: String,
+                                    masterDiskSize: Int, //min 10
+                                    // worker settings are None when numberOfWorkers is 0
+                                    workerMachineType: Option[String] = None,
+                                    workerDiskSize: Option[Int] = None, //min 10
+                                    numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                                    numberOfPreemptibleWorkers: Option[Int] = None)
+object DataprocConfigCopy {
+  def fromDataprocConfig(dataprocConfig: RuntimeConfig.DataprocConfig): DataprocConfigCopy =
+    DataprocConfigCopy(
+      dataprocConfig.numberOfWorkers,
+      dataprocConfig.machineType.value,
+      dataprocConfig.masterDiskSize,
+      dataprocConfig.workerMachineType.map(_.value),
+      dataprocConfig.workerDiskSize,
+      dataprocConfig.numberOfWorkerLocalSSDs,
+      dataprocConfig.numberOfPreemptibleWorkers
+    )
 }
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           jupyterStartUserScriptUri: Option[String] = None,
-                          machineConfig: Option[RuntimeConfig.DataprocConfig] = None,
+                          machineConfig: Option[DataprocConfigCopy] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
@@ -50,15 +72,15 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
                                       labExtensions: Map[String, String] = Map())
 
-case class DefaultLabels(clusterName: ClusterName,
-                         googleProject: GoogleProject,
-                         creator: WorkbenchEmail,
-                         clusterServiceAccount: Option[WorkbenchEmail],
-                         notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookExtension: Option[String],
-                         notebookUserScript: Option[String],
-                         notebookStartUserScript: Option[String],
-                         tool: String) {
+case class DefaultLabelsCopy(clusterName: RuntimeName,
+                             googleProject: GoogleProject,
+                             creator: WorkbenchEmail,
+                             clusterServiceAccount: Option[WorkbenchEmail],
+                             notebookServiceAccount: Option[WorkbenchEmail],
+                             notebookExtension: Option[String],
+                             notebookUserScript: Option[String],
+                             notebookStartUserScript: Option[String],
+                             tool: String) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
@@ -79,7 +101,7 @@ case class DefaultLabels(clusterName: ClusterName,
     } getOrElse Map.empty
 
     Map(
-      "clusterName" -> clusterName.string,
+      "clusterName" -> clusterName.asString,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "tool" -> tool

@@ -73,42 +73,43 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 //    notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.json.keyfile'))") shouldBe Some("None")
   }
 
-  def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
-                                                                                   token: AuthToken): T = {
+  def withNotebooksListPage[T](cluster: ClusterCopy)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
+                                                                                       token: AuthToken): T = {
     val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
     testCode(notebooksListPage.open)
   }
 
-  def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
-                                                                                        token: AuthToken): T =
+  def withFileUpload[T](cluster: ClusterCopy, file: File)(
+    testCode: NotebooksListPage => T
+  )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.upload(file)
       testCode(notebooksListPage)
     }
 
-  def withNotebookUpload[T](cluster: Cluster, file: File, timeout: FiniteDuration = 2.minutes)(
+  def withNotebookUpload[T](cluster: ClusterCopy, file: File, timeout: FiniteDuration = 2.minutes)(
     testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withFileUpload(cluster, file) { notebooksListPage =>
       logger.info(
-        s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+        s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
       notebooksListPage.withOpenNotebook(file, timeout) { notebookPage =>
         testCode(notebookPage)
       }
     }
 
-  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(
+  def withNewNotebook[T](cluster: ClusterCopy, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(
     testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(
-        s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+        s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
       val result: Future[T] = retryUntilSuccessOrTimeout(
         whenKernelNotReady,
         failureLogMessage =
-          s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.string} for ${kernel}"
+          s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
       )(30 seconds, 2 minutes) { () =>
         Future(
           notebooksListPage.open.withNewNotebook(kernel, timeout) { notebookPage =>
@@ -127,7 +128,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   //   ~jupyter-user/notebooks/Workspace Name/edit/notebook.ipynb
   // Ideally we would name the directories similarly but the Jupyter UI doesn't make that easy.
   def withNewNotebookInSubfolder[T](
-    cluster: Cluster,
+    cluster: ClusterCopy,
     kernel: NotebookKernel = Python3,
     timeout: FiniteDuration = 2.minutes
   )(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T =
@@ -135,7 +136,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
         notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
           logger.info(
-            s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+            s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
           )
           val result: Future[T] =
             retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
@@ -152,20 +153,20 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       }
     }
 
-  def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(
+  def withOpenNotebook[T](cluster: ClusterCopy, notebookPath: File, timeout: FiniteDuration = 2.minutes)(
     testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(
-        s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}..."
+        s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
       notebooksListPage.withOpenNotebook(notebookPath, timeout) { notebookPage =>
         testCode(notebookPage)
       }
     }
 
-  def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver,
-                                                                               token: AuthToken): T = {
+  def withDummyClientPage[T](cluster: ClusterCopy)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver,
+                                                                                   token: AuthToken): T = {
     // start a server to load the dummy client page
     val bindingFuture = DummyClient.startServer
     val testResult = Try {
@@ -177,7 +178,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testResult.get
   }
 
-  def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(
+  def uploadDownloadTest(cluster: ClusterCopy, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(
     assertion: (File, File) => Any
   )(implicit webDriver: WebDriver, token: AuthToken): Any = {
     cluster.status shouldBe ClusterStatus.Running
@@ -224,7 +225,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   //initializes storageLinks/ and localizes the file to the passed gcsPath
-  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(
+  def withWelderInitialized[T](cluster: ClusterCopy, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(
     testCode: File => T
   )(implicit token: AuthToken): T = {
     Welder.postStorageLink(cluster, gcsPath)

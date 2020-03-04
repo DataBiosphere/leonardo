@@ -3,12 +3,11 @@ package db
 
 import java.sql.SQLException
 
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
-import org.scalatest.FlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import scala.util.Random
+import org.scalatest.FlatSpecLike
+
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.Random
 
 class ExtensionComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
   "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {

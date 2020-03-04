@@ -201,8 +201,8 @@ class SamAuthProviderSpec
   }
 
   "filterClusters should return clusters that were created by the user or whose project is owned by the user" in {
-    val cluster1 = ClusterInternalId(name1.value)
-    val cluster2 = ClusterInternalId(name2.value)
+    val cluster1 = RuntimeInternalId(name1.asString)
+    val cluster2 = RuntimeInternalId(name2.asString)
     // initial filterClusters should return empty list
     samAuthProvider
       .filterUserVisibleClusters(fakeUserInfo, List(project -> cluster1, project -> cluster2))

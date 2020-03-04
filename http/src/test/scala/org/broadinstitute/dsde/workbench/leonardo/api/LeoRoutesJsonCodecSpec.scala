@@ -1,16 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package api
 
+import io.circe.CursorOp.DownField
+import io.circe.DecodingFailure
 import io.circe.parser.decode
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
-  emptyMasterMachineType,
   negativeNumberDecodingFailure,
   oneWorkerSpecifiedDecodingFailure
 }
-import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
+import org.scalatest.{FlatSpec, Matchers}
 
 class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
   "JsonCodec" should "fail to decode MachineConfig when masterMachineType is empty string" in {
@@ -27,7 +29,9 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       json <- io.circe.parser.parse(inputString)
       r <- json.as[RuntimeConfigRequest.DataprocConfig]
     } yield r
-    decodeResult shouldBe Left(emptyMasterMachineType)
+    decodeResult shouldBe Left(
+      DecodingFailure("machine type cannot be an empty string", List(DownField("masterMachineType")))
+    )
   }
 
   it should "fail with negativeNumberDecodingFailure when numberOfPreemptibleWorkers is negative" in {
@@ -102,7 +106,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
     } yield r
     val expectedRuntimeConfig = RuntimeConfigRequest.DataprocConfig(
       Some(0),
-      Some("test-master-machine-type"),
+      Some(MachineTypeName("test-master-machine-type")),
       None,
       None,
       None,
@@ -132,9 +136,9 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
     } yield r
     val expectedRuntimeConfig = RuntimeConfigRequest.DataprocConfig(
       Some(3),
-      Some("test-master-machine-type"),
+      Some(MachineTypeName("test-master-machine-type")),
       None,
-      Some("test-worker-machine-type"),
+      Some(MachineTypeName("test-worker-machine-type")),
       Some(100),
       Some(0),
       Some(0)
@@ -189,8 +193,8 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
         |}
           """.stripMargin
 
-    val res = decode[ClusterRequest](inputString)
-    val expected = ClusterRequest(
+    val res = decode[CreateRuntimeRequest](inputString)
+    val expected = CreateRuntimeRequest(
       Map.empty,
       Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
       None,
@@ -198,7 +202,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       Some(
         RuntimeConfigRequest.DataprocConfig(
           Some(0),
-          Some("machineType"),
+          Some(MachineTypeName("machineType")),
           Some(500)
         )
       ),

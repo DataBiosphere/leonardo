@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.service.Orchestration
-import org.broadinstitute.dsde.workbench.service.util.Tags
+
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration.DurationLong
@@ -96,7 +96,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should allow BigQuerying through python" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should allow BigQuerying through python" in { clusterFixture =>
       val query = """"SELECT
                     |CONCAT(
                     |'https://stackoverflow.com/questions/',
