@@ -45,7 +45,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
   ClusterSupervisorMessage,
   RemoveFromList
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{ClusterFollowupDetails, ClusterTransition}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  RuntimeFollowupDetails,
+  RuntimeTransitionMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{
   DataprocAlgebra,
   DeleteRuntimeParams,
@@ -416,7 +419,7 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { clusterQuery.clearKernelFoundBusyDate(cluster.id, now) }
       traceId = TraceId(UUID.randomUUID())
       _ <- publisherQueue.enqueue1(
-        ClusterTransition(ClusterFollowupDetails(clusterId, RuntimeStatus.Stopped), Some(traceId))
+        RuntimeTransitionMessage(RuntimeFollowupDetails(clusterId, RuntimeStatus.Stopped), Some(traceId))
       )
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(cluster), cluster.status, RuntimeStatus.Stopped)
