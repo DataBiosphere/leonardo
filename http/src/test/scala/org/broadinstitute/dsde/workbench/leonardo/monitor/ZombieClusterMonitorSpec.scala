@@ -275,7 +275,7 @@ class ZombieClusterMonitorSpec
         if (googleProject == clusterBadProject.googleProject && clusterName == clusterBadProject.runtimeName) {
           Future.successful(RuntimeStatus.Running)
         } else if (googleProject == badCluster.googleProject && clusterName == badCluster.runtimeName) {
-          Future.failed(new Exception)
+          Future.failed(new Exception("boom"))
         } else {
           Future.successful(RuntimeStatus.Deleted)
         }

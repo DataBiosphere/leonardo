@@ -396,6 +396,7 @@ class ClusterMonitorActor(
 
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(cluster), cluster.status, RuntimeStatus.Deleted)
+
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
@@ -519,12 +520,10 @@ class ClusterMonitorActor(
         )
     }
 
-  private def persistInstances(cluster: Cluster, googleInstances: Set[Instance]): IO[Unit] = {
-    logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $googleInstances")
+  private def persistInstances(cluster: Cluster, googleInstances: Set[Instance]): IO[Unit] =
     dbRef.inTransaction {
       clusterQuery.mergeInstances(cluster.copy(dataprocInstances = googleInstances))
     }.void
-  }
 
   private def saveClusterError(cluster: Cluster, errorMessage: String, errorCode: Int): IO[Unit] =
     dbRef
