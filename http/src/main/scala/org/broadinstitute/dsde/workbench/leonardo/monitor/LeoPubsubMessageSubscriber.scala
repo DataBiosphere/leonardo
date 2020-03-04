@@ -16,7 +16,12 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, StartRuntimeParams, StopRuntimeParams, UpdateMachineTypeParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  DataprocAlgebra,
+  StartRuntimeParams,
+  StopRuntimeParams,
+  UpdateMachineTypeParams
+}
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
@@ -133,7 +138,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                 case Some(machineType) =>
                   for {
                     // perform gddao and db updates for new resources
-                    _ <- Async[F].liftIO(dataprocAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType)))
+                    _ <- Async[F].liftIO(
+                      dataprocAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType))
+                    )
                     now <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
                     // start cluster
                     _ <- Async[F].liftIO(dataprocAlg.startRuntime(StartRuntimeParams(resolvedCluster)))

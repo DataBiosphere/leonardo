@@ -9,7 +9,12 @@ import cats.implicits._
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.{ConfigSSLContextBuilder, DefaultKeyManagerFactoryWrapper, DefaultTrustManagerFactoryWrapper, SSLConfigFactory}
+import com.typesafe.sslconfig.ssl.{
+  ConfigSSLContextBuilder,
+  DefaultKeyManagerFactoryWrapper,
+  DefaultTrustManagerFactoryWrapper,
+  SSLConfigFactory
+}
 import fs2.concurrent.InspectableQueue
 import fs2.{Pipe, Stream}
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
@@ -17,8 +22,21 @@ import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
 import io.circe.syntax._
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
-import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.{Event, FirewallRuleName, GoogleComputeService, GooglePublisher, GoogleStorageService, GoogleSubscriber}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleStorageDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO,
+  HttpGoogleStorageDAO
+}
+import org.broadinstitute.dsde.workbench.google2.{
+  Event,
+  FirewallRuleName,
+  GoogleComputeService,
+  GooglePublisher,
+  GoogleStorageService,
+  GoogleSubscriber
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -81,23 +99,22 @@ object Boot extends IOApp {
         new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
 
       val clusterHelper = new DataprocInterpreter(DataprocInterpreterConfig(dataprocConfig,
-        googleGroupsConfig,
-        welderConfig,
-                                            imageConfig,
-
-                                            proxyConfig,
-                                            clusterResourcesConfig,
-                                            clusterFilesConfig,
-                                            monitorConfig),
-                                            bucketHelper,
-                                            vpcHelper,
-                                            appDependencies.googleDataprocDAO,
-                                            appDependencies.googleComputeService,
-                                            appDependencies.googleDirectoryDAO,
-                                            appDependencies.googleIamDAO,
-                                            appDependencies.googleProjectDAO,
-                                            appDependencies.welderDAO,
-                                            appDependencies.blocker)
+                                                                            googleGroupsConfig,
+                                                                            welderConfig,
+                                                                            imageConfig,
+                                                                            proxyConfig,
+                                                                            clusterResourcesConfig,
+                                                                            clusterFilesConfig,
+                                                                            monitorConfig),
+                                                  bucketHelper,
+                                                  vpcHelper,
+                                                  appDependencies.googleDataprocDAO,
+                                                  appDependencies.googleComputeService,
+                                                  appDependencies.googleDirectoryDAO,
+                                                  appDependencies.googleIamDAO,
+                                                  appDependencies.googleProjectDAO,
+                                                  appDependencies.welderDAO,
+                                                  appDependencies.blocker)
 
       val leonardoService = new LeonardoService(dataprocConfig,
                                                 imageConfig,

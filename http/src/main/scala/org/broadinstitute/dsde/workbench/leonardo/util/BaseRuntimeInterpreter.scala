@@ -11,8 +11,12 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{RuntimeCannotBeStartedException, RuntimeCannotBeStoppedException, RuntimeOutOfDateException}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  RuntimeCannotBeStartedException,
+  RuntimeCannotBeStoppedException,
+  RuntimeOutOfDateException
+}
 import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfig, RuntimeImage, RuntimeStatus, WelderAction}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -20,22 +24,34 @@ import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 
-private[util] abstract class BaseRuntimeInterpreter[F[_]: Async: ContextShift: Logger](config: RuntimeInterpreterConfig, welderDao: WelderDAO[F])(implicit dbRef: DbReference[F], metrics: NewRelicMetrics[F], executionContext: ExecutionContext) extends RuntimeAlgebra[F] {
+abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: Logger](
+  config: RuntimeInterpreterConfig,
+  welderDao: WelderDAO[F]
+)(implicit dbRef: DbReference[F], metrics: NewRelicMetrics[F], executionContext: ExecutionContext)
+    extends RuntimeAlgebra[F] {
 
-  protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit]
 
-  protected def startGoogleRuntime(runtime: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  protected def startGoogleRuntime(runtime: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit]
 
-  protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit]
 
-  override final def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     if (params.runtime.status.isStoppable) {
       for {
         // Flush the welder cache to disk
         _ <- if (params.runtime.welderEnabled) {
           welderDao
             .flushCache(params.runtime.googleProject, params.runtime.runtimeName)
-            .handleErrorWith(e => Logger[F].error(e)(s"Failed to flush welder cache for ${params.runtime.projectNameString}"))
+            .handleErrorWith(
+              e => Logger[F].error(e)(s"Failed to flush welder cache for ${params.runtime.projectNameString}")
+            )
         } else Async[F].unit
 
         // Stop the cluster in Google
@@ -46,9 +62,12 @@ private[util] abstract class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         _ <- dbRef.inTransaction { clusterQuery.setToStopping(params.runtime.id, now) }
       } yield ()
 
-    } else Async[F].raiseError(RuntimeCannotBeStoppedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status))
+    } else
+      Async[F].raiseError(
+        RuntimeCannotBeStoppedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status)
+      )
 
-  override final def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     if (params.runtime.status.isStartable) {
       val welderAction = getWelderAction(params.runtime)
       for {
@@ -73,7 +92,10 @@ private[util] abstract class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         now <- Async[F].delay(Instant.now)
         _ <- dbRef.inTransaction { clusterQuery.updateClusterStatus(updatedRuntime.id, RuntimeStatus.Starting, now) }
       } yield ()
-    } else Async[F].raiseError(RuntimeCannotBeStartedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status))
+    } else
+      Async[F].raiseError(
+        RuntimeCannotBeStartedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status)
+      )
 
   private def getWelderAction(runtime: Runtime): WelderAction =
     if (runtime.welderEnabled) {
@@ -82,7 +104,7 @@ private[util] abstract class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 
       val imageChanged = runtime.runtimeImages.find(_.imageType == Welder) match {
         case Some(welderImage) if welderImage.imageUrl != config.imageConfig.welderImage => true
-        case _                                                                    => false
+        case _                                                                           => false
       }
 
       if (labelFound && imageChanged) UpdateWelder
@@ -115,12 +137,14 @@ private[util] abstract class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       }
 
       newRuntime = runtime.copy(welderEnabled = true,
-        runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
+                                runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newRuntime
 
   override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
-      _ <- Logger[F].info(s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtime.projectNameString}...")
+      _ <- Logger[F].info(
+        s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtime.projectNameString}..."
+      )
       // Update the machine type in Google
       _ <- setMachineTypeInGoogle(params.runtime, params.machineType)
       // Update the DB

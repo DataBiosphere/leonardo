@@ -16,8 +16,23 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleComputeService, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Creating, Deleted, Deleting, Error, Running, Starting, Stopping, Unknown, Updating}
+import org.broadinstitute.dsde.workbench.google2.{
+  GcsBlobName,
+  GetMetadataResponse,
+  GoogleComputeService,
+  GoogleStorageService
+}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{
+  Creating,
+  Deleted,
+  Deleting,
+  Error,
+  Running,
+  Starting,
+  Stopping,
+  Unknown,
+  Updating
+}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
@@ -25,13 +40,22 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{
+  ClusterDeleted,
+  ClusterSupervisorMessage,
+  RemoveFromList
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{ClusterFollowupDetails, ClusterTransition}
-import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, DeleteRuntimeParams, FinalizeDeleteParams, StopRuntimeParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  DataprocAlgebra,
+  DeleteRuntimeParams,
+  FinalizeDeleteParams,
+  StopRuntimeParams
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
+import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -47,19 +71,19 @@ object ClusterMonitorActor {
    * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
    */
   def props(
-             clusterId: Long,
-             monitorConfig: MonitorConfig,
-             dataprocConfig: DataprocConfig,
-             imageConfig: ImageConfig,
-             clusterBucketConfig: ClusterBucketConfig,
-             gdDAO: GoogleDataprocDAO,
-             googleComputeService: GoogleComputeService[IO],
-             googleStorageDAO: GoogleStorageDAO,
-             google2StorageDAO: GoogleStorageService[IO],
-             dbRef: DbReference[IO],
-             authProvider: LeoAuthProvider[IO],
-             dataprocAlg: DataprocAlgebra[IO],
-             publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
+    clusterId: Long,
+    monitorConfig: MonitorConfig,
+    dataprocConfig: DataprocConfig,
+    imageConfig: ImageConfig,
+    clusterBucketConfig: ClusterBucketConfig,
+    gdDAO: GoogleDataprocDAO,
+    googleComputeService: GoogleComputeService[IO],
+    googleStorageDAO: GoogleStorageDAO,
+    google2StorageDAO: GoogleStorageService[IO],
+    dbRef: DbReference[IO],
+    authProvider: LeoAuthProvider[IO],
+    dataprocAlg: DataprocAlgebra[IO],
+    publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
     cs: ContextShift[IO]): Props =
@@ -75,7 +99,7 @@ object ClusterMonitorActor {
                               google2StorageDAO,
                               dbRef,
                               authProvider,
-        dataprocAlg,
+                              dataprocAlg,
                               publisherQueue)
     )
 
@@ -273,9 +297,9 @@ class ClusterMonitorActor(
    * @param errorDetails cluster error details from Google
    * @return ShutdownActor
    */
-  private def handleFailedCluster(cluster: Cluster,
-                                  errorDetails: RuntimeErrorDetails,
-                                  googleInstances: Set[Instance])(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] =
+  private def handleFailedCluster(cluster: Cluster, errorDetails: RuntimeErrorDetails, googleInstances: Set[Instance])(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[ClusterMonitorMessage] =
     for {
       _ <- List(
         // Delete the cluster in Google
