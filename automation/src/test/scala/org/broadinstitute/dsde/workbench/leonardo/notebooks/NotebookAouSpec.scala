@@ -14,7 +14,9 @@ class NotebookAouSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "should have wondershaper installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
-          notebookPage.executeCell("!command -v wondershaper") shouldBe include("/usr/bin/wondershaper")
+          val result = notebookPage.executeCell("!command -v wondershaper")
+          result shouldBe 'defined
+          result.get should include("/usr/bin/wondershaper")
         }
       }
     }
