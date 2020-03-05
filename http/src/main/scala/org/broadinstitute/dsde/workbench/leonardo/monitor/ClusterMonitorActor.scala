@@ -53,6 +53,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{
   DataprocAlgebra,
   DeleteRuntimeParams,
   FinalizeDeleteParams,
+  RuntimeAlgebra,
   StopRuntimeParams
 }
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -86,6 +87,7 @@ object ClusterMonitorActor {
     dbRef: DbReference[IO],
     authProvider: LeoAuthProvider[IO],
     dataprocAlg: DataprocAlgebra[IO],
+    gceAlg: RuntimeAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
@@ -103,6 +105,7 @@ object ClusterMonitorActor {
                               dbRef,
                               authProvider,
                               dataprocAlg,
+                              gceAlg,
                               publisherQueue)
     )
 
@@ -147,6 +150,7 @@ class ClusterMonitorActor(
   val dbRef: DbReference[IO],
   val authProvider: LeoAuthProvider[IO],
   val dataprocAlg: DataprocAlgebra[IO],
+  val gceAlg: RuntimeAlgebra[IO],
   val publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
 )(implicit metrics: NewRelicMetrics[IO],
@@ -238,7 +242,8 @@ class ClusterMonitorActor(
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)
             )
-            _ <- dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+            // TODO GCe hardcoded
+            _ <- gceAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
             now <- IO(Instant.now)
             _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
           } yield ScheduleMonitorPass
@@ -306,7 +311,8 @@ class ClusterMonitorActor(
     for {
       _ <- List(
         // Delete the cluster in Google
-        dataprocAlg.deleteRuntime(DeleteRuntimeParams(cluster)),
+        // TODO GCE hardcoded
+        gceAlg.deleteRuntime(DeleteRuntimeParams(cluster)),
         // create or update instances in the DB
         persistInstances(cluster, googleInstances),
         //save cluster error in the DB
@@ -391,7 +397,8 @@ class ClusterMonitorActor(
                               cluster.googleProject,
                               cluster.runtimeName)
 
-      _ <- dataprocAlg.finalizeDelete(FinalizeDeleteParams(cluster))
+      // TODO GCE hardcoded
+      _ <- gceAlg.finalizeDelete(FinalizeDeleteParams(cluster))
 
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(cluster), cluster.status, RuntimeStatus.Deleted)
