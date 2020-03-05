@@ -84,8 +84,8 @@ LinkedHashMap<String,String> getVersionMap(Set<String> imageNames, String config
         // Without the fancy regex, 'grep' is more susceptible to ordering in the conf files
         String imageRegex = "/${image}:[[:alnum:]]+"
         def version = sh(
-                script: "cat $configFile | grep -E $imageRegex | tr ':' '\n' | tail -1 | tr -d '\"' | awk '{print \$1}'",
-                returnStdout: true
+            script: "cat $configFile | grep -E $imageRegex | tr ':' '\n' | tail -1 | tr -d '\"' | awk '{print \$1}'",
+            returnStdout: true
         ).trim()
 
         versionMap[image] = version
