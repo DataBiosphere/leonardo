@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.DataprocInterpreter
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 import scala.concurrent.ExecutionContext.global
@@ -39,7 +39,7 @@ object TestClusterSupervisorActor {
             jupyterProxyDAO: JupyterDAO[IO],
             rstudioProxyDAO: RStudioDAO[IO],
             welderDAO: WelderDAO[IO],
-            clusterHelper: ClusterHelper,
+            clusterHelper: DataprocInterpreter[IO],
             publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO]): Props =
     Props(
       new TestClusterSupervisorActor(monitorConfig,
@@ -82,7 +82,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  jupyterProxyDAO: JupyterDAO[IO],
                                  rstudioProxyDAO: RStudioDAO[IO],
                                  welderDAO: WelderDAO[IO],
-                                 clusterHelper: ClusterHelper,
+                                 clusterHelper: DataprocInterpreter[IO],
                                  publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO])
     extends ClusterMonitorSupervisor(
       monitorConfig,

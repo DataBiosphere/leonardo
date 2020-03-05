@@ -4,7 +4,6 @@ package api
 
 import java.net.URL
 import java.time.Instant
-import java.util.UUID
 
 import cats.implicits._
 import io.circe.syntax._
@@ -29,7 +28,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       googleProject <- x.downField("googleProject").as[GoogleProject]
       serviceAccountInfo <- x.downField("serviceAccountInfo").as[ServiceAccountInfo]
       dataprocInfo <- for {
-        googleId <- x.downField("googleId").as[Option[UUID]]
+        googleId <- x.downField("googleId").as[Option[GoogleId]]
         operationName <- x.downField("operationName").as[Option[OperationName]]
         stagingBucket <- x.downField("stagingBucket").as[Option[GcsBucketName]]
         hostIp <- x.downField("hostIp").as[Option[IP]]

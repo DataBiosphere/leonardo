@@ -72,6 +72,7 @@ object Config {
 
   implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
+      config.as[GceCustomImage]("customGceImage"),
       config.as[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
@@ -117,6 +118,7 @@ object Config {
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
       RuntimeResource(config.getString("initActionsScript")),
+      RuntimeResource(config.getString("gceInitScript")),
       RuntimeResource(config.getString("startupScript")),
       RuntimeResource(config.getString("shutdownScript")),
       RuntimeResource(config.getString("jupyterDockerCompose")),
@@ -258,6 +260,7 @@ object Config {
   implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
   implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
   implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
+  implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
   implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
     s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )
