@@ -1,9 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.time.Instant
 
-import cats.effect.{Async, ContextShift}
+import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.Logger
@@ -153,5 +154,65 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         RuntimeConfigQueries.updateMachineType(params.runtime.runtimeConfigId, params.machineType, now)
       }
     } yield ()
+
+  // Startup script to run after the runtime is resumed
+  protected def getStartupScript(runtime: Runtime,
+                                 welderAction: WelderAction,
+                                 blocker: Blocker): F[Map[String, String]] = {
+    val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
+
+    val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
+      runtime,
+      None,
+      None,
+      config.imageConfig,
+      config.welderConfig,
+      config.proxyConfig,
+      config.clusterFilesConfig,
+      config.clusterResourcesConfig,
+      None
+    )
+    val clusterInit = RuntimeTemplateValues(templateConfig)
+    val replacements: Map[String, String] = clusterInit.toMap ++
+      Map(
+        "deployWelder" -> (welderAction == DeployWelder).toString,
+        "updateWelder" -> (welderAction == UpdateWelder).toString,
+        "disableDelocalization" -> (welderAction == DisableDelocalization).toString
+      )
+
+    TemplateHelper
+      .templateResource[F](replacements, config.clusterResourcesConfig.startupScript, blocker)
+      .compile
+      .to[Array]
+      .map { bytes =>
+        Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
+      }
+  }
+
+  // Shutdown script to run after the runtime is paused
+  protected def getShutdownScript(runtime: Runtime, blocker: Blocker): F[Map[String, String]] = {
+    val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
+
+    val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
+      runtime,
+      None,
+      None,
+      config.imageConfig,
+      config.welderConfig,
+      config.proxyConfig,
+      config.clusterFilesConfig,
+      config.clusterResourcesConfig,
+      None
+    )
+    val replacements = RuntimeTemplateValues(templateConfig).toMap
+
+    TemplateHelper
+      .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript, blocker)
+      .compile
+      .to[Array]
+      .map { bytes =>
+        Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
+      }
+  }
 
 }
