@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.util.DataprocInterpreter
+import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocInterpreter, GceInterpreter}
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 import scala.concurrent.ExecutionContext.global
@@ -39,7 +39,8 @@ object TestClusterSupervisorActor {
             jupyterProxyDAO: JupyterDAO[IO],
             rstudioProxyDAO: RStudioDAO[IO],
             welderDAO: WelderDAO[IO],
-            clusterHelper: DataprocInterpreter[IO],
+            dataprocAlg: DataprocInterpreter[IO],
+            gceAlg: GceInterpreter[IO],
             publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO]): Props =
     Props(
       new TestClusterSupervisorActor(monitorConfig,
@@ -57,7 +58,8 @@ object TestClusterSupervisorActor {
                                      jupyterProxyDAO,
                                      rstudioProxyDAO,
                                      welderDAO,
-                                     clusterHelper,
+                                     dataprocAlg,
+                                     gceAlg,
                                      publisherQueue)
     )
 }
@@ -82,7 +84,8 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  jupyterProxyDAO: JupyterDAO[IO],
                                  rstudioProxyDAO: RStudioDAO[IO],
                                  welderDAO: WelderDAO[IO],
-                                 clusterHelper: DataprocInterpreter[IO],
+                                 dataprocAlg: DataprocInterpreter[IO],
+                                 gceAlg: GceInterpreter[IO],
                                  publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO])
     extends ClusterMonitorSupervisor(
       monitorConfig,
@@ -98,7 +101,8 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       jupyterProxyDAO,
       rstudioProxyDAO,
       welderDAO,
-      clusterHelper,
+      dataprocAlg,
+      gceAlg,
       publisherQueue
     )(FakeNewRelicMetricsInterpreter,
       global,
