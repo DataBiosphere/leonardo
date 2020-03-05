@@ -82,7 +82,7 @@ class HttpGoogleDataprocDAO(
             (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") =>
         throw DataprocDisabledException(e.getMessage)
     }.map { op =>
-        Operation(OperationName(op.getName), getOperationUUID(op))
+        Operation(OperationName(op.getName), GoogleId(getOperationUUID(op)))
       }
       .handleGoogleException(googleProject, Some(clusterName.asString))
 

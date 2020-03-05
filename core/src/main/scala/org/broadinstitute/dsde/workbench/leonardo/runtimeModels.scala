@@ -115,7 +115,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
 }
 
 /** Fields that are populated asynchronous to the runtime's creation */
-case class AsyncRuntimeFields(googleId: UUID,
+case class AsyncRuntimeFields(googleId: GoogleId,
                               operationName: OperationName,
                               stagingBucket: GcsBucketName,
                               hostIp: Option[IP])
@@ -338,10 +338,11 @@ final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName: RuntimeName) {
   override def toString: String = s"${googleProject.value}/${runtimeName.asString}"
 }
-case class IP(value: String) extends ValueObject
-case class NetworkTag(value: String) extends ValueObject
-case class OperationName(value: String) extends ValueObject
-case class Operation(name: OperationName, uuid: UUID)
+final case class IP(value: String) extends ValueObject
+final case class NetworkTag(value: String) extends ValueObject
+final case class OperationName(value: String) extends ValueObject
+final case class Operation(name: OperationName, id: GoogleId)
+final case class GoogleId(value: UUID) extends AnyVal
 
 sealed trait VPCConfig extends Product with Serializable {
   def value: String

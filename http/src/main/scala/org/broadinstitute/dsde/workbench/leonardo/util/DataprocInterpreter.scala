@@ -191,7 +191,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                     .flatMap(_ => Async[F].raiseError[Operation](errors.head))
               }
 
-              asyncRuntimeFields = AsyncRuntimeFields(operation.uuid, operation.name, stagingBucketName, None)
+              asyncRuntimeFields = AsyncRuntimeFields(operation.id, operation.name, stagingBucketName, None)
             } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, serviceAccountKeyOpt, dataprocImage)
         }
       } yield res

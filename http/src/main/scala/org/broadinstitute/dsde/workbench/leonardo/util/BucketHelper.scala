@@ -142,6 +142,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       r <- Stream.emits(
         Seq(
           config.clusterResourcesConfig.initActionsScript,
+          config.clusterResourcesConfig.gceInitScript,
           config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
         )
       )
