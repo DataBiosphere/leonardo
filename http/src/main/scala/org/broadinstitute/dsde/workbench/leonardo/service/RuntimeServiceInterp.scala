@@ -6,6 +6,7 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
+import cats.Parallel
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, Timer}
 import cats.implicits._
@@ -18,7 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, SaveCluster}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, SaveCluster, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, RuntimeServiceContext}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
@@ -26,18 +27,18 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
 
 import scala.concurrent.ExecutionContext
 
-class RuntimeServiceInterp[F[_]](blocker: Blocker,
-                                 semaphore: Semaphore[F],
-                                 config: RuntimeServiceConfig,
-                                 authProvider: LeoAuthProvider[F],
-                                 serviceAccountProvider: ServiceAccountProvider[F],
-                                 dockerDAO: DockerDAO[F],
-                                 googleStorageService: GoogleStorageService[F],
-                                 publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(implicit F: Async[F],
+class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
+                                           semaphore: Semaphore[F],
+                                           config: RuntimeServiceConfig,
+                                           authProvider: LeoAuthProvider[F],
+                                           serviceAccountProvider: ServiceAccountProvider[F],
+                                           dockerDAO: DockerDAO[F],
+                                           googleStorageService: GoogleStorageService[F],
+                                           publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(implicit F: Async[F],
                                                                                             log: StructuredLogger[F],
                                                                                             timer: Timer[F],
                                                                                             cs: ContextShift[F],
@@ -47,7 +48,7 @@ class RuntimeServiceInterp[F[_]](blocker: Blocker,
 
   def createRuntime(userInfo: UserInfo,
                     googleProject: GoogleProject,
-                    runtimeName: RuntimeName, //TODO: rename this to RuntimeName once Rob's PR is in
+                    runtimeName: RuntimeName,
                     req: CreateRuntime2Request)(implicit as: ApplicativeAsk[F, RuntimeServiceContext]): F[Unit] =
     for {
       context <- as.ask
@@ -75,7 +76,7 @@ class RuntimeServiceInterp[F[_]](blocker: Blocker,
                     s"Skipping validation of bucket objects in the cluster request."
                 ) as None
             }
-            clusterImages <- getClusterImages(petToken,
+            clusterImages <- getRuntimeImages(petToken,
                                               userInfo.userEmail,
                                               googleProject,
                                               context.now,
@@ -104,8 +105,8 @@ class RuntimeServiceInterp[F[_]](blocker: Blocker,
             _ <- petToken.traverse(
               t =>
                 gcsObjectUrisToValidate
-                  .traverse_(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
-            ) //TODO figure out implicits required for parTraverse
+                  .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
+            )
             _ <- authProvider
               .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
               .handleErrorWith { t =>
@@ -136,7 +137,7 @@ class RuntimeServiceInterp[F[_]](blocker: Blocker,
       }
     } yield ()
 
-  private[service] def getClusterImages(
+  private[service] def getRuntimeImages(
     petToken: Option[String],
     userEmail: WorkbenchEmail,
     googleProject: GoogleProject,

@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 
 class SwaggerRoutes(swaggerConfig: SwaggerConfig) {
   private val swaggerUiPath = "META-INF/resources/webjars/swagger-ui/2.2.5"
+//  private val swaggerUiPath = "META-INF/resources/webjars/swagger-ui/3.25.0"
 
   val swaggerRoutes: server.Route = {
     path("") {
