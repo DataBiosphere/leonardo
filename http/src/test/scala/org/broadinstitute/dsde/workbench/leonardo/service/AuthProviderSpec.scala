@@ -27,7 +27,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
@@ -91,7 +94,7 @@ class AuthProviderSpec
   val vpcHelperConfig =
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
   val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService, blocker)
-  val clusterHelper =
+  val dataprocAlg =
     new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
                                                           googleGroupsConfig,
                                                           welderConfig,
@@ -109,6 +112,19 @@ class AuthProviderSpec
                                 mockGoogleProjectDAO,
                                 mockWelderDAO,
                                 blocker)
+  val gceAlg =
+    new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
+                                                welderConfig,
+                                                imageConfig,
+                                                proxyConfig,
+                                                clusterResourcesConfig,
+                                                clusterFilesConfig,
+                                                monitorConfig),
+                           bucketHelper,
+                           vpcHelper,
+                           MockGoogleComputeService,
+                           mockWelderDAO,
+                           blocker)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 
   override def beforeAll(): Unit = {
@@ -132,6 +148,7 @@ class AuthProviderSpec
       new MockGoogleStorageDAO
     }
     new LeonardoService(dataprocConfig,
+                        gceConfig,
                         imageConfig,
                         MockWelderDAO,
                         proxyConfig,
@@ -142,7 +159,8 @@ class AuthProviderSpec
                         authProvider,
                         serviceAccountProvider,
                         bucketHelper,
-                        clusterHelper,
+                        dataprocAlg,
+                        gceAlg,
                         new MockDockerDAO,
                         QueueFactory.makePublisherQueue())
   }

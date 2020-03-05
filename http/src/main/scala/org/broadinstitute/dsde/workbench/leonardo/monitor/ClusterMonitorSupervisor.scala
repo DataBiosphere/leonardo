@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, StopRuntimeParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, RuntimeAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -42,6 +42,7 @@ object ClusterMonitorSupervisor {
     rstudioProxyDAO: RStudioDAO[IO],
     welderDAO: WelderDAO[IO],
     dataprocAlg: DataprocAlgebra[IO],
+    gceAlg: RuntimeAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     dbRef: DbReference[IO],
@@ -63,6 +64,7 @@ object ClusterMonitorSupervisor {
                                    rstudioProxyDAO,
                                    welderDAO,
                                    dataprocAlg,
+                                   gceAlg,
                                    publisherQueue)
     )
 
@@ -107,6 +109,7 @@ class ClusterMonitorSupervisor(
   rstudioProxyDAO: RStudioDAO[IO],
   welderProxyDAO: WelderDAO[IO],
   dataprocAlg: DataprocAlgebra[IO],
+  gceAlg: RuntimeAlgebra[IO],
   publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
 )(implicit metrics: NewRelicMetrics[IO],
   ec: ExecutionContext,
@@ -233,6 +236,7 @@ class ClusterMonitorSupervisor(
         dbRef,
         authProvider,
         dataprocAlg,
+        gceAlg,
         publisherQueue
       )
     )
@@ -304,8 +308,10 @@ class ClusterMonitorSupervisor(
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
-      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
-
+      _ <- runtimeConfig.cloudService match {
+        case CloudService.Dataproc => dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+        case CloudService.GCE      => gceAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+      }
       // Update the cluster status to Stopping
       _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
     } yield ()
