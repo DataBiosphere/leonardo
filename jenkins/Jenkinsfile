@@ -166,7 +166,7 @@ pipeline {
     stages {
         stage('Scan Terra docker images') {
             steps {
-                git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'develop'
+                git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
 
                 script {
                     customDataprocImageBaseName = "${IMAGE_BASE_NAME}-dataproc"
