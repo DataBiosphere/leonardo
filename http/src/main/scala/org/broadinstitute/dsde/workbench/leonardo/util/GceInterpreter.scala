@@ -7,18 +7,15 @@ import cats.Parallel
 import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.cloud.compute.v1.{
-  AttachedDisk,
-  AttachedDiskInitializeParams,
-  Instance,
-  Items,
-  Metadata,
-  NetworkInterface,
-  ServiceAccount,
-  Tags
-}
+import com.google.cloud.compute.v1._
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  InstanceName,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.proxyConfig
@@ -26,8 +23,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 import scala.collection.JavaConverters._
@@ -172,23 +169,59 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                               None)
     } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, CustomDataprocImage("foo"))
 
-  override protected def stopGoogleRuntime(runtime: Cluster, runtimeConfig: RuntimeConfig)(
+  override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit] = ???
+  ): F[Unit] =
+    for {
+      metadata <- getShutdownScript(runtime, blocker)
+      _ <- googleComputeService.addInstanceMetadata(runtime.googleProject,
+                                                    config.gceConfig.zoneName,
+                                                    InstanceName(runtime.runtimeName.asString),
+                                                    metadata)
+      _ <- googleComputeService.stopInstance(runtime.googleProject,
+                                             config.gceConfig.zoneName,
+                                             InstanceName(runtime.runtimeName.asString))
+    } yield ()
 
   override protected def startGoogleRuntime(runtime: Cluster, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit] = ???
+  ): F[Unit] =
+    for {
+      metadata <- getStartupScript(runtime, welderAction, blocker)
+      _ <- googleComputeService.addInstanceMetadata(runtime.googleProject,
+                                                    config.gceConfig.zoneName,
+                                                    InstanceName(runtime.runtimeName.asString),
+                                                    metadata)
+      _ <- googleComputeService.startInstance(runtime.googleProject,
+                                              config.gceConfig.zoneName,
+                                              InstanceName(runtime.runtimeName.asString))
+    } yield ()
 
   override protected def setMachineTypeInGoogle(runtime: Cluster, machineType: MachineTypeName)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit] = ???
+  ): F[Unit] =
+    googleComputeService.setMachineType(runtime.googleProject,
+                                        config.gceConfig.zoneName,
+                                        InstanceName(runtime.runtimeName.asString),
+                                        machineType)
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = ???
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    if (params.runtime.asyncRuntimeFields.isDefined)
+      googleComputeService
+        .deleteInstance(params.runtime.googleProject,
+                        config.gceConfig.zoneName,
+                        InstanceName(params.runtime.runtimeName.asString))
+        .void
+    else Async[F].unit
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = ???
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    Async[F].unit
 
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = ???
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    googleComputeService.resizeDisk(params.runtime.googleProject,
+                                    config.gceConfig.zoneName,
+                                    DiskName(params.runtime.runtimeName.asString),
+                                    params.diskSize)
 
   private[leonardo] def getResourceConstraints(
     googleProject: GoogleProject,

@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.nio.charset.StandardCharsets
-
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
@@ -19,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates.
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.Master
-import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -124,7 +121,6 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
           Some(initBucketName),
           Some(stagingBucketName),
           serviceAccountKeyOpt,
-          config.dataprocConfig,
           config.imageConfig,
           config.welderConfig,
           config.proxyConfig,
@@ -239,7 +235,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
-      metadata <- getMasterInstanceShutdownScript(runtime)
+      metadata <- getShutdownScript(runtime, blocker)
 
       // First remove all its preemptible instances, if any
       _ <- runtimeConfig match {
@@ -272,7 +268,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
-      metadata <- getMasterInstanceStartupScript(runtime, welderAction)
+      metadata <- getStartupScript(runtime, welderAction, blocker)
 
       // Add back the preemptible instances, if any
       _ <- runtimeConfig match {
@@ -646,65 +642,4 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       case _                 => None
     }
   }
-
-  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
-  // a cluster is resumed.
-  private def getMasterInstanceStartupScript(runtime: Runtime, welderAction: WelderAction): F[Map[String, String]] = {
-    val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
-
-    val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
-      runtime,
-      None,
-      None,
-      config.dataprocConfig,
-      config.imageConfig,
-      config.welderConfig,
-      config.proxyConfig,
-      config.clusterFilesConfig,
-      config.clusterResourcesConfig,
-      None
-    )
-    val clusterInit = RuntimeTemplateValues(templateConfig)
-    val replacements: Map[String, String] = clusterInit.toMap ++
-      Map(
-        "deployWelder" -> (welderAction == DeployWelder).toString,
-        "updateWelder" -> (welderAction == UpdateWelder).toString,
-        "disableDelocalization" -> (welderAction == DisableDelocalization).toString
-      )
-
-    TemplateHelper
-      .templateResource[F](replacements, config.clusterResourcesConfig.startupScript, blocker)
-      .compile
-      .to[Array]
-      .map { bytes =>
-        Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
-      }
-  }
-
-  private def getMasterInstanceShutdownScript(runtime: Runtime): F[Map[String, String]] = {
-    val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
-
-    val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
-      runtime,
-      None,
-      None,
-      config.dataprocConfig,
-      config.imageConfig,
-      config.welderConfig,
-      config.proxyConfig,
-      config.clusterFilesConfig,
-      config.clusterResourcesConfig,
-      None
-    )
-    val replacements = RuntimeTemplateValues(templateConfig).toMap
-
-    TemplateHelper
-      .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript, blocker)
-      .compile
-      .to[Array]
-      .map { bytes =>
-        Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
-      }
-  }
-
 }
