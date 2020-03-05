@@ -315,7 +315,14 @@ class ClusterHelperSpec
   }
 
   it should "calculate cluster resource constraints" in isolatedDbTest {
-    val runtimeConfig = RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), 500)
+    val runtimeConfig = RuntimeConfig.DataprocConfig(0,
+                                                     MachineTypeName("n1-standard-4"),
+                                                     500,
+                                                     None,
+                                                     None,
+                                                     None,
+                                                     None,
+                                                     Map.empty[String, String])
     val resourceConstraints = clusterHelper
       .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
       .unsafeRunSync()

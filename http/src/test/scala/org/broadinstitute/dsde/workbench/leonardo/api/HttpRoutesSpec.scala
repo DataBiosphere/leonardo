@@ -29,13 +29,8 @@ class HttpRoutesSpec
     with TestLeoRoutes {
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
-  "HttpRoutes" should "200 on ping" in {
-    Get("/ping") ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-    }
-  }
 
-  it should "create runtime" in {
+  "HttpRoutes" should "create runtime" in {
     val routes = new HttpRoutes(
       swaggerConfig,
       statusService,

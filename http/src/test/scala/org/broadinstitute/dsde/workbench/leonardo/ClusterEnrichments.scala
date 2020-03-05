@@ -66,7 +66,6 @@ object ClusterEnrichments extends Matchers {
     c.serviceAccountInfo shouldBe createCluster.serviceAccountInfo
     c.asyncRuntimeFields shouldBe createCluster.asyncRuntimeFields
     c.auditInfo shouldBe createCluster.auditInfo
-    c.dataprocProperties shouldBe createCluster.dataprocProperties
     c.proxyUrl shouldBe createCluster.clusterUrl
     c.status shouldBe createCluster.status
     c.labels shouldBe createCluster.labels
@@ -82,6 +81,6 @@ object ClusterEnrichments extends Matchers {
     c.runtimeImages shouldBe createCluster.clusterImages
     c.scopes shouldBe createCluster.scopes
     c.welderEnabled shouldBe createCluster.welderEnabled
-    c.customClusterEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
+    c.customEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
   }
 }

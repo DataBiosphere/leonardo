@@ -44,7 +44,6 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     None,
     None,
     None,
-    Map.empty,
     None,
     None,
     None,
@@ -128,7 +127,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
           None,
           None,
           None,
-          None
+          None,
+          Map.empty
         )
       )
     )
@@ -182,7 +182,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
           None,
           None,
           None,
-          None
+          None,
+          Map.empty
         )
       )
     )

@@ -111,7 +111,8 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       None,
       None,
       None,
-      None
+      None,
+      Map.empty
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
   }
@@ -141,7 +142,8 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       Some(MachineTypeName("test-worker-machine-type")),
       Some(100),
       Some(0),
-      Some(0)
+      Some(0),
+      Map.empty
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
   }
@@ -203,10 +205,14 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
         RuntimeConfigRequest.DataprocConfig(
           Some(0),
           Some(MachineTypeName("machineType")),
-          Some(500)
+          Some(500),
+          None,
+          None,
+          None,
+          None,
+          Map.empty
         )
       ),
-      Map.empty,
       Some(true),
       false,
       None,

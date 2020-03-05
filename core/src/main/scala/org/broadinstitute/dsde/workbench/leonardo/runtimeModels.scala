@@ -26,7 +26,6 @@ final case class Runtime(id: Long,
                          serviceAccountInfo: ServiceAccountInfo,
                          asyncRuntimeFields: Option[AsyncRuntimeFields],
                          auditInfo: AuditInfo,
-                         dataprocProperties: Map[String, String],
                          proxyUrl: URL,
                          status: RuntimeStatus,
                          labels: LabelMap,
@@ -43,7 +42,7 @@ final case class Runtime(id: Long,
                          runtimeImages: Set[RuntimeImage],
                          scopes: Set[String],
                          welderEnabled: Boolean,
-                         customClusterEnvironmentVariables: Map[String, String],
+                         customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
   def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
@@ -160,7 +159,8 @@ object RuntimeConfig {
                                   workerMachineType: Option[MachineTypeName] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                                  numberOfPreemptibleWorkers: Option[Int] = None)
+                                  numberOfPreemptibleWorkers: Option[Int] = None,
+                                  properties: Map[String, String])
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType

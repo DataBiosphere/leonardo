@@ -53,7 +53,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 
   private[api] def createRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
-                                        runtimeName: RuntimeName, //TODO: rename this to RuntimeName once Rob's PR is in
+                                        runtimeName: RuntimeName,
                                         req: CreateRuntime2Request): IO[ToResponseMarshallable] =
     for {
       traceId <- IO(UUID.randomUUID())
@@ -99,7 +99,6 @@ object RuntimeRoutes {
       jus <- c.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jsus <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
       rc <- c.downField("runtimeConfig").as[Option[RuntimeConfigRequest]]
-      p <- c.downField("properties").as[Option[LabelMap]]
       uje <- c.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
       a <- c.downField("autopause").as[Option[Boolean]]
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
@@ -107,14 +106,13 @@ object RuntimeRoutes {
       tdi <- c.downField("toolDockerImage").as[Option[ContainerImage]]
       wdi <- c.downField("welderDockerImage").as[Option[ContainerImage]]
       s <- c.downField("scopes").as[Option[Set[String]]]
-      c <- c.downField("customClusterEnvironmentVariables").as[Option[LabelMap]]
+      c <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
     } yield CreateRuntime2Request(
       l.getOrElse(Map.empty),
       je,
       jus,
       jsus,
       rc,
-      p.getOrElse(Map.empty),
       uje,
       a,
       apt.map(_.minute),
@@ -134,7 +132,6 @@ final case class CreateRuntime2Request(labels: LabelMap,
                                        jupyterUserScriptUri: Option[UserScriptPath],
                                        jupyterStartUserScriptUri: Option[UserScriptPath],
                                        runtimeConfig: Option[RuntimeConfigRequest],
-                                       properties: Map[String, String],
                                        userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                                        autopause: Option[Boolean],
                                        autopauseThreshold: Option[FiniteDuration],
@@ -142,4 +139,4 @@ final case class CreateRuntime2Request(labels: LabelMap,
                                        toolDockerImage: Option[ContainerImage],
                                        welderDockerImage: Option[ContainerImage],
                                        scopes: Set[String],
-                                       customClusterEnvironmentVariables: Map[String, String])
+                                       customEnvironmentVariables: Map[String, String])

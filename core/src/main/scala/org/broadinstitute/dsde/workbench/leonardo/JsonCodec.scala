@@ -157,13 +157,16 @@ object JsonCodec {
       workerDiskSize <- c.downField("workerDiskSize").as[Option[Int]]
       numberOfWorkerLocalSSDs <- c.downField("numberOfWorkerLocalSSDs").as[Option[Int]]
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
+      propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
+      properties = propertiesOpt.getOrElse(Map.empty)
     } yield RuntimeConfig.DataprocConfig(numberOfWorkers,
                                          masterMachineType,
                                          masterDiskSize,
                                          workerMachineType,
                                          workerDiskSize,
                                          numberOfWorkerLocalSSDs,
-                                         numberOfPreemptibleWorkers)
+                                         numberOfPreemptibleWorkers,
+                                         properties)
   }
 
   implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct2(

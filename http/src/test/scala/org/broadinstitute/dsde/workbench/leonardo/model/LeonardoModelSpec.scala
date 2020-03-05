@@ -33,7 +33,7 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
       """.stripMargin
 
     val expectedClusterRequest =
-      CreateRuntimeRequest(labels = Map.empty, dataprocProperties = Map.empty, scopes = Set.empty)
+      CreateRuntimeRequest(labels = Map.empty, scopes = Set.empty)
 
     val decodeResult = for {
       json <- io.circe.parser.parse(inputJson)
@@ -60,7 +60,7 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
       """.stripMargin
 
     val expectedClusterRequest =
-      CreateRuntimeRequest(labels = Map.empty, dataprocProperties = Map.empty, scopes = Set.empty)
+      CreateRuntimeRequest(labels = Map.empty, scopes = Set.empty)
 
     val decodeResult = for {
       json <- io.circe.parser.parse(inputJson)
@@ -85,7 +85,6 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
 
     val expectedClusterRequest = CreateRuntimeRequest(
       labels = Map.empty,
-      dataprocProperties = Map.empty,
       scopes = Set.empty,
       jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
       jupyterUserScriptUri =

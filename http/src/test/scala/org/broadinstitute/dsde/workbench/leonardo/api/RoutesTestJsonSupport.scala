@@ -103,13 +103,12 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       case x: RuntimeConfigRequest.GceConfig      => x.asJson
     }
   }
-  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct18(
+  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct17(
     "labels",
     "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "jupyterStartUserScriptUri",
     "runtimeConfig",
-    "properties",
     "stopAfterCreation",
     "allowStop",
     "userJupyterExtensionConfig",

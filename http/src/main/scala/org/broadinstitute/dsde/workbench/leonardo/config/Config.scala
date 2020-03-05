@@ -45,7 +45,8 @@ object Config {
       config.getAs[String]("workerMachineType").map(MachineTypeName),
       config.getAs[Int]("workerDiskSize"),
       config.getAs[Int]("numberOfWorkerLocalSSDs"),
-      config.getAs[Int]("numberOfPreemptibleWorkers")
+      config.getAs[Int]("numberOfPreemptibleWorkers"),
+      Map.empty
     )
   }
 

@@ -40,7 +40,7 @@ class LeoRoutesSpec
   val invalidUserLeoRoutes =
     new LeoRoutes(leonardoService, userInfoDirectives)
 
-  val defaultClusterRequest = CreateRuntimeRequest(Map.empty, None, dataprocProperties = Map.empty)
+  val defaultClusterRequest = CreateRuntimeRequest(Map.empty, None)
 
   "leoRoutes" should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = CreateRuntimeRequest(
@@ -49,7 +49,6 @@ class LeoRoutesSpec
       Some(jupyterUserScriptUri),
       Some(jupyterStartUserScriptUri),
       None,
-      Map.empty,
       None,
       false,
       Some(UserJupyterExtensionConfig(Map("abc" -> "def"))),
@@ -184,10 +183,13 @@ class LeoRoutesSpec
         cluster.googleProject shouldEqual googleProject
         cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
         cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
-        cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.asString,
-                                       "creator" -> "user1@example.com",
-                                       "googleProject" -> googleProject.value,
-                                       "tool" -> "Jupyter") ++ serviceAccountLabels
+        cluster.labels shouldEqual Map(
+          "clusterName" -> cluster.clusterName.asString,
+          "runtimeName" -> cluster.clusterName.asString,
+          "creator" -> "user1@example.com",
+          "googleProject" -> googleProject.value,
+          "tool" -> "Jupyter"
+        ) ++ serviceAccountLabels
       }
 
       //validateCookie { header[`Set-Cookie`] }
@@ -216,11 +218,14 @@ class LeoRoutesSpec
       cluster.clusterName shouldEqual RuntimeName("test-cluster-6")
       cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
       cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
-      cluster.labels shouldEqual Map("clusterName" -> "test-cluster-6",
-                                     "creator" -> "user1@example.com",
-                                     "googleProject" -> googleProject.value,
-                                     "tool" -> "Jupyter",
-                                     "label6" -> "value6") ++ serviceAccountLabels
+      cluster.labels shouldEqual Map(
+        "clusterName" -> "test-cluster-6",
+        "runtimeName" -> "test-cluster-6",
+        "creator" -> "user1@example.com",
+        "googleProject" -> googleProject.value,
+        "tool" -> "Jupyter",
+        "label6" -> "value6"
+      ) ++ serviceAccountLabels
 
       //validateCookie { header[`Set-Cookie`] }
       validateRawCookie(header("Set-Cookie"))
@@ -237,11 +242,14 @@ class LeoRoutesSpec
       cluster.clusterName shouldEqual RuntimeName("test-cluster-4")
       cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
       cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
-      cluster.labels shouldEqual Map("clusterName" -> "test-cluster-4",
-                                     "creator" -> "user1@example.com",
-                                     "googleProject" -> googleProject.value,
-                                     "tool" -> "Jupyter",
-                                     "label4" -> "value4") ++ serviceAccountLabels
+      cluster.labels shouldEqual Map(
+        "clusterName" -> "test-cluster-4",
+        "runtimeName" -> "test-cluster-4",
+        "creator" -> "user1@example.com",
+        "googleProject" -> googleProject.value,
+        "tool" -> "Jupyter",
+        "label4" -> "value4"
+      ) ++ serviceAccountLabels
 
       //validateCookie { header[`Set-Cookie`] }
       validateRawCookie(header("Set-Cookie"))
@@ -277,10 +285,13 @@ class LeoRoutesSpec
         cluster.googleProject shouldEqual googleProject
         cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
         cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
-        cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.asString,
-                                       "creator" -> "user1@example.com",
-                                       "googleProject" -> googleProject.value,
-                                       "tool" -> "Jupyter") ++ serviceAccountLabels
+        cluster.labels shouldEqual Map(
+          "clusterName" -> cluster.clusterName.asString,
+          "runtimeName" -> cluster.clusterName.asString,
+          "creator" -> "user1@example.com",
+          "googleProject" -> googleProject.value,
+          "tool" -> "Jupyter"
+        ) ++ serviceAccountLabels
       }
 
       //validateCookie { header[`Set-Cookie`] }
@@ -341,8 +352,7 @@ class LeoRoutesSpec
         Some(jupyterExtensionUri),
         Some(jupyterUserScriptUri),
         Some(jupyterStartUserScriptUri),
-        stopAfterCreation = Some(stopAfterCreation),
-        dataprocProperties = Map.empty
+        stopAfterCreation = Some(stopAfterCreation)
       )
       Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", request.asJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
@@ -358,8 +368,7 @@ class LeoRoutesSpec
                                        Some(jupyterExtensionUri),
                                        Some(jupyterUserScriptUri),
                                        Some(jupyterStartUserScriptUri),
-                                       stopAfterCreation = None,
-                                       dataprocProperties = Map.empty)
+                                       stopAfterCreation = None)
     Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.asJson) ~> httpRoutes.route ~> check {
       val expectedResponse =
         """invalid cluster name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name"""

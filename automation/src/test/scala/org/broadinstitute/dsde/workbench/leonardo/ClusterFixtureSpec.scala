@@ -37,9 +37,16 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       RuntimeName(clusterName),
       GoogleProject(googleProject),
       ServiceAccountInfo(None, None),
-      RuntimeConfig.DataprocConfig(numberOfWorkers = 0,
-                                   masterMachineType = MachineTypeName("n1-standard-4"),
-                                   masterDiskSize = 5),
+      RuntimeConfig.DataprocConfig(
+        numberOfWorkers = 0,
+        masterMachineType = MachineTypeName("n1-standard-4"),
+        masterDiskSize = 5,
+        workerMachineType = None,
+        workerDiskSize = None,
+        numberOfWorkerLocalSSDs = None,
+        numberOfPreemptibleWorkers = None,
+        properties = Map.empty
+      ),
       ClusterStatus.Running,
       WorkbenchEmail(""),
       Map(),
@@ -99,7 +106,11 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         numberOfWorkers = 0,
         masterDiskSize = 500,
         masterMachineType = MachineTypeName("n1-standard-8"),
-        workerMachineType = Some(MachineTypeName("n1-standard-8"))
+        workerMachineType = Some(MachineTypeName("n1-standard-8")),
+        workerDiskSize = None,
+        numberOfWorkerLocalSSDs = None,
+        numberOfPreemptibleWorkers = None,
+        properties = Map.empty
       )
 
     ClusterRequest(

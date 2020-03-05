@@ -168,7 +168,7 @@ class ClusterHelper(
               stagingBucketName,
               params.scopes,
               Some(vpcSettings),
-              params.properties,
+              x.properties,
               dataprocImage,
               monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
             )

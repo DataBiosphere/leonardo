@@ -92,7 +92,12 @@ object CommonTestData {
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),
     Some(singleNodeDefaultMachineConfig.masterMachineType),
-    Some(singleNodeDefaultMachineConfig.masterDiskSize)
+    Some(singleNodeDefaultMachineConfig.masterDiskSize),
+    workerMachineType = None,
+    workerDiskSize = None,
+    numberOfWorkerLocalSSDs = None,
+    numberOfPreemptibleWorkers = None,
+    properties = Map.empty
   )
 
   val testClusterRequest = CreateRuntimeRequest(
@@ -101,7 +106,6 @@ object CommonTestData {
     None,
     None,
     None,
-    Map.empty,
     None,
     false,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
@@ -115,7 +119,6 @@ object CommonTestData {
     Some(jupyterUserScriptUri),
     Some(jupyterStartUserScriptUri),
     None,
-    Map.empty,
     None,
     false,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
@@ -155,9 +158,17 @@ object CommonTestData {
       Some(IP("numbers.and.dots"))
     )
 
-  val defaultRuntimeConfig = RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), 500)
+  val defaultRuntimeConfig =
+    RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), 500, None, None, None, None, Map.empty)
   val defaultRuntimeConfigRequest =
-    RuntimeConfigRequest.DataprocConfig(Some(0), Some(MachineTypeName("n1-standard-4")), Some(500))
+    RuntimeConfigRequest.DataprocConfig(Some(0),
+                                        Some(MachineTypeName("n1-standard-4")),
+                                        Some(500),
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        Map.empty[String, String])
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
@@ -168,7 +179,6 @@ object CommonTestData {
       serviceAccountInfo = serviceAccountInfo,
       asyncRuntimeFields = Some(makeDataprocInfo(index)),
       auditInfo = auditInfo,
-      dataprocProperties = Map.empty,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
@@ -185,7 +195,7 @@ object CommonTestData {
       runtimeImages = Set(jupyterImage),
       scopes = defaultScopes,
       welderEnabled = false,
-      customClusterEnvironmentVariables = Map.empty,
+      customEnvironmentVariables = Map.empty,
       runtimeConfigId = RuntimeConfigId(-1)
     )
   }
@@ -199,7 +209,6 @@ object CommonTestData {
     asyncRuntimeFields =
       Some(AsyncRuntimeFields(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
-    dataprocProperties = Map.empty,
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
@@ -217,7 +226,7 @@ object CommonTestData {
     runtimeImages = Set(jupyterImage),
     scopes = defaultScopes,
     welderEnabled = false,
-    customClusterEnvironmentVariables = Map.empty,
+    customEnvironmentVariables = Map.empty,
     runtimeConfigId = RuntimeConfigId(-1)
   )
 

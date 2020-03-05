@@ -36,7 +36,6 @@ final case class ClusterRecord(id: Long,
                                jupyterStartUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfo,
-                               properties: Map[String, String],
                                serviceAccountInfo: ServiceAccountInfoRecord,
                                stagingBucket: Option[String],
                                autopauseThreshold: Int,
@@ -77,7 +76,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def stopAfterCreation = column[Boolean]("stopAfterCreation")
   def welderEnabled = column[Boolean]("welderEnabled")
   def runtimeConfigId = column[RuntimeConfigId]("runtimeConfigId")
-  def properties = column[Option[Map[String, String]]]("properties")
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
 
   def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
@@ -107,7 +105,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       defaultClientId,
       stopAfterCreation,
       welderEnabled,
-      properties,
       customClusterEnvironmentVariables,
       runtimeConfigId
     ).shaped <> ({
@@ -130,7 +127,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             defaultClientId,
             stopAfterCreation,
             welderEnabled,
-            properties,
             customClusterEnvironmentVariables,
             runtimeConfigId) =>
         ClusterRecord(
@@ -153,7 +149,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             auditInfo._4,
             auditInfo._5
           ),
-          properties.getOrElse(Map.empty),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
           stagingBucket,
           autopauseThreshold,
@@ -193,7 +188,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.defaultClientId,
           c.stopAfterCreation,
           c.welderEnabled,
-          if (c.properties.isEmpty) None else Some(c.properties),
           if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables),
           c.runtimeConfigId
         )
@@ -560,36 +554,35 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
-  private def marshalCluster(cluster: Runtime,
+  private def marshalCluster(runtime: Runtime,
                              initBucket: Option[String],
                              serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
-      cluster.internalId.asString,
-      cluster.runtimeName,
-      cluster.asyncRuntimeFields.map(_.googleId),
-      cluster.googleProject,
-      cluster.asyncRuntimeFields.map(_.operationName.value),
-      cluster.status.toString,
-      cluster.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)),
-      cluster.jupyterExtensionUri,
-      cluster.jupyterUserScriptUri,
-      cluster.jupyterStartUserScriptUri,
+      runtime.internalId.asString,
+      runtime.runtimeName,
+      runtime.asyncRuntimeFields.map(_.googleId),
+      runtime.googleProject,
+      runtime.asyncRuntimeFields.map(_.operationName.value),
+      runtime.status.toString,
+      runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)),
+      runtime.jupyterExtensionUri,
+      runtime.jupyterUserScriptUri,
+      runtime.jupyterStartUserScriptUri,
       initBucket,
-      cluster.auditInfo,
-      cluster.dataprocProperties,
+      runtime.auditInfo,
       ServiceAccountInfoRecord(
-        cluster.serviceAccountInfo.clusterServiceAccount.map(_.value),
-        cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
+        runtime.serviceAccountInfo.clusterServiceAccount.map(_.value),
+        runtime.serviceAccountInfo.notebookServiceAccount.map(_.value),
         serviceAccountKeyId.map(_.value)
       ),
-      cluster.asyncRuntimeFields.map(_.stagingBucket.value),
-      cluster.autopauseThreshold,
-      cluster.defaultClientId,
-      cluster.stopAfterCreation,
-      cluster.welderEnabled,
-      cluster.customClusterEnvironmentVariables,
-      cluster.runtimeConfigId
+      runtime.asyncRuntimeFields.map(_.stagingBucket.value),
+      runtime.autopauseThreshold,
+      runtime.defaultClientId,
+      runtime.stopAfterCreation,
+      runtime.welderEnabled,
+      runtime.customEnvironmentVariables,
+      runtime.runtimeConfigId
     )
 
   private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Runtime] = {
@@ -714,7 +707,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       serviceAccountInfo,
       dataprocInfo,
       clusterRecord.auditInfo,
-      clusterRecord.properties,
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),
       RuntimeStatus.withName(clusterRecord.status),
       labels,

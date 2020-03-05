@@ -17,10 +17,8 @@ import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
-import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -971,11 +969,7 @@ object LeonardoService {
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
     )
 
-    val defaultLabelsMap = defaultLabels.asJson.asObject
-      .map { jsObj =>
-        jsObj.toMap.flatMap { case (k, v) => v.asString.map(k -> _) }
-      }
-      .getOrElse(Map.empty)
+    val defaultLabelsMap = defaultLabels.toMap
 
     // combine default and given labels and add labels for extensions
     val allLabels = request.labels ++ defaultLabelsMap ++

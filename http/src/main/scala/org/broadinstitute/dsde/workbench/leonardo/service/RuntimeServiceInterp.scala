@@ -3,6 +3,7 @@ package http
 package service
 
 import java.time.Instant
+import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.effect.concurrent.Semaphore
@@ -66,7 +67,7 @@ class RuntimeServiceInterp[F[_]](blocker: Blocker,
         case Some(c) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, c.status))
         case None =>
           for {
-            internalId <- F.pure(RuntimeInternalId(context.traceId.asString)) //TODO: is there any downside to reusing traceId as internalId?
+            internalId <- F.delay(RuntimeInternalId(UUID.randomUUID().toString))
             petToken <- serviceAccountProvider.getAccessToken(userInfo.userEmail, googleProject).recoverWith {
               case e =>
                 log.warn(e)(
@@ -248,7 +249,7 @@ object RuntimeServiceInterp {
       req.autopauseThreshold.map(_.toMinutes.toInt),
       config.autoFreezeConfig
     ) //TODO: use FiniteDuration for autopauseThreshold field in Cluster
-    val clusterScopes = if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes //TODO: Does GCE need different set of scopes?
+    val clusterScopes = if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes //TODO: Rob will update this to GCE specific scopes appropriately
     for {
       // check the labels do not contain forbidden keys
       labels <- if (allLabels.contains(includeDeletedKey))
@@ -263,7 +264,6 @@ object RuntimeServiceInterp {
       serviceAccountInfo = serviceAccountInfo,
       asyncRuntimeFields = None,
       auditInfo = AuditInfo(userInfo.userEmail, Instant.now(), None, Instant.now(), None),
-      dataprocProperties = req.properties,
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, labels),
       status = RuntimeStatus.Creating,
       labels = labels,
@@ -279,7 +279,7 @@ object RuntimeServiceInterp {
       runtimeImages = clusterImages,
       scopes = clusterScopes,
       welderEnabled = true,
-      customClusterEnvironmentVariables = req.customClusterEnvironmentVariables,
+      customEnvironmentVariables = req.customEnvironmentVariables,
       allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
       stopAfterCreation = false
@@ -294,7 +294,6 @@ object RuntimeServiceInterp {
     runtime.serviceAccountInfo,
     runtime.asyncRuntimeFields,
     runtime.auditInfo,
-    runtime.dataprocProperties,
     runtime.jupyterExtensionUri,
     runtime.jupyterUserScriptUri,
     runtime.jupyterStartUserScriptUri,
@@ -303,7 +302,7 @@ object RuntimeServiceInterp {
     runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
-    runtime.customClusterEnvironmentVariables,
+    runtime.customEnvironmentVariables,
     runtimeConfig,
     traceId
   )

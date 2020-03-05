@@ -26,7 +26,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
       None,
       None,
       None,
-      Some(-1)
+      Some(-1),
+      Map.empty
     )
     res shouldBe (Right(expected))
   }
