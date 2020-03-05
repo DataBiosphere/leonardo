@@ -46,7 +46,7 @@ boolean hasHashChanges(Set<String> images, String[] configPaths) {
 
         for (String image: images) {
             if (gitOutput.contains(image)) {
-                println("Detected changed image for $image.")
+                println("Detected changed image for '$image'.")
                 imagesChanged.add(image)
             }
         }
@@ -76,14 +76,16 @@ LinkedHashMap<String,String> getVersionMap(Set<String> imageNames, String[] conf
 LinkedHashMap<String,String> getVersionMap(Set<String> imageNames, String configFile) {
     LinkedHashMap<String,String> versionMap = [:]
 
-    // For example, if $image is 'welder-server', this line would isolate 'a4f0e04' from the line below in a $configFile.
+    // For example, if $image is 'welder-server', the 'script' line below would isolate 'a4f0e04' from the line below in a $configFile.
     // welderDockerImage = "us.gcr.io/broad-dsp-gcr-public/welder-server:a4f0e04"
     // The awk at the end ensures that the line can have comments or other whitespace after the terminating quote.
     // Escaping '$' inside the 'awk' command is to appease Jenkins.
     for (String image: imageNames) {
+        // Without the fancy regex, 'grep' is more susceptible to ordering in the conf files
+        String imageRegex = "/${image}:[[:alnum:]]+"
         def version = sh(
-          script: "cat $configFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' | awk '{print \$1}' ",
-          returnStdout: true
+            script: "cat $configFile | grep -E $imageRegex | tr ':' '\n' | tail -1 | tr -d '\"' | awk '{print \$1}'",
+            returnStdout: true
         ).trim()
 
         versionMap[image] = version
@@ -156,11 +158,10 @@ pipeline {
         string(name: "openidc_proxy", defaultValue: "2.3.1_2",
             description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
     }
-
     stages {
         stage('Scan Terra docker images') {
             steps {
-                git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'ky_ia_1596_jenkinsify_gce_image_creation'
+                git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
 
                 script {
                     customDataprocImageBaseName = "${IMAGE_BASE_NAME}-dataproc"
@@ -298,8 +299,8 @@ pipeline {
                         // have the same name to retrieve the versions
                         version = sh(
                             script: """
-                                        eval "echo \$$varName"
-                                    """,
+                                eval "echo \$$varName"
+                            """,
                             returnStdout: true
                         ).trim()
 
