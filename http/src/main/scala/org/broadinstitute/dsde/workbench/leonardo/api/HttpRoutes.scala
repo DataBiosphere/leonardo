@@ -43,18 +43,6 @@ class HttpRoutes(
   private val leonardoRoutes = new LeoRoutes(leonardoService, userInfoDirectives)
   private val runtimeRoutes = new RuntimeRoutes(runtimeService, userInfoDirectives)
 
-  //TODO: is this really necessary?
-  private val unauthedRoutes: Route =
-    path("ping") {
-      pathEndOrSingleSlash {
-        get {
-          complete {
-            StatusCodes.OK
-          }
-        }
-      }
-    }
-
   private val myExceptionHandler = {
     ExceptionHandler {
       case requestValidationError: RequestValidationError =>
@@ -106,7 +94,7 @@ class HttpRoutes(
 
   val route: Route = {
     (logRequestResult & handleExceptions(myExceptionHandler)) {
-      swaggerRoutes.swaggerRoutes ~ unauthedRoutes ~ proxyRoutes.route ~ statusRoutes.route ~
+      swaggerRoutes.swaggerRoutes ~ proxyRoutes.route ~ statusRoutes.route ~
         pathPrefix("api") {
           leonardoRoutes.route ~ runtimeRoutes.routes
         }

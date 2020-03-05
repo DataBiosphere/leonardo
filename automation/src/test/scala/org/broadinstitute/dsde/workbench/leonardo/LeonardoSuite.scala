@@ -92,7 +92,6 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 
 final class LeonardoSuite
     extends Suites(
-      new PingSpec,
       new ClusterStatusTransitionsSpec,
       new LabSpec,
       new NotebookAouSpec,

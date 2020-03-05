@@ -100,7 +100,6 @@ object RuntimeRoutes {
       jsus <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
       rc <- c.downField("runtimeConfig").as[Option[RuntimeConfigRequest]]
       p <- c.downField("properties").as[Option[LabelMap]]
-      sac <- c.downField("stopAfterCreation").as[Option[Boolean]]
       uje <- c.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
       a <- c.downField("autopause").as[Option[Boolean]]
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
@@ -116,7 +115,6 @@ object RuntimeRoutes {
       jsus,
       rc,
       p.getOrElse(Map.empty),
-      sac.getOrElse(false),
       uje,
       a,
       apt.map(_.minute),
@@ -137,7 +135,6 @@ final case class CreateRuntime2Request(labels: LabelMap,
                                        jupyterStartUserScriptUri: Option[UserScriptPath],
                                        runtimeConfig: Option[RuntimeConfigRequest],
                                        properties: Map[String, String],
-                                       stopAfterCreation: Boolean,
                                        userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                                        autopause: Option[Boolean],
                                        autopauseThreshold: Option[FiniteDuration],

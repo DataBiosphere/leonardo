@@ -276,13 +276,13 @@ object RuntimeServiceInterp {
         if (updatedUserJupyterExtensionConfig.asLabels.isEmpty) None else Some(updatedUserJupyterExtensionConfig),
       autopauseThreshold = autopauseThreshold,
       defaultClientId = req.defaultClientId,
-      stopAfterCreation = req.stopAfterCreation,
       runtimeImages = clusterImages,
       scopes = clusterScopes,
       welderEnabled = true,
       customClusterEnvironmentVariables = req.customClusterEnvironmentVariables,
       allowStop = false, //TODO: double check this should be false when cluster is created
-      runtimeConfigId = RuntimeConfigId(-1)
+      runtimeConfigId = RuntimeConfigId(-1),
+      stopAfterCreation = false
     )
   }
 
