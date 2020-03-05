@@ -32,7 +32,7 @@ SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 # Set this to "true" if you want to validate the workflow without actually executing it
 VALIDATE_WORKFLOW="true"
 
-# If the Daisy scratch bucket doesn't exist, we create it prior. The Daisy workflow will clean it up at the end.
+# Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH
 
 if [[ "$VALIDATE_WORKFLOW" == "true" ]]; then

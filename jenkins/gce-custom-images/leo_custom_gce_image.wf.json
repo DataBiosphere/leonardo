@@ -38,7 +38,7 @@
                     "Name": "disk-install",
                     "SourceImage": "${base_image}",
                     "Type": "pd-ssd",
-                    "SizeGb": "100"
+                    "SizeGb": "50"
                 }
             ]
         },
@@ -65,6 +65,7 @@
             "CreateImages": [
                 {
                     "Name": "${output_image}",
+                    "Family": "gce-custom-image",
                     "SourceDisk": "disk-install",
                     "NoCleanup": true,
                     "ExactName": true
