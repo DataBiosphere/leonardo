@@ -244,6 +244,7 @@ class ClusterMonitorSpec
       TestClusterSupervisorActor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,

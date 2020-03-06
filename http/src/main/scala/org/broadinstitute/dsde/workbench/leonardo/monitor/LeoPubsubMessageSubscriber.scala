@@ -99,8 +99,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
               RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
             )
             _ <- runtimeConfig.cloudService match {
-              case CloudService.Dataproc => dataprocAlg.stopRuntime(StopRuntimeParams(resolvedCluster, runtimeConfig))
-              case CloudService.GCE      => gceAlg.stopRuntime(StopRuntimeParams(resolvedCluster, runtimeConfig))
+              case CloudService.Dataproc =>
+                dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig)))
+              case CloudService.GCE =>
+                gceAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig)))
             }
           } yield ()
         case Some(resolvedCluster) =>

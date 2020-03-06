@@ -161,6 +161,7 @@ object Boot extends IOApp {
           ClusterMonitorSupervisor.props(
             monitorConfig,
             dataprocConfig,
+            gceConfig,
             imageConfig,
             clusterBucketConfig,
             appDependencies.googleDataprocDAO,

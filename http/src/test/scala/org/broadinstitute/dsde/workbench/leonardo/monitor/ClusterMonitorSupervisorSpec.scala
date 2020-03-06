@@ -118,6 +118,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -221,6 +222,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -315,6 +317,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -416,6 +419,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,

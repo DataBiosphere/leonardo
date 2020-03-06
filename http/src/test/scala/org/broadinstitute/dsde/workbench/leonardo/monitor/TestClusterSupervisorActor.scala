@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   AutoFreezeConfig,
   ClusterBucketConfig,
   DataprocConfig,
+  GceConfig,
   ImageConfig,
   MonitorConfig
 }
@@ -26,6 +27,7 @@ import scala.concurrent.ExecutionContext.global
 object TestClusterSupervisorActor {
   def props(monitorConfig: MonitorConfig,
             dataprocConfig: DataprocConfig,
+            gceConfig: GceConfig,
             imageConfig: ImageConfig,
             clusterBucketConfig: ClusterBucketConfig,
             gdDAO: GoogleDataprocDAO,
@@ -45,6 +47,7 @@ object TestClusterSupervisorActor {
     Props(
       new TestClusterSupervisorActor(monitorConfig,
                                      dataprocConfig,
+                                     gceConfig,
                                      imageConfig,
                                      clusterBucketConfig,
                                      gdDAO,
@@ -71,6 +74,7 @@ object TearDown
  */
 class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  dataprocConfig: DataprocConfig,
+                                 gceConfig: GceConfig,
                                  imageConfig: ImageConfig,
                                  clusterBucketConfig: ClusterBucketConfig,
                                  gdDAO: GoogleDataprocDAO,
@@ -90,6 +94,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
     extends ClusterMonitorSupervisor(
       monitorConfig,
       dataprocConfig,
+      gceConfig,
       imageConfig,
       clusterBucketConfig,
       gdDAO,

@@ -338,6 +338,7 @@ final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName: RuntimeName) {
   override def toString: String = s"${googleProject.value}/${runtimeName.asString}"
 }
+final case class RuntimeAndRuntimeConfig(runtime: Runtime, runtimeConfig: RuntimeConfig)
 final case class IP(value: String) extends ValueObject
 final case class NetworkTag(value: String) extends ValueObject
 final case class OperationName(value: String) extends ValueObject

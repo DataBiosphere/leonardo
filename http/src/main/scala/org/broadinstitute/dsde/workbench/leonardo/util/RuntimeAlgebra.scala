@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AuditInfo,
   CustomDataprocImage,
   Runtime,
+  RuntimeAndRuntimeConfig,
   RuntimeConfig,
   RuntimeImage,
   RuntimeProjectAndName,
@@ -94,7 +95,7 @@ final case class CreateRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                        customDataprocImage: CustomDataprocImage)
 final case class DeleteRuntimeParams(runtime: Runtime)
 final case class FinalizeDeleteParams(runtime: Runtime)
-final case class StopRuntimeParams(runtime: Runtime, runtimeConfig: RuntimeConfig)
+final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
 final case class StartRuntimeParams(runtime: Runtime)
 final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName)
 final case class UpdateDiskSizeParams(runtime: Runtime, diskSize: Int)

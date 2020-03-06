@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference,
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterSupervisorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, RuntimeAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
@@ -30,6 +31,7 @@ object ClusterMonitorSupervisor {
   def props(
     monitorConfig: MonitorConfig,
     dataprocConfig: DataprocConfig,
+    gceConfig: GceConfig,
     imageConfig: ImageConfig,
     clusterBucketConfig: ClusterBucketConfig,
     gdDAO: GoogleDataprocDAO,
@@ -52,6 +54,7 @@ object ClusterMonitorSupervisor {
     Props(
       new ClusterMonitorSupervisor(monitorConfig,
                                    dataprocConfig,
+                                   gceConfig,
                                    imageConfig,
                                    clusterBucketConfig,
                                    gdDAO,
@@ -68,26 +71,38 @@ object ClusterMonitorSupervisor {
                                    publisherQueue)
     )
 
-  sealed trait ClusterSupervisorMessage
+  sealed trait ClusterSupervisorMessage extends Product with Serializable
 
-  // sent after a cluster is created by the user
-  case class ClusterCreated(cluster: Runtime, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
-  // sent after a cluster is deleted by the user
-  case class ClusterDeleted(cluster: Runtime, recreate: Boolean = false) extends ClusterSupervisorMessage
-  // sent after a cluster is stopped by the user
-  case class ClusterStopped(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after a cluster is started by the user
-  case class ClusterStarted(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after a cluster is updated by the user
-  case class ClusterUpdated(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after cluster creation fails, and the cluster should be recreated
-  case class RecreateCluster(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after cluster creation succeeds, and the cluster should be stopped
-  case class StopClusterAfterCreation(cluster: Runtime) extends ClusterSupervisorMessage
-  //Sent when the cluster should be removed from the monitored cluster list
-  case class RemoveFromList(cluster: Runtime) extends ClusterSupervisorMessage
-  // Auto freeze idle clusters
-  case object AutoFreezeClusters extends ClusterSupervisorMessage
+  object ClusterSupervisorMessage {
+
+    // sent after a cluster is created by the user
+    case class ClusterCreated(cluster: Cluster, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
+
+    // sent after a cluster is deleted by the user
+    case class ClusterDeleted(cluster: Cluster, recreate: Boolean = false) extends ClusterSupervisorMessage
+
+    // sent after a cluster is stopped by the user
+    case class ClusterStopped(cluster: Cluster) extends ClusterSupervisorMessage
+
+    // sent after a cluster is started by the user
+    case class ClusterStarted(cluster: Cluster) extends ClusterSupervisorMessage
+
+    // sent after a cluster is updated by the user
+    case class ClusterUpdated(cluster: Cluster) extends ClusterSupervisorMessage
+
+    // sent after cluster creation fails, and the cluster should be recreated
+    case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
+
+    // sent after cluster creation succeeds, and the cluster should be stopped
+    case class StopClusterAfterCreation(cluster: Cluster) extends ClusterSupervisorMessage
+
+    //Sent when the cluster should be removed from the monitored cluster list
+    case class RemoveFromList(cluster: Cluster) extends ClusterSupervisorMessage
+
+    // Auto freeze idle clusters
+    case object AutoFreezeClusters extends ClusterSupervisorMessage
+
+  }
 
   case object CheckClusterTimerKey
   case object AutoFreezeTimerKey
@@ -97,6 +112,7 @@ object ClusterMonitorSupervisor {
 class ClusterMonitorSupervisor(
   monitorConfig: MonitorConfig,
   dataprocConfig: DataprocConfig,
+  gceConfig: GceConfig,
   imageConfig: ImageConfig,
   clusterBucketConfig: ClusterBucketConfig,
   gdDAO: GoogleDataprocDAO,
@@ -177,12 +193,11 @@ class ClusterMonitorSupervisor(
       implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
 
       logger.info(s"Stopping cluster ${cluster.projectNameString} after creation...")
-      val res = clusterQuery
-        .getClusterById(cluster.id)
-        .transaction
-        .flatMap {
-          case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
-            IO(Instant.now()).flatMap(now => stopCluster(resolvedCluster, now))
+      (for {
+        now <- IO(Instant.now())
+        runtimeOpt <- clusterQuery.getClusterById(cluster.id).transaction
+        _ <- runtimeOpt match {
+          case Some(resolvedCluster) if resolvedCluster.status.isStoppable => stopCluster(resolvedCluster, now)
           case Some(resolvedCluster) =>
             IO(
               logger.warn(
@@ -192,12 +207,13 @@ class ClusterMonitorSupervisor(
           case None =>
             IO.raiseError(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
         }
+      } yield ())
         .handleErrorWith(
           e =>
             IO(logger.error(s"Error occurred stopping cluster ${cluster.projectNameString} after creation", e)) >> IO
               .raiseError(e)
         )
-      res.unsafeToFuture()
+        .unsafeToFuture()
 
     case ClusterStopped(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after stopping.")
@@ -221,12 +237,13 @@ class ClusterMonitorSupervisor(
       removeFromMonitoredClusters(cluster)
   }
 
-  def createChildActor(cluster: Runtime): ActorRef =
+  def createChildActor(cluster: Cluster): ActorRef =
     context.actorOf(
       ClusterMonitorActor.props(
         cluster.id,
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -241,7 +258,7 @@ class ClusterMonitorSupervisor(
       )
     )
 
-  def startClusterMonitorActor(cluster: Runtime, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
+  def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
     val child = createChildActor(cluster)
     watchMessageOpt.foreach {
       case RecreateCluster(_) if !monitorConfig.recreateCluster =>
@@ -297,7 +314,7 @@ class ClusterMonitorSupervisor(
       }
     } yield ()
 
-  private def stopCluster(cluster: Runtime, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  private def stopCluster(cluster: Cluster, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       // Flush the welder cache to disk
       _ <- if (cluster.welderEnabled) {
@@ -305,12 +322,12 @@ class ClusterMonitorSupervisor(
           .flushCache(cluster.googleProject, cluster.runtimeName)
           .handleError(e => logger.error(s"Failed to flush welder cache for ${cluster.projectNameString}", e))
       } else IO.unit
-
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
       _ <- runtimeConfig.cloudService match {
-        case CloudService.Dataproc => dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
-        case CloudService.GCE      => gceAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+        case CloudService.Dataproc =>
+          dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig)))
+        case CloudService.GCE => gceAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig)))
       }
       // Update the cluster status to Stopping
       _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
@@ -342,9 +359,9 @@ class ClusterMonitorSupervisor(
           IO(logger.error("Error starting cluster monitor", e))
       }
 
-  private def addToMonitoredClusters(cluster: Runtime) =
+  private def addToMonitoredClusters(cluster: Cluster) =
     monitoredClusterIds += cluster.id
-  private def removeFromMonitoredClusters(cluster: Runtime) =
+  private def removeFromMonitoredClusters(cluster: Cluster) =
     monitoredClusterIds -= cluster.id
 
   override val supervisorStrategy = {
