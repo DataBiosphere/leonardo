@@ -30,6 +30,7 @@ case class AuthenticationError(email: Option[WorkbenchEmail] = None)
                          StatusCodes.Unauthorized)
 
 // TODO: This can probably renamed to legacyRuntimeRoutes
+// Future runtime related APIs should be added to `RuntimeRoutes`
 class LeoRoutes(
   val leonardoService: LeonardoService,
   userInfoDirectives: UserInfoDirectives

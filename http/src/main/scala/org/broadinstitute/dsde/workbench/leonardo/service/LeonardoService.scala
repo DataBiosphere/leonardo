@@ -125,6 +125,7 @@ object UpdateTransition {
   case class DeleteCreateTransition(updateConfig: RuntimeConfig.DataprocConfig) extends UpdateTransition
 }
 
+// Future runtime related APIs should be added to `RuntimeService`
 class LeonardoService(
   protected val dataprocConfig: DataprocConfig,
   protected val imageConfig: ImageConfig,
