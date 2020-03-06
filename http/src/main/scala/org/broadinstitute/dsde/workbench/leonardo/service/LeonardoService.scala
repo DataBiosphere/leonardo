@@ -352,6 +352,7 @@ class LeonardoService(
                     ) //TODO: use better exception
                   case x: RuntimeConfigRequest.DataprocConfig =>
                     for {
+                      now <- IO(Instant.now)
                       clusterResized <- maybeResizeCluster(existingCluster,
                                                            existingRuntimeConfig,
                                                            x.numberOfWorkers,
@@ -359,10 +360,12 @@ class LeonardoService(
                       masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster,
                                                                                existingRuntimeConfig,
                                                                                x.masterMachineType,
-                                                                               clusterRequest.allowStop).attempt
+                                                                               clusterRequest.allowStop,
+                                                                               now).attempt
                       masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster,
                                                                          existingRuntimeConfig,
-                                                                         x.masterDiskSize).attempt
+                                                                         x.masterDiskSize,
+                                                                         now).attempt
                     } yield {
                       val res = List(
                         autopauseChanged.map(_ => false),
@@ -532,7 +535,8 @@ class LeonardoService(
   def maybeChangeMasterMachineType(existingCluster: Runtime,
                                    existingRuntimeConfig: RuntimeConfig,
                                    targetMachineType: Option[MachineTypeName],
-                                   allowStop: Boolean)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
+                                   allowStop: Boolean,
+                                   now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
     val updatedMasterMachineTypeOpt =
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.machineType), targetMachineType)
 
@@ -540,7 +544,9 @@ class LeonardoService(
       // Note: instance must be stopped in order to change machine type
       case Some(updatedMasterMachineType) if existingCluster.status == Stopped =>
         for {
-          _ <- dataprocAlg.updateMachineType(UpdateMachineTypeParams(existingCluster, updatedMasterMachineType))
+          _ <- dataprocAlg.updateMasterMachineType(
+            UpdateMachineTypeParams(existingCluster, updatedMasterMachineType, now)
+          )
         } yield UpdateResult(true, None)
 
       case Some(updatedMasterMachineType) =>
@@ -568,7 +574,8 @@ class LeonardoService(
   def maybeChangeMasterDiskSize(
     existingCluster: Runtime,
     existingRuntimeConfig: RuntimeConfig,
-    targetMachineSize: Option[Int]
+    targetMachineSize: Option[Int],
+    now: Instant
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
     val updatedMasterDiskSizeOpt =
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.diskSize), targetMachineSize)
@@ -585,7 +592,6 @@ class LeonardoService(
           // Update the disk in Google
           _ <- dataprocAlg.updateDiskSize(UpdateDiskSizeParams(existingCluster, updatedMasterDiskSize))
           // Update the DB
-          now <- IO(Instant.now)
           _ <- RuntimeConfigQueries
             .updateDiskSize(existingCluster.runtimeConfigId, updatedMasterDiskSize, now)
             .transaction
@@ -658,29 +664,9 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig)))
+      now <- IO(Instant.now)
+      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
     } yield ()
-
-  def internalStopCluster(cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    if (cluster.status.isStoppable) {
-      for {
-        // Flush the welder cache to disk
-        _ <- if (cluster.welderEnabled) {
-          welderDao
-            .flushCache(cluster.googleProject, cluster.runtimeName)
-            .handleErrorWith(e => log.error(e)(s"Failed to flush welder cache for ${cluster}"))
-        } else IO.unit
-
-        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-        // Stop the cluster in Google
-        _ <- dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig)))
-
-        // Update the cluster status to Stopping
-        now <- IO(Instant.now)
-        _ <- clusterQuery.setToStopping(cluster.id, now).transaction
-      } yield ()
-
-    } else IO.raiseError(RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
@@ -696,7 +682,8 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      _ <- dataprocAlg.startRuntime(StartRuntimeParams(cluster))
+      now <- IO(Instant.now)
+      _ <- dataprocAlg.startRuntime(StartRuntimeParams(cluster, now))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(

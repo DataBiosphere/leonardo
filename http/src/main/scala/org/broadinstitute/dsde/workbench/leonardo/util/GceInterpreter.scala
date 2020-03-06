@@ -50,7 +50,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   metrics: NewRelicMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
-    with RuntimeAlgebra[F] {
+    with GceAlgebra[F] {
 
   override def createRuntime(
     params: CreateRuntimeParams

@@ -3,7 +3,6 @@ package monitor
 
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.effect.{Async, Concurrent, ContextShift, Timer}
@@ -26,17 +25,17 @@ import scala.util.control.NoStackTrace
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   dataprocAlg: DataprocAlgebra[F],
-  gceAlg: RuntimeAlgebra[F]
+  gceAlg: GceAlgebra[F]
 )(implicit executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage,
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
       case msg: StopUpdateMessage =>
         implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-        handleStopUpdateMessage(msg)
+        handleStopUpdateMessage(msg, now)
       case msg: RuntimeTransitionMessage =>
         implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-        handleRuntimeTransitionFinished(msg)
+        handleRuntimeTransitionFinished(msg, now)
       case msg: CreateRuntimeMessage =>
         handleCreateRuntimeMessage(msg, now)
     }
@@ -81,7 +80,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       event.consumer.ack()
     )
 
-  private def handleStopUpdateMessage(message: StopUpdateMessage)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  private def handleStopUpdateMessage(message: StopUpdateMessage,
+                                      now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     dbRef
       .inTransaction { clusterQuery.getClusterById(message.runtimeId) }
       .flatMap {
@@ -100,9 +100,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             )
             _ <- runtimeConfig.cloudService match {
               case CloudService.Dataproc =>
-                dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig)))
+                dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig), now))
               case CloudService.GCE =>
-                gceAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig)))
+                gceAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig), now))
             }
           } yield ()
         case Some(resolvedCluster) =>
@@ -115,7 +115,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       }
 
   private def handleRuntimeTransitionFinished(
-    message: RuntimeTransitionMessage
+    message: RuntimeTransitionMessage,
+    now: Instant
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     message.runtimeFollowupDetails.runtimeStatus match {
       case Stopped =>
@@ -144,15 +145,14 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                     // perform gddao and db updates for new resources
                     _ <- runtimeConfig.cloudService match {
                       case CloudService.GCE =>
-                        gceAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType))
+                        gceAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
                       case CloudService.Dataproc =>
-                        dataprocAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType))
+                        dataprocAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
                     }
-                    now <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
                     // start cluster
                     _ <- runtimeConfig.cloudService match {
-                      case CloudService.GCE      => gceAlg.startRuntime(StartRuntimeParams(resolvedCluster))
-                      case CloudService.Dataproc => dataprocAlg.startRuntime(StartRuntimeParams(resolvedCluster))
+                      case CloudService.GCE      => gceAlg.startRuntime(StartRuntimeParams(resolvedCluster, now))
+                      case CloudService.Dataproc => dataprocAlg.startRuntime(StartRuntimeParams(resolvedCluster, now))
                     }
                     // clean-up info from follow-up table
                     _ <- dbRef.inTransaction { followupQuery.delete(message.runtimeFollowupDetails) }

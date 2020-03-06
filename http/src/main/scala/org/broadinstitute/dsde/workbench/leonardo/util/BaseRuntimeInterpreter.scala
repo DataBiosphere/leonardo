@@ -63,8 +63,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         _ <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
 
         // Update the cluster status to Stopping
-        now <- Async[F].delay(Instant.now)
-        _ <- dbRef.inTransaction { clusterQuery.setToStopping(params.runtimeAndRuntimeConfig.runtime.id, now) }
+        _ <- dbRef.inTransaction { clusterQuery.setToStopping(params.runtimeAndRuntimeConfig.runtime.id, params.now) }
       } yield ()
 
     } else
@@ -79,9 +78,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       val welderAction = getWelderAction(params.runtime)
       for {
         // Check if welder should be deployed or updated
-        now <- Async[F].delay(Instant.now)
         updatedRuntime <- welderAction match {
-          case DeployWelder | UpdateWelder      => updateWelder(params.runtime, now)
+          case DeployWelder | UpdateWelder      => updateWelder(params.runtime, params.now)
           case NoAction | DisableDelocalization => Async[F].pure(params.runtime)
           case RuntimeOutOfDate                 => Async[F].raiseError[Runtime](RuntimeOutOfDateException())
         }
@@ -96,8 +94,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         _ <- startGoogleRuntime(updatedRuntime, welderAction, runtimeConfig)
 
         // Update the cluster status to Starting
-        now <- Async[F].delay(Instant.now)
-        _ <- dbRef.inTransaction { clusterQuery.updateClusterStatus(updatedRuntime.id, RuntimeStatus.Starting, now) }
+        _ <- dbRef.inTransaction {
+          clusterQuery.updateClusterStatus(updatedRuntime.id, RuntimeStatus.Starting, params.now)
+        }
       } yield ()
     } else
       Async[F].raiseError(
@@ -136,7 +135,6 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     for {
       _ <- Logger[F].info(s"Will deploy welder to cluster ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/deploy")
-      now <- Async[F].delay(Instant.now)
       welderImage = RuntimeImage(Welder, config.imageConfig.welderImage.imageUrl, now)
 
       _ <- dbRef.inTransaction {
@@ -155,9 +153,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       // Update the machine type in Google
       _ <- setMachineTypeInGoogle(params.runtime, params.machineType)
       // Update the DB
-      now <- Async[F].pure(Instant.now)
       _ <- dbRef.inTransaction {
-        RuntimeConfigQueries.updateMachineType(params.runtime.runtimeConfigId, params.machineType, now)
+        RuntimeConfigQueries.updateMachineType(params.runtime.runtimeConfigId, params.machineType, params.now)
       }
     } yield ()
 

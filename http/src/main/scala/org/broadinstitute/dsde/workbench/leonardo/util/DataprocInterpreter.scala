@@ -61,6 +61,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   val system: ActorSystem,
+  contextShift: ContextShift[IO], // needed for IO.fromFuture(...)
   metrics: NewRelicMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
@@ -69,8 +70,6 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     with Retry {
 
   import dbRef._
-
-  implicit val contextShiftIO = IO.contextShift(blocker.blockingContext)
 
   override def createRuntime(
     params: CreateRuntimeParams

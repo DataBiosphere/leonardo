@@ -17,9 +17,7 @@ import scala.collection.JavaConverters._
 class VPCHelper[F[_]: Async: ContextShift: Logger](config: VPCHelperConfig,
                                                    googleProjectDAO: GoogleProjectDAO,
                                                    googleComputeService: GoogleComputeService[F],
-                                                   blocker: Blocker) {
-
-  implicit val contextShiftIO = IO.contextShift(blocker.blockingContext)
+                                                   blocker: Blocker)(implicit cs: ContextShift[IO]) {
 
   private def getVPCSettingsFromProjectLabel(googleProject: GoogleProject): F[Option[VPCConfig]] =
     Async[F].liftIO(IO.fromFuture(IO(googleProjectDAO.getLabels(googleProject.value)))).map { labelMap =>

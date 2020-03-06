@@ -80,7 +80,7 @@ object ClusterMonitorActor {
     dbRef: DbReference[IO],
     authProvider: LeoAuthProvider[IO],
     dataprocAlg: DataprocAlgebra[IO],
-    gceAlg: RuntimeAlgebra[IO],
+    gceAlg: GceAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
@@ -245,11 +245,11 @@ class ClusterMonitorActor(
         if (runtimeAndRuntimeConfig.runtime.status == Starting) {
           for {
             _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances)
-            _ <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-              case CloudService.GCE      => gceAlg.stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig))
-              case CloudService.Dataproc => dataprocAlg.stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig))
-            }
             now <- IO(Instant.now)
+            _ <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
+              case CloudService.GCE      => gceAlg.stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
+              case CloudService.Dataproc => dataprocAlg.stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
+            }
             _ <- dbRef.inTransaction { clusterQuery.setToStopping(runtimeAndRuntimeConfig.runtime.id, now) }
           } yield ScheduleMonitorPass
         } else {
