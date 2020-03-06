@@ -154,7 +154,6 @@ object LeoPubsubCodec {
          x.serviceAccountInfo,
          x.asyncRuntimeFields,
          x.auditInfo,
-         x.properties,
          x.jupyterExtensionUri,
          x.jupyterUserScriptUri,
          x.jupyterStartUserScriptUri,

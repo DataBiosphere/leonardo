@@ -348,7 +348,7 @@ class HttpGoogleDataprocDAO(
 
     new SoftwareConfig()
       .setProperties(
-        (authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.properties).asJava
+        (authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.machineConfig.properties).asJava
       )
   }
 

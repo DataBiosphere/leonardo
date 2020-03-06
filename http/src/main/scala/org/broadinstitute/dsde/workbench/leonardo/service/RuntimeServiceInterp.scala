@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 
@@ -133,7 +133,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
 
             saveCluster = SaveCluster(cluster = cluster, runtimeConfig = runtimeCofig, now = context.now)
             runtime <- clusterQuery.save(saveCluster).transaction
-            _ <- publisherQueue.enqueue1(runtimeToCreateClusterMessage(runtime, runtimeCofig, Some(context.traceId)))
+            _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(runtime, runtimeCofig, Some(context.traceId)))
           } yield ()
       }
     } yield ()
@@ -287,27 +287,6 @@ object RuntimeServiceInterp {
       stopAfterCreation = false
     )
   }
-
-  private[service] def runtimeToCreateClusterMessage(runtime: Runtime,
-                                                     runtimeConfig: RuntimeConfig,
-                                                     traceId: Option[TraceId]): CreateCluster = CreateCluster(
-    runtime.id,
-    RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-    runtime.serviceAccountInfo,
-    runtime.asyncRuntimeFields,
-    runtime.auditInfo,
-    runtime.jupyterExtensionUri,
-    runtime.jupyterUserScriptUri,
-    runtime.jupyterStartUserScriptUri,
-    runtime.userJupyterExtensionConfig,
-    runtime.defaultClientId,
-    runtime.runtimeImages,
-    runtime.scopes,
-    runtime.welderEnabled,
-    runtime.customEnvironmentVariables,
-    runtimeConfig,
-    traceId
-  )
 }
 
 final case class RuntimeServiceConfig(proxyUrlBase: String,

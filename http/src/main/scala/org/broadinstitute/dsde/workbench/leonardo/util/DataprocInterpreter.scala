@@ -156,7 +156,6 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
               stagingBucketName,
               params.scopes,
               Some(vpcSettings),
-              params.properties,
               dataprocImage,
               config.monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
             )
@@ -425,7 +424,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     }
 
   private def cleanUpGoogleResourcesOnError(googleProject: GoogleProject,
-                                            clusterName: ClusterName,
+                                            clusterName: RuntimeName,
                                             initBucketName: GcsBucketName,
                                             serviceAccountInfo: ServiceAccountInfo,
                                             serviceAccountKeyOpt: Option[ServiceAccountKey]): F[Unit] = {

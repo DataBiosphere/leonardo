@@ -136,7 +136,6 @@ object Boot extends IOApp {
                                       appDependencies.blocker)
 
       val leonardoService = new LeonardoService(dataprocConfig,
-                                                gceConfig,
                                                 imageConfig,
                                                 appDependencies.welderDAO,
                                                 proxyConfig,
@@ -148,7 +147,6 @@ object Boot extends IOApp {
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
                                                 dataprocAlg,
-                                                gceAlg,
                                                 appDependencies.dockerDAO,
                                                 appDependencies.publisherQueue)
 

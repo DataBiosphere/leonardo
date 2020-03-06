@@ -76,28 +76,28 @@ object ClusterMonitorSupervisor {
   object ClusterSupervisorMessage {
 
     // sent after a cluster is created by the user
-    case class ClusterCreated(cluster: Cluster, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
+    case class ClusterCreated(cluster: Runtime, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
 
     // sent after a cluster is deleted by the user
-    case class ClusterDeleted(cluster: Cluster, recreate: Boolean = false) extends ClusterSupervisorMessage
+    case class ClusterDeleted(cluster: Runtime, recreate: Boolean = false) extends ClusterSupervisorMessage
 
     // sent after a cluster is stopped by the user
-    case class ClusterStopped(cluster: Cluster) extends ClusterSupervisorMessage
+    case class ClusterStopped(cluster: Runtime) extends ClusterSupervisorMessage
 
     // sent after a cluster is started by the user
-    case class ClusterStarted(cluster: Cluster) extends ClusterSupervisorMessage
+    case class ClusterStarted(cluster: Runtime) extends ClusterSupervisorMessage
 
     // sent after a cluster is updated by the user
-    case class ClusterUpdated(cluster: Cluster) extends ClusterSupervisorMessage
+    case class ClusterUpdated(cluster: Runtime) extends ClusterSupervisorMessage
 
     // sent after cluster creation fails, and the cluster should be recreated
-    case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
+    case class RecreateCluster(cluster: Runtime) extends ClusterSupervisorMessage
 
     // sent after cluster creation succeeds, and the cluster should be stopped
-    case class StopClusterAfterCreation(cluster: Cluster) extends ClusterSupervisorMessage
+    case class StopClusterAfterCreation(cluster: Runtime) extends ClusterSupervisorMessage
 
     //Sent when the cluster should be removed from the monitored cluster list
-    case class RemoveFromList(cluster: Cluster) extends ClusterSupervisorMessage
+    case class RemoveFromList(cluster: Runtime) extends ClusterSupervisorMessage
 
     // Auto freeze idle clusters
     case object AutoFreezeClusters extends ClusterSupervisorMessage
@@ -237,7 +237,7 @@ class ClusterMonitorSupervisor(
       removeFromMonitoredClusters(cluster)
   }
 
-  def createChildActor(cluster: Cluster): ActorRef =
+  def createChildActor(cluster: Runtime): ActorRef =
     context.actorOf(
       ClusterMonitorActor.props(
         cluster.id,
@@ -258,7 +258,7 @@ class ClusterMonitorSupervisor(
       )
     )
 
-  def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
+  def startClusterMonitorActor(cluster: Runtime, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
     val child = createChildActor(cluster)
     watchMessageOpt.foreach {
       case RecreateCluster(_) if !monitorConfig.recreateCluster =>
@@ -314,7 +314,7 @@ class ClusterMonitorSupervisor(
       }
     } yield ()
 
-  private def stopCluster(cluster: Cluster, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  private def stopCluster(cluster: Runtime, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       // Flush the welder cache to disk
       _ <- if (cluster.welderEnabled) {
@@ -359,9 +359,9 @@ class ClusterMonitorSupervisor(
           IO(logger.error("Error starting cluster monitor", e))
       }
 
-  private def addToMonitoredClusters(cluster: Cluster) =
+  private def addToMonitoredClusters(cluster: Runtime) =
     monitoredClusterIds += cluster.id
-  private def removeFromMonitoredClusters(cluster: Cluster) =
+  private def removeFromMonitoredClusters(cluster: Runtime) =
     monitoredClusterIds -= cluster.id
 
   override val supervisorStrategy = {

@@ -483,7 +483,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         (
           updateAsyncClusterCreationFields.initBucket.map(_.toUri),
           updateAsyncClusterCreationFields.serviceAccountKey.map(_.id.value),
-          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.googleId),
+          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.googleId.value),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.operationName.value),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.stagingBucket.value),
           updateAsyncClusterCreationFields.dateAccessed
@@ -561,7 +561,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       id = 0, // DB AutoInc
       runtime.internalId.asString,
       runtime.runtimeName,
-      runtime.asyncRuntimeFields.map(_.googleId),
+      runtime.asyncRuntimeFields.map(_.googleId.value),
       runtime.googleProject,
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status.toString,
@@ -692,7 +692,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     )
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
-        AsyncRuntimeFields(googleId,
+        AsyncRuntimeFields(GoogleId(googleId),
                            OperationName(operationName),
                            GcsBucketName(stagingBucket),
                            clusterRecord.hostIp map IP)
