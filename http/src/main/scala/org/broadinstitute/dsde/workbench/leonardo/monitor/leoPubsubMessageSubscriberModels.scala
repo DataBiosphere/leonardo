@@ -31,7 +31,6 @@ object LeoPubsubMessage {
                            serviceAccountInfo: ServiceAccountInfo,
                            asyncRuntimeFields: Option[AsyncRuntimeFields],
                            auditInfo: AuditInfo,
-                           properties: Map[String, String],
                            jupyterExtensionUri: Option[GcsPath],
                            jupyterUserScriptUri: Option[UserScriptPath],
                            jupyterStartUserScriptUri: Option[UserScriptPath],
@@ -55,7 +54,6 @@ object LeoPubsubMessage {
         runtime.serviceAccountInfo,
         runtime.asyncRuntimeFields,
         runtime.auditInfo,
-        runtime.dataprocProperties,
         runtime.jupyterExtensionUri,
         runtime.jupyterUserScriptUri,
         runtime.jupyterStartUserScriptUri,
@@ -64,7 +62,7 @@ object LeoPubsubMessage {
         runtime.runtimeImages,
         runtime.scopes,
         runtime.welderEnabled,
-        runtime.customClusterEnvironmentVariables,
+        runtime.customEnvironmentVariables,
         runtimeConfig,
         traceId
       )
@@ -88,13 +86,12 @@ object LeoPubsubCodec {
     Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransition.apply)
 
   implicit val createClusterDecoder: Decoder[CreateCluster] =
-    Decoder.forProduct17(
+    Decoder.forProduct16(
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
       "dataprocInfo",
       "auditInfo",
-      "properties",
       "jupyterExtensionUri",
       "jupyterUserScriptUri",
       "jupyterStartUserScriptUri",
@@ -132,14 +129,13 @@ object LeoPubsubCodec {
     Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.clusterFollowupDetails))
 
   implicit val createClusterEncoder: Encoder[CreateCluster] =
-    Encoder.forProduct18(
+    Encoder.forProduct17(
       "messageType",
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
       "dataprocInfo",
       "auditInfo",
-      "properties",
       "jupyterExtensionUri",
       "jupyterUserScriptUri",
       "jupyterStartUserScriptUri",
@@ -159,7 +155,6 @@ object LeoPubsubCodec {
          x.serviceAccountInfo,
          x.asyncRuntimeFields,
          x.auditInfo,
-         x.properties,
          x.jupyterExtensionUri,
          x.jupyterUserScriptUri,
          x.jupyterStartUserScriptUri,

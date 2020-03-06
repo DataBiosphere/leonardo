@@ -205,7 +205,12 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             DataprocConfigCopy.fromDataprocConfig(
               RuntimeConfig.DataprocConfig(numberOfWorkers = 0,
                                            masterMachineType = MachineTypeName("n1-standard-2"),
-                                           masterDiskSize = 500)
+                                           masterDiskSize = 500,
+                                           None,
+                                           None,
+                                           None,
+                                           None,
+                                           Map.empty)
             )
           ),
           toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)

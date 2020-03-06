@@ -168,7 +168,7 @@ class ClusterHelper(
               stagingBucketName,
               params.scopes,
               Some(vpcSettings),
-              params.properties,
+              x.properties,
               dataprocImage,
               monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
             )
@@ -212,10 +212,10 @@ class ClusterHelper(
     }
   }
 
-  def deleteCluster(cluster: Cluster): IO[Unit] =
+  def deleteCluster(cluster: Runtime): IO[Unit] =
     IO.fromFuture(IO(gdDAO.deleteCluster(cluster.googleProject, cluster.runtimeName)))
 
-  def stopCluster(cluster: Cluster, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  def stopCluster(cluster: Runtime, runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     if (cluster.status.isStoppable) {
       for {
         // Flush the welder cache to disk
@@ -235,7 +235,7 @@ class ClusterHelper(
 
     } else IO.raiseError(RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
-  private def stopGoogleCluster(cluster: Cluster,
+  private def stopGoogleCluster(cluster: Runtime,
                                 runtimeConfig: RuntimeConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       metadata <- getMasterInstanceShutdownScript(cluster)
@@ -263,7 +263,7 @@ class ClusterHelper(
       }
     } yield ()
 
-  private def startGoogleCluster(cluster: Cluster, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
+  private def startGoogleCluster(cluster: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
     for {
@@ -300,7 +300,7 @@ class ClusterHelper(
 
     } yield ()
 
-  def startCluster(cluster: Cluster, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  def startCluster(cluster: Runtime, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     if (cluster.status.isStartable) {
       val welderAction = getWelderAction(cluster)
       for {
@@ -327,7 +327,7 @@ class ClusterHelper(
       } yield ()
     } else IO.raiseError(RuntimeCannotBeStartedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
-  private def getWelderAction(cluster: Cluster): WelderAction =
+  private def getWelderAction(cluster: Runtime): WelderAction =
     if (cluster.welderEnabled) {
       // Welder is already enabled; do we need to update it?
       val labelFound = welderConfig.updateWelderLabel.exists(cluster.labels.contains)
@@ -348,14 +348,14 @@ class ClusterHelper(
       } else NoAction
     }
 
-  private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean =
+  private def isClusterBeforeCutoffDate(cluster: Runtime): Boolean =
     (for {
       dateStr <- welderConfig.deployWelderCutoffDate
       date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
       isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(cluster: Cluster, now: Instant): IO[Cluster] =
+  private def updateWelder(cluster: Runtime, now: Instant): IO[Runtime] =
     for {
       _ <- log.info(s"Will deploy welder to cluster ${cluster.projectNameString}")
       _ <- metrics.incrementCounter("welder/deploy")
@@ -370,7 +370,7 @@ class ClusterHelper(
                                 runtimeImages = cluster.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newCluster
 
-  def resizeCluster(cluster: Cluster, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =
+  def resizeCluster(cluster: Runtime, numWorkers: Option[Int], numPreemptibles: Option[Int]): IO[Unit] =
     for {
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
       _ <- createClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo)
@@ -383,7 +383,7 @@ class ClusterHelper(
       )
     } yield ()
 
-  def updateMasterMachineType(existingCluster: Cluster,
+  def updateMasterMachineType(existingCluster: Runtime,
                               machineType: MachineTypeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       _ <- log.info(
@@ -399,7 +399,7 @@ class ClusterHelper(
     } yield ()
 
   //updates machine type in gdDAO
-  private def setMasterMachineTypeInGoogle(cluster: Cluster, machineType: MachineTypeName)(
+  private def setMasterMachineTypeInGoogle(cluster: Runtime, machineType: MachineTypeName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
     cluster.dataprocInstances.toList.traverse_ { instance =>
@@ -413,7 +413,7 @@ class ClusterHelper(
       }
     }
 
-  def updateMasterDiskSize(cluster: Cluster, diskSize: Int)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  def updateMasterDiskSize(cluster: Runtime, diskSize: Int)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     cluster.dataprocInstances.toList.traverse_ { instance =>
       // Note: we don't support changing the machine type for worker instances. While this is possible
       // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
@@ -485,7 +485,7 @@ class ClusterHelper(
     }
 
   private def cleanUpGoogleResourcesOnError(googleProject: GoogleProject,
-                                            clusterName: ClusterName,
+                                            clusterName: RuntimeName,
                                             initBucketName: GcsBucketName,
                                             serviceAccountInfo: ServiceAccountInfo,
                                             serviceAccountKeyOpt: Option[ServiceAccountKey]): IO[Unit] = {

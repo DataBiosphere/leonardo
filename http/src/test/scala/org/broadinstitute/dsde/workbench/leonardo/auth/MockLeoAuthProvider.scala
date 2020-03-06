@@ -29,17 +29,17 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     IO.pure(projectPermissions(action))
 
   override def hasNotebookClusterPermission(
-    internalId: ClusterInternalId,
+    internalId: RuntimeInternalId,
     userInfo: UserInfo,
     action: NotebookClusterActions.NotebookClusterAction,
     googleProject: GoogleProject,
-    clusterName: ClusterName
+    clusterName: RuntimeName
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     IO.pure(clusterPermissions(action))
 
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, ClusterInternalId)]] =
+  ): IO[List[(GoogleProject, RuntimeInternalId)]] =
     if (canSeeClustersInAllProjects) {
       IO.pure(clusters)
     } else {
@@ -57,17 +57,17 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     else
       IO.raiseError(new RuntimeException("boom"))
 
-  override def notifyClusterCreated(internalId: ClusterInternalId,
+  override def notifyClusterCreated(internalId: RuntimeInternalId,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
-                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                    clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
-  override def notifyClusterDeleted(internalId: ClusterInternalId,
+  override def notifyClusterDeleted(internalId: RuntimeInternalId,
                                     userEmail: WorkbenchEmail,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
-                                    clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                    clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
 }

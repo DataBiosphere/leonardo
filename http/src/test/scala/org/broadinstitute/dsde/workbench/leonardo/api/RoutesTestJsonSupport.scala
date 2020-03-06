@@ -24,8 +24,8 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
   implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]
-      internalId <- x.downField("internalId").as[ClusterInternalId]
-      clusterName <- x.downField("clusterName").as[ClusterName]
+      internalId <- x.downField("internalId").as[RuntimeInternalId]
+      clusterName <- x.downField("clusterName").as[RuntimeName]
       googleProject <- x.downField("googleProject").as[GoogleProject]
       serviceAccountInfo <- x.downField("serviceAccountInfo").as[ServiceAccountInfo]
       dataprocInfo <- for {
@@ -103,13 +103,12 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       case x: RuntimeConfigRequest.GceConfig      => x.asJson
     }
   }
-  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct18(
+  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct17(
     "labels",
     "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "jupyterStartUserScriptUri",
     "runtimeConfig",
-    "properties",
     "stopAfterCreation",
     "allowStop",
     "userJupyterExtensionConfig",

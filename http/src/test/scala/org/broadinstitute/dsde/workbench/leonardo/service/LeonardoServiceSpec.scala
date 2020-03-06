@@ -177,7 +177,6 @@ class LeonardoServiceSpec
     clusterCreateResponse.auditInfo.creator shouldBe userInfo.userEmail
     clusterCreateResponse.auditInfo.destroyedDate shouldBe None
     clusterCreateResponse.runtimeConfig shouldEqual singleNodeDefaultMachineConfig
-    clusterCreateResponse.dataprocProperties shouldBe Map.empty
     clusterCreateResponse.status shouldBe RuntimeStatus.Creating
     clusterCreateResponse.jupyterExtensionUri shouldBe None
     clusterCreateResponse.jupyterUserScriptUri shouldBe testClusterRequest.jupyterUserScriptUri
@@ -325,14 +324,24 @@ class LeonardoServiceSpec
         RuntimeConfigRequest.DataprocConfig(
           numberOfWorkers = Some(0),
           masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType),
-          masterDiskSize = Some(dataprocConfig.runtimeConfigDefaults.masterDiskSize)
+          masterDiskSize = Some(dataprocConfig.runtimeConfigDefaults.masterDiskSize),
+          None,
+          None,
+          None,
+          None,
+          Map.empty
         )
       )
     )
     val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
       numberOfWorkers = 0,
       masterMachineType = dataprocConfig.runtimeConfigDefaults.masterMachineType,
-      masterDiskSize = dataprocConfig.runtimeConfigDefaults.masterDiskSize
+      masterDiskSize = dataprocConfig.runtimeConfigDefaults.masterDiskSize,
+      None,
+      None,
+      None,
+      None,
+      Map.empty
     )
 
     val clusterCreateResponse =
@@ -342,12 +351,24 @@ class LeonardoServiceSpec
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
     val singleNodeDefinedMachineConfigReq =
-      RuntimeConfigRequest.DataprocConfig(Some(0), Some(MachineTypeName("test-master-machine-type2")), Some(200))
+      RuntimeConfigRequest.DataprocConfig(Some(0),
+                                          Some(MachineTypeName("test-master-machine-type2")),
+                                          Some(200),
+                                          None,
+                                          None,
+                                          None,
+                                          None,
+                                          Map.empty)
 
     val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
       numberOfWorkers = 0,
       masterMachineType = MachineTypeName("test-master-machine-type2"),
-      masterDiskSize = 200
+      masterDiskSize = 200,
+      workerMachineType = None,
+      workerDiskSize = None,
+      numberOfWorkerLocalSSDs = None,
+      numberOfPreemptibleWorkers = None,
+      properties = Map.empty
     )
 
     val clusterRequestWithMachineConfig =
@@ -361,13 +382,16 @@ class LeonardoServiceSpec
   it should "create a single node cluster and override worker configs" in isolatedDbTest {
     // machine config is creating a single node cluster, but has worker configs defined
     val machineConfig = Some(
-      RuntimeConfigRequest.DataprocConfig(Some(0),
-                                          Some(MachineTypeName("test-master-machine-type3")),
-                                          Some(200),
-                                          Some(MachineTypeName("test-worker-machine-type")),
-                                          Some(10),
-                                          Some(3),
-                                          Some(4))
+      RuntimeConfigRequest.DataprocConfig(
+        Some(0),
+        Some(MachineTypeName("test-master-machine-type3")),
+        Some(200),
+        Some(MachineTypeName("test-worker-machine-type")),
+        Some(10),
+        Some(3),
+        Some(4),
+        Map.empty
+      )
     )
     val clusterRequestWithMachineConfig = testClusterRequest.copy(runtimeConfig = machineConfig)
 
@@ -376,7 +400,12 @@ class LeonardoServiceSpec
     clusterCreateResponse.runtimeConfig shouldEqual RuntimeConfig.DataprocConfig(
       0,
       MachineTypeName("test-master-machine-type3"),
-      200
+      200,
+      None,
+      None,
+      None,
+      None,
+      Map.empty
     )
   }
 
@@ -386,7 +415,12 @@ class LeonardoServiceSpec
         RuntimeConfigRequest.DataprocConfig(
           numberOfWorkers = Some(2),
           masterDiskSize = Some(singleNodeDefaultMachineConfig.masterDiskSize),
-          masterMachineType = Some(singleNodeDefaultMachineConfig.masterMachineType)
+          masterMachineType = Some(singleNodeDefaultMachineConfig.masterMachineType),
+          workerMachineType = None,
+          workerDiskSize = None,
+          numberOfWorkerLocalSSDs = None,
+          numberOfPreemptibleWorkers = None,
+          properties = Map.empty
         )
       )
     )
@@ -397,7 +431,8 @@ class LeonardoServiceSpec
       singleNodeDefaultMachineConfig.workerMachineType,
       singleNodeDefaultMachineConfig.workerDiskSize,
       singleNodeDefaultMachineConfig.numberOfWorkerLocalSSDs,
-      singleNodeDefaultMachineConfig.numberOfPreemptibleWorkers
+      singleNodeDefaultMachineConfig.numberOfPreemptibleWorkers,
+      Map.empty
     )
 
     val clusterCreateResponse =
@@ -406,13 +441,16 @@ class LeonardoServiceSpec
   }
 
   it should "create a standard cluster with 10 workers with defined config" in isolatedDbTest {
-    val machineConfig = RuntimeConfigRequest.DataprocConfig(Some(10),
-                                                            Some(MachineTypeName("test-master-machine-type")),
-                                                            Some(200),
-                                                            Some(MachineTypeName("test-worker-machine-type")),
-                                                            Some(300),
-                                                            Some(3),
-                                                            Some(4))
+    val machineConfig = RuntimeConfigRequest.DataprocConfig(
+      Some(10),
+      Some(MachineTypeName("test-master-machine-type")),
+      Some(200),
+      Some(MachineTypeName("test-worker-machine-type")),
+      Some(300),
+      Some(3),
+      Some(4),
+      Map.empty
+    )
     val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
       numberOfWorkers = 10,
       masterMachineType = MachineTypeName("test-master-machine-type"),
@@ -420,7 +458,8 @@ class LeonardoServiceSpec
       workerMachineType = Some(MachineTypeName("test-worker-machine-type")),
       workerDiskSize = Some(300),
       numberOfWorkerLocalSSDs = Some(3),
-      numberOfPreemptibleWorkers = Some(4)
+      numberOfPreemptibleWorkers = Some(4),
+      properties = Map.empty
     )
     val clusterRequestWithMachineConfig = testClusterRequest.copy(runtimeConfig = Some(machineConfig))
 
@@ -436,7 +475,8 @@ class LeonardoServiceSpec
                                                             Some(MachineTypeName("test-worker-machine-type")),
                                                             Some(5),
                                                             Some(3),
-                                                            Some(4))
+                                                            Some(4),
+                                                            Map.empty)
     val clusterRequestWithMachineConfig = testClusterRequest.copy(runtimeConfig = Some(machineConfig))
     val expectedMachineConfig = RuntimeConfig.DataprocConfig(2,
                                                              MachineTypeName("test-master-machine-type"),
@@ -444,7 +484,8 @@ class LeonardoServiceSpec
                                                              Some(MachineTypeName("test-worker-machine-type")),
                                                              Some(10),
                                                              Some(3),
-                                                             Some(4))
+                                                             Some(4),
+                                                             Map.empty)
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
@@ -1069,7 +1110,12 @@ class LeonardoServiceSpec
             RuntimeConfigRequest.DataprocConfig(
               numberOfWorkers = Some(2),
               masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType),
-              masterDiskSize = Some(dataprocConfig.runtimeConfigDefaults.masterDiskSize)
+              masterDiskSize = Some(dataprocConfig.runtimeConfigDefaults.masterDiskSize),
+              workerMachineType = None,
+              workerDiskSize = None,
+              numberOfWorkerLocalSSDs = None,
+              numberOfPreemptibleWorkers = None,
+              properties = Map.empty
             )
           )
         )
@@ -1091,7 +1137,7 @@ class LeonardoServiceSpec
 
   it should "throw an exception when trying to resize a stopped cluster" in isolatedDbTest {
     // create a stopped cluster record cluster
-    val stoppedCluster: Cluster = makeCluster(3).copy(status = RuntimeStatus.Stopped).save()
+    val stoppedCluster: Runtime = makeCluster(3).copy(status = RuntimeStatus.Stopped).save()
 
     // check that the cluster is stopped
     val dbCluster = dbFutureValue { clusterQuery.getClusterById(stoppedCluster.id) }
@@ -1107,7 +1153,12 @@ class LeonardoServiceSpec
             runtimeConfig = Some(
               RuntimeConfigRequest.DataprocConfig(numberOfWorkers = Some(2),
                                                   masterMachineType = None,
-                                                  masterDiskSize = None)
+                                                  masterDiskSize = None,
+                                                  None,
+                                                  None,
+                                                  None,
+                                                  None,
+                                                  Map.empty)
             )
           )
         )
@@ -1145,10 +1196,10 @@ class LeonardoServiceSpec
   }
 
   it should "calculate autopause threshold properly" in {
-    leo.calculateAutopauseThreshold(None, None) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-    leo.calculateAutopauseThreshold(Some(false), None) shouldBe autoPauseOffValue
-    leo.calculateAutopauseThreshold(Some(true), None) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-    leo.calculateAutopauseThreshold(Some(true), Some(30)) shouldBe 30
+    LeonardoService.calculateAutopauseThreshold(None, None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    LeonardoService.calculateAutopauseThreshold(Some(false), None, autoFreezeConfig) shouldBe autoPauseOffValue
+    LeonardoService.calculateAutopauseThreshold(Some(true), None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    LeonardoService.calculateAutopauseThreshold(Some(true), Some(30), autoFreezeConfig) shouldBe 30
   }
 
   it should "update the master machine type for a cluster" in isolatedDbTest {
@@ -1171,9 +1222,16 @@ class LeonardoServiceSpec
         name1,
         testClusterRequest.copy(
           runtimeConfig = Some(
-            RuntimeConfigRequest.DataprocConfig(masterMachineType = Some(newMachineType),
-                                                numberOfWorkers = Some(0),
-                                                masterDiskSize = Some(500))
+            RuntimeConfigRequest.DataprocConfig(
+              masterMachineType = Some(newMachineType),
+              numberOfWorkers = Some(0),
+              masterDiskSize = Some(500),
+              workerMachineType = None,
+              workerDiskSize = None,
+              numberOfWorkerLocalSSDs = None,
+              numberOfPreemptibleWorkers = None,
+              properties = Map.empty
+            )
           )
         )
       )
@@ -1209,9 +1267,16 @@ class LeonardoServiceSpec
         name1,
         testClusterRequest.copy(
           runtimeConfig = Some(
-            RuntimeConfigRequest.DataprocConfig(masterMachineType = Some(newMachineType),
-                                                masterDiskSize = Some(500),
-                                                numberOfWorkers = Some(0))
+            RuntimeConfigRequest.DataprocConfig(
+              masterMachineType = Some(newMachineType),
+              masterDiskSize = Some(500),
+              numberOfWorkers = Some(0),
+              workerMachineType = None,
+              workerDiskSize = None,
+              numberOfWorkerLocalSSDs = None,
+              numberOfPreemptibleWorkers = None,
+              properties = Map.empty
+            )
           )
         )
       )
@@ -1261,7 +1326,12 @@ class LeonardoServiceSpec
     val newConfig = RuntimeConfigRequest.DataprocConfig(
       Some(defaultRuntimeConfig.numberOfWorkers),
       Some(newMachineType),
-      Some(defaultRuntimeConfig.masterDiskSize)
+      Some(defaultRuntimeConfig.masterDiskSize),
+      None,
+      None,
+      None,
+      None,
+      Map.empty
     )
 
     dbFutureValue {
@@ -1296,12 +1366,16 @@ class LeonardoServiceSpec
     queue.dequeue1.unsafeRunSync() //discard createCluster message
     val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdate]
 
-    val castMessage = message.asInstanceOf[StopUpdate]
-    castMessage.messageType shouldBe "stopUpdate"
-    castMessage.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
-                                                                           newMachineType,
-                                                                           defaultRuntimeConfig.masterDiskSize)
-    castMessage.clusterId shouldBe clusterCreateResponse.id
+    message.messageType shouldBe "stopUpdate"
+    message.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
+                                                                       newMachineType,
+                                                                       defaultRuntimeConfig.masterDiskSize,
+                                                                       None,
+                                                                       None,
+                                                                       None,
+                                                                       None,
+                                                                       Map.empty)
+    message.clusterId shouldBe clusterCreateResponse.id
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {
@@ -1327,7 +1401,12 @@ class LeonardoServiceSpec
             RuntimeConfigRequest.DataprocConfig(
               masterDiskSize = Some(newDiskSize),
               numberOfWorkers = Some(dataprocConfig.runtimeConfigDefaults.numberOfWorkers),
-              masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType)
+              masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType),
+              workerMachineType = None,
+              workerDiskSize = None,
+              numberOfWorkerLocalSSDs = None,
+              numberOfPreemptibleWorkers = None,
+              properties = Map.empty
             )
           )
         )
@@ -1367,7 +1446,12 @@ class LeonardoServiceSpec
             RuntimeConfigRequest.DataprocConfig(
               masterDiskSize = Some(newDiskSize),
               numberOfWorkers = Some(dataprocConfig.runtimeConfigDefaults.numberOfWorkers),
-              masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType)
+              masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType),
+              workerMachineType = None,
+              workerDiskSize = None,
+              numberOfWorkerLocalSSDs = None,
+              numberOfPreemptibleWorkers = None,
+              properties = Map.empty
             )
           )
         )
@@ -1409,7 +1493,12 @@ class LeonardoServiceSpec
                   RuntimeConfigRequest.DataprocConfig(
                     numberOfWorkers = Some(2),
                     masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType),
-                    masterDiskSize = Some(dataprocConfig.runtimeConfigDefaults.masterDiskSize)
+                    masterDiskSize = Some(dataprocConfig.runtimeConfigDefaults.masterDiskSize),
+                    workerMachineType = None,
+                    workerDiskSize = None,
+                    numberOfWorkerLocalSSDs = None,
+                    numberOfPreemptibleWorkers = None,
+                    properties = Map.empty
                   )
                 )
               )
@@ -1520,7 +1609,11 @@ class LeonardoServiceSpec
               masterDiskSize = Some(newDiskSize),
               numberOfPreemptibleWorkers = Some(0),
               numberOfWorkers = Some(dataprocConfig.runtimeConfigDefaults.numberOfWorkers),
-              masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType)
+              masterMachineType = Some(dataprocConfig.runtimeConfigDefaults.masterMachineType),
+              workerMachineType = None,
+              workerDiskSize = None,
+              numberOfWorkerLocalSSDs = None,
+              properties = Map.empty
             )
           )
         )

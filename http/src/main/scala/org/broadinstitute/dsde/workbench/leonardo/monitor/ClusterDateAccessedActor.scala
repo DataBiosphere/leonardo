@@ -7,7 +7,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.ClusterName
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.{Flush, UpdateDateAccessed}
 
@@ -18,7 +18,7 @@ object ClusterDateAccessedActor {
 
   sealed trait ClusterAccessDateMessage
 
-  case class UpdateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant)
+  case class UpdateDateAccessed(clusterName: RuntimeName, googleProject: GoogleProject, dateAccessed: Instant)
       extends ClusterAccessDateMessage
 
   case object Flush extends ClusterAccessDateMessage
@@ -29,7 +29,7 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
     extends Actor
     with LazyLogging {
 
-  var dateAccessedMap: Map[(ClusterName, GoogleProject), Instant] = Map.empty
+  var dateAccessedMap: Map[(RuntimeName, GoogleProject), Instant] = Map.empty
 
   import context._
 
@@ -51,7 +51,7 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
     }
   }
 
-  private def updateDateAccessed(clusterName: ClusterName,
+  private def updateDateAccessed(clusterName: RuntimeName,
                                  googleProject: GoogleProject,
                                  dateAccessed: Instant): IO[Int] = {
     logger.info(s"Update dateAccessed for $clusterName in project $googleProject to $dateAccessed")

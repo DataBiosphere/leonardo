@@ -29,7 +29,8 @@ object RuntimeConfigRequest {
                                   workerMachineType: Option[MachineTypeName] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                                  numberOfPreemptibleWorkers: Option[Int] = None)
+                                  numberOfPreemptibleWorkers: Option[Int] = None,
+                                  properties: Map[String, String])
       extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
 
@@ -41,7 +42,12 @@ object RuntimeConfigRequest {
           RuntimeConfig.DataprocConfig(
             0,
             masterMachineType.getOrElse(default.masterMachineType),
-            masterDiskSizeFinal
+            masterDiskSizeFinal,
+            None,
+            None,
+            None,
+            None,
+            properties
           )
         case Some(numWorkers) =>
           val wds = workerDiskSize.orElse(default.workerDiskSize)
@@ -52,7 +58,8 @@ object RuntimeConfigRequest {
             workerMachineType.orElse(default.workerMachineType),
             wds.map(s => math.max(minimumDiskSize, s)),
             numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
-            numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers)
+            numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
+            properties
           )
       }
     }
@@ -65,7 +72,6 @@ final case class CreateRuntimeRequest(labels: LabelMap = Map.empty,
                                       jupyterUserScriptUri: Option[UserScriptPath] = None,
                                       jupyterStartUserScriptUri: Option[UserScriptPath] = None,
                                       runtimeConfig: Option[RuntimeConfigRequest] = None,
-                                      dataprocProperties: Map[String, String] = Map.empty,
                                       stopAfterCreation: Option[Boolean] = None,
                                       allowStop: Boolean = false,
                                       userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
@@ -100,7 +106,6 @@ object CreateRuntimeRequest {
       serviceAccountInfo = serviceAccountInfo,
       asyncRuntimeFields = None,
       auditInfo = AuditInfo(userEmail, timestamp, None, timestamp, None),
-      dataprocProperties = request.dataprocProperties,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, googleProject, runtimeName, runtimeImages, request.labels),
       status = RuntimeStatus.Creating,
       labels = request.labels,
@@ -117,7 +122,7 @@ object CreateRuntimeRequest {
       runtimeImages = runtimeImages,
       scopes = scopes,
       welderEnabled = request.enableWelder.getOrElse(false),
-      customClusterEnvironmentVariables = request.customClusterEnvironmentVariables,
+      customEnvironmentVariables = request.customClusterEnvironmentVariables,
       runtimeConfigId = RuntimeConfigId(-1)
     )
 }
@@ -131,7 +136,6 @@ final case class CreateRuntimeResponse(id: Long,
                                        serviceAccountInfo: ServiceAccountInfo,
                                        asyncRuntimeFields: Option[AsyncRuntimeFields],
                                        auditInfo: AuditInfo,
-                                       dataprocProperties: Map[String, String],
                                        runtimeConfig: RuntimeConfig,
                                        clusterUrl: URL,
                                        status: RuntimeStatus,
@@ -159,7 +163,6 @@ object CreateRuntimeResponse {
     runtime.serviceAccountInfo,
     runtime.asyncRuntimeFields,
     runtime.auditInfo,
-    runtime.dataprocProperties,
     runtimeConfig,
     runtime.proxyUrl,
     runtime.status,
@@ -176,7 +179,7 @@ object CreateRuntimeResponse {
     runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
-    runtime.customClusterEnvironmentVariables
+    runtime.customEnvironmentVariables
   )
 }
 
@@ -230,7 +233,6 @@ final case class GetRuntimeResponse(id: Long,
                                     serviceAccountInfo: ServiceAccountInfo,
                                     asyncRuntimeFields: Option[AsyncRuntimeFields],
                                     auditInfo: AuditInfo,
-                                    dataprocProperties: Map[String, String],
                                     runtimeConfig: RuntimeConfig,
                                     clusterUrl: URL,
                                     status: RuntimeStatus,
@@ -258,7 +260,6 @@ object GetRuntimeResponse {
     runtime.serviceAccountInfo,
     runtime.asyncRuntimeFields,
     runtime.auditInfo,
-    runtime.dataprocProperties,
     runtimeConfig,
     runtime.proxyUrl,
     runtime.status,
@@ -275,7 +276,7 @@ object GetRuntimeResponse {
     runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
-    runtime.customClusterEnvironmentVariables
+    runtime.customEnvironmentVariables
   )
 }
 
@@ -288,7 +289,6 @@ final case class UpdateRuntimeResponse(id: Long,
                                        serviceAccountInfo: ServiceAccountInfo,
                                        asyncRuntimeFields: Option[AsyncRuntimeFields],
                                        auditInfo: AuditInfo,
-                                       dataprocProperties: Map[String, String],
                                        runtimeConfig: RuntimeConfig,
                                        clusterUrl: URL,
                                        status: RuntimeStatus,
@@ -316,7 +316,6 @@ object UpdateRuntimeResponse {
     runtime.serviceAccountInfo,
     runtime.asyncRuntimeFields,
     runtime.auditInfo,
-    runtime.dataprocProperties,
     runtimeConfig,
     runtime.proxyUrl,
     runtime.status,
@@ -333,6 +332,6 @@ object UpdateRuntimeResponse {
     runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
-    runtime.customClusterEnvironmentVariables
+    runtime.customEnvironmentVariables
   )
 }

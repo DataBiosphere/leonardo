@@ -1133,12 +1133,6 @@ definitions:
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
-      properties:
-        description: >
-          Example {"spark:spark.executor.memory": "10g"}. See https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties for allowed property settings
-        type: object
-        additionalProperties:
-          type: string
       stopAfterCreation:
         description: |
           If true, Leo will immediately stop the cluster once it's created, with the end result being a
@@ -1242,6 +1236,12 @@ definitions:
         description: |
           Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
           For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+      properties:
+        description: >
+          Example {"spark:spark.executor.memory": "10g"}. See https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties for allowed property settings
+        type: object
+        additionalProperties:
+          type: string
 
   UserJupyterExtensionConfig:
     description: 'Specification of Jupyter Extensions to be installed on the cluster'

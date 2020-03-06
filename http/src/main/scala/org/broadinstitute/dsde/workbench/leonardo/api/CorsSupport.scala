@@ -8,9 +8,7 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.http.scaladsl.server.Directives._
 
-trait CorsSupport {
-  def contentSecurityPolicy: String
-
+class CorsSupport(contentSecurityPolicy: String) {
   def corsHandler(r: Route) =
     addAccessControlHeaders {
       preflightRequestHandler ~ r

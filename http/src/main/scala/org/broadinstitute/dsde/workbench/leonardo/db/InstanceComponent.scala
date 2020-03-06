@@ -44,13 +44,13 @@ class InstanceTable(tag: Tag) extends Table[InstanceRecord](tag, "INSTANCE") {
 
 object instanceQuery extends TableQuery(new InstanceTable(_)) {
 
-  def save(clusterId: Long, instance: Instance): DBIO[Int] =
+  def save(clusterId: Long, instance: DataprocInstance): DBIO[Int] =
     instanceQuery += marshalInstance(clusterId, instance)
 
-  def saveAllForCluster(clusterId: Long, instances: Seq[Instance]) =
+  def saveAllForCluster(clusterId: Long, instances: Seq[DataprocInstance]) =
     instanceQuery ++= instances map { marshalInstance(clusterId, _) }
 
-  def mergeForCluster(clusterId: Long, instances: Seq[Instance])(implicit ec: ExecutionContext): DBIO[Int] =
+  def mergeForCluster(clusterId: Long, instances: Seq[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Int] =
     for {
       // upsert all incoming instances passed to this method
       upserted <- upsertAllForCluster(clusterId, instances)
@@ -65,30 +65,32 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
 
     } yield upserted + deleted
 
-  def upsert(clusterId: Long, instance: Instance): DBIO[Int] =
+  def upsert(clusterId: Long, instance: DataprocInstance): DBIO[Int] =
     instanceQuery.insertOrUpdate(marshalInstance(clusterId, instance))
 
-  def delete(instance: Instance): DBIO[Int] =
+  def delete(instance: DataprocInstance): DBIO[Int] =
     instanceByKeyQuery(instance.key).delete
 
-  def upsertAllForCluster(clusterId: Long, instances: Seq[Instance])(implicit ec: ExecutionContext): DBIO[Int] =
+  def upsertAllForCluster(clusterId: Long, instances: Seq[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Int] =
     DBIO.fold(instances map { upsert(clusterId, _) }, 0)(_ + _)
 
-  def deleteAllForCluster(clusterId: Long, instances: Seq[Instance])(implicit ec: ExecutionContext): DBIO[Int] =
+  def deleteAllForCluster(clusterId: Long, instances: Seq[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Int] =
     DBIO.fold(instances map { delete }, 0)(_ + _)
 
-  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[Instance]] =
+  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[DataprocInstance]] =
     instanceQuery.filter { _.clusterId === clusterId }.result map { recs =>
       recs.map(unmarshalInstance)
     }
 
-  def instanceByKeyQuery(instanceKey: InstanceKey) =
+  def instanceByKeyQuery(instanceKey: DataprocInstanceKey) =
     instanceQuery
       .filter { _.googleProject === instanceKey.project.value }
       .filter { _.zone === instanceKey.zone.value }
       .filter { _.name === instanceKey.name.value }
 
-  def getInstanceByKey(instanceKey: InstanceKey)(implicit ec: ExecutionContext): DBIO[Option[Instance]] =
+  def getInstanceByKey(
+    instanceKey: DataprocInstanceKey
+  )(implicit ec: ExecutionContext): DBIO[Option[DataprocInstance]] =
     instanceByKeyQuery(instanceKey).result.map { _.headOption.map(unmarshalInstance) }
 
   def updateStatusAndIpForCluster(clusterId: Long, newStatus: InstanceStatus, newIp: Option[IP]) =
@@ -97,7 +99,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
       .map(inst => (inst.status, inst.ip))
       .update(newStatus.entryName, newIp.map(_.value))
 
-  private def marshalInstance(clusterId: Long, instance: Instance): InstanceRecord =
+  private def marshalInstance(clusterId: Long, instance: DataprocInstance): InstanceRecord =
     InstanceRecord(
       id = 0, // DB AutoInc
       clusterId,
@@ -111,7 +113,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
       createdDate = Timestamp.from(instance.createdDate)
     )
 
-  private[db] def unmarshalInstance(record: InstanceRecord): Instance =
+  private[db] def unmarshalInstance(record: InstanceRecord): DataprocInstance =
     DataprocInstance(
       DataprocInstanceKey(
         GoogleProject(record.googleProject),

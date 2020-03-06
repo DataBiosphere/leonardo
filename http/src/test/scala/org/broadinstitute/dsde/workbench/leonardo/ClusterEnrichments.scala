@@ -9,20 +9,20 @@ object ClusterEnrichments extends Matchers {
   // while comparing clusters as we typically don't care about the database assigned id field
   // http://www.scalactic.org/user_guide/CustomEquality
   implicit val clusterEq = {
-    new Equality[Cluster] {
+    new Equality[Runtime] {
       private val FixedId = 0
 
-      def areEqual(a: Cluster, b: Any): Boolean =
+      def areEqual(a: Runtime, b: Any): Boolean =
         b match {
-          case c: Cluster => a.copy(id = FixedId) == c.copy(id = FixedId)
+          case c: Runtime => a.copy(id = FixedId) == c.copy(id = FixedId)
           case _          => false
         }
     }
   }
 
   implicit val clusterSeqEq = {
-    new Equality[Seq[Cluster]] {
-      def areEqual(as: Seq[Cluster], bs: Any): Boolean =
+    new Equality[Seq[Runtime]] {
+      def areEqual(as: Seq[Runtime], bs: Any): Boolean =
         bs match {
           case cs: Seq[_] => isEquivalent(as, cs)
           case _          => false
@@ -31,8 +31,8 @@ object ClusterEnrichments extends Matchers {
   }
 
   implicit val clusterSetEq = {
-    new Equality[Set[Cluster]] {
-      def areEqual(as: Set[Cluster], bs: Any): Boolean =
+    new Equality[Set[Runtime]] {
+      def areEqual(as: Set[Runtime], bs: Any): Boolean =
         bs match {
           case cs: Set[_] => isEquivalent(as, cs)
           case _          => false
@@ -44,13 +44,13 @@ object ClusterEnrichments extends Matchers {
   private def isEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
     val DummyId = 0
 
-    val fcs1 = cs1 map { case c: Cluster => c.copy(id = DummyId) }
-    val fcs2 = cs2 map { case c: Cluster => c.copy(id = DummyId) }
+    val fcs1 = cs1 map { case c: Runtime => c.copy(id = DummyId) }
+    val fcs2 = cs2 map { case c: Runtime => c.copy(id = DummyId) }
 
     fcs1 == fcs2
   }
 
-  def stripFieldsForListCluster: Cluster => Cluster = { cluster =>
+  def stripFieldsForListCluster: Runtime => Runtime = { cluster =>
     cluster.copy(dataprocInstances = Set.empty,
                  runtimeImages = Set.empty,
                  errors = List.empty,
@@ -58,7 +58,7 @@ object ClusterEnrichments extends Matchers {
                  userJupyterExtensionConfig = None)
   }
 
-  def compareClusterAndCreateClusterAPIResponse(c: Cluster, createCluster: CreateRuntimeResponse): Assertion = {
+  def compareClusterAndCreateClusterAPIResponse(c: Runtime, createCluster: CreateRuntimeResponse): Assertion = {
     c.id shouldBe createCluster.id
     c.internalId shouldBe createCluster.internalId
     c.runtimeName shouldBe createCluster.clusterName
@@ -66,7 +66,6 @@ object ClusterEnrichments extends Matchers {
     c.serviceAccountInfo shouldBe createCluster.serviceAccountInfo
     c.asyncRuntimeFields shouldBe createCluster.asyncRuntimeFields
     c.auditInfo shouldBe createCluster.auditInfo
-    c.dataprocProperties shouldBe createCluster.dataprocProperties
     c.proxyUrl shouldBe createCluster.clusterUrl
     c.status shouldBe createCluster.status
     c.labels shouldBe createCluster.labels
@@ -82,6 +81,6 @@ object ClusterEnrichments extends Matchers {
     c.runtimeImages shouldBe createCluster.clusterImages
     c.scopes shouldBe createCluster.scopes
     c.welderEnabled shouldBe createCluster.welderEnabled
-    c.customClusterEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
+    c.customEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
   }
 }

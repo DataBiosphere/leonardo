@@ -35,7 +35,7 @@ class MockProxyService(
                          system.deadLetters,
                          Blocker.liftExecutionContext(ExecutionContext.global)) {
 
-  override def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): IO[HostStatus] =
+  override def getTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost")))
 
 }

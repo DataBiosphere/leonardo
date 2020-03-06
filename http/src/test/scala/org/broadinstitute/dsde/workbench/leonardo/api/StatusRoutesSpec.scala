@@ -38,7 +38,7 @@ class StatusRoutesSpec
 
   "GET /version" should "give 200 for ok" in {
     eventually {
-      Get("/version") ~> leoRoutes.route ~> check {
+      Get("/version") ~> statusRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[String] should include("n/a")
       }
@@ -47,7 +47,7 @@ class StatusRoutesSpec
 
   "GET /status" should "give 200 for ok" in {
     eventually {
-      Get("/status") ~> leoRoutes.route ~> check {
+      Get("/status") ~> statusRoutes.route ~> check {
         responseAs[StatusCheckResponse] shouldEqual StatusCheckResponse(true,
                                                                         Map(GoogleDataproc -> HealthMonitor.OkStatus,
                                                                             Database -> HealthMonitor.OkStatus,
@@ -74,17 +74,17 @@ class StatusRoutesSpec
         ev: ApplicativeAsk[IO, TraceId]
       ): IO[List[A]] = ???
 
-      override def createClusterResource(internalId: ClusterInternalId,
+      override def createClusterResource(internalId: RuntimeInternalId,
                                          creatorEmail: WorkbenchEmail,
                                          googleProject: GoogleProject,
-                                         clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                         clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         ???
 
-      override def deleteClusterResource(internalId: ClusterInternalId,
+      override def deleteClusterResource(internalId: RuntimeInternalId,
                                          userEmail: WorkbenchEmail,
                                          creatorEmail: WorkbenchEmail,
                                          googleProject: GoogleProject,
-                                         clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                         clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         ???
 
       override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
@@ -102,13 +102,12 @@ class StatusRoutesSpec
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =
       new StatusService(badDataproc, badSam, dbRef, applicationConfig, pollInterval = 1.second)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
-    with MockUserInfoDirectives {
+    val statusRoute = new StatusRoutes(statusService) with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
     }
 
     eventually {
-      Get("/status") ~> leoRoutes.route ~> check {
+      Get("/status") ~> statusRoute.route ~> check {
         responseAs[StatusCheckResponse].ok shouldEqual false
         responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(GoogleDataproc, Database, Sam)
         responseAs[StatusCheckResponse].systems(GoogleDataproc).ok shouldBe false

@@ -19,12 +19,6 @@ import org.scalatest.concurrent.ScalaFutures
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
-  "ClusterComponent" should "save cluster with properties properly" in isolatedDbTest {
-    val cluster = makeCluster(1).copy(dataprocProperties = Map("spark:spark.executor.memory" -> "10g"))
-    val savedCluster = cluster.save()
-    savedCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual (cluster) //input cluster's runtimeConfigId is fake -1
-  }
-
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue { clusterQuery.listWithLabels } shouldEqual Seq()
 
@@ -64,7 +58,8 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
                                    Some(MachineTypeName("test-worker-machine-type")),
                                    Some(200),
                                    Some(2),
-                                   Some(1))
+                                   Some(1),
+                                   Map.empty)
     )
     savedCluster3.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster3
 
@@ -241,7 +236,8 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
                                      Some(MachineTypeName("test-worker-machine-type")),
                                      Some(200),
                                      Some(2),
-                                     Some(1))
+                                     Some(1),
+                                     Map.empty)
       )
 
     val newMachineType = MachineTypeName("this-is-a-new-machine-type")
@@ -259,7 +255,8 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
                                    Some(MachineTypeName("test-worker-machine-type")),
                                    Some(200),
                                    Some(2),
-                                   Some(1))
+                                   Some(1),
+                                   Map.empty)
     )
 
     val newDiskSize = 1000
@@ -283,12 +280,12 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
 
   it should "persist custom environment variables" in isolatedDbTest {
     val expectedEvs = Map("foo" -> "bar", "test" -> "this is a test")
-    val savedCluster = makeCluster(1).copy(customClusterEnvironmentVariables = expectedEvs).save()
+    val savedCluster = makeCluster(1).copy(customEnvironmentVariables = expectedEvs).save()
 
     val retrievedCluster = dbFutureValue { clusterQuery.getClusterById(savedCluster.id) }
 
     retrievedCluster shouldBe 'defined
-    retrievedCluster.get.customClusterEnvironmentVariables shouldBe expectedEvs
+    retrievedCluster.get.customEnvironmentVariables shouldBe expectedEvs
     retrievedCluster.get shouldBe savedCluster
   }
 
@@ -299,7 +296,8 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
                                                      Some(MachineTypeName("test-worker-machine-type")),
                                                      Some(200),
                                                      Some(2),
-                                                     Some(1))
+                                                     Some(1),
+                                                     Map.empty)
 
     val savedCluster = makeCluster(1)
       .saveWithRuntimeConfig(runtimeConfig)

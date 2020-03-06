@@ -32,22 +32,22 @@ class ClusterImageTable(tag: Tag) extends Table[ClusterImageRecord](tag, "CLUSTE
 
 object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
 
-  def save(clusterId: Long, clusterImage: ClusterImage)(implicit ec: ExecutionContext): DBIO[Int] =
+  def save(clusterId: Long, clusterImage: RuntimeImage)(implicit ec: ExecutionContext): DBIO[Int] =
     for {
       exists <- getRecord(clusterId, clusterImage.imageType)
       res <- if (exists.headOption.isDefined) DBIO.successful(0)
       else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
     } yield res
 
-  def saveAllForCluster(clusterId: Long, clusterImages: Seq[ClusterImage]): DBIO[Option[Int]] =
+  def saveAllForCluster(clusterId: Long, clusterImages: Seq[RuntimeImage]): DBIO[Option[Int]] =
     clusterImageQuery ++= clusterImages.map { c =>
       marshallClusterImage(clusterId, c)
     }
 
-  def upsert(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] =
+  def upsert(clusterId: Long, clusterImage: RuntimeImage): DBIO[Int] =
     clusterImageQuery.insertOrUpdate(marshallClusterImage(clusterId, clusterImage))
 
-  def get(clusterId: Long, imageType: RuntimeImageType)(implicit ec: ExecutionContext): DBIO[Option[ClusterImage]] =
+  def get(clusterId: Long, imageType: RuntimeImageType)(implicit ec: ExecutionContext): DBIO[Option[RuntimeImage]] =
     getRecord(clusterId, imageType).headOption
       .map(_.map(unmarshalClusterImage))
 
@@ -57,13 +57,13 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
       .filter { _.imageType === imageType }
       .result
 
-  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[ClusterImage]] =
+  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[RuntimeImage]] =
     clusterImageQuery
       .filter { _.clusterId === clusterId }
       .result
       .map(_.map(unmarshalClusterImage))
 
-  def marshallClusterImage(clusterId: Long, clusterImage: ClusterImage): ClusterImageRecord =
+  def marshallClusterImage(clusterId: Long, clusterImage: RuntimeImage): ClusterImageRecord =
     ClusterImageRecord(
       clusterId,
       clusterImage.imageType,
@@ -71,7 +71,7 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
       clusterImage.timestamp
     )
 
-  def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): ClusterImage =
+  def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): RuntimeImage =
     RuntimeImage(
       clusterImageRecord.imageType,
       clusterImageRecord.imageUrl,

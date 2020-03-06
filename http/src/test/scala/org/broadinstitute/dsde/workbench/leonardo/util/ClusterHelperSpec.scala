@@ -315,7 +315,14 @@ class ClusterHelperSpec
   }
 
   it should "calculate cluster resource constraints" in isolatedDbTest {
-    val runtimeConfig = RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), 500)
+    val runtimeConfig = RuntimeConfig.DataprocConfig(0,
+                                                     MachineTypeName("n1-standard-4"),
+                                                     500,
+                                                     None,
+                                                     None,
+                                                     None,
+                                                     None,
+                                                     Map.empty[String, String])
     val resourceConstraints = clusterHelper
       .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
       .unsafeRunSync()
@@ -327,7 +334,7 @@ class ClusterHelperSpec
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
     var invocationCount = 0
     override def createCluster(googleProject: GoogleProject,
-                               clusterName: ClusterName,
+                               clusterName: RuntimeName,
                                config: CreateClusterConfig): Future[Operation] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory

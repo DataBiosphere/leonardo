@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-import org.broadinstitute.dsde.workbench.leonardo.{Cluster, RuntimeConfigId, RuntimeStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfigId, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
@@ -24,11 +24,11 @@ class ClusterDnsCacheSpec
   override def afterAll(): Unit =
     super.afterAll()
 
-  val clusterBeingCreated: Cluster =
+  val clusterBeingCreated: Runtime =
     makeCluster(2)
       .copy(status = RuntimeStatus.Creating, asyncRuntimeFields = Some(makeDataprocInfo(2).copy(hostIp = None)))
-  val runningCluster: Cluster = makeCluster(1).copy(status = RuntimeStatus.Running)
-  val stoppedCluster: Cluster =
+  val runningCluster: Runtime = makeCluster(1).copy(status = RuntimeStatus.Running)
+  val stoppedCluster: Runtime =
     makeCluster(3)
       .copy(status = RuntimeStatus.Stopped, asyncRuntimeFields = Some(makeDataprocInfo(2).copy(hostIp = None)))
 

@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.util.UUID
 
+import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
@@ -20,4 +21,5 @@ trait LeonardoTestSuite extends Matchers {
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   val blocker = Blocker.liftExecutionContext(global)
+  val semaphore = Semaphore[IO](10).unsafeRunSync()
 }

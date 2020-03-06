@@ -43,7 +43,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{LeoRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
@@ -64,9 +64,10 @@ object Boot extends IOApp {
     // We need an ActorSystem to host our application in
     implicit val system = ActorSystem(applicationConfig.applicationName)
     import system.dispatcher
-    implicit def logger = Slf4jLogger.getLogger[IO]
 
-    createDependencies(leoServiceAccountJsonFile).use { appDependencies =>
+    implicit val logger = Slf4jLogger.getLogger[IO]
+
+    createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
       implicit val metrics = appDependencies.metrics
       implicit val dbRef = appDependencies.dbReference
 
@@ -178,9 +179,23 @@ object Boot extends IOApp {
                                             appDependencies.samDAO,
                                             appDependencies.dbReference,
                                             applicationConfig)
-      val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
-      with StandardUserInfoDirectives
-
+      val runtimeServiceConfig = RuntimeServiceConfig(
+        proxyConfig.proxyUrlBase,
+        imageConfig,
+        autoFreezeConfig,
+        dataprocConfig,
+        gceConfig
+      )
+      val runtimeService = new RuntimeServiceInterp[IO](
+        appDependencies.blocker,
+        appDependencies.semaphore,
+        runtimeServiceConfig,
+        appDependencies.authProvider,
+        appDependencies.serviceAccountProvider,
+        appDependencies.dockerDAO,
+        appDependencies.google2StorageDao,
+        appDependencies.publisherQueue
+      )
       val messageProcessorStream = if (leoExecutionModeConfig.backLeo) {
         val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
           new LeoPubsubMessageSubscriber(appDependencies.subscriber, clusterHelper)
@@ -194,6 +209,13 @@ object Boot extends IOApp {
         Stream.eval(appDependencies.subscriber.start)
       } else Stream.eval(IO.unit)
 
+      val httpRoutes = new HttpRoutes(swaggerConfig,
+                                      statusService,
+                                      proxyService,
+                                      leonardoService,
+                                      runtimeService,
+                                      StandardUserInfoDirectives,
+                                      contentSecurityPolicy)
       val httpServer = for {
         _ <- if (leoExecutionModeConfig.backLeo) {
           clusterHelper.setupDataprocImageGoogleGroup()
@@ -201,7 +223,7 @@ object Boot extends IOApp {
         _ <- IO.fromFuture {
           IO {
             Http()
-              .bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+              .bindAndHandle(httpRoutes.route, "0.0.0.0", 8080)
               .onError {
                 case t: Throwable =>
                   logger.error(t)("FATAL - failure starting http server").unsafeToFuture()
@@ -316,6 +338,7 @@ object Boot extends IOApp {
       authProvider,
       metrics,
       blocker,
+      semaphore,
       publisherStream,
       publisherQueue,
       subscriber
@@ -358,6 +381,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        authProvider: LeoAuthProvider[F],
                                        metrics: NewRelicMetrics[F],
                                        blocker: Blocker,
+                                       semaphore: Semaphore[F],
                                        publisherStream: Stream[F, Unit],
                                        publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
                                        subscriber: GoogleSubscriber[F, LeoPubsubMessage])

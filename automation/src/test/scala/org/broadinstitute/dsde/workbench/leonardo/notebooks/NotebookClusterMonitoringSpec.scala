@@ -68,9 +68,16 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       implicit val ronToken: AuthToken = ronAuthToken
 
       val initialMachineConfig =
-        RuntimeConfig.DataprocConfig(numberOfWorkers = 2,
-                                     masterMachineType = MachineTypeName("n1-standard-2"),
-                                     masterDiskSize = 50)
+        RuntimeConfig.DataprocConfig(
+          numberOfWorkers = 2,
+          masterMachineType = MachineTypeName("n1-standard-2"),
+          masterDiskSize = 50,
+          workerMachineType = None,
+          workerDiskSize = None,
+          numberOfWorkerLocalSSDs = None,
+          numberOfPreemptibleWorkers = None,
+          properties = Map.empty
+        )
 
       withNewCluster(billingProject,
                      request = defaultClusterRequest
@@ -78,9 +85,16 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         cluster =>
           // update the cluster to add another worker node and increase the master disk
           val newMachineConfig =
-            RuntimeConfig.DataprocConfig(numberOfWorkers = 3,
-                                         masterDiskSize = 100,
-                                         masterMachineType = MachineTypeName("n1-standard-2"))
+            RuntimeConfig.DataprocConfig(
+              numberOfWorkers = 3,
+              masterDiskSize = 100,
+              masterMachineType = MachineTypeName("n1-standard-2"),
+              workerMachineType = None,
+              workerDiskSize = None,
+              numberOfWorkerLocalSSDs = None,
+              numberOfPreemptibleWorkers = None,
+              properties = Map.empty
+            )
           Leonardo.cluster.update(
             billingProject,
             cluster.clusterName,
@@ -189,7 +203,11 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
                 numberOfWorkers = 2,
                 masterDiskSize = 500,
                 masterMachineType = MachineTypeName("n1-standard-4"),
-                numberOfPreemptibleWorkers = Some(10)
+                numberOfPreemptibleWorkers = Some(10),
+                workerMachineType = None,
+                workerDiskSize = None,
+                numberOfWorkerLocalSSDs = None,
+                properties = Map.empty
               )
             )
           ),

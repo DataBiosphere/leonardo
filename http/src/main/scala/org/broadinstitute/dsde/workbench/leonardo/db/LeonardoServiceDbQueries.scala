@@ -27,7 +27,7 @@ object LeonardoServiceDbQueries {
       (cluster, label) <- baseQuery.joinLeft(labelQuery).on(_.id === _.clusterId)
     } yield (cluster, label)
 
-  def getGetClusterResponse(googleProject: GoogleProject, clusterName: ClusterName)(
+  def getGetClusterResponse(googleProject: GoogleProject, clusterName: RuntimeName)(
     implicit executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
     val activeCluster = fullClusterQueryByUniqueKey(googleProject, clusterName, None)

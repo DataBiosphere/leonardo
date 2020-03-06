@@ -15,14 +15,29 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.google2.FirewallRuleName
+import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, MockProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  LeonardoService,
+  MockProxyService,
+  RuntimeServiceConfig,
+  RuntimeServiceInterp,
+  StatusService
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  BucketHelper,
+  BucketHelperConfig,
+  ClusterHelper,
+  QueueFactory,
+  VPCHelper,
+  VPCHelperConfig
+}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
 import org.scalatest.Matchers
@@ -122,14 +137,48 @@ trait TestLeoRoutes {
   val statusService =
     new StatusService(mockGoogleDataprocDAO, mockSamDAO, dbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
-  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
-  with MockUserInfoDirectives {
+  val corsSupport = new CorsSupport(contentSecurityPolicy)
+  val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
+  val statusRoutes = new StatusRoutes(statusService)
+  val userInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
-  val timedLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, contentSecurityPolicy)
-  with MockUserInfoDirectives {
+  val leoRoutes = new LeoRoutes(leonardoService, userInfoDirectives)
+  val timedUserInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = timedUserInfo
   }
+  val timedLeoRoutes = new LeoRoutes(leonardoService, timedUserInfoDirectives)
+
+  val runtimeService = new RuntimeServiceInterp(
+    blocker,
+    semaphore,
+    RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
+                         imageConfig,
+                         autoFreezeConfig,
+                         dataprocConfig,
+                         Config.gceConfig),
+    whitelistAuthProvider,
+    serviceAccountProvider,
+    new MockDockerDAO,
+    FakeGoogleStorageInterpreter,
+    QueueFactory.makePublisherQueue()
+  )
+  val httpRoutes = new HttpRoutes(
+    swaggerConfig,
+    statusService,
+    proxyService,
+    leonardoService,
+    runtimeService,
+    userInfoDirectives,
+    contentSecurityPolicy
+  )
+  val timedHttpRoutes = new HttpRoutes(swaggerConfig,
+                                       statusService,
+                                       proxyService,
+                                       leonardoService,
+                                       runtimeService,
+                                       timedUserInfoDirectives,
+                                       contentSecurityPolicy)
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r

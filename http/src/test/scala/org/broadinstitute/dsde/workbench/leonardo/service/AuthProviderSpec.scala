@@ -66,9 +66,9 @@ class AuthProviderSpec
     new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
   private val noVisibleClustersProvider =
     new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
-      override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(
+      override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[List[(GoogleProject, ClusterInternalId)]] =
+      ): IO[List[(GoogleProject, RuntimeInternalId)]] =
         IO.pure(List.empty)
     }
 
@@ -254,13 +254,13 @@ class AuthProviderSpec
 
       //verify we never notified the auth provider of clusters happening because they didn't
       verify(spyProvider, Mockito.never).notifyClusterCreated(
-        any[String].asInstanceOf[ClusterInternalId],
+        any[String].asInstanceOf[RuntimeInternalId],
         any[WorkbenchEmail],
         any[GoogleProject],
         any[String].asInstanceOf[RuntimeName]
       )(any[ApplicativeAsk[IO, TraceId]])
       verify(spyProvider, Mockito.never).notifyClusterDeleted(
-        any[String].asInstanceOf[ClusterInternalId],
+        any[String].asInstanceOf[RuntimeInternalId],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
         any[GoogleProject],
@@ -320,13 +320,13 @@ class AuthProviderSpec
 
       //verify we never notified the auth provider of clusters happening because they didn't
       verify(spyProvider, Mockito.never).notifyClusterCreated(
-        any[String].asInstanceOf[ClusterInternalId],
+        any[String].asInstanceOf[RuntimeInternalId],
         any[WorkbenchEmail],
         any[GoogleProject],
         any[String].asInstanceOf[RuntimeName]
       )(any[ApplicativeAsk[IO, TraceId]])
       verify(spyProvider, Mockito.never).notifyClusterDeleted(
-        any[String].asInstanceOf[ClusterInternalId],
+        any[String].asInstanceOf[RuntimeInternalId],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
         any[GoogleProject],
@@ -353,7 +353,7 @@ class AuthProviderSpec
       mockGoogleDataprocDAO.clusters should not contain key(cluster1Name)
 
       // creation notifications should have been fired
-      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[ClusterInternalId],
+      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[RuntimeInternalId],
                                                any[WorkbenchEmail],
                                                any[GoogleProject],
                                                any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])

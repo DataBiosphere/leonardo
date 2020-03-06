@@ -26,7 +26,6 @@ final case class Runtime(id: Long,
                          serviceAccountInfo: ServiceAccountInfo,
                          asyncRuntimeFields: Option[AsyncRuntimeFields],
                          auditInfo: AuditInfo,
-                         dataprocProperties: Map[String, String],
                          proxyUrl: URL,
                          status: RuntimeStatus,
                          labels: LabelMap,
@@ -43,7 +42,7 @@ final case class Runtime(id: Long,
                          runtimeImages: Set[RuntimeImage],
                          scopes: Set[String],
                          welderEnabled: Boolean,
-                         customClusterEnvironmentVariables: Map[String, String],
+                         customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
   def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
@@ -160,7 +159,8 @@ object RuntimeConfig {
                                   workerMachineType: Option[MachineTypeName] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                                  numberOfPreemptibleWorkers: Option[Int] = None)
+                                  numberOfPreemptibleWorkers: Option[Int] = None,
+                                  properties: Map[String, String])
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
@@ -276,14 +276,27 @@ object RuntimeUI {
 }
 
 /** Default runtime labels */
-case class DefaultLabels(clusterName: RuntimeName,
+case class DefaultLabels(runtimeName: RuntimeName,
                          googleProject: GoogleProject,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
                          notebookUserScript: Option[UserScriptPath],
                          notebookStartUserScript: Option[UserScriptPath],
-                         tool: Option[RuntimeImageType])
+                         tool: Option[RuntimeImageType]) {
+  def toMap: LabelMap =
+    Map(
+      "runtimeName" -> runtimeName.asString,
+      "clusterName" -> runtimeName.asString, //TODO: potentially deprecate this once clients moves away from using this label (deprecated 3/5/2020)
+      "googleProject" -> googleProject.value,
+      "creator" -> creator.value,
+      "clusterServiceAccount" -> clusterServiceAccount.map(_.value).getOrElse(null),
+      "notebookServiceAccount" -> notebookServiceAccount.map(_.value).getOrElse(null),
+      "notebookUserScript" -> notebookUserScript.map(_.asString).getOrElse(null),
+      "notebookStartUserScript" -> notebookStartUserScript.map(_.asString).getOrElse(null),
+      "tool" -> tool.map(_.toString).getOrElse(null)
+    ).filterNot(_._2 == null)
+}
 
 /** Welder operations */
 sealed trait WelderAction extends EnumEntry

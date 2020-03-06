@@ -5,16 +5,11 @@ package api
 import java.util.UUID
 
 import akka.actor.ActorSystem
-import akka.event.Logging.LogLevel
-import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.stream.Materializer
-import akka.stream.scaladsl._
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
@@ -22,61 +17,38 @@ import com.typesafe.scalalogging.LazyLogging
 import LeoRoutesJsonCodec._
 import LeoRoutesSprayJsonCodec._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  CreateRuntimeRequest,
-  LeonardoService,
-  ProxyService,
-  StatusService
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, LeonardoService}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
-import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 case class AuthenticationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
                          StatusCodes.Unauthorized)
 
-abstract class LeoRoutes(
+// TODO: This can probably renamed to legacyRuntimeRoutes
+// Future runtime related APIs should be added to `RuntimeRoutes`
+class LeoRoutes(
   val leonardoService: LeonardoService,
-  val proxyService: ProxyService,
-  val statusService: StatusService,
-  val swaggerConfig: SwaggerConfig,
-  val contentSecurityPolicy: String
+  userInfoDirectives: UserInfoDirectives
 )(implicit val system: ActorSystem,
   val materializer: Materializer,
   val executionContext: ExecutionContext,
   val cs: ContextShift[IO])
     extends LazyLogging
-    with CookieHelper
-    with ProxyRoutes
-    with SwaggerRoutes
-    with StatusRoutes
-    with UserInfoDirectives {
+    with CookieHelper {
 
-  def unauthedRoutes: Route =
-    path("ping") {
-      pathEndOrSingleSlash {
-        get {
-          complete {
-            StatusCodes.OK
-          }
-        }
-      }
-    }
-
-  def leoRoutes: Route =
-    requireUserInfo { userInfo =>
+  val route: Route =
+    userInfoDirectives.requireUserInfo { userInfo =>
       implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
       setTokenCookie(userInfo, tokenCookieName) {
         pathPrefix("cluster") {
           pathPrefix("v2" / Segment / Segment) { (googleProject, clusterNameString) =>
-            validateClusterNameDirective(clusterNameString) { clusterName =>
+            validateRuntimeNameDirective(clusterNameString) { clusterName =>
               pathEndOrSingleSlash {
                 put {
                   entity(as[CreateRuntimeRequest]) { cluster =>
@@ -93,7 +65,7 @@ abstract class LeoRoutes(
             }
           } ~
             pathPrefix(Segment / Segment) { (googleProject, clusterNameString) =>
-              validateClusterNameDirective(clusterNameString) { clusterName =>
+              validateRuntimeNameDirective(clusterNameString) { clusterName =>
                 pathEndOrSingleSlash {
                   patch {
                     entity(as[CreateRuntimeRequest]) { cluster =>
@@ -183,66 +155,11 @@ abstract class LeoRoutes(
           }
       }
     }
-
-  def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
-    swaggerRoutes ~ unauthedRoutes ~ proxyRoutes ~ statusRoutes ~
-      pathPrefix("api") { leoRoutes }
-  }
-
-  private val myExceptionHandler = {
-    ExceptionHandler {
-      case requestValidationError: RequestValidationError =>
-        complete(StatusCodes.BadRequest, requestValidationError.getMessage)
-      case leoException: LeoException =>
-        complete(leoException.statusCode, leoException.toErrorReport)
-      case withErrorReport: WorkbenchExceptionWithErrorReport =>
-        complete(
-          withErrorReport.errorReport.statusCode
-            .getOrElse(StatusCodes.InternalServerError) -> withErrorReport.errorReport
-        )
-      case workbenchException: WorkbenchException =>
-        val report = ErrorReport(Option(workbenchException.getMessage).getOrElse(""),
-                                 Some(StatusCodes.InternalServerError),
-                                 Seq(),
-                                 Seq(),
-                                 Some(workbenchException.getClass))
-        complete(StatusCodes.InternalServerError -> report)
-      case e: Throwable =>
-        //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
-        complete(StatusCodes.InternalServerError -> ErrorReport(e))
-    }
-  }
-
-  // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
-  private def logRequestResult: Directive0 = {
-    def entityAsString(entity: HttpEntity): Future[String] =
-      entity.dataBytes
-        .map(_.decodeString(entity.contentType.charsetOption.getOrElse(HttpCharsets.`UTF-8`).value))
-        .runWith(Sink.head)
-
-    def myLoggingFunction(logger: LoggingAdapter)(req: HttpRequest)(res: Any): Unit = {
-      val entry = res match {
-        case Complete(resp) =>
-          val logLevel: LogLevel = resp.status.intValue / 100 match {
-            case 5 => Logging.ErrorLevel
-            case _ => Logging.DebugLevel
-          }
-          entityAsString(resp.entity)
-            .map(data => LogEntry(s"${req.method} ${req.uri}: ${resp.status} entity: $data", logLevel))
-        case other =>
-          Future.successful(LogEntry(s"$other", Logging.ErrorLevel)) // I don't really know when this case happens
-      }
-      entry.map(_.logTo(logger))
-    }
-
-    DebuggingDirectives.logRequestResult(LoggingMagnet(myLoggingFunction))
-  }
-
 }
 
 object LeoRoutes {
   private val clusterNameReg = "([a-z|0-9|-])*".r
-  private def validateClusterName(clusterNameString: String): Either[Throwable, ClusterName] =
+  private def validateRuntimeName(clusterNameString: String): Either[Throwable, RuntimeName] =
     clusterNameString match {
       case clusterNameReg(_) => Right(RuntimeName(clusterNameString))
       case _ =>
@@ -253,9 +170,9 @@ object LeoRoutes {
         )
     }
 
-  def validateClusterNameDirective(clusterNameString: String): Directive1[ClusterName] =
+  def validateRuntimeNameDirective(clusterNameString: String): Directive1[RuntimeName] =
     Directive { inner =>
-      validateClusterName(clusterNameString) match {
+      validateRuntimeName(clusterNameString) match {
         case Left(e)  => failWith(e)
         case Right(c) => inner(Tuple1(c))
       }
