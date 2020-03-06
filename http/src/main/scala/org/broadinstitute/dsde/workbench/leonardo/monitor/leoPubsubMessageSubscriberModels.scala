@@ -110,8 +110,8 @@ object LeoPubsubCodec {
       value <- messageType match {
         case "stopUpdate"         => message.as[StopUpdateMessage]
         case "transitionFinished" => message.as[RuntimeTransitionMessage]
-        case "createCluster"      => message.as[CreateRuntimeMessage]
-        case other                => Left(DecodingFailure(s"invalid message type: ${other}", List.empty))
+        case "createRuntime"      => message.as[CreateRuntimeMessage]
+        case other                => Left(DecodingFailure(s"invalid message type: $other", List.empty))
       }
     } yield value
   }

@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
-import cats.effect.{Async, Concurrent, ContextShift, IO, Timer}
+import cats.effect.{Async, Concurrent, ContextShift, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import fs2.{Pipe, Stream}
@@ -176,8 +176,6 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
     implicit traceId: ApplicativeAsk[F, TraceId]
   ): F[Unit] = {
     val createCluster = for {
-      traceIdValue <- traceId.ask
-      traceIdIO = ApplicativeAsk.const[IO, TraceId](traceIdValue)
       _ <- logger.info(s"Attempting to create cluster ${msg.runtimeProjectAndName} in Google...")
       clusterResult <- msg.runtimeConfig.cloudService match {
         case CloudService.GCE      => gceAlg.createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
