@@ -44,28 +44,34 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   ): F[Unit]
 
   final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    if (params.runtime.status.isStoppable) {
+    if (params.runtimeAndRuntimeConfig.runtime.status.isStoppable) {
       for {
         // Flush the welder cache to disk
-        _ <- if (params.runtime.welderEnabled) {
+        _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
           welderDao
-            .flushCache(params.runtime.googleProject, params.runtime.runtimeName)
+            .flushCache(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                        params.runtimeAndRuntimeConfig.runtime.runtimeName)
             .handleErrorWith(
-              e => Logger[F].error(e)(s"Failed to flush welder cache for ${params.runtime.projectNameString}")
+              e =>
+                Logger[F].error(e)(
+                  s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
+                )
             )
         } else Async[F].unit
 
         // Stop the cluster in Google
-        _ <- stopGoogleRuntime(params.runtime, params.runtimeConfig)
+        _ <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
 
         // Update the cluster status to Stopping
         now <- Async[F].delay(Instant.now)
-        _ <- dbRef.inTransaction { clusterQuery.setToStopping(params.runtime.id, now) }
+        _ <- dbRef.inTransaction { clusterQuery.setToStopping(params.runtimeAndRuntimeConfig.runtime.id, now) }
       } yield ()
 
     } else
       Async[F].raiseError(
-        RuntimeCannotBeStoppedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status)
+        RuntimeCannotBeStoppedException(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                        params.runtimeAndRuntimeConfig.runtime.runtimeName,
+                                        params.runtimeAndRuntimeConfig.runtime.status)
       )
 
   final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
