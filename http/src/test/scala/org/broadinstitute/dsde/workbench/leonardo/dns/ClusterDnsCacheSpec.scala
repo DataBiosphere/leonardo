@@ -37,13 +37,13 @@ class ClusterDnsCacheSpec
   val cacheKeyForStoppedCluster = DnsCacheKey(stoppedCluster.googleProject, stoppedCluster.runtimeName)
 
   val runningClusterHost = Host(
-    s"${runningCluster.asyncRuntimeFields.map(_.googleId).get.toString}.jupyter.firecloud.org"
+    s"${runningCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
   )
   val clusterBeingCreatedHost = Host(
-    s"${clusterBeingCreated.asyncRuntimeFields.map(_.googleId).get.toString}.jupyter.firecloud.org"
+    s"${clusterBeingCreated.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
   )
   val stoppedClusterHost = Host(
-    s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.toString}.jupyter.firecloud.org"
+    s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
   )
 
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
