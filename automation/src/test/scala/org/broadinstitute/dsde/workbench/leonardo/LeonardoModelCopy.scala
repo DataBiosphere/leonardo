@@ -72,7 +72,7 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
                                       labExtensions: Map[String, String] = Map())
 
-case class DefaultLabelsCopy(clusterName: RuntimeName,
+case class DefaultLabelsCopy(runtimeName: RuntimeName,
                              googleProject: GoogleProject,
                              creator: WorkbenchEmail,
                              clusterServiceAccount: Option[WorkbenchEmail],
@@ -101,7 +101,8 @@ case class DefaultLabelsCopy(clusterName: RuntimeName,
     } getOrElse Map.empty
 
     Map(
-      "clusterName" -> clusterName.asString,
+      "clusterName" -> runtimeName.asString,
+      "runtimeName" -> runtimeName.asString,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "tool" -> tool
