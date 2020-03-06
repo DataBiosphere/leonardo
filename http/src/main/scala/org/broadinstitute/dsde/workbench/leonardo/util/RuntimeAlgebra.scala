@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import java.time.Instant
+
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.config.{
@@ -45,10 +47,19 @@ trait RuntimeAlgebra[F[_]] {
 }
 
 /**
- * Extends RuntimeAlgebra for Dataproc-specific functionality.
+ * Adds GCE extensions to RuntimeAlgebra.
+ */
+trait GceAlgebra[F[_]] extends RuntimeAlgebra[F] {
+  // expecting to add PD, GPU related functionality here
+}
+
+/**
+ * Adds Dataproc extensions to RuntimeAlgebra.
  */
 trait DataprocAlgebra[F[_]] extends RuntimeAlgebra[F] {
   def resizeCluster(params: ResizeClusterParams): F[Unit]
+  def updateMasterMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    updateMachineType(params)
 }
 
 // Parameters
@@ -93,9 +104,9 @@ final case class CreateRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                        customDataprocImage: CustomDataprocImage)
 final case class DeleteRuntimeParams(runtime: Runtime)
 final case class FinalizeDeleteParams(runtime: Runtime)
-final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
-final case class StartRuntimeParams(runtime: Runtime)
-final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName)
+final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)
+final case class StartRuntimeParams(runtime: Runtime, now: Instant)
+final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName, now: Instant)
 final case class UpdateDiskSizeParams(runtime: Runtime, diskSize: Int)
 final case class ResizeClusterParams(runtime: Runtime, numWorkers: Option[Int], numPreemptibles: Option[Int])
 

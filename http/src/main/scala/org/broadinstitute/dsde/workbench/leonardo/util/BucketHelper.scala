@@ -23,9 +23,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
                                                            google2StorageDAO: GoogleStorageService[F],
                                                            googleProjectDAO: GoogleProjectDAO,
                                                            serviceAccountProvider: ServiceAccountProvider[F],
-                                                           blocker: Blocker) {
-
-  implicit val contextShiftIO = IO.contextShift(blocker.blockingContext)
+                                                           blocker: Blocker)(implicit cs: ContextShift[IO]) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
