@@ -52,7 +52,6 @@ final case class CreateClusterConfig(
   stagingBucket: GcsBucketName,
   clusterScopes: Set[String],
   clusterVPCSettings: Option[VPCConfig],
-  properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
   dataprocCustomImage: CustomDataprocImage,
   creationTimeout: FiniteDuration
 )

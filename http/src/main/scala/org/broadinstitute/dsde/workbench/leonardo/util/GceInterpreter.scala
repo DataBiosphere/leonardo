@@ -183,7 +183,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                              InstanceName(runtime.runtimeName.asString))
     } yield ()
 
-  override protected def startGoogleRuntime(runtime: Cluster, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
+  override protected def startGoogleRuntime(runtime: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
@@ -197,7 +197,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                               InstanceName(runtime.runtimeName.asString))
     } yield ()
 
-  override protected def setMachineTypeInGoogle(runtime: Cluster, machineType: MachineTypeName)(
+  override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     googleComputeService.setMachineType(runtime.googleProject,

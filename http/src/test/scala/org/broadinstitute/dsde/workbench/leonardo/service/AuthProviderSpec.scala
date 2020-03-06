@@ -148,7 +148,6 @@ class AuthProviderSpec
       new MockGoogleStorageDAO
     }
     new LeonardoService(dataprocConfig,
-                        gceConfig,
                         imageConfig,
                         MockWelderDAO,
                         proxyConfig,
@@ -160,7 +159,6 @@ class AuthProviderSpec
                         serviceAccountProvider,
                         bucketHelper,
                         dataprocAlg,
-                        gceAlg,
                         new MockDockerDAO,
                         QueueFactory.makePublisherQueue())
   }

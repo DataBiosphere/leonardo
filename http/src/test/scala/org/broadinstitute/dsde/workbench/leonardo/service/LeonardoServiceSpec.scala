@@ -26,7 +26,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdate
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
@@ -58,8 +59,8 @@ class LeonardoServiceSpec
   private var projectDAO: MockGoogleProjectDAO = _
   private var storageDAO: MockGoogleStorageDAO = _
   private var samDao: MockSamDAO = _
-  private var bucketHelper: BucketHelper = _
-  private var clusterHelper: ClusterHelper = _
+  private var bucketHelper: BucketHelper[IO] = _
+  private var dataprocAlg: DataprocAlgebra[IO] = _
   private var leo: LeonardoService = _
   private var authProvider: LeoAuthProvider[IO] = _
 
@@ -91,33 +92,35 @@ class LeonardoServiceSpec
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper(bucketHelperConfig,
-                       MockGoogleComputeService,
-                       storageDAO,
-                       FakeGoogleStorageService,
-                       projectDAO,
-                       serviceAccountProvider,
-                       blocker)(cs)
+      new BucketHelper[IO](bucketHelperConfig,
+                           MockGoogleComputeService,
+                           storageDAO,
+                           FakeGoogleStorageService,
+                           projectDAO,
+                           serviceAccountProvider,
+                           blocker)
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, MockGoogleComputeService)
-    clusterHelper = new ClusterHelper(dataprocConfig,
-                                      imageConfig,
-                                      googleGroupsConfig,
-                                      proxyConfig,
-                                      clusterResourcesConfig,
-                                      clusterFilesConfig,
-                                      monitorConfig,
-                                      welderConfig,
-                                      bucketHelper,
-                                      vpcHelper,
-                                      gdDAO,
-                                      MockGoogleComputeService,
-                                      directoryDAO,
-                                      iamDAO,
-                                      projectDAO,
-                                      MockWelderDAO,
-                                      blocker)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, MockGoogleComputeService, blocker)
+    dataprocAlg = new DataprocInterpreter[IO](DataprocInterpreterConfig(
+                                                dataprocConfig,
+                                                googleGroupsConfig,
+                                                welderConfig,
+                                                imageConfig,
+                                                proxyConfig,
+                                                clusterResourcesConfig,
+                                                clusterFilesConfig,
+                                                monitorConfig
+                                              ),
+                                              bucketHelper,
+                                              vpcHelper,
+                                              gdDAO,
+                                              MockGoogleComputeService,
+                                              directoryDAO,
+                                              iamDAO,
+                                              projectDAO,
+                                              MockWelderDAO,
+                                              blocker)
 
     leo = new LeonardoService(dataprocConfig,
                               imageConfig,
@@ -130,7 +133,7 @@ class LeonardoServiceSpec
                               authProvider,
                               serviceAccountProvider,
                               bucketHelper,
-                              clusterHelper,
+                              dataprocAlg,
                               new MockDockerDAO,
                               QueueFactory.makePublisherQueue())
   }
@@ -283,7 +286,7 @@ class LeonardoServiceSpec
                                          authProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
-                                         clusterHelper,
+                                         dataprocAlg,
                                          new MockDockerDAO(RStudio),
                                          QueueFactory.makePublisherQueue())
 
@@ -605,7 +608,7 @@ class LeonardoServiceSpec
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
-                                         clusterHelper,
+                                         dataprocAlg,
                                          new MockDockerDAO,
                                          QueueFactory.makePublisherQueue())
 
@@ -662,7 +665,7 @@ class LeonardoServiceSpec
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
-                                         clusterHelper,
+                                         dataprocAlg,
                                          new MockDockerDAO,
                                          QueueFactory.makePublisherQueue())
 
@@ -1305,7 +1308,7 @@ class LeonardoServiceSpec
                                   authProvider,
                                   serviceAccountProvider,
                                   bucketHelper,
-                                  clusterHelper,
+                                  dataprocAlg,
                                   new MockDockerDAO,
                                   queue)
     val clusterCreateResponse =
@@ -1364,7 +1367,7 @@ class LeonardoServiceSpec
     finalQueueSize shouldBe 2 //one message for creating cluster, one message for updating cluster
 
     queue.dequeue1.unsafeRunSync() //discard createCluster message
-    val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdate]
+    val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdateMessage]
 
     message.messageType shouldBe "stopUpdate"
     message.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
@@ -1375,7 +1378,7 @@ class LeonardoServiceSpec
                                                                        None,
                                                                        None,
                                                                        Map.empty)
-    message.clusterId shouldBe clusterCreateResponse.id
+    message.runtimeId shouldBe clusterCreateResponse.id
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {

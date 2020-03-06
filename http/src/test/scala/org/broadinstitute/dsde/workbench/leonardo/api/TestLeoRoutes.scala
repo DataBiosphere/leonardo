@@ -7,6 +7,7 @@ import java.io.ByteArrayInputStream
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleDirectoryDAO,
@@ -30,10 +31,15 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   StatusService
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{
   BucketHelper,
   BucketHelperConfig,
-  ClusterHelper,
+  DataprocInterpreter,
+  GceInterpreter,
   QueueFactory,
   VPCHelper,
   VPCHelperConfig
@@ -84,34 +90,47 @@ trait TestLeoRoutes {
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
-    new BucketHelper(bucketHelperConfig,
-                     MockGoogleComputeService,
-                     mockGoogleStorageDAO,
-                     mockGoogle2StorageDAO,
-                     mockGoogleProjectDAO,
-                     serviceAccountProvider,
-                     blocker)(cs)
+    new BucketHelper[IO](bucketHelperConfig,
+                         MockGoogleComputeService,
+                         mockGoogleStorageDAO,
+                         mockGoogle2StorageDAO,
+                         mockGoogleProjectDAO,
+                         serviceAccountProvider,
+                         blocker)
   val vpcHelperConfig =
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-  val vpcHelper = new VPCHelper(vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService)
-  val clusterHelper =
-    new ClusterHelper(dataprocConfig,
-                      imageConfig,
-                      googleGroupsConfig,
-                      proxyConfig,
-                      clusterResourcesConfig,
-                      clusterFilesConfig,
-                      monitorConfig,
-                      welderConfig,
-                      bucketHelper,
-                      vpcHelper,
-                      mockGoogleDataprocDAO,
-                      MockGoogleComputeService,
-                      mockGoogleDirectoryDAO,
-                      mockGoogleIamDAO,
-                      mockGoogleProjectDAO,
-                      MockWelderDAO,
-                      blocker)
+  val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService, blocker)
+  val dataprocAlg =
+    new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                          googleGroupsConfig,
+                                                          welderConfig,
+                                                          imageConfig,
+                                                          proxyConfig,
+                                                          clusterResourcesConfig,
+                                                          clusterFilesConfig,
+                                                          monitorConfig),
+                                bucketHelper,
+                                vpcHelper,
+                                mockGoogleDataprocDAO,
+                                MockGoogleComputeService,
+                                mockGoogleDirectoryDAO,
+                                mockGoogleIamDAO,
+                                mockGoogleProjectDAO,
+                                MockWelderDAO,
+                                blocker)
+  val gceAlg =
+    new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
+                                                welderConfig,
+                                                imageConfig,
+                                                proxyConfig,
+                                                clusterResourcesConfig,
+                                                clusterFilesConfig,
+                                                monitorConfig),
+                           bucketHelper,
+                           vpcHelper,
+                           MockGoogleComputeService,
+                           MockWelderDAO,
+                           blocker)
 
   val leonardoService = new LeonardoService(
     dataprocConfig,
@@ -125,10 +144,10 @@ trait TestLeoRoutes {
     whitelistAuthProvider,
     serviceAccountProvider,
     bucketHelper,
-    clusterHelper,
+    dataprocAlg,
     new MockDockerDAO,
     QueueFactory.makePublisherQueue()
-  )(executor, system, loggerIO, cs, metrics, dbRef, timer)
+  )(executor, system, loggerIO, cs, metrics, dbRef)
 
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 

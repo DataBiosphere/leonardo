@@ -658,7 +658,7 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig)))
     } yield ()
 
   def internalStopCluster(cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
@@ -673,7 +673,7 @@ class LeonardoService(
 
         runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
         // Stop the cluster in Google
-        _ <- dataprocAlg.stopRuntime(StopRuntimeParams(cluster, runtimeConfig))
+        _ <- dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig)))
 
         // Update the cluster status to Stopping
         now <- IO(Instant.now)
