@@ -87,7 +87,7 @@ object CreateRuntimeParams {
       message.asyncRuntimeFields,
       message.auditInfo,
       message.jupyterExtensionUri,
-      message.jupyterStartUserScriptUri,
+      message.jupyterUserScriptUri,
       message.jupyterStartUserScriptUri,
       message.userJupyterExtensionConfig,
       message.defaultClientId,
