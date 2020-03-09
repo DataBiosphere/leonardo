@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-import java.util.UUID
 
 import cats.data.Chain
 import cats.implicits._
@@ -26,7 +25,7 @@ import scala.concurrent.ExecutionContext
 final case class ClusterRecord(id: Long,
                                internalId: String,
                                clusterName: RuntimeName,
-                               googleId: Option[UUID],
+                               googleId: Option[GoogleId],
                                googleProject: GoogleProject,
                                operationName: Option[String],
                                status: String,
@@ -53,7 +52,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
   def internalId = column[String]("internalId", O.Length(254))
   def clusterName = column[RuntimeName]("clusterName", O.Length(254))
-  def googleId = column[Option[UUID]]("googleId")
+  def googleId = column[Option[GoogleId]]("googleId")
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
   def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
   def notebookServiceAccount = column[Option[String]]("notebookServiceAccount", O.Length(254))
@@ -483,7 +482,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         (
           updateAsyncClusterCreationFields.initBucket.map(_.toUri),
           updateAsyncClusterCreationFields.serviceAccountKey.map(_.id.value),
-          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.googleId.value),
+          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.googleId),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.operationName.value),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.stagingBucket.value),
           updateAsyncClusterCreationFields.dateAccessed
@@ -561,7 +560,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       id = 0, // DB AutoInc
       runtime.internalId.asString,
       runtime.runtimeName,
-      runtime.asyncRuntimeFields.map(_.googleId.value),
+      runtime.asyncRuntimeFields.map(_.googleId),
       runtime.googleProject,
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status.toString,
@@ -692,7 +691,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     )
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
-        AsyncRuntimeFields(GoogleId(googleId),
+        AsyncRuntimeFields(googleId,
                            OperationName(operationName),
                            GcsBucketName(stagingBucket),
                            clusterRecord.hostIp map IP)

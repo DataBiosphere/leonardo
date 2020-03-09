@@ -79,6 +79,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     )
     implicit val runtimeConfigIdMappedColumnType: BaseColumnType[RuntimeConfigId] =
       MappedColumnType.base[RuntimeConfigId, Long](_.id, RuntimeConfigId.apply)
+    implicit val googleIdMappedColumnType: BaseColumnType[GoogleId] =
+      MappedColumnType.base[GoogleId, String](_.value, GoogleId.apply)
 
   }
 }

@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
-import java.util.UUID
 
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
@@ -343,7 +342,7 @@ final case class IP(value: String) extends ValueObject
 final case class NetworkTag(value: String) extends ValueObject
 final case class OperationName(value: String) extends ValueObject
 final case class Operation(name: OperationName, id: GoogleId)
-final case class GoogleId(value: UUID) extends AnyVal
+final case class GoogleId(value: String) extends AnyVal
 
 sealed trait VPCConfig extends Product with Serializable {
   def value: String
