@@ -193,7 +193,7 @@ pipeline {
 
     stage('Pull Leonardo') {
         steps {
-            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'rt-add-algebra-2'  // TODO revert back to develop
+            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
 
             script {
                 configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
