@@ -16,6 +16,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           jupyterServerKey: String,
                                           rootCaPem: String,
                                           jupyterDockerCompose: String,
+                                          jupyterDockerComposeGcs: String,
                                           rstudioDockerCompose: String,
                                           proxyDockerCompose: String,
                                           welderDockerCompose: String,
@@ -156,6 +157,9 @@ object RuntimeTemplateValues {
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerCompose.asString)).toUri)
+        .getOrElse(""),
+      config.initBucketName
+        .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerComposeGce.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.rstudioDockerCompose.asString)).toUri)

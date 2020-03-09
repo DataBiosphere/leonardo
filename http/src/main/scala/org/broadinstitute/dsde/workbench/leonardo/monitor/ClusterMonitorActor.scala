@@ -516,7 +516,7 @@ class ClusterMonitorActor(
       )
 
       result <- googleStatus match {
-        case Unknown | Creating | Updating =>
+        case Unknown | Creating | Updating | Stopping | Starting =>
           IO.pure(NotReadyCluster(runtimeAndRuntimeConfig, googleStatus, dataprocInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
         case Running

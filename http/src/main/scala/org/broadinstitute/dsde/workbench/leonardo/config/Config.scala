@@ -117,18 +117,19 @@ object Config {
 
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
-      RuntimeResource(config.getString("initActionsScript")),
-      RuntimeResource(config.getString("gceInitScript")),
-      RuntimeResource(config.getString("startupScript")),
-      RuntimeResource(config.getString("shutdownScript")),
-      RuntimeResource(config.getString("jupyterDockerCompose")),
-      RuntimeResource(config.getString("rstudioDockerCompose")),
-      RuntimeResource(config.getString("proxyDockerCompose")),
-      RuntimeResource(config.getString("welderDockerCompose")),
-      RuntimeResource(config.getString("proxySiteConf")),
-      RuntimeResource(config.getString("jupyterNotebookConfigUri")),
-      RuntimeResource(config.getString("jupyterNotebookFrontendConfigUri")),
-      RuntimeResource(config.getString("customEnvVarsConfigUri"))
+      config.as[RuntimeResource]("initActionsScript"),
+      config.as[RuntimeResource]("gceInitScript"),
+      config.as[RuntimeResource]("startupScript"),
+      config.as[RuntimeResource]("shutdownScript"),
+      config.as[RuntimeResource]("jupyterDockerCompose"),
+      config.as[RuntimeResource]("jupyterDockerComposeGce"),
+      config.as[RuntimeResource]("rstudioDockerCompose"),
+      config.as[RuntimeResource]("proxyDockerCompose"),
+      config.as[RuntimeResource]("welderDockerCompose"),
+      config.as[RuntimeResource]("proxySiteConf"),
+      config.as[RuntimeResource]("jupyterNotebookConfigUri"),
+      config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),
+      config.as[RuntimeResource]("customEnvVarsConfigUri")
     )
   }
 
@@ -254,16 +255,7 @@ object Config {
       config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
     )
   }
-  implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
-  implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
-  implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
-  implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
-  implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
-  implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
-  implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
-  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
-    s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
-  )
+
   implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
     ValueReader.relative { config =>
       ServiceAccountProviderConfig(
@@ -284,6 +276,17 @@ object Config {
     )
   }
 
+  implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
+  implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
+  implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
+  implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
+  implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
+  implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
+  implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
+  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
+    s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
+  )
+  implicit val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
 
