@@ -553,10 +553,6 @@ class ClusterMonitorActor(
                                   dataprocInstances)
                 }
           }
-
-        // Take care we don't delete a Creating cluster if google hasn't updated their status yet
-        case Deleted if runtimeAndRuntimeConfig.runtime.status == Creating =>
-          IO.pure(NotReadyCluster(runtimeAndRuntimeConfig, RuntimeStatus.Creating, dataprocInstances))
         case Deleted =>
           IO.pure(DeletedCluster(runtimeAndRuntimeConfig))
         // if the cluster only contains stopped instances, it's a stopped cluster
