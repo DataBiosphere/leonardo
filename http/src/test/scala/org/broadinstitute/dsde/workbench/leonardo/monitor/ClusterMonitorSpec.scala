@@ -889,7 +889,7 @@ class ClusterMonitorSpec
                           RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
     } thenReturn Future.unit
 
-    val newClusterId = GoogleId(UUID.randomUUID())
+    val newClusterId = GoogleId(UUID.randomUUID().toString)
     when {
       gdDAO.createCluster(mockitoEq(creatingCluster.googleProject),
                           RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)),
@@ -1101,7 +1101,7 @@ class ClusterMonitorSpec
     val creatingCluster2 = creatingCluster.copy(
       runtimeName = RuntimeName(creatingCluster.runtimeName.asString + "_2"),
       asyncRuntimeFields = creatingCluster.asyncRuntimeFields.map(
-        _.copy(googleId = GoogleId(UUID.randomUUID()), hostIp = Some(IP("5.6.7.8")))
+        _.copy(googleId = GoogleId(UUID.randomUUID().toString), hostIp = Some(IP("5.6.7.8")))
       )
     )
     val savedCreatingCluster2 = creatingCluster2.save()

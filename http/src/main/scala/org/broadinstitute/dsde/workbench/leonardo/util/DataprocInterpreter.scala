@@ -88,7 +88,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
         // Set up VPC network and firewall
         vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
-        firewallRule <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)
+        _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)
 
         resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             params.runtimeConfig.machineType)

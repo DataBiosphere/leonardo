@@ -412,8 +412,8 @@ class HttpGoogleDataprocDAO(
     }
   }
 
-  private def getOperationUUID(dop: DataprocOperation): UUID =
-    UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
+  private def getOperationUUID(dop: DataprocOperation): String =
+    dop.getMetadata.get("clusterUuid").toString
 
   /**
    * Gets the master instance name from a dataproc cluster, with error handling.

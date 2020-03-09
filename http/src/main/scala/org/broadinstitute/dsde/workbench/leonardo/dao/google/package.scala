@@ -6,7 +6,10 @@ import java.time.Instant
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.cloud.compute.v1.Instance
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
-import org.broadinstitute.dsde.workbench.leonardo.IP
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.{IP, VPCConfig}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -51,4 +54,10 @@ package object google {
       accessConfigs <- Option(interface.getAccessConfigsList)
       accessConfig <- accessConfigs.asScala.headOption
     } yield IP(accessConfig.getNatIP)
+
+  def buildMachineTypeUri(zone: ZoneName, machineTypeName: MachineTypeName): String =
+    s"zones/${zone.value}/machineTypes/${machineTypeName.value}"
+
+  def buildNetworkUri(googleProject: GoogleProject, vpcConfig: VPCConfig): String =
+    s"projects/${googleProject.value}/global/networks/${vpcConfig.value}"
 }

@@ -8,6 +8,7 @@ import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.{NetworkTag, VPCConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -26,7 +27,8 @@ class VPCHelper[F[_]: Async: ContextShift: Logger](config: VPCHelperConfig,
     }
 
   // TODO
-  private def createVPCSubnet(googleProject: GoogleProject): F[VPCConfig] = Async[F].pure(VPCNetwork("default"))
+  private def createVPCSubnet(googleProject: GoogleProject): F[VPCConfig] =
+    Async[F].pure(VPCNetwork("default"))
 
   def getOrCreateVPCSettings(googleProject: GoogleProject): F[VPCConfig] =
     for {
@@ -47,7 +49,7 @@ class VPCHelper[F[_]: Async: ContextShift: Logger](config: VPCHelperConfig,
     Firewall
       .newBuilder()
       .setName(config.firewallRuleName.value)
-      .setNetwork(networkUri(googleProject, vpcConfig))
+      .setNetwork(buildNetworkUri(googleProject, vpcConfig))
       .addAllTargetTags(config.firewallRuleTargetTags.map(_.value).asJava)
       .addAllowed(
         Allowed
@@ -57,10 +59,6 @@ class VPCHelper[F[_]: Async: ContextShift: Logger](config: VPCHelperConfig,
           .build
       )
       .build
-
-  private def networkUri(googleProject: GoogleProject, vpcConfig: VPCConfig): String =
-    s"projects/${googleProject.value}/global/networks/${vpcConfig.value}"
-
 }
 
 final case class VPCHelperConfig(projectVPCNetworkLabelName: String,

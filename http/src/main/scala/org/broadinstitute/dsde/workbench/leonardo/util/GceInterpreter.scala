@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import cats.Parallel
 import cats.effect.{Async, Blocker, ContextShift}
@@ -18,6 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.proxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -59,7 +58,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     for {
       // Set up VPC network and firewall
       vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
-      firewallRule <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)
+      _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)
 
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
@@ -116,10 +115,18 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         .setName(params.runtimeProjectAndName.runtimeName.asString)
         .setDescription("Leonardo VM")
         .setTags(Tags.newBuilder().addItems(proxyConfig.networkTag).build())
-        .setMachineType(params.runtimeConfig.machineType.value)
+        .setMachineType(buildMachineTypeUri(config.gceConfig.zoneName, params.runtimeConfig.machineType))
         .addNetworkInterfaces(vpcSettings match {
-          case VPCNetwork(value) => NetworkInterface.newBuilder().setNetwork(value).build()
-          case VPCSubnet(value)  => NetworkInterface.newBuilder().setSubnetwork(value).build()
+          case v @ VPCNetwork(_) =>
+            NetworkInterface
+              .newBuilder()
+              .setNetwork(buildNetworkUri(params.runtimeProjectAndName.googleProject, v))
+              .build()
+          case v @ VPCSubnet(_) =>
+            NetworkInterface
+              .newBuilder()
+              .setSubnetwork(buildNetworkUri(params.runtimeProjectAndName.googleProject, v))
+              .build()
         })
         .addDisks(
           AttachedDisk.newBuilder
@@ -163,7 +170,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                                        instance)
 
       // TODO not sure if this id is a UUID
-      asyncRuntimeFields = AsyncRuntimeFields(GoogleId(UUID.fromString(operation.getId)),
+      asyncRuntimeFields = AsyncRuntimeFields(GoogleId(operation.getTargetId),
                                               OperationName(operation.getName),
                                               stagingBucketName,
                                               None)
