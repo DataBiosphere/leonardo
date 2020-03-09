@@ -112,7 +112,7 @@ retry 5 apt-get install -y -q \
 # Install google-fluent-d
 # https://cloud.google.com/logging/docs/agent/installation
 curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
-sudo bash install-logging-agent.sh
+bash install-logging-agent.sh
 
 log 'Adding Docker package sources...'
 
