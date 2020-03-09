@@ -122,6 +122,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       r <- Stream.emits(
         Seq(
           config.clusterResourcesConfig.jupyterDockerCompose,
+          config.clusterResourcesConfig.jupyterDockerComposeGce,
           config.clusterResourcesConfig.rstudioDockerCompose,
           config.clusterResourcesConfig.proxyDockerCompose,
           config.clusterResourcesConfig.proxySiteConf,
