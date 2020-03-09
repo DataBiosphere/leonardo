@@ -353,3 +353,19 @@ object VPCConfig {
 
   final val defaultNetwork = VPCNetwork("default")
 }
+
+sealed trait RuntimeOperation extends Product with Serializable {
+  def asString: String
+  final override def toString = asString
+}
+object RuntimeOperation {
+  final case object Creating extends RuntimeOperation {
+    val asString = "creating"
+  }
+  final case object Restarting extends RuntimeOperation {
+    val asString = "restarting"
+  }
+  final case object Stopping extends RuntimeOperation {
+    val asString = "stopping"
+  }
+}
