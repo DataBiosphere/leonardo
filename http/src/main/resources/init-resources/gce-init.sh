@@ -147,8 +147,8 @@ if [[ "$RUNTIME_OPERATION" == 'creating' ]]; then
 
     log 'Copying secrets from GCS...'
 
-    mkdir /work
-    mkdir /certs
+    mkdir -p /work
+    mkdir -p /certs
     chmod a+rwx /work
 
     # Add the certificates from the bucket to the VM. They are used by the docker-compose file
