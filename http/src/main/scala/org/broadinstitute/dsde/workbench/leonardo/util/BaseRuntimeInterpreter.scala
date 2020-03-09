@@ -18,7 +18,14 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeCannotBeStoppedException,
   RuntimeOutOfDateException
 }
-import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfig, RuntimeImage, RuntimeStatus, WelderAction}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  Runtime,
+  RuntimeConfig,
+  RuntimeImage,
+  RuntimeOperation,
+  RuntimeStatus,
+  WelderAction
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -173,7 +180,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.proxyConfig,
       config.clusterFilesConfig,
       config.clusterResourcesConfig,
-      None
+      None,
+      RuntimeOperation.Restarting
     )
     val clusterInit = RuntimeTemplateValues(templateConfig)
     val replacements: Map[String, String] = clusterInit.toMap ++
@@ -205,7 +213,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.proxyConfig,
       config.clusterFilesConfig,
       config.clusterResourcesConfig,
-      None
+      None,
+      RuntimeOperation.Stopping
     )
     val replacements = RuntimeTemplateValues(templateConfig).toMap
 

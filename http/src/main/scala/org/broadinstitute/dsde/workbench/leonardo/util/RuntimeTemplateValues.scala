@@ -40,7 +40,8 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           welderEnabled: String,
                                           notebooksDir: String,
                                           customEnvVarsConfigUri: String,
-                                          memLimit: String) {
+                                          memLimit: String,
+                                          runtimeOperation: String) {
 
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
@@ -63,7 +64,8 @@ case class RuntimeTemplateValuesConfig(runtimeProjectAndName: RuntimeProjectAndN
                                        proxyConfig: ProxyConfig,
                                        clusterFilesConfig: ClusterFilesConfig,
                                        clusterResourcesConfig: ClusterResourcesConfig,
-                                       clusterResourceConstraints: Option[RuntimeResourceConstraints])
+                                       clusterResourceConstraints: Option[RuntimeResourceConstraints],
+                                       runtimeOperation: RuntimeOperation)
 object RuntimeTemplateValuesConfig {
   def fromCreateRuntimeParams(
     params: CreateRuntimeParams,
@@ -94,7 +96,8 @@ object RuntimeTemplateValuesConfig {
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
-      clusterResourceConstraints
+      clusterResourceConstraints,
+      RuntimeOperation.Creating
     )
 
   def fromRuntime(runtime: Runtime,
@@ -105,7 +108,8 @@ object RuntimeTemplateValuesConfig {
                   proxyConfig: ProxyConfig,
                   clusterFilesConfig: ClusterFilesConfig,
                   clusterResourcesConfig: ClusterResourcesConfig,
-                  clusterResourceConstraints: Option[RuntimeResourceConstraints]): RuntimeTemplateValuesConfig =
+                  clusterResourceConstraints: Option[RuntimeResourceConstraints],
+                  runtimeOperation: RuntimeOperation): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
       runtime.asyncRuntimeFields.map(_.stagingBucket),
@@ -123,7 +127,8 @@ object RuntimeTemplateValuesConfig {
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
-      clusterResourceConstraints
+      clusterResourceConstraints,
+      runtimeOperation
     )
 }
 
@@ -196,6 +201,7 @@ object RuntimeTemplateValues {
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
         .getOrElse(""),
-      config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse("")
+      config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse(""),
+      config.runtimeOperation.asString
     )
 }

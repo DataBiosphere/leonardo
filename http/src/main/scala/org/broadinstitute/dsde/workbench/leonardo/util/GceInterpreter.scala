@@ -83,18 +83,11 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         .compile
         .drain
 
-      templateParams = RuntimeTemplateValuesConfig(
-        params.runtimeProjectAndName,
-        Some(stagingBucketName),
-        params.runtimeImages,
+      templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
+        params,
         Some(initBucketName),
-        params.jupyterUserScriptUri,
-        params.jupyterStartUserScriptUri,
+        Some(stagingBucketName),
         None,
-        params.userJupyterExtensionConfig,
-        params.defaultClientId,
-        params.welderEnabled,
-        params.auditInfo,
         config.imageConfig,
         config.welderConfig,
         config.proxyConfig,
@@ -116,18 +109,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         .setDescription("Leonardo VM")
         .setTags(Tags.newBuilder().addItems(proxyConfig.networkTag).build())
         .setMachineType(buildMachineTypeUri(config.gceConfig.zoneName, params.runtimeConfig.machineType))
-        .addNetworkInterfaces(vpcSettings match {
-          case v @ VPCNetwork(_) =>
-            NetworkInterface
-              .newBuilder()
-              .setNetwork(buildNetworkUri(params.runtimeProjectAndName.googleProject, v))
-              .build()
-          case v @ VPCSubnet(_) =>
-            NetworkInterface
-              .newBuilder()
-              .setSubnetwork(buildNetworkUri(params.runtimeProjectAndName.googleProject, v))
-              .build()
-        })
+        .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, vpcSettings))
         .addDisks(
           AttachedDisk.newBuilder
           //.setDeviceName()   // this may become important when we support attaching PDs
@@ -246,4 +228,15 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
       result = MemorySize(total.bytes - gceAllocated - welderAllocated)
     } yield RuntimeResourceConstraints(result)
+
+  private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
+                                     vpcConfig: VPCConfig): NetworkInterface = {
+    val bldr = vpcConfig match {
+      case v @ VPCNetwork(_) =>
+        NetworkInterface.newBuilder().setNetwork(buildNetworkUri(runtimeProjectAndName.googleProject, v))
+      case v @ VPCSubnet(_) =>
+        NetworkInterface.newBuilder().setSubnetwork(buildNetworkUri(runtimeProjectAndName.googleProject, v))
+    }
+    bldr.addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build).build
+  }
 }
