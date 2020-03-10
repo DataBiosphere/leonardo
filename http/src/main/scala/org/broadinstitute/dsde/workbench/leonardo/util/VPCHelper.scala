@@ -14,17 +14,15 @@ import scala.collection.JavaConverters._
 
 class VPCHelper(config: VPCHelperConfig,
                 googleProjectDAO: GoogleProjectDAO,
-                googleComputeService: GoogleComputeService[IO])(implicit contextShift: ContextShift[IO]
-                                                                //  log: Logger[IO]
-) {
+                googleComputeService: GoogleComputeService[IO])(implicit contextShift: ContextShift[IO]) {
 
   private def getVPCSettingsFromProjectLabel(googleProject: GoogleProject): IO[Option[VPCConfig]] =
     IO.fromFuture(IO(googleProjectDAO.getLabels(googleProject.value))).map { labelMap =>
-      labelMap.get(config.projectVPCNetworkLabelName).map(VPCNetwork) orElse
-        labelMap.get(config.projectVPCSubnetLabelName).map(VPCSubnet)
+      labelMap.get(config.projectVPCSubnetLabelName).map(VPCNetwork) orElse
+        labelMap.get(config.projectVPCNetworkLabelName).map(VPCSubnet)
     }
 
-  // TODO
+  // TODO we should move toward creating our own dedicated subnet instead of using the default
   private def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = IO(VPCNetwork("default"))
 
   def getOrCreateVPCSettings(googleProject: GoogleProject): IO[VPCConfig] =
