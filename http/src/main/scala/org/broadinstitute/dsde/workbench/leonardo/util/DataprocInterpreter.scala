@@ -83,9 +83,6 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     generateServiceAccountKey(params.runtimeProjectAndName.googleProject,
                               params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
       val ioResult = for {
-        traceId <- ev.ask
-        evIO = ApplicativeAsk.const[IO, TraceId](traceId)
-
         // Set up VPC network and firewall
         vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
         _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)

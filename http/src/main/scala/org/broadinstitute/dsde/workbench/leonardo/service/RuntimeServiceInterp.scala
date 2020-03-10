@@ -16,7 +16,7 @@ import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, SaveCluster}
@@ -163,12 +163,14 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       // Figure out the welder image. Rules:
       // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
       // - If welder is not enabled, we won't use any image.
-      welderImageOpt = RuntimeImage(
+      welderImage = RuntimeImage(
         Welder,
         welderDockerImage.map(_.imageUrl).getOrElse(config.imageConfig.welderImage.imageUrl),
         now
       )
-    } yield Set(toolImage, welderImageOpt)
+      // Get the proxy image
+      proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
+    } yield Set(toolImage, welderImage, proxyImage)
 
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,

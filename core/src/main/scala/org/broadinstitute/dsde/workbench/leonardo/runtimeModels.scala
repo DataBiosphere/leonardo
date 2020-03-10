@@ -84,15 +84,17 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   case object Stopping extends RuntimeStatus
   case object Stopped extends RuntimeStatus
   case object Starting extends RuntimeStatus
+  case object Staging extends RuntimeStatus
 
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
-  val activeStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
+  val activeStatuses: Set[RuntimeStatus] =
+    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting, Staging)
 
   // Can a user delete this runtime? Contains everything except Creating, Deleting, Deleted.
   val deletableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting)
 
   // Non-terminal statuses. Requires monitoring via ClusterMonitorActor.
-  val monitoredStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)
+  val monitoredStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting, Staging)
 
   // Can a user stop this runtime?
   val stoppableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Starting)

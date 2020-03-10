@@ -200,7 +200,11 @@ END
 </source>
 END
 
-    service google-fluentd reload
+    # restarting instead of `service google-fluentd-reload` because of bug:
+    # https://github.com/GoogleCloudPlatform/google-fluentd/issues/232
+    service google-fluentd restart
+
+    echo "" > /etc/google_application_credentials.env
     
     # Install env var config
     if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
