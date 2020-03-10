@@ -106,7 +106,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -162,7 +163,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -211,7 +213,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
