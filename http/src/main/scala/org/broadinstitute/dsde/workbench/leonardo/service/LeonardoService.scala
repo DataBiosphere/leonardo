@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
@@ -246,7 +245,7 @@ class LeonardoService(
         .asInstanceOf[Option[RuntimeConfigRequest.DataprocConfig]]
         .map(_.toRuntimeConfigDataprocConfig(dataprocConfig.runtimeConfigDefaults))
         .getOrElse(dataprocConfig.runtimeConfigDefaults)
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      now <- nowInstant
       autopauseThreshold = calculateAutopauseThreshold(request.autopause, request.autopauseThreshold, autoFreezeConfig)
       clusterScopes = if (request.scopes.isEmpty) dataprocConfig.defaultScopes else request.scopes
       initialClusterToSave = CreateRuntimeRequest.toRuntime(
@@ -354,7 +353,7 @@ class LeonardoService(
                     ) //TODO: use better exception
                   case x: RuntimeConfigRequest.DataprocConfig =>
                     for {
-                      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+                      now <- nowInstant
                       clusterResized <- maybeResizeCluster(existingCluster,
                                                            existingRuntimeConfig,
                                                            x.numberOfWorkers,
@@ -389,7 +388,7 @@ class LeonardoService(
         }
 
         // Set the cluster status to Updating if the cluster was resized
-        now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+        now <- nowInstant
         _ <- if (shouldUpdate) {
           clusterQuery.updateClusterStatus(existingCluster.id, RuntimeStatus.Updating, now).transaction.void
         } else IO.unit
@@ -462,7 +461,7 @@ class LeonardoService(
       case Some(updatedAutopauseThreshold) =>
         for {
           _ <- log.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
-          now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+          now <- nowInstant
           res <- clusterQuery
             .updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
             .transaction
@@ -502,7 +501,7 @@ class LeonardoService(
             )
 
             // Update the DB
-            now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+            now <- nowInstant
             _ <- dbRef.inTransaction {
               updatedNumWorkersAndPreemptibles.fold(
                 a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
@@ -637,7 +636,7 @@ class LeonardoService(
         _ <- CloudService.Dataproc.interpreter.deleteRuntime(DeleteRuntimeParams(cluster))
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
-        now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+        now <- nowInstant
         _ <- if (hasDataprocInfo) clusterQuery.markPendingDeletion(cluster.id, now).transaction
         else clusterQuery.completeDeletion(cluster.id, now).transaction
         _ <- if (hasDataprocInfo)
@@ -669,7 +668,7 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      now <- nowInstant
       _ <- CloudService.Dataproc.interpreter
         .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
     } yield ()
@@ -688,7 +687,7 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      now <- nowInstant
       _ <- CloudService.Dataproc.interpreter.startRuntime(StartRuntimeParams(cluster, now))
     } yield ()
 
@@ -776,7 +775,7 @@ class LeonardoService(
     clusterRequest: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[RuntimeImage]] =
     for {
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      now <- nowInstant
       traceId <- ev.ask
       // Try to autodetect the image
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>

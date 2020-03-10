@@ -1,12 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.nio.file.Path
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 
-import cats.effect.{Blocker, ContextShift, Sync}
+import cats.{Applicative, Functor}
+import cats.effect.{Blocker, ContextShift, Sync, Timer}
+import cats.implicits._
+import cats.mtl.ApplicativeAsk
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeServiceContext
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
-import org.broadinstitute.dsde.workbench.model.ErrorReportSource
+import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import slick.dbio.DBIO
 
 package object http {
@@ -23,4 +29,16 @@ package object http {
       .map(_.reverse.mkString("\n"))
       .compile
       .lastOrError
+
+  implicit def ctxConversion[F[_]: Applicative](
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): ApplicativeAsk[F, TraceId] =
+    new ApplicativeAsk[F, TraceId] {
+      override val applicative: Applicative[F] = Applicative[F]
+      override def ask: F[TraceId] = as.ask.map(_.traceId)
+      override def reader[A](f: TraceId => A): F[A] = ask.map(f)
+    }
+
+  def nowInstant[F[_]: Timer: Functor]: F[Instant] =
+    Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
 }

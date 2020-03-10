@@ -40,6 +40,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         handleRuntimeTransitionFinished(msg, now)
       case msg: CreateRuntimeMessage =>
         handleCreateRuntimeMessage(msg, now)
+      case msg: DeleteRuntimeMessage =>
+        handleDeleteRuntimeMessage(msg, now)
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
@@ -205,6 +207,23 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         } yield ()
     }
   }
+
+  private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+      runtime <- runtimeOpt.fold(
+        Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      )(Async[F].pure)
+      _ <- if (runtime.status.isDeletable) Async[F].unit
+      else
+        Async[F].raiseError[Unit](
+          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+        )
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig.cloudService.interpreter.deleteRuntime(DeleteRuntimeParams(runtime))
+    } yield ()
 }
 
 sealed trait PubsubHandleMessageError extends NoStackTrace {

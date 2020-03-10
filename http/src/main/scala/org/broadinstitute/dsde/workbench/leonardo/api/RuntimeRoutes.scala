@@ -4,7 +4,6 @@ package api
 
 import _root_.java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
@@ -20,34 +19,76 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import RuntimeRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import LeoRoutesJsonCodec.dataprocConfigDecoder
+import LeoRoutesSprayJsonCodec._
 import JsonCodec._
 import scala.concurrent.duration._
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 
 class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit timer: Timer[IO]
 ) {
   val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
     implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-    // https://doc.akka.io//docs/akka-http/current/routing-dsl/path-matchers.html?language=scala#examples
-    pathPrefix("google" / "v1" / "runtime") {
-      pathPrefix(googleProjectSegment / Segment) { (googleProject, runtimeNameString) =>
-        validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
-          pathEndOrSingleSlash {
-            post {
-              entity(as[CreateRuntime2Request]) { req =>
-                complete(
-                  createRuntimeHandler(
-                    userInfo,
-                    googleProject,
-                    runtimeName,
-                    req
+    pathPrefix("google" / "v1") {
+      path("runtime") {
+        pathPrefix(googleProjectSegment / Segment) { (googleProject, runtimeNameString) =>
+          validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
+            pathEndOrSingleSlash {
+              post {
+                entity(as[CreateRuntime2Request]) { req =>
+                  complete(
+                    createRuntimeHandler(
+                      userInfo,
+                      googleProject,
+                      runtimeName,
+                      req
+                    )
                   )
-                )
-              }
+                }
+              } ~
+                get {
+                  complete(
+                    getRuntimeHandler(
+                      userInfo,
+                      googleProject,
+                      runtimeName
+                    )
+                  )
+                } ~
+                patch {
+                  ???
+                } ~
+                delete {
+                  ???
+                } ~
+                path("stop") {
+                  post {
+                    ???
+                  }
+                } ~
+                path("start") {
+                  post {
+                    ???
+                  }
+                }
             }
           }
         }
-      }
+      } ~
+        path("runtimes") {
+          parameterMap { params =>
+            path(Segment) { googleProject =>
+              get {
+                ???
+              }
+            } ~
+              pathEndOrSingleSlash {
+                get {
+                  ???
+                }
+              }
+          }
+        }
     }
   }
 
@@ -57,13 +98,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         req: CreateRuntime2Request): IO[ToResponseMarshallable] =
     for {
       traceId <- IO(UUID.randomUUID())
-      implicit0(context: ApplicativeAsk[IO, RuntimeServiceContext]) <- timer.clock
-        .realTime(TimeUnit.MILLISECONDS)
-        .map(
-          n =>
-            ApplicativeAsk
-              .const[IO, RuntimeServiceContext](RuntimeServiceContext(TraceId(traceId), Instant.ofEpochMilli(n)))
-        )
+      now <- nowInstant
+      implicit0(context: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        RuntimeServiceContext(TraceId(traceId), now)
+      )
       _ <- runtimeService.createRuntime(
         userInfo,
         googleProject,
@@ -71,6 +109,18 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
         req
       )
     } yield StatusCodes.Accepted
+
+  private[api] def getRuntimeHandler(userInfo: UserInfo,
+                                     googleProject: GoogleProject,
+                                     runtimeName: RuntimeName): IO[ToResponseMarshallable] =
+    for {
+      traceId <- IO(UUID.randomUUID())
+      now <- nowInstant
+      implicit0(context: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        RuntimeServiceContext(TraceId(traceId), now)
+      )
+      resp <- runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+    } yield StatusCodes.OK -> resp
 }
 
 object RuntimeRoutes {

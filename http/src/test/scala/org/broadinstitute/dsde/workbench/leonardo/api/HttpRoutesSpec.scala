@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   RuntimeServiceContext,
   TestLeoRoutes
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeService}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
@@ -43,6 +43,14 @@ class HttpRoutesSpec
           runtimeName: RuntimeName,
           req: CreateRuntime2Request
         )(implicit as: ApplicativeAsk[IO, RuntimeServiceContext]): IO[Unit] = IO.unit
+
+        override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
+        ): IO[GetRuntimeResponse] = ???
+
+        override def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
+        ): IO[Unit] = IO.unit
       },
       userInfoDirectives,
       contentSecurityPolicy

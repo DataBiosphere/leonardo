@@ -56,7 +56,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
 
   implicit val ctx: ApplicativeAsk[IO, RuntimeServiceContext] = ApplicativeAsk.const[IO, RuntimeServiceContext](
     RuntimeServiceContext(model.TraceId("traceId"), Instant.now())
-  ) //TODO: why traceId.map(tid => RuntimeServiceAPIContext(tid, Instant.now)) doesn't work
+  )
 
   "RuntimeService" should "fail with AuthorizationError if user doesn't have project level permission" in {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)

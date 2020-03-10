@@ -6,11 +6,11 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
-import cats.Parallel
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import cats.Parallel
 import com.google.auth.oauth2.AccessToken
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
@@ -19,13 +19,13 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, SaveCluster}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, LeonardoServiceDbQueries, SaveCluster}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, RuntimeServiceContext}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, DeleteRuntimeMessage}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 
@@ -47,13 +47,14 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
   ec: ExecutionContext
 ) extends RuntimeService[F] {
 
-  def createRuntime(userInfo: UserInfo,
-                    googleProject: GoogleProject,
-                    runtimeName: RuntimeName,
-                    req: CreateRuntime2Request)(implicit as: ApplicativeAsk[F, RuntimeServiceContext]): F[Unit] =
+  override def createRuntime(
+    userInfo: UserInfo,
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName,
+    req: CreateRuntime2Request
+  )(implicit as: ApplicativeAsk[F, RuntimeServiceContext]): F[Unit] =
     for {
       context <- as.ask
-      implicit0(traceId: ApplicativeAsk[F, TraceId]) <- F.pure(ApplicativeAsk.const[F, TraceId](context.traceId)) //TODO: is there a better way to do this?
       hasPermission <- authProvider.hasProjectPermission(userInfo, ProjectActions.CreateClusters, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // Grab the service accounts from serviceAccountProvider for use later
@@ -113,7 +114,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
               .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
               .handleErrorWith { t =>
                 log.error(t)(
-                  s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${runtime.projectNameString}"
+                  s"[${context.traceId}] Failed to notify the AuthProvider for creation of cluster ${runtime.projectNameString}"
                 ) >> F.raiseError(t)
               }
 
@@ -136,6 +137,61 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
             runtime <- clusterQuery.save(saveCluster).transaction
             _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(runtime, runtimeCofig, Some(context.traceId)))
           } yield ()
+      }
+    } yield ()
+
+  override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[GetRuntimeResponse] =
+    for {
+      // throws 404 if not existent
+      resp <- LeonardoServiceDbQueries.getGetClusterResponse(googleProject, runtimeName).transaction
+      // throw 404 if no GetClusterStatus permission
+      hasPermission <- authProvider.hasNotebookClusterPermission(resp.internalId,
+                                                                 userInfo,
+                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 googleProject,
+                                                                 runtimeName)
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+    } yield resp
+
+  def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[Unit] =
+    for {
+      // throw 404 if not existent
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
+      // throw 404 if no GetClusterStatus permission
+      hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                 userInfo,
+                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 googleProject,
+                                                                 runtimeName)
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      // throw 403 if no DeleteCluster permission
+      hasDeletePermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                       userInfo,
+                                                                       NotebookClusterActions.DeleteCluster,
+                                                                       googleProject,
+                                                                       runtimeName)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      // throw 409 if the cluster is not deletable
+      _ <- if (runtime.status.isDeletable) F.unit
+      else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
+      ctx <- as.ask
+      _ <- if (runtime.asyncRuntimeFields.isDefined) {
+        clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction.void >> publisherQueue.enqueue1(
+          DeleteRuntimeMessage(runtime.id, Some(ctx.traceId))
+        )
+      } else {
+        clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyClusterDeleted(
+          runtime.internalId,
+          runtime.auditInfo.creator,
+          runtime.auditInfo.creator,
+          runtime.googleProject,
+          runtime.runtimeName
+        )
       }
     } yield ()
 
