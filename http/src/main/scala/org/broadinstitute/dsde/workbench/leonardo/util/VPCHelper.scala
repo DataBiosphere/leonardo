@@ -18,8 +18,8 @@ class VPCHelper(config: VPCHelperConfig,
 
   private def getVPCSettingsFromProjectLabel(googleProject: GoogleProject): IO[Option[VPCConfig]] =
     IO.fromFuture(IO(googleProjectDAO.getLabels(googleProject.value))).map { labelMap =>
-      labelMap.get(config.projectVPCSubnetLabelName).map(VPCNetwork) orElse
-        labelMap.get(config.projectVPCNetworkLabelName).map(VPCSubnet)
+      labelMap.get(config.projectVPCSubnetLabelName).map(VPCSubnet) orElse
+        labelMap.get(config.projectVPCNetworkLabelName).map(VPCNetwork)
     }
 
   // TODO we should move toward creating our own dedicated subnet instead of using the default
