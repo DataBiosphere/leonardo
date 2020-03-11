@@ -90,17 +90,12 @@ object JsonCodec {
       case x: RuntimeConfig.GceConfig      => x.asJson
     }
   )
-  implicit val serviceAccountInfoEncoder: Encoder[ServiceAccountInfo] = Encoder.forProduct2(
-    "clusterServiceAccount",
-    "notebookServiceAccount"
-  )(x => ServiceAccountInfo.unapply(x).get)
   implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
-  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct8(
+  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct7(
     "clusterName",
     "googleProject",
     "creator",
     "clusterServiceAccount",
-    "notebookServiceAccount",
     "notebookUserScript",
     "notebookStartUserScript",
     "tool"
@@ -191,10 +186,6 @@ object JsonCodec {
       }
     } yield r
   }
-  implicit val serviceAccountInfoDecoder: Decoder[ServiceAccountInfo] = Decoder.forProduct2(
-    "clusterServiceAccount",
-    "notebookServiceAccount"
-  )(ServiceAccountInfo.apply)
 
   implicit val runtimeErrorDecoder: Decoder[RuntimeError] = Decoder.forProduct3(
     "errorMessage",

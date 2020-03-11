@@ -32,7 +32,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
     extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
@@ -78,132 +77,124 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     val initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
     val stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
 
-    // Generate a service account key for the notebook service account (if present) to localize on the cluster.
-    // We don't need to do this for the cluster service account because its credentials are already
-    // on the metadata server.
-    generateServiceAccountKey(params.runtimeProjectAndName.googleProject,
-                              params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
-      val ioResult = for {
-        ctx <- ev.ask
-        // Set up VPC network and firewall
-        (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-          SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
-        )
-        _ <- vpcAlg.setUpProjectFirewalls(
-          SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
-        )
+    val ioResult = for {
+      ctx <- ev.ask
+      // Set up VPC network and firewall
+      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
+      )
+      _ <- vpcAlg.setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+      )
 
-        resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
-                                                            params.runtimeConfig.machineType)
+      resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
+                                                          params.runtimeConfig.machineType)
 
-        // Set up IAM roles necessary to create a cluster.
-        _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
+      // Set up IAM roles necessary to create a cluster.
+      _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
 
-        // Add member to the Google Group that has the IAM role to pull the Dataproc image
-        _ <- updateDataprocImageGroupMembership(params.runtimeProjectAndName.googleProject, createCluster = true)
+      // Add member to the Google Group that has the IAM role to pull the Dataproc image
+      _ <- updateDataprocImageGroupMembership(params.runtimeProjectAndName.googleProject, createCluster = true)
 
-        // Create the bucket in the cluster's google project and populate with initialization files.
-        // ACLs are granted so the cluster service account can access the files at initialization time.
-        _ <- bucketHelper
-          .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
-          .compile
-          .drain
+      // Create the bucket in the cluster's google project and populate with initialization files.
+      // ACLs are granted so the cluster service account can access the files at initialization time.
+      _ <- bucketHelper
+        .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
+        .compile
+        .drain
 
-        // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-        _ <- bucketHelper
-          .createStagingBucket(params.auditInfo.creator,
-                               params.runtimeProjectAndName.googleProject,
-                               stagingBucketName,
-                               params.serviceAccountInfo)
-          .compile
-          .drain
+      // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
+      _ <- bucketHelper
+        .createStagingBucket(params.auditInfo.creator,
+                             params.runtimeProjectAndName.googleProject,
+                             stagingBucketName,
+                             params.serviceAccountInfo)
+        .compile
+        .drain
 
-        templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
-          params,
-          Some(initBucketName),
-          Some(stagingBucketName),
-          serviceAccountKeyOpt,
-          config.imageConfig,
-          config.welderConfig,
-          config.proxyConfig,
-          config.clusterFilesConfig,
-          config.clusterResourcesConfig,
-          Some(resourceConstraints)
-        )
-        templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
-        _ <- bucketHelper
-          .initializeBucketObjects(initBucketName,
-                                   templateParams.serviceAccountKey,
-                                   templateValues,
-                                   params.customEnvironmentVariables)
-          .compile
-          .drain
+      templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
+        params,
+        Some(initBucketName),
+        Some(stagingBucketName),
+        None,
+        config.imageConfig,
+        config.welderConfig,
+        config.proxyConfig,
+        config.clusterFilesConfig,
+        config.clusterResourcesConfig,
+        Some(resourceConstraints)
+      )
+      templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
+      _ <- bucketHelper
+        .initializeBucketObjects(initBucketName,
+                                 templateParams.serviceAccountKey,
+                                 templateValues,
+                                 params.customEnvironmentVariables)
+        .compile
+        .drain
 
-        // build cluster configuration
-        initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
-        initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
-        credentialsFileName = params.serviceAccountInfo.notebookServiceAccount
-          .map(_ => s"/etc/${RuntimeTemplateValues.serviceAccountCredentialsFilename}")
+      // build cluster configuration
+      initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
+      initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
+      credentialsFileName = s"/etc/${RuntimeTemplateValues.serviceAccountCredentialsFilename}"
 
-        // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
-        // we will use the new custom dataproc image
-        dataprocImage = if (params.runtimeImages.exists(_.imageUrl == config.imageConfig.legacyJupyterImage.imageUrl))
-          config.dataprocConfig.legacyCustomDataprocImage
-        else config.dataprocConfig.customDataprocImage
+      // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
+      // we will use the new custom dataproc image
+      dataprocImage = if (params.runtimeImages.exists(_.imageUrl == config.imageConfig.legacyJupyterImage.imageUrl))
+        config.dataprocConfig.legacyCustomDataprocImage
+      else config.dataprocConfig.customDataprocImage
 
-        res <- params.runtimeConfig match {
-          case _: RuntimeConfig.GceConfig => Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
-          case x: RuntimeConfig.DataprocConfig =>
-            val createClusterConfig = CreateClusterConfig(
-              x,
-              initScripts,
-              params.serviceAccountInfo.clusterServiceAccount,
-              credentialsFileName,
-              stagingBucketName,
-              params.scopes,
-              subnetwork,
-              dataprocImage,
-              config.monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
-            )
-            for { // Create the cluster
-              retryResult <- Async[F].liftIO(
-                IO.fromFuture(
-                  IO(
-                    retryExponentially(whenGoogleZoneCapacityIssue,
-                                       "Cluster creation failed because zone with adequate resources was not found") {
-                      () =>
-                        gdDAO.createCluster(params.runtimeProjectAndName.googleProject,
-                                            params.runtimeProjectAndName.runtimeName,
-                                            createClusterConfig)
-                    }
-                  )
+      res <- params.runtimeConfig match {
+        case _: RuntimeConfig.GceConfig => Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
+        case x: RuntimeConfig.DataprocConfig =>
+          val createClusterConfig = CreateClusterConfig(
+            x,
+            initScripts,
+            params.serviceAccountInfo,
+            credentialsFileName,
+            stagingBucketName,
+            params.scopes,
+            subnetwork,
+            dataprocImage,
+            config.monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
+          )
+          for { // Create the cluster
+            retryResult <- Async[F].liftIO(
+              IO.fromFuture(
+                IO(
+                  retryExponentially(whenGoogleZoneCapacityIssue,
+                                     "Cluster creation failed because zone with adequate resources was not found") {
+                    () =>
+                      gdDAO.createCluster(params.runtimeProjectAndName.googleProject,
+                                          params.runtimeProjectAndName.runtimeName,
+                                          createClusterConfig)
+                  }
                 )
               )
-              operation <- retryResult match {
-                case Right((errors, op)) if errors == List.empty => Async[F].pure(op)
-                case Right((errors, op)) =>
-                  metrics
-                    .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
-                    .as(op)
-                case Left(errors) =>
-                  metrics
-                    .incrementCounter("zoneCapacityClusterCreationFailure",
-                                      errors.filter(whenGoogleZoneCapacityIssue).length)
-                    .flatMap(_ => Async[F].raiseError[GoogleOperation](errors.head))
-              }
+            )
+            operation <- retryResult match {
+              case Right((errors, op)) if errors == List.empty => Async[F].pure(op)
+              case Right((errors, op)) =>
+                metrics
+                  .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
+                  .as(op)
+              case Left(errors) =>
+                metrics
+                  .incrementCounter("zoneCapacityClusterCreationFailure",
+                                    errors.filter(whenGoogleZoneCapacityIssue).length)
+                  .flatMap(_ => Async[F].raiseError[GoogleOperation](errors.head))
+            }
 
-              asyncRuntimeFields = AsyncRuntimeFields(operation.id, operation.name, stagingBucketName, None)
-            } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, serviceAccountKeyOpt, dataprocImage)
-        }
-      } yield res
-
-      ioResult.handleErrorWith { throwable =>
-        cleanUpGoogleResourcesOnError(params.runtimeProjectAndName.googleProject,
-                                      params.runtimeProjectAndName.runtimeName,
-                                      initBucketName,
-                                      params.serviceAccountInfo,
-                                      serviceAccountKeyOpt) >> Async[F].raiseError(throwable)
+            asyncRuntimeFields = AsyncRuntimeFields(operation.id, operation.name, stagingBucketName, None)
+          } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
       }
+    } yield res
+
+    ioResult.handleErrorWith { throwable =>
+      cleanUpGoogleResourcesOnError(params.runtimeProjectAndName.googleProject,
+                                    params.runtimeProjectAndName.runtimeName,
+                                    initBucketName,
+                                    params.serviceAccountInfo) >> Async[F].raiseError(throwable)
     }
   }
 
@@ -223,15 +214,6 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       keyIdOpt <- dbRef.inTransaction {
         clusterQuery.getServiceAccountKeyId(params.runtime.googleProject, params.runtime.runtimeName)
       }
-      _ <- removeServiceAccountKey(params.runtime.googleProject,
-                                   params.runtime.serviceAccountInfo.notebookServiceAccount,
-                                   keyIdOpt)
-        .recoverWith {
-          case NonFatal(e) =>
-            Logger[F].error(e)(
-              s"Error occurred removing service account key for ${params.runtime.googleProject} / ${params.runtime.runtimeName}"
-            )
-        }
       hasDataprocInfo = params.runtime.asyncRuntimeFields.isDefined
       _ <- if (hasDataprocInfo)
         Async[F].liftIO(
@@ -383,25 +365,15 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       }
     }
 
-  def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): F[Unit] =
+  def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: WorkbenchEmail): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = true)
 
-  def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): F[Unit] =
+  def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: WorkbenchEmail): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = false)
 
   def generateServiceAccountKey(googleProject: GoogleProject,
-                                serviceAccountEmailOpt: Option[WorkbenchEmail]): F[Option[ServiceAccountKey]] =
-    serviceAccountEmailOpt.traverse { email =>
-      Async[F].liftIO(IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, email))))
-    }
-
-  def removeServiceAccountKey(googleProject: GoogleProject,
-                              serviceAccountEmailOpt: Option[WorkbenchEmail],
-                              serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): F[Unit] =
-    (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN {
-      case (email, keyId) =>
-        Async[F].liftIO(IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId))))
-    } getOrElse Async[F].unit
+                                serviceAccountEmail: WorkbenchEmail): F[ServiceAccountKey] =
+    Async[F].liftIO(IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, serviceAccountEmail))))
 
   def setupDataprocImageGoogleGroup(): F[Unit] =
     createDataprocImageUserGoogleGroupIfItDoesntExist() >>
@@ -446,8 +418,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     googleProject: GoogleProject,
     clusterName: RuntimeName,
     initBucketName: GcsBucketName,
-    serviceAccountInfo: ServiceAccountInfo,
-    serviceAccountKeyOpt: Option[ServiceAccountKey]
+    serviceAccountInfo: WorkbenchEmail
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
     // Clean up resources in Google
     val deleteBucket = bucketHelper.deleteInitBucket(googleProject, initBucketName).attempt.flatMap {
@@ -469,22 +440,13 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         case _       => Logger[F].info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.asString}")
       }
 
-    val deleteServiceAccountKey = removeServiceAccountKey(googleProject,
-                                                          serviceAccountInfo.notebookServiceAccount,
-                                                          serviceAccountKeyOpt.map(_.id)).attempt.flatMap {
-      case Left(e) =>
-        Logger[F].error(e)(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}")
-      case _ =>
-        Logger[F].info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
-    }
-
     val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).attempt.flatMap {
       case Left(e) =>
         Logger[F].error(e)(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.asString}")
       case _ => Logger[F].info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.asString}")
     }
 
-    List(deleteBucket, deleteCluster, deleteServiceAccountKey, removeIamRoles).parSequence_
+    List(deleteBucket, deleteCluster, removeIamRoles).parSequence_
   }
 
   private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
@@ -531,7 +493,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
    * If the Google Compute default service account is being used, this is not necessary.
    */
   private def updateClusterIamRoles(googleProject: GoogleProject,
-                                    serviceAccountInfo: ServiceAccountInfo,
+                                    serviceAccountInfo: WorkbenchEmail,
                                     createCluster: Boolean): F[Unit] = {
     val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => F[Unit] = (project, email, roles) =>
       Async[F].liftIO(
@@ -545,16 +507,14 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         }))
       )
 
-    serviceAccountInfo.clusterServiceAccount.traverse_ { email =>
-      // Note: don't remove the role if there are existing active clusters owned by the same user,
-      // because it could potentially break other clusters. We only check this for the 'remove' case,
-      // it's ok to re-add the roles.
-      dbRef.inTransaction(clusterQuery.countActiveByClusterServiceAccount(email)).flatMap { count =>
-        if (count > 0 && !createCluster) {
-          Async[F].unit
-        } else {
-          retryIam(googleProject, email, Set("roles/dataproc.worker"))
-        }
+    // Note: don't remove the role if there are existing active clusters owned by the same user,
+    // because it could potentially break other clusters. We only check this for the 'remove' case,
+    // it's ok to re-add the roles.
+    dbRef.inTransaction(clusterQuery.countActiveByClusterServiceAccount(serviceAccountInfo)).flatMap { count =>
+      if (count > 0 && !createCluster) {
+        Async[F].unit
+      } else {
+        retryIam(googleProject, serviceAccountInfo, Set("roles/dataproc.worker"))
       }
     }
   }

@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   WelderConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, ServiceAccountKey}
 import com.google.cloud.compute.v1.Operation
 
@@ -41,7 +41,7 @@ trait RuntimeAlgebra[F[_]] {
 // Parameters
 final case class CreateRuntimeParams(id: Long,
                                      runtimeProjectAndName: RuntimeProjectAndName,
-                                     serviceAccountInfo: ServiceAccountInfo,
+                                     serviceAccountInfo: WorkbenchEmail,
                                      asyncRuntimeFields: Option[AsyncRuntimeFields],
                                      auditInfo: AuditInfo,
                                      jupyterExtensionUri: Option[GcsPath],

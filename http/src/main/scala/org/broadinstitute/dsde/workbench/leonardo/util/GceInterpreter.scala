@@ -6,7 +6,7 @@ import cats.Parallel
 import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.cloud.compute.v1._
+import com.google.cloud.compute.v1.{Operation, _}
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
@@ -16,21 +16,19 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
-import GceInterpreter._
-import com.google.cloud.compute.v1.Operation
-import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
@@ -114,9 +112,6 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         .compile
         .drain
 
-      serviceAccount <- params.serviceAccountInfo.clusterServiceAccount.fold(
-        Async[F].raiseError[WorkbenchEmail](MissingServiceAccountException(params.runtimeProjectAndName))
-      )(Async[F].pure)
       initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.gceInitScript.asString))
 
       instance = Instance
@@ -144,7 +139,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         )
         .addServiceAccounts(
           ServiceAccount.newBuilder
-            .setEmail(serviceAccount.value)
+            .setEmail(params.serviceAccountInfo.value)
             .addAllScopes(params.scopes.toList.asJava)
             .build()
         )

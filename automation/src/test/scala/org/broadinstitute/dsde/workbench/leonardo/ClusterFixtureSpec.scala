@@ -36,7 +36,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     ClusterCopy(
       RuntimeName(clusterName),
       GoogleProject(googleProject),
-      ServiceAccountInfo(None, None),
+      WorkbenchEmail("fake@gmail.com"),
       RuntimeConfig.DataprocConfig(
         numberOfWorkers = 0,
         masterMachineType = MachineTypeName("n1-standard-4"),

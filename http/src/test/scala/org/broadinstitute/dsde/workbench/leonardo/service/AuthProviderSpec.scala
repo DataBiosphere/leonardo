@@ -76,12 +76,7 @@ class AuthProviderSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig,
-                         MockGoogleComputeService,
-                         FakeGoogleStorageService,
-                         mockGoogleProjectDAO,
-                         serviceAccountProvider,
-                         blocker)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
   val dataprocInterp =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,

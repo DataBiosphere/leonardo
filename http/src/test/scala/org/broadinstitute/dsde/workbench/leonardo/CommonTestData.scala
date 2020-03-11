@@ -139,9 +139,7 @@ object CommonTestData {
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
-  val clusterServiceAccount = Some(WorkbenchEmail("testClusterServiceAccount@example.com"))
-  val notebookServiceAccount = Some(WorkbenchEmail("testNotebookServiceAccount@example.com"))
-  val serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
+  val clusterServiceAccount = WorkbenchEmail("testClusterServiceAccount@example.com")
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
   val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
@@ -184,7 +182,7 @@ object CommonTestData {
       runtimeName = clusterName,
       internalId = internalId,
       googleProject = project,
-      serviceAccountInfo = serviceAccountInfo,
+      serviceAccountInfo = clusterServiceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
@@ -214,7 +212,7 @@ object CommonTestData {
     runtimeName = name1,
     internalId = internalId,
     googleProject = project,
-    serviceAccountInfo = serviceAccountInfo,
+    serviceAccountInfo = clusterServiceAccount,
     asyncRuntimeFields = Some(
       AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
     ),

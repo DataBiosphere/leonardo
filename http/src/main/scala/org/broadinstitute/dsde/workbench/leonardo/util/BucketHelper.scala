@@ -4,32 +4,29 @@ package util
 import java.nio.charset.StandardCharsets
 
 import _root_.io.chrisdavenport.log4cats.Logger
-import cats.data.{NonEmptyList, OptionT}
-import cats.effect.{Async, Blocker, Concurrent, ContextShift, IO}
+import cats.data.NonEmptyList
+import cats.effect.{Async, Blocker, Concurrent, ContextShift}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.Identity
 import fs2._
-import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleComputeService, GoogleStorageService, StorageRole}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperConfig,
-                                                           googleComputeService: GoogleComputeService[F],
                                                            google2StorageDAO: GoogleStorageService[F],
-                                                           googleProjectDAO: GoogleProjectDAO,
                                                            serviceAccountProvider: ServiceAccountProvider[F],
-                                                           blocker: Blocker)(implicit cs: ContextShift[IO]) {
+                                                           blocker: Blocker) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
   /**
    * Creates the dataproc init bucket and sets the necessary ACLs.
    */
-  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(
+  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): Stream[F, Unit] =
     for {
@@ -37,8 +34,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       // The init bucket is created in the cluster's project.
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
-      bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
-
+      bucketSAs <- getBucketSAs(serviceAccount)
       readerAcl = NonEmptyList
         .fromList(bucketSAs)
         .map(readers => Map(StorageRole.ObjectViewer -> readers))
@@ -56,7 +52,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     userEmail: WorkbenchEmail,
     googleProject: GoogleProject,
     bucketName: GcsBucketName,
-    serviceAccountInfo: ServiceAccountInfo
+    serviceAccountInfo: WorkbenchEmail
   )(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
     for {
       ctx <- Stream.eval(ev.ask)
@@ -64,7 +60,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       // Leo service account -> Owner
       // Available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
       // Additional readers (users and groups) are specified by the service account provider.
-      bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
+      bucketSAs <- getBucketSAs(serviceAccountInfo)
       providerReaders <- Stream.eval(
         serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userIdentity))
       )
@@ -182,26 +178,8 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     )
   }
 
-  private def getBucketSAs(googleProject: GoogleProject,
-                           serviceAccountInfo: ServiceAccountInfo): Stream[F, List[Identity]] = {
-    val computeDefaultSA = for {
-      projectNumber <- OptionT(
-        Async[F].liftIO(IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value))))
-      )
-      sa <- OptionT.pure[F](googleComputeService.getComputeEngineDefaultServiceAccount(projectNumber))
-    } yield sa
-
-    // cluster SA orElse compute engine default SA
-    val clusterOrComputeDefault =
-      OptionT.fromOption[F](serviceAccountInfo.clusterServiceAccount) orElse computeDefaultSA
-
-    // List(cluster or default SA, notebook SA) if they exist
-    val identities = clusterOrComputeDefault.value.map { clusterOrDefaultSAOpt =>
-      List(clusterOrDefaultSAOpt, serviceAccountInfo.notebookServiceAccount).flatten.map(serviceAccountIdentity)
-    }
-
-    Stream.eval(identities)
-  }
+  private def getBucketSAs(serviceAccountInfo: WorkbenchEmail): Stream[F, List[Identity]] =
+    Stream.eval(Async[F].pure(List(serviceAccountIdentity(serviceAccountInfo))))
 
   private def serviceAccountIdentity(email: WorkbenchEmail) = Identity.serviceAccount(email.value)
   private def userIdentity(email: WorkbenchEmail) = Identity.user(email.value)

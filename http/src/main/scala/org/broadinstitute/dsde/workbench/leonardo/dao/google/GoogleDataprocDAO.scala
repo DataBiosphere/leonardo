@@ -50,8 +50,8 @@ trait GoogleDataprocDAO {
 final case class CreateClusterConfig(
   machineConfig: RuntimeConfig.DataprocConfig,
   initScripts: List[GcsPath],
-  clusterServiceAccount: Option[WorkbenchEmail],
-  credentialsFileName: Option[String],
+  clusterServiceAccount: WorkbenchEmail,
+  credentialsFileName: String,
   stagingBucket: GcsBucketName,
   clusterScopes: Set[String],
   subnetwork: SubnetworkName,

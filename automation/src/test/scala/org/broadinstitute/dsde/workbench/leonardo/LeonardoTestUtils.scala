@@ -687,7 +687,7 @@ trait LeonardoTestUtils
     ClusterCopy(
       name,
       googleProject,
-      ServiceAccountInfo(Some(cluster.serviceAccount), None),
+      cluster.serviceAccount,
       null,
       null,
       cluster.auditInfo.creator,

@@ -202,7 +202,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       val petEmail = getAndVerifyPet(runtimeFixture.runtime.googleProject)
       // cluster should have been created with the pet service account
 
-      runtimeFixture.runtime.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
+      runtimeFixture.runtime.serviceAccountInfo shouldBe petEmail
 
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>

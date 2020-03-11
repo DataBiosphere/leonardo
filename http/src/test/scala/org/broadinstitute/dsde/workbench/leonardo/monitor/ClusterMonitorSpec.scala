@@ -73,8 +73,7 @@ class ClusterMonitorSpec
     with Eventually { testKit =>
 
   val creatingCluster = makeCluster(1).copy(
-    serviceAccountInfo =
-      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Creating,
     userJupyterExtensionConfig = Some(userExtConfig),
@@ -82,42 +81,37 @@ class ClusterMonitorSpec
   )
 
   val deletingCluster = makeCluster(2).copy(
-    serviceAccountInfo =
-      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
     status = RuntimeStatus.Deleting,
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val stoppingCluster = makeCluster(3).copy(
-    serviceAccountInfo =
-      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Stopping
   )
 
   val startingCluster = makeCluster(4).copy(
-    serviceAccountInfo =
-      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
     status = RuntimeStatus.Starting,
     runtimeImages = Set(RuntimeImage(RuntimeImageType.RStudio, "rstudio_image", Instant.now()),
                         RuntimeImage(RuntimeImageType.Jupyter, "jupyter_image", Instant.now()))
   )
   val runningCluster = makeCluster(1).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount),
+    serviceAccountInfo = clusterServiceAccount,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Running,
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val errorCluster = makeCluster(5).copy(
-    serviceAccountInfo =
-      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
     status = RuntimeStatus.Error
   )
 
   val stoppedCluster = makeCluster(6).copy(
-    serviceAccountInfo =
-      ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Stopped,
     runtimeImages = Set(RuntimeImage(RuntimeImageType.RStudio, "rstudio_image", Instant.now()))
@@ -193,7 +187,7 @@ class ClusterMonitorSpec
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper[IO](bucketHelperConfig, computeService, storage2DAO, projectDAO, serviceAccountProvider, blocker)
+      new BucketHelper[IO](bucketHelperConfig, storage2DAO, serviceAccountProvider, blocker)
     val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, computeService)
     val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                      bucketHelper,
@@ -593,7 +587,7 @@ class ClusterMonitorSpec
                           MockJupyterDAO,
                           MockRStudioDAO,
                           MockWelderDAO,
-                          false) { actor =>
+                          false) { _ =>
       eventually {
         val updatedCluster = dbFutureValue {
           clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.runtimeName)
@@ -604,10 +598,6 @@ class ClusterMonitorSpec
         updatedCluster.get.dataprocInstances.map(_.key) shouldBe Set(masterInstance, workerInstance1, workerInstance2)
           .map(_.key)
       }
-
-      verify(iamDAO,
-             if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
-        .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
 
@@ -679,9 +669,6 @@ class ClusterMonitorSpec
         updatedCluster.get.dataprocInstances.map(_.key) shouldBe Set(masterInstance, workerInstance1, workerInstance2)
           .map(_.key)
       }
-      verify(iamDAO,
-             if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
-        .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
 
@@ -944,9 +931,6 @@ class ClusterMonitorSpec
                                              any[WorkbenchEmail],
                                              mockitoEq(MemberType.User),
                                              any[Set[String]])
-      verify(iamDAO,
-             if (notebookServiceAccountFromProject(creatingCluster.googleProject).isDefined) times(1) else never())
-        .removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(
         RuntimeInternalId(mockitoEq(creatingCluster.internalId.asString)),
         mockitoEq(creatingCluster.auditInfo.creator),

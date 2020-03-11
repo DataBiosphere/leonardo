@@ -202,7 +202,7 @@ object AutomationTestJsonCodec {
     Decoder.forProduct13[ClusterCopy,
                          RuntimeName,
                          GoogleProject,
-                         ServiceAccountInfo,
+                         WorkbenchEmail,
                          RuntimeConfig,
                          ClusterStatus,
                          WorkbenchEmail,

@@ -41,17 +41,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     JsObject(presentFields)
   }
 
-  implicit val serviceAccountInfoWriter: RootJsonWriter[ServiceAccountInfo] = (obj: ServiceAccountInfo) => {
-    val allFields = Map(
-      "clusterServiceAccount" -> obj.clusterServiceAccount.toJson,
-      "notebookServiceAccount" -> obj.notebookServiceAccount.toJson
-    )
-
-    val presentFields = allFields.filter(_._2 != JsNull)
-
-    JsObject(presentFields)
-  }
-
   implicit val dataprocInstanceKeyWriter: RootJsonWriter[DataprocInstanceKey] = (obj: DataprocInstanceKey) => {
     val allFields = Map(
       "name" -> obj.name.value.toJson,

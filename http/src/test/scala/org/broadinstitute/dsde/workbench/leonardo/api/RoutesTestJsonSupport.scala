@@ -26,7 +26,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       internalId <- x.downField("internalId").as[RuntimeInternalId]
       clusterName <- x.downField("clusterName").as[RuntimeName]
       googleProject <- x.downField("googleProject").as[GoogleProject]
-      serviceAccountInfo <- x.downField("serviceAccountInfo").as[ServiceAccountInfo]
+      serviceAccountInfo <- x.downField("serviceAccountInfo").as[WorkbenchEmail]
       dataprocInfo <- for {
         googleId <- x.downField("googleId").as[Option[GoogleId]]
         operationName <- x.downField("operationName").as[Option[OperationName]]
@@ -80,7 +80,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       internalId <- x.downField("internalId").as[RuntimeInternalId]
       clusterName <- x.downField("clusterName").as[RuntimeName]
       googleProject <- x.downField("googleProject").as[GoogleProject]
-      serviceAccountInfo <- x.downField("serviceAccountInfo").as[ServiceAccountInfo]
+      serviceAccountInfo <- x.downField("serviceAccountInfo").as[WorkbenchEmail]
       dataprocInfo <- for {
         googleId <- x.downField("googleId").as[Option[GoogleId]]
         operationName <- x.downField("operationName").as[Option[OperationName]]

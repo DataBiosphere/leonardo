@@ -15,7 +15,7 @@ case class GoogleServiceAccount(string: String) extends AnyVal with StringValueC
 
 case class ClusterCopy(clusterName: RuntimeName,
                        googleProject: GoogleProject,
-                       serviceAccountInfo: ServiceAccountInfo,
+                       serviceAccountInfo: WorkbenchEmail,
                        machineConfig: RuntimeConfig,
                        status: ClusterStatus,
                        creator: WorkbenchEmail,

@@ -248,11 +248,9 @@ class HttpGoogleDataprocDAO(
 
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.
-    config.clusterServiceAccount.foreach { serviceAccountEmail =>
-      gceClusterConfig
-        .setServiceAccount(serviceAccountEmail.value)
-        .setServiceAccountScopes(config.clusterScopes.toList.asJava)
-    }
+    gceClusterConfig
+      .setServiceAccount(config.clusterServiceAccount.value)
+      .setServiceAccountScopes(config.clusterScopes.toList.asJava)
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
@@ -296,21 +294,6 @@ class HttpGoogleDataprocDAO(
   }
 
   private def getSoftwareConfig(createClusterConfig: CreateClusterConfig) = {
-    val authProps: Map[String, String] = createClusterConfig.credentialsFileName match {
-      case None =>
-        // If we're not using a notebook service account, no need to set Hadoop properties since
-        // the SA credentials are on the metadata server.
-        Map.empty
-
-      case Some(fileName) =>
-        // If we are using a notebook service account, set the necessary Hadoop properties
-        // to specify the location of the notebook service account key file.
-        Map(
-          "core:google.cloud.auth.service.account.enable" -> "true",
-          "core:google.cloud.auth.service.account.json.keyfile" -> fileName
-        )
-    }
-
     val dataprocProps: Map[String, String] = if (createClusterConfig.machineConfig.numberOfWorkers == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
@@ -331,7 +314,7 @@ class HttpGoogleDataprocDAO(
 
     new SoftwareConfig()
       .setProperties(
-        (authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.machineConfig.properties).asJava
+        (dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.machineConfig.properties).asJava
       )
   }
 

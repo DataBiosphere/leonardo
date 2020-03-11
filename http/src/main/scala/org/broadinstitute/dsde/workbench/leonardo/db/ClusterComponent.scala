@@ -45,9 +45,7 @@ final case class ClusterRecord(id: Long,
                                customClusterEnvironmentVariables: Map[String, String],
                                runtimeConfigId: RuntimeConfigId)
 
-final case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
-                                          notebookServiceAccount: Option[String],
-                                          serviceAccountKeyId: Option[String])
+final case class ServiceAccountInfoRecord(clusterServiceAccount: WorkbenchEmail, serviceAccountKeyId: Option[String])
 
 class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -55,8 +53,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def clusterName = column[RuntimeName]("clusterName", O.Length(254))
   def googleId = column[Option[GoogleId]]("googleId")
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
-  def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
-  def notebookServiceAccount = column[Option[String]]("notebookServiceAccount", O.Length(254))
+  def clusterServiceAccount = column[WorkbenchEmail]("clusterServiceAccount", O.Length(254))
   def operationName = column[Option[String]]("operationName", O.Length(254))
   def status = column[String]("status", O.Length(254))
   def hostIp = column[Option[String]]("hostIp", O.Length(254))
@@ -99,7 +96,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       jupyterStartUserScriptUri,
       initBucket,
       (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId),
+      (clusterServiceAccount, serviceAccountKeyId),
       stagingBucket,
       autopauseThreshold,
       defaultClientId,
@@ -149,7 +146,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             auditInfo._4,
             auditInfo._5
           ),
-          ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
+          ServiceAccountInfoRecord(serviceAccountInfo._1, serviceAccountInfo._2),
           stagingBucket,
           autopauseThreshold,
           defaultClientId,
@@ -341,7 +338,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
     clusterQuery
-      .filter(_.clusterServiceAccount === Option(clusterServiceAccount.value))
+      .filter(_.clusterServiceAccount === clusterServiceAccount)
       .filter(_.status inSetBind RuntimeStatus.activeStatuses.map(_.toString))
       .length
       .result
@@ -586,8 +583,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       initBucket,
       runtime.auditInfo,
       ServiceAccountInfoRecord(
-        runtime.serviceAccountInfo.clusterServiceAccount.map(_.value),
-        runtime.serviceAccountInfo.notebookServiceAccount.map(_.value),
+        runtime.serviceAccountInfo,
         serviceAccountKeyId.map(_.value)
       ),
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
@@ -711,10 +707,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                patch: List[PatchRecord]): Runtime = {
     val name = clusterRecord.clusterName
     val project = clusterRecord.googleProject
-    val serviceAccountInfo = ServiceAccountInfo(
-      clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
-      clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
-    )
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
         AsyncRuntimeFields(googleId,
@@ -733,7 +725,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       RuntimeInternalId(clusterRecord.internalId),
       name,
       project,
-      serviceAccountInfo,
+      clusterRecord.serviceAccountInfo.clusterServiceAccount,
       dataprocInfo,
       clusterRecord.auditInfo,
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),

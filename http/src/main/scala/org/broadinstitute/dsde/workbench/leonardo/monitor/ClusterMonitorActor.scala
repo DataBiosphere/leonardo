@@ -353,11 +353,6 @@ class ClusterMonitorActor(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[ClusterMonitorMessage] =
     for {
-      // Remove credentials from instance metadata.
-      // Only happens if an notebook service account was used.
-      _ <- if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Creating)
-        removeCredentialsFromMetadata(runtimeAndRuntimeConfig.runtime)
-      else IO.unit
       // create or update instances in the DB
       _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances)
       // update DB after auth futures finish
@@ -852,19 +847,6 @@ class ClusterMonitorActor(
                          error)
           )
         }
-    }
-
-  private def removeCredentialsFromMetadata(runtime: Runtime): IO[Unit] =
-    runtime.serviceAccountInfo.notebookServiceAccount match {
-      // No notebook service account: don't remove creds from metadata! We need them.
-      case None => IO.unit
-
-      // Remove credentials from instance metadata.
-      // We want to ensure that _only_ the notebook service account is used;
-      // users should not be able to yank the cluster SA credentials from the metadata server.
-      case Some(_) =>
-        // TODO https://github.com/DataBiosphere/leonardo/issues/128
-        IO.unit
     }
 
   private def getDbRuntimeAndRuntimeConfig: IO[RuntimeAndRuntimeConfig] =

@@ -173,8 +173,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Creating
   "process" should "fail Creating if user script failed" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
       jupyterUserScriptUri =
         Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("failure"), GcsObjectName("userscript_output.txt")))),
@@ -207,8 +206,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Creating
   it should "fail Creating if user startup script failed" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
       jupyterStartUserScriptUri = Some(
         UserScriptPath
@@ -261,8 +259,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Creating
   it should "will check again if instance still exists when trying to Creating one" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Creating
     )
@@ -301,8 +298,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Starting
   it should "will check again if instance still exists when trying to Starting one" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Starting
     )
@@ -339,8 +335,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
   it should "fail Starting if user startup script failed" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
       jupyterStartUserScriptUri = Some(
         UserScriptPath
@@ -393,8 +388,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process
   it should "exit monitor if status is not monitored" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Stopped
     )
@@ -417,8 +411,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Stopping
   it should "error when trying to Stop an instance that doesn't exist in GCP" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Stopping
     )
@@ -441,8 +434,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Stopping
   it should "update runtime status appropriately when successfully stopped an instance" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Stopping
     )
@@ -474,8 +466,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Stopping
   it should "will check again if instance is not terminated yet when trying to stop one" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Stopping
     )
@@ -501,8 +492,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Deleting
   it should "delete runtime successfully when instance doesn't exist in GCP" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Deleting
     )
@@ -525,8 +515,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   // process, Deleting
   it should "will check again if instance still exists when trying to delete one" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Deleting
     )
@@ -565,8 +554,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   //pollCheck, Deleting
   "pollCheck" should "raise error if we get invalid monitoring status" in {
     val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
       status = RuntimeStatus.Deleted
     )
@@ -591,8 +579,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
   it should "monitor Deleting successfully" in {
     val runtime = makeCluster(2).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
       status = RuntimeStatus.Deleting
     )
@@ -640,8 +627,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   //pollCheck Deleting
   it should "fail if reaches pollCheckMaxAttempts" in isolatedDbTest {
     val runtime = makeCluster(2).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      serviceAccountInfo = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
       status = RuntimeStatus.Deleting
     )

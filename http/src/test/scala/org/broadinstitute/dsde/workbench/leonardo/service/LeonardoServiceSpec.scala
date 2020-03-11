@@ -93,12 +93,7 @@ class LeonardoServiceSpec
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper[IO](bucketHelperConfig,
-                           MockGoogleComputeService,
-                           FakeGoogleStorageService,
-                           projectDAO,
-                           serviceAccountProvider,
-                           blocker)
+      new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
     val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
     dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                  bucketHelper,
@@ -166,10 +161,7 @@ class LeonardoServiceSpec
     // check the create response has the correct info
     clusterCreateResponse.clusterName shouldBe name0
     clusterCreateResponse.googleProject shouldBe project
-    clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(project)
-    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(
-      project
-    )
+    clusterCreateResponse.serviceAccountInfo shouldEqual clusterServiceAccountFromProject(project).get
     clusterCreateResponse.asyncRuntimeFields shouldBe None
     clusterCreateResponse.auditInfo.creator shouldBe userInfo.userEmail
     clusterCreateResponse.auditInfo.destroyedDate shouldBe None

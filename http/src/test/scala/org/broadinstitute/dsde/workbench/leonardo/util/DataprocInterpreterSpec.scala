@@ -48,20 +48,13 @@ class DataprocInterpreterSpec
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
 
   val testCluster = makeCluster(1)
-    .copy(status = Creating,
-          asyncRuntimeFields = None,
-          serviceAccountInfo = serviceAccountInfo.copy(notebookServiceAccount = None))
+    .copy(status = Creating, asyncRuntimeFields = None)
   val testClusterClusterProjectAndName = RuntimeProjectAndName(testCluster.googleProject, testCluster.runtimeName)
 
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig,
-                         MockGoogleComputeService,
-                         FakeGoogleStorageService,
-                         mockGoogleProjectDAO,
-                         serviceAccountProvider,
-                         blocker)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
