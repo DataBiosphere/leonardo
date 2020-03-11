@@ -349,4 +349,6 @@ sealed trait VPCConfig extends Product with Serializable {
 object VPCConfig {
   final case class VPCNetwork(value: String) extends VPCConfig
   final case class VPCSubnet(value: String) extends VPCConfig
+
+  final val default = VPCNetwork("default")
 }

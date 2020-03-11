@@ -62,6 +62,21 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
     )
   }
 
+  it should "create a firewall rule with a subnet" in {
+    val computeService = new MockGoogleComputeServiceWithFirewalls()
+    val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), computeService)
+
+    test.getOrCreateFirewallRule(CommonTestData.project, VPCSubnet("my_subnet")).unsafeRunSync()
+    val createdFirewall = computeService.firewallMap.get(FirewallRuleName(CommonTestData.proxyConfig.firewallRuleName))
+    createdFirewall shouldBe 'defined
+    createdFirewall.get.getName shouldBe CommonTestData.proxyConfig.firewallRuleName
+    createdFirewall.get.getNetwork shouldBe s"projects/${CommonTestData.project.value}/regions/us-central1/subnetworks/my_subnet"
+    createdFirewall.get.getTargetTagsList.asScala shouldBe List(CommonTestData.proxyConfig.networkTag)
+    createdFirewall.get.getAllowedList.asScala.flatMap(_.getPortsList.asScala) shouldBe List(
+      CommonTestData.proxyConfig.proxyPort.toString
+    )
+  }
+
   private def stubProjectDAO(labels: Map[String, String]): GoogleProjectDAO =
     new MockGoogleProjectDAO {
       override def getLabels(projectName: String): Future[Map[String, String]] = Future.successful(labels)

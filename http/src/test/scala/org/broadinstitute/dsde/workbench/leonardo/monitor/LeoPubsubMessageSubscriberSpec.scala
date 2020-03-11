@@ -68,7 +68,11 @@ class LeoPubsubMessageSubscriberSpec
                      blocker)(cs)
 
   val vpcHelperConfig =
-    VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
+    VPCHelperConfig("lbl1",
+                    "lbl2",
+                    proxyConfig.projectVPCSubnetRegion,
+                    FirewallRuleName("test-firewall-rule"),
+                    firewallRuleTargetTags = List.empty)
   val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, MockGoogleComputeService)
 
   val clusterHelper = new ClusterHelper(dataprocConfig,

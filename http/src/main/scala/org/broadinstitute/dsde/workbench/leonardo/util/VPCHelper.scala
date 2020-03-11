@@ -4,7 +4,7 @@ import cats.effect.{ContextShift, IO}
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{Allowed, Firewall}
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService}
+import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.{NetworkTag, VPCConfig}
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -22,8 +22,8 @@ class VPCHelper(config: VPCHelperConfig,
         labelMap.get(config.projectVPCNetworkLabelName).map(VPCNetwork)
     }
 
-  // TODO we should move toward creating our own dedicated subnet instead of using the default
-  private def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = IO(VPCNetwork("default"))
+  // TODO move toward creating our own dedicated subnet instead of using the default
+  private def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = IO.pure(VPCConfig.default)
 
   def getOrCreateVPCSettings(googleProject: GoogleProject): IO[VPCConfig] =
     for {
@@ -44,7 +44,7 @@ class VPCHelper(config: VPCHelperConfig,
     Firewall
       .newBuilder()
       .setName(config.firewallRuleName.value)
-      .setNetwork(networkUri(googleProject, vpcConfig))
+      .setNetwork(buildNetworkUri(googleProject, vpcConfig))
       .addAllTargetTags(config.firewallRuleTargetTags.map(_.value).asJava)
       .addAllowed(
         Allowed
@@ -55,13 +55,20 @@ class VPCHelper(config: VPCHelperConfig,
       )
       .build
 
-  private def networkUri(googleProject: GoogleProject, vpcConfig: VPCConfig): String =
-    s"projects/${googleProject.value}/global/networks/${vpcConfig.value}"
+  def buildNetworkUri(googleProject: GoogleProject, vpcConfig: VPCConfig): String =
+    // Note networks are global, subnets are regional.
+    // See: https://cloud.google.com/vpc/docs/vpc
+    vpcConfig match {
+      case VPCNetwork(value) => s"projects/${googleProject.value}/global/networks/$value"
+      case VPCSubnet(value) =>
+        s"projects/${googleProject.value}/regions/${config.projectVPCSubnetRegion.value}/subnetworks/$value"
+    }
 
 }
 
 final case class VPCHelperConfig(projectVPCNetworkLabelName: String,
                                  projectVPCSubnetLabelName: String,
+                                 projectVPCSubnetRegion: RegionName,
                                  firewallRuleName: FirewallRuleName,
                                  firewallRuleProtocol: String = "tcp",
                                  firewallRulePort: Int = 443,

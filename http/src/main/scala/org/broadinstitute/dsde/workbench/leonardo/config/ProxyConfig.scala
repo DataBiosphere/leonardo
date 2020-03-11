@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import org.broadinstitute.dsde.workbench.google2.RegionName
+
 import scala.concurrent.duration.FiniteDuration
 
 case class ProxyConfig(proxyDomain: String,
@@ -10,6 +12,7 @@ case class ProxyConfig(proxyDomain: String,
                        networkTag: String,
                        projectVPCNetworkLabel: String,
                        projectVPCSubnetLabel: String,
+                       projectVPCSubnetRegion: RegionName,
                        dnsPollPeriod: FiniteDuration,
                        tokenCacheExpiryTime: FiniteDuration,
                        tokenCacheMaxSize: Int,
