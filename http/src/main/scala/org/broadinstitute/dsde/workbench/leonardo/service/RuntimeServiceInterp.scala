@@ -155,7 +155,25 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
     } yield resp
 
-  def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[Vector[ListRuntimeResponse]] =
+    for {
+      paramMap <- F.fromEither(processListClustersParameters(params))
+      clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
+      samVisibleClusters <- authProvider
+        .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
+    } yield {
+      // Making the assumption that users will always be able to access clusters that they create
+      // Fix for https://github.com/DataBiosphere/leonardo/issues/821
+      clusters
+        .filter(
+          c => c.auditInfo.creator == userInfo.userEmail || samVisibleClusters.contains((c.googleProject, c.internalId))
+        )
+        .toVector
+    }
+
+  override def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit as: ApplicativeAsk[F, RuntimeServiceContext]
   ): F[Unit] =
     for {

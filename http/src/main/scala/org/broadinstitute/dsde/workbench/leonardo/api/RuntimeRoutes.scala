@@ -77,14 +77,26 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
       } ~
         path("runtimes") {
           parameterMap { params =>
-            path(Segment) { googleProject =>
+            path(googleProjectSegment) { googleProject =>
               get {
-                ???
+                complete(
+                  listRuntimesHandler(
+                    userInfo,
+                    Some(googleProject),
+                    params
+                  )
+                )
               }
             } ~
               pathEndOrSingleSlash {
                 get {
-                  ???
+                  complete(
+                    listRuntimesHandler(
+                      userInfo,
+                      None,
+                      params
+                    )
+                  )
                 }
               }
           }
@@ -120,6 +132,18 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
         RuntimeServiceContext(TraceId(traceId), now)
       )
       resp <- runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+    } yield StatusCodes.OK -> resp
+
+  private[api] def listRuntimesHandler(userInfo: UserInfo,
+                                       googleProject: Option[GoogleProject],
+                                       params: Map[String, String]): IO[ToResponseMarshallable] =
+    for {
+      traceId <- IO(UUID.randomUUID())
+      now <- nowInstant
+      implicit0(context: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        RuntimeServiceContext(TraceId(traceId), now)
+      )
+      resp <- runtimeService.listRuntimes(userInfo, googleProject, params)
     } yield StatusCodes.OK -> resp
 }
 

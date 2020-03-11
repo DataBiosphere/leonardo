@@ -758,16 +758,6 @@ class LeonardoService(
     }
   }
 
-  private[service] def processListClustersParameters(
-    params: LabelMap
-  ): Either[ParseLabelsException, (LabelMap, Boolean)] =
-    params.get(includeDeletedKey) match {
-      case Some(includeDeletedValue) =>
-        processLabelMap(params - includeDeletedKey).map(lm => (lm, includeDeletedValue.toBoolean))
-      case None =>
-        processLabelMap(params).map(lm => (lm, false))
-    }
-
   private[service] def getRuntimeImages(
     petToken: Option[String],
     userEmail: WorkbenchEmail,
@@ -842,6 +832,16 @@ class LeonardoService(
 object LeonardoService {
   private[service] val includeDeletedKey = "includeDeleted"
   private[service] val bucketPathMaxLength = 1024
+
+  private[service] def processListClustersParameters(
+    params: LabelMap
+  ): Either[ParseLabelsException, (LabelMap, Boolean)] =
+    params.get(includeDeletedKey) match {
+      case Some(includeDeletedValue) =>
+        processLabelMap(params - includeDeletedKey).map(lm => (lm, includeDeletedValue.toBoolean))
+      case None =>
+        processLabelMap(params).map(lm => (lm, false))
+    }
 
   /**
    * There are 2 styles of passing labels to the list clusters endpoint:
