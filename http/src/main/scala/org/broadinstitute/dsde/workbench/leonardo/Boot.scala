@@ -89,7 +89,6 @@ object Boot extends IOApp {
       val vpcHelperConfig = VPCHelperConfig(
         proxyConfig.projectVPCNetworkLabel,
         proxyConfig.projectVPCSubnetLabel,
-        proxyConfig.projectVPCSubnetRegion,
         FirewallRuleName(proxyConfig.firewallRuleName),
         proxyConfig.proxyProtocol,
         proxyConfig.proxyPort,

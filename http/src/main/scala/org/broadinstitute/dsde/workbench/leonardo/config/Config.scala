@@ -72,6 +72,7 @@ object Config {
 
   implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
+      config.as[RegionName]("region"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
@@ -164,7 +165,6 @@ object Config {
       config.getString("networkTag"),
       config.getString("projectVPCNetworkLabel"),
       config.getString("projectVPCSubnetLabel"),
-      config.as[RegionName]("projectVPCSubnetRegion"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
       config.getInt("tokenCacheMaxSize"),

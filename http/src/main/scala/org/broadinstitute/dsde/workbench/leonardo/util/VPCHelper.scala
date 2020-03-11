@@ -16,14 +16,14 @@ class VPCHelper(config: VPCHelperConfig,
                 googleProjectDAO: GoogleProjectDAO,
                 googleComputeService: GoogleComputeService[IO])(implicit contextShift: ContextShift[IO]) {
 
-  private def getVPCSettingsFromProjectLabel(googleProject: GoogleProject): IO[Option[VPCConfig]] =
+  private[util] def getVPCSettingsFromProjectLabel(googleProject: GoogleProject): IO[Option[VPCConfig]] =
     IO.fromFuture(IO(googleProjectDAO.getLabels(googleProject.value))).map { labelMap =>
       labelMap.get(config.projectVPCSubnetLabelName).map(VPCSubnet) orElse
         labelMap.get(config.projectVPCNetworkLabelName).map(VPCNetwork)
     }
 
   // TODO move toward creating our own dedicated subnet instead of using the default
-  private def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = IO.pure(VPCConfig.default)
+  private[util] def createVPCSubnet(googleProject: GoogleProject): IO[VPCConfig] = IO.pure(VPCConfig.default)
 
   def getOrCreateVPCSettings(googleProject: GoogleProject): IO[VPCConfig] =
     for {
@@ -31,20 +31,25 @@ class VPCHelper(config: VPCHelperConfig,
       res <- fromProjectLabels.fold(createVPCSubnet(googleProject))(IO.pure)
     } yield res
 
-  def getOrCreateFirewallRule(googleProject: GoogleProject,
-                              vpcConfig: VPCConfig)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  def getOrCreateFirewallRule(googleProject: GoogleProject, regionName: RegionName, vpcConfig: VPCConfig)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] =
     for {
       rule <- googleComputeService.getFirewallRule(googleProject, config.firewallRuleName)
-      _ <- rule.fold(googleComputeService.addFirewallRule(googleProject, buildFirewall(googleProject, vpcConfig)))(
+      _ <- rule.fold(
+        googleComputeService.addFirewallRule(googleProject, buildFirewall(googleProject, regionName, vpcConfig))
+      )(
         _ => IO.unit
       )
     } yield ()
 
-  private def buildFirewall(googleProject: GoogleProject, vpcConfig: VPCConfig): Firewall =
+  private[util] def buildFirewall(googleProject: GoogleProject,
+                                  regionName: RegionName,
+                                  vpcConfig: VPCConfig): Firewall =
     Firewall
       .newBuilder()
       .setName(config.firewallRuleName.value)
-      .setNetwork(buildNetworkUri(googleProject, vpcConfig))
+      .setNetwork(buildNetworkUri(googleProject, regionName, vpcConfig))
       .addAllTargetTags(config.firewallRuleTargetTags.map(_.value).asJava)
       .addAllowed(
         Allowed
@@ -55,20 +60,19 @@ class VPCHelper(config: VPCHelperConfig,
       )
       .build
 
-  def buildNetworkUri(googleProject: GoogleProject, vpcConfig: VPCConfig): String =
+  private[util] def buildNetworkUri(googleProject: GoogleProject, region: RegionName, vpcConfig: VPCConfig): String =
     // Note networks are global, subnets are regional.
     // See: https://cloud.google.com/vpc/docs/vpc
     vpcConfig match {
       case VPCNetwork(value) => s"projects/${googleProject.value}/global/networks/$value"
       case VPCSubnet(value) =>
-        s"projects/${googleProject.value}/regions/${config.projectVPCSubnetRegion.value}/subnetworks/$value"
+        s"projects/${googleProject.value}/regions/${region.value}/subnetworks/$value"
     }
 
 }
 
 final case class VPCHelperConfig(projectVPCNetworkLabelName: String,
                                  projectVPCSubnetLabelName: String,
-                                 projectVPCSubnetRegion: RegionName,
                                  firewallRuleName: FirewallRuleName,
                                  firewallRuleProtocol: String = "tcp",
                                  firewallRulePort: Int = 443,

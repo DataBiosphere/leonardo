@@ -100,7 +100,9 @@ class ClusterHelper(
       val ioResult = for {
         // Set up VPC network and firewall
         vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.clusterProjectAndName.googleProject)
-        firewallRule <- vpcHelper.getOrCreateFirewallRule(params.clusterProjectAndName.googleProject, vpcSettings)
+        firewallRule <- vpcHelper.getOrCreateFirewallRule(params.clusterProjectAndName.googleProject,
+                                                          RegionName(dataprocConfig.dataprocDefaultRegion),
+                                                          vpcSettings)
 
         resourceConstraints <- getClusterResourceContraints(params.clusterProjectAndName,
                                                             params.runtimeConfig.machineType)

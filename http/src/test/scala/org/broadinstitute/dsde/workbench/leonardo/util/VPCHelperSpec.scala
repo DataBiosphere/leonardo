@@ -6,7 +6,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Firewall
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.FirewallRuleName
+import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
@@ -51,7 +51,9 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
     val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), computeService)
 
-    test.getOrCreateFirewallRule(CommonTestData.project, VPCNetwork("default")).unsafeRunSync()
+    test
+      .getOrCreateFirewallRule(CommonTestData.project, RegionName("us-central1"), VPCNetwork("default"))
+      .unsafeRunSync()
     val createdFirewall = computeService.firewallMap.get(FirewallRuleName(CommonTestData.proxyConfig.firewallRuleName))
     createdFirewall shouldBe 'defined
     createdFirewall.get.getName shouldBe CommonTestData.proxyConfig.firewallRuleName
@@ -66,7 +68,9 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
     val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), computeService)
 
-    test.getOrCreateFirewallRule(CommonTestData.project, VPCSubnet("my_subnet")).unsafeRunSync()
+    test
+      .getOrCreateFirewallRule(CommonTestData.project, RegionName("us-central1"), VPCSubnet("my_subnet"))
+      .unsafeRunSync()
     val createdFirewall = computeService.firewallMap.get(FirewallRuleName(CommonTestData.proxyConfig.firewallRuleName))
     createdFirewall shouldBe 'defined
     createdFirewall.get.getName shouldBe CommonTestData.proxyConfig.firewallRuleName
