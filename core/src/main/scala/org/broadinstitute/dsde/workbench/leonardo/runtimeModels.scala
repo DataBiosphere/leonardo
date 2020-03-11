@@ -306,8 +306,6 @@ object WelderAction extends Enum[WelderAction] {
 
   case object DeployWelder extends WelderAction
   case object UpdateWelder extends WelderAction
-  case object NoAction extends WelderAction
-  case object RuntimeOutOfDate extends WelderAction
   case object DisableDelocalization extends WelderAction
 }
 

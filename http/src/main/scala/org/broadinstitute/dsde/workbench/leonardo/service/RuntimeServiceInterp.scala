@@ -91,7 +91,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                internalId,
                                clusterImages,
                                config,
-                               req)
+                               req,
+                               context.now)
             )
             gcsObjectUrisToValidate = cluster.userJupyterExtensionConfig
               .map(
@@ -221,7 +222,8 @@ object RuntimeServiceInterp {
                                clusterInternalId: RuntimeInternalId,
                                clusterImages: Set[RuntimeImage],
                                config: RuntimeServiceConfig,
-                               req: CreateRuntime2Request): Either[Throwable, Runtime] = {
+                               req: CreateRuntime2Request,
+                               now: Instant): Either[Throwable, Runtime] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(
       runtimeName,
@@ -267,7 +269,7 @@ object RuntimeServiceInterp {
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
       asyncRuntimeFields = None,
-      auditInfo = AuditInfo(userInfo.userEmail, Instant.now(), None, Instant.now(), None),
+      auditInfo = AuditInfo(userInfo.userEmail, now, None, now, None),
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, labels),
       status = RuntimeStatus.Creating,
       labels = labels,

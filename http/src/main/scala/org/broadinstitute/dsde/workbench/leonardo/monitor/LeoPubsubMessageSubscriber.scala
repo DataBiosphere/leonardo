@@ -12,7 +12,7 @@ import fs2.{Pipe, Stream}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -23,10 +23,11 @@ import scala.concurrent.ExecutionContext
 import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
-  subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  dataprocAlg: DataprocAlgebra[F],
-  gceAlg: GceAlgebra[F]
-)(implicit executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F]) {
+  subscriber: GoogleSubscriber[F, LeoPubsubMessage]
+)(implicit executionContext: ExecutionContext,
+  logger: StructuredLogger[F],
+  dbRef: DbReference[F],
+  runtimeInstances: RuntimeInstances[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage,
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
@@ -98,12 +99,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
             )
-            _ <- runtimeConfig.cloudService match {
-              case CloudService.Dataproc =>
-                dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig), now))
-              case CloudService.GCE =>
-                gceAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig), now))
-            }
+            _ <- runtimeConfig.cloudService.interpreter
+              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig), now))
           } yield ()
         case Some(resolvedCluster) =>
           Async[F].raiseError(
@@ -143,17 +140,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                       RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
                     )
                     // perform gddao and db updates for new resources
-                    _ <- runtimeConfig.cloudService match {
-                      case CloudService.GCE =>
-                        gceAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
-                      case CloudService.Dataproc =>
-                        dataprocAlg.updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
-                    }
+                    _ <- runtimeConfig.cloudService.interpreter
+                      .updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
                     // start cluster
-                    _ <- runtimeConfig.cloudService match {
-                      case CloudService.GCE      => gceAlg.startRuntime(StartRuntimeParams(resolvedCluster, now))
-                      case CloudService.Dataproc => dataprocAlg.startRuntime(StartRuntimeParams(resolvedCluster, now))
-                    }
+                    _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(resolvedCluster, now))
                     // clean-up info from follow-up table
                     _ <- dbRef.inTransaction { followupQuery.delete(message.runtimeFollowupDetails) }
                   } yield ()
@@ -177,10 +167,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   ): F[Unit] = {
     val createCluster = for {
       _ <- logger.info(s"Attempting to create cluster ${msg.runtimeProjectAndName} in Google...")
-      clusterResult <- msg.runtimeConfig.cloudService match {
-        case CloudService.GCE      => gceAlg.createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
-        case CloudService.Dataproc => dataprocAlg.createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
-      }
+      clusterResult <- msg.runtimeConfig.cloudService.interpreter
+        .createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
       updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
         Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
         clusterResult.serviceAccountKey,

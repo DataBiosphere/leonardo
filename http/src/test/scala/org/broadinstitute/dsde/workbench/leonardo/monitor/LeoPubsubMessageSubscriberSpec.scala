@@ -75,39 +75,40 @@ class LeoPubsubMessageSubscriberSpec
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
   val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, MockGoogleComputeService, blocker)
 
-  val dataprocAlg = new DataprocInterpreter[IO](DataprocInterpreterConfig(
-                                                  dataprocConfig,
-                                                  googleGroupsConfig,
-                                                  welderConfig,
-                                                  imageConfig,
-                                                  proxyConfig,
-                                                  clusterResourcesConfig,
-                                                  clusterFilesConfig,
-                                                  monitorConfig
-                                                ),
-                                                bucketHelper,
-                                                vpcHelper,
-                                                gdDAO,
-                                                MockGoogleComputeService,
-                                                mockGoogleDirectoryDAO,
-                                                iamDAO,
-                                                projectDAO,
-                                                mockWelderDAO,
-                                                blocker)
-  val gceAlg = new GceInterpreter[IO](GceInterpreterConfig(
-                                        gceConfig,
-                                        welderConfig,
-                                        imageConfig,
-                                        proxyConfig,
-                                        clusterResourcesConfig,
-                                        clusterFilesConfig,
-                                        monitorConfig
-                                      ),
-                                      bucketHelper,
-                                      vpcHelper,
-                                      MockGoogleComputeService,
-                                      mockWelderDAO,
-                                      blocker)
+  val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
+                                                     dataprocConfig,
+                                                     googleGroupsConfig,
+                                                     welderConfig,
+                                                     imageConfig,
+                                                     proxyConfig,
+                                                     clusterResourcesConfig,
+                                                     clusterFilesConfig,
+                                                     monitorConfig
+                                                   ),
+                                                   bucketHelper,
+                                                   vpcHelper,
+                                                   gdDAO,
+                                                   MockGoogleComputeService,
+                                                   mockGoogleDirectoryDAO,
+                                                   iamDAO,
+                                                   projectDAO,
+                                                   mockWelderDAO,
+                                                   blocker)
+  val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(
+                                           gceConfig,
+                                           welderConfig,
+                                           imageConfig,
+                                           proxyConfig,
+                                           clusterResourcesConfig,
+                                           clusterFilesConfig,
+                                           monitorConfig
+                                         ),
+                                         bucketHelper,
+                                         vpcHelper,
+                                         MockGoogleComputeService,
+                                         mockWelderDAO,
+                                         blocker)
+  implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val runningCluster = makeCluster(1).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount),
@@ -369,7 +370,7 @@ class LeoPubsubMessageSubscriberSpec
   def makeLeoSubscriber(queue: InspectableQueue[IO, Event[LeoPubsubMessage]]) = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](googleSubscriber, dataprocAlg, gceAlg)
+    new LeoPubsubMessageSubscriber[IO](googleSubscriber)
   }
 
 }

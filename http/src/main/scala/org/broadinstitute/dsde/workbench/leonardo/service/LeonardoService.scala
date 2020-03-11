@@ -4,13 +4,14 @@ package service
 
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
 import cats.data.{Ior, OptionT}
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.api.client.http.HttpResponseException
@@ -135,15 +136,16 @@ class LeonardoService(
   protected val authProvider: LeoAuthProvider[IO],
   protected val serviceAccountProvider: ServiceAccountProvider[IO],
   protected val bucketHelper: BucketHelper[IO],
-  protected val dataprocAlg: DataprocAlgebra[IO],
   protected val dockerDAO: DockerDAO[IO],
   protected val publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage]
 )(implicit val executionContext: ExecutionContext,
   implicit override val system: ActorSystem,
   log: Logger[IO],
   cs: ContextShift[IO],
+  timer: Timer[IO],
   metrics: NewRelicMetrics[IO],
-  dbRef: DbReference[IO])
+  dbRef: DbReference[IO],
+  runtimeInstances: RuntimeInstances[IO])
     extends LazyLogging
     with Retry {
 
@@ -244,7 +246,7 @@ class LeonardoService(
         .asInstanceOf[Option[RuntimeConfigRequest.DataprocConfig]]
         .map(_.toRuntimeConfigDataprocConfig(dataprocConfig.runtimeConfigDefaults))
         .getOrElse(dataprocConfig.runtimeConfigDefaults)
-      now <- IO(Instant.now())
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
       autopauseThreshold = calculateAutopauseThreshold(request.autopause, request.autopauseThreshold, autoFreezeConfig)
       clusterScopes = if (request.scopes.isEmpty) dataprocConfig.defaultScopes else request.scopes
       initialClusterToSave = CreateRuntimeRequest.toRuntime(
@@ -352,7 +354,7 @@ class LeonardoService(
                     ) //TODO: use better exception
                   case x: RuntimeConfigRequest.DataprocConfig =>
                     for {
-                      now <- IO(Instant.now)
+                      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
                       clusterResized <- maybeResizeCluster(existingCluster,
                                                            existingRuntimeConfig,
                                                            x.numberOfWorkers,
@@ -387,7 +389,7 @@ class LeonardoService(
         }
 
         // Set the cluster status to Updating if the cluster was resized
-        now <- IO(Instant.now)
+        now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
         _ <- if (shouldUpdate) {
           clusterQuery.updateClusterStatus(existingCluster.id, RuntimeStatus.Updating, now).transaction.void
         } else IO.unit
@@ -460,7 +462,7 @@ class LeonardoService(
       case Some(updatedAutopauseThreshold) =>
         for {
           _ <- log.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
-          now <- IO(Instant.now)
+          now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
           res <- clusterQuery
             .updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
             .transaction
@@ -472,10 +474,12 @@ class LeonardoService(
   }
 
   //returns true if cluster was resized, otherwise returns false
-  def maybeResizeCluster(existingCluster: Runtime,
-                         existingRuntimeConfig: RuntimeConfig.DataprocConfig,
-                         targetNumberOfWorkers: Option[Int],
-                         targetNumberOfPreemptibleWorkers: Option[Int]): IO[UpdateResult] = {
+  def maybeResizeCluster(
+    existingCluster: Runtime,
+    existingRuntimeConfig: RuntimeConfig.DataprocConfig,
+    targetNumberOfWorkers: Option[Int],
+    targetNumberOfPreemptibleWorkers: Option[Int]
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
     //machineConfig.numberOfPreemtible undefined, and a 0 is passed in
     val updatedNumWorkersAndPreemptiblesOpt =
       Ior.fromOptions(
@@ -491,14 +495,14 @@ class LeonardoService(
               s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
             )
             // Resize the cluster
-            _ <- dataprocAlg.resizeCluster(
+            _ <- CloudService.Dataproc.interpreter.resizeCluster(
               ResizeClusterParams(existingCluster,
                                   updatedNumWorkersAndPreemptibles.left,
                                   updatedNumWorkersAndPreemptibles.right)
             )
 
             // Update the DB
-            now <- IO(Instant.now)
+            now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
             _ <- dbRef.inTransaction {
               updatedNumWorkersAndPreemptibles.fold(
                 a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
@@ -544,7 +548,7 @@ class LeonardoService(
       // Note: instance must be stopped in order to change machine type
       case Some(updatedMasterMachineType) if existingCluster.status == Stopped =>
         for {
-          _ <- dataprocAlg.updateMasterMachineType(
+          _ <- CloudService.Dataproc.interpreter.updateMachineType(
             UpdateMachineTypeParams(existingCluster, updatedMasterMachineType, now)
           )
         } yield UpdateResult(true, None)
@@ -590,7 +594,8 @@ class LeonardoService(
             s"New target machine size present. Changing master disk size to $updatedMasterDiskSize GB for cluster ${existingCluster.projectNameString}..."
           )
           // Update the disk in Google
-          _ <- dataprocAlg.updateDiskSize(UpdateDiskSizeParams(existingCluster, updatedMasterDiskSize))
+          _ <- CloudService.Dataproc.interpreter
+            .updateDiskSize(UpdateDiskSizeParams(existingCluster, updatedMasterDiskSize))
           // Update the DB
           _ <- RuntimeConfigQueries
             .updateDiskSize(existingCluster.runtimeConfigId, updatedMasterDiskSize, now)
@@ -629,10 +634,10 @@ class LeonardoService(
       val hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
       for {
         // Delete the cluster in Google
-        _ <- dataprocAlg.deleteRuntime(DeleteRuntimeParams(cluster))
+        _ <- CloudService.Dataproc.interpreter.deleteRuntime(DeleteRuntimeParams(cluster))
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
-        now <- IO(Instant.now)
+        now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
         _ <- if (hasDataprocInfo) clusterQuery.markPendingDeletion(cluster.id, now).transaction
         else clusterQuery.completeDeletion(cluster.id, now).transaction
         _ <- if (hasDataprocInfo)
@@ -664,8 +669,9 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      now <- IO(Instant.now)
-      _ <- dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      _ <- CloudService.Dataproc.interpreter
+        .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
     } yield ()
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
@@ -682,8 +688,8 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      now <- IO(Instant.now)
-      _ <- dataprocAlg.startRuntime(StartRuntimeParams(cluster, now))
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      _ <- CloudService.Dataproc.interpreter.startRuntime(StartRuntimeParams(cluster, now))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
@@ -770,7 +776,7 @@ class LeonardoService(
     clusterRequest: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[RuntimeImage]] =
     for {
-      now <- IO(Instant.now)
+      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
       traceId <- ev.ask
       // Try to autodetect the image
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>

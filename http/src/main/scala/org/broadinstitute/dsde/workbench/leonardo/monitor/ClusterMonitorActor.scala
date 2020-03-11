@@ -38,6 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.ClusterMonitorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
@@ -79,12 +80,11 @@ object ClusterMonitorActor {
     google2StorageDAO: GoogleStorageService[IO],
     dbRef: DbReference[IO],
     authProvider: LeoAuthProvider[IO],
-    dataprocAlg: DataprocAlgebra[IO],
-    gceAlg: GceAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
-    cs: ContextShift[IO]): Props =
+    cs: ContextShift[IO],
+    runtimeInstances: RuntimeInstances[IO]): Props =
     Props(
       new ClusterMonitorActor(clusterId,
                               monitorConfig,
@@ -98,8 +98,6 @@ object ClusterMonitorActor {
                               google2StorageDAO,
                               dbRef,
                               authProvider,
-                              dataprocAlg,
-                              gceAlg,
                               publisherQueue)
     )
 
@@ -150,13 +148,12 @@ class ClusterMonitorActor(
   val google2StorageDAO: GoogleStorageService[IO],
   val dbRef: DbReference[IO],
   val authProvider: LeoAuthProvider[IO],
-  val dataprocAlg: DataprocAlgebra[IO],
-  val gceAlg: RuntimeAlgebra[IO],
   val publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
 )(implicit metrics: NewRelicMetrics[IO],
   runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
-  cs: ContextShift[IO])
+  cs: ContextShift[IO],
+  runtimeInstances: RuntimeInstances[IO])
     extends Actor
     with LazyLogging
     with Retry {
@@ -246,10 +243,8 @@ class ClusterMonitorActor(
           for {
             _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances)
             now <- IO(Instant.now)
-            _ <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-              case CloudService.GCE      => gceAlg.stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
-              case CloudService.Dataproc => dataprocAlg.stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
-            }
+            _ <- runtimeAndRuntimeConfig.runtimeConfig.cloudService.interpreter
+              .stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
             _ <- dbRef.inTransaction { clusterQuery.setToStopping(runtimeAndRuntimeConfig.runtime.id, now) }
           } yield ScheduleMonitorPass
         } else {
@@ -323,10 +318,8 @@ class ClusterMonitorActor(
     for {
       _ <- List(
         // Delete the cluster in Google
-        runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-          case CloudService.GCE      => gceAlg.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime))
-          case CloudService.Dataproc => dataprocAlg.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime))
-        },
+        runtimeAndRuntimeConfig.runtimeConfig.cloudService.interpreter
+          .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime)),
         // create or update instances in the DB
         persistInstances(runtimeAndRuntimeConfig, dataprocInstances),
         //save cluster error in the DB
@@ -417,10 +410,8 @@ class ClusterMonitorActor(
           runtimeAndRuntimeConfig.runtime.runtimeName
         )
 
-      _ <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-        case CloudService.GCE      => gceAlg.finalizeDelete(FinalizeDeleteParams(runtimeAndRuntimeConfig.runtime))
-        case CloudService.Dataproc => dataprocAlg.finalizeDelete(FinalizeDeleteParams(runtimeAndRuntimeConfig.runtime))
-      }
+      _ <- runtimeAndRuntimeConfig.runtimeConfig.cloudService.interpreter
+        .finalizeDelete(FinalizeDeleteParams(runtimeAndRuntimeConfig.runtime))
 
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(runtimeAndRuntimeConfig.runtime),

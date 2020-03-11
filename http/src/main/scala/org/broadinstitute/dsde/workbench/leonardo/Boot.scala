@@ -104,36 +104,37 @@ object Boot extends IOApp {
                       appDependencies.googleComputeService,
                       appDependencies.blocker)
 
-      val dataprocAlg = new DataprocInterpreter(DataprocInterpreterConfig(dataprocConfig,
-                                                                          googleGroupsConfig,
-                                                                          welderConfig,
-                                                                          imageConfig,
-                                                                          proxyConfig,
-                                                                          clusterResourcesConfig,
-                                                                          clusterFilesConfig,
-                                                                          monitorConfig),
-                                                bucketHelper,
-                                                vpcHelper,
-                                                appDependencies.googleDataprocDAO,
-                                                appDependencies.googleComputeService,
-                                                appDependencies.googleDirectoryDAO,
-                                                appDependencies.googleIamDAO,
-                                                appDependencies.googleProjectDAO,
-                                                appDependencies.welderDAO,
-                                                appDependencies.blocker)
+      val dataprocInterp = new DataprocInterpreter(DataprocInterpreterConfig(dataprocConfig,
+                                                                             googleGroupsConfig,
+                                                                             welderConfig,
+                                                                             imageConfig,
+                                                                             proxyConfig,
+                                                                             clusterResourcesConfig,
+                                                                             clusterFilesConfig,
+                                                                             monitorConfig),
+                                                   bucketHelper,
+                                                   vpcHelper,
+                                                   appDependencies.googleDataprocDAO,
+                                                   appDependencies.googleComputeService,
+                                                   appDependencies.googleDirectoryDAO,
+                                                   appDependencies.googleIamDAO,
+                                                   appDependencies.googleProjectDAO,
+                                                   appDependencies.welderDAO,
+                                                   appDependencies.blocker)
 
-      val gceAlg = new GceInterpreter(GceInterpreterConfig(gceConfig,
-                                                           welderConfig,
-                                                           imageConfig,
-                                                           proxyConfig,
-                                                           clusterResourcesConfig,
-                                                           clusterFilesConfig,
-                                                           monitorConfig),
-                                      bucketHelper,
-                                      vpcHelper,
-                                      appDependencies.googleComputeService,
-                                      appDependencies.welderDAO,
-                                      appDependencies.blocker)
+      val gceInterp = new GceInterpreter(GceInterpreterConfig(gceConfig,
+                                                              welderConfig,
+                                                              imageConfig,
+                                                              proxyConfig,
+                                                              clusterResourcesConfig,
+                                                              clusterFilesConfig,
+                                                              monitorConfig),
+                                         bucketHelper,
+                                         vpcHelper,
+                                         appDependencies.googleComputeService,
+                                         appDependencies.welderDAO,
+                                         appDependencies.blocker)
+      implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
 
       val leonardoService = new LeonardoService(dataprocConfig,
                                                 imageConfig,
@@ -146,7 +147,6 @@ object Boot extends IOApp {
                                                 appDependencies.authProvider,
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
-                                                dataprocAlg,
                                                 appDependencies.dockerDAO,
                                                 appDependencies.publisherQueue)
 
@@ -171,8 +171,6 @@ object Boot extends IOApp {
             appDependencies.jupyterDAO,
             appDependencies.rStudioDAO,
             appDependencies.welderDAO,
-            dataprocAlg,
-            gceAlg,
             appDependencies.publisherQueue
           )
         )
@@ -220,7 +218,7 @@ object Boot extends IOApp {
       )
       val messageProcessorStream = if (leoExecutionModeConfig.backLeo) {
         val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
-          new LeoPubsubMessageSubscriber(appDependencies.subscriber, dataprocAlg, gceAlg)
+          new LeoPubsubMessageSubscriber(appDependencies.subscriber)
         Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName} in boot")) ++ pubsubSubscriber.process
           .handleErrorWith(
             error => Stream.eval(logger.error(error)("Failed to initialize message processor in Boot. "))
@@ -240,7 +238,7 @@ object Boot extends IOApp {
                                       contentSecurityPolicy)
       val httpServer = for {
         _ <- if (leoExecutionModeConfig.backLeo) {
-          dataprocAlg.setupDataprocImageGoogleGroup()
+          dataprocInterp.setupDataprocImageGoogleGroup()
         } else IO.unit
         _ <- IO.fromFuture {
           IO {

@@ -44,22 +44,7 @@ trait RuntimeAlgebra[F[_]] {
   def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-}
-
-/**
- * Adds GCE extensions to RuntimeAlgebra.
- */
-trait GceAlgebra[F[_]] extends RuntimeAlgebra[F] {
-  // expecting to add PD, GPU related functionality here
-}
-
-/**
- * Adds Dataproc extensions to RuntimeAlgebra.
- */
-trait DataprocAlgebra[F[_]] extends RuntimeAlgebra[F] {
-  def resizeCluster(params: ResizeClusterParams): F[Unit]
-  def updateMasterMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    updateMachineType(params)
+  def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 }
 
 // Parameters

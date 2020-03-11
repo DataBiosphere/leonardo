@@ -94,7 +94,7 @@ class AuthProviderSpec
   val vpcHelperConfig =
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
   val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService, blocker)
-  val dataprocAlg =
+  val dataprocInterp =
     new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
                                                           googleGroupsConfig,
                                                           welderConfig,
@@ -112,7 +112,7 @@ class AuthProviderSpec
                                 mockGoogleProjectDAO,
                                 mockWelderDAO,
                                 blocker)
-  val gceAlg =
+  val gceInterp =
     new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
                                                 welderConfig,
                                                 imageConfig,
@@ -125,6 +125,7 @@ class AuthProviderSpec
                            MockGoogleComputeService,
                            mockWelderDAO,
                            blocker)
+  implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 
   override def beforeAll(): Unit = {
@@ -158,7 +159,6 @@ class AuthProviderSpec
                         authProvider,
                         serviceAccountProvider,
                         bucketHelper,
-                        dataprocAlg,
                         new MockDockerDAO,
                         QueueFactory.makePublisherQueue())
   }

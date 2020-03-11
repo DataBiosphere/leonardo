@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.time.Instant
 
@@ -13,10 +12,10 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeCannotBeStartedException,
-  RuntimeCannotBeStoppedException,
-  RuntimeOutOfDateException
+  RuntimeCannotBeStoppedException
 }
 import org.broadinstitute.dsde.workbench.leonardo.{
   Runtime,
@@ -42,7 +41,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
-  protected def startGoogleRuntime(runtime: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
+  protected def startGoogleRuntime(runtime: Runtime, welderAction: Option[WelderAction], runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
@@ -85,14 +84,13 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       val welderAction = getWelderAction(params.runtime)
       for {
         // Check if welder should be deployed or updated
-        updatedRuntime <- welderAction match {
-          case DeployWelder | UpdateWelder      => updateWelder(params.runtime, params.now)
-          case NoAction | DisableDelocalization => Async[F].pure(params.runtime)
-          case RuntimeOutOfDate                 => Async[F].raiseError[Runtime](RuntimeOutOfDateException())
-        }
-        _ <- if (welderAction == DisableDelocalization && !params.runtime.labels.contains("welderInstallFailed"))
-          dbRef.inTransaction { labelQuery.save(params.runtime.id, "welderInstallFailed", "true") }.void
-        else Async[F].unit
+        updatedRuntime <- getWelderAction(params.runtime)
+          .traverse {
+            case DeployWelder | UpdateWelder => updateWelder(params.runtime, params.now)
+            case DisableDelocalization =>
+              labelQuery.save(params.runtime.id, "welderInstallFailed", "true").transaction.as(params.runtime)
+          }
+          .map(_.getOrElse(params.runtime))
 
         runtimeConfig <- dbRef.inTransaction(
           RuntimeConfigQueries.getRuntimeConfig(params.runtime.runtimeConfigId)
@@ -110,7 +108,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         RuntimeCannotBeStartedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status)
       )
 
-  private def getWelderAction(runtime: Runtime): WelderAction =
+  private def getWelderAction(runtime: Runtime): Option[WelderAction] =
     if (runtime.welderEnabled) {
       // Welder is already enabled; do we need to update it?
       val labelFound = config.welderConfig.updateWelderLabel.exists(runtime.labels.contains)
@@ -120,15 +118,15 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         case _                                                                           => false
       }
 
-      if (labelFound && imageChanged) UpdateWelder
-      else NoAction
+      if (labelFound && imageChanged) Some(UpdateWelder)
+      else None
     } else {
       // Welder is not enabled; do we need to deploy it?
       val labelFound = config.welderConfig.deployWelderLabel.exists(runtime.labels.contains)
       if (labelFound) {
-        if (isClusterBeforeCutoffDate(runtime)) DisableDelocalization
-        else DeployWelder
-      } else NoAction
+        if (isClusterBeforeCutoffDate(runtime)) Some(DisableDelocalization)
+        else Some(DeployWelder)
+      } else None
     }
 
   private def isClusterBeforeCutoffDate(runtime: Runtime): Boolean =
@@ -167,7 +165,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 
   // Startup script to run after the runtime is resumed
   protected def getStartupScript(runtime: Runtime,
-                                 welderAction: WelderAction,
+                                 welderAction: Option[WelderAction],
                                  blocker: Blocker): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
@@ -181,22 +179,18 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.clusterFilesConfig,
       config.clusterResourcesConfig,
       None,
-      RuntimeOperation.Restarting
+      RuntimeOperation.Restarting,
+      welderAction
     )
-    val clusterInit = RuntimeTemplateValues(templateConfig)
-    val replacements: Map[String, String] = clusterInit.toMap ++
-      Map(
-        "deployWelder" -> (welderAction == DeployWelder).toString,
-        "updateWelder" -> (welderAction == UpdateWelder).toString,
-        "disableDelocalization" -> (welderAction == DisableDelocalization).toString
-      )
+    val replacements = RuntimeTemplateValues(templateConfig).toMap
 
     TemplateHelper
       .templateResource[F](replacements, config.clusterResourcesConfig.startupScript, blocker)
+      .through(fs2.text.utf8Decode)
       .compile
-      .to[Array]
-      .map { bytes =>
-        Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
+      .string
+      .map { s =>
+        Map(googleKey -> s)
       }
   }
 
@@ -214,16 +208,18 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.clusterFilesConfig,
       config.clusterResourcesConfig,
       None,
-      RuntimeOperation.Stopping
+      RuntimeOperation.Stopping,
+      None
     )
     val replacements = RuntimeTemplateValues(templateConfig).toMap
 
     TemplateHelper
       .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript, blocker)
+      .through(fs2.text.utf8Decode)
       .compile
-      .to[Array]
-      .map { bytes =>
-        Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
+      .string
+      .map { s =>
+        Map(googleKey -> s)
       }
   }
 

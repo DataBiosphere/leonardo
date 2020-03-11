@@ -65,7 +65,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   metrics: NewRelicMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
-    with DataprocAlgebra[F]
+    with RuntimeAlgebra[F]
     with LazyLogging
     with Retry {
 
@@ -259,7 +259,9 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       }
     } yield ()
 
-  override protected def startGoogleRuntime(runtime: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
+  override protected def startGoogleRuntime(runtime: Runtime,
+                                            welderAction: Option[WelderAction],
+                                            runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
@@ -298,7 +300,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
     } yield ()
 
-  override def resizeCluster(params: ResizeClusterParams): F[Unit] =
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     (for {
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
       _ <- createClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccountInfo)

@@ -41,6 +41,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{
   DataprocInterpreter,
   GceInterpreter,
   QueueFactory,
+  RuntimeInstances,
   VPCHelper,
   VPCHelperConfig
 }
@@ -100,7 +101,7 @@ trait TestLeoRoutes {
   val vpcHelperConfig =
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
   val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService, blocker)
-  val dataprocAlg =
+  val dataprocInterp =
     new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
                                                           googleGroupsConfig,
                                                           welderConfig,
@@ -118,7 +119,7 @@ trait TestLeoRoutes {
                                 mockGoogleProjectDAO,
                                 MockWelderDAO,
                                 blocker)
-  val gceAlg =
+  val gceInterp =
     new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
                                                 welderConfig,
                                                 imageConfig,
@@ -131,6 +132,7 @@ trait TestLeoRoutes {
                            MockGoogleComputeService,
                            MockWelderDAO,
                            blocker)
+  val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val leonardoService = new LeonardoService(
     dataprocConfig,
@@ -144,10 +146,9 @@ trait TestLeoRoutes {
     whitelistAuthProvider,
     serviceAccountProvider,
     bucketHelper,
-    dataprocAlg,
     new MockDockerDAO,
     QueueFactory.makePublisherQueue()
-  )(executor, system, loggerIO, cs, metrics, dbRef)
+  )(executor, system, loggerIO, cs, timer, metrics, dbRef, runtimeInstances)
 
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
 

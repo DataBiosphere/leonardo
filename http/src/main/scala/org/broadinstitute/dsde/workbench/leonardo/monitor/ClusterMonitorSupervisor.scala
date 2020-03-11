@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterSupervisorMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocAlgebra, GceAlgebra, StopRuntimeParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeInstances, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -43,14 +43,13 @@ object ClusterMonitorSupervisor {
     jupyterProxyDAO: JupyterDAO[IO],
     rstudioProxyDAO: RStudioDAO[IO],
     welderDAO: WelderDAO[IO],
-    dataprocAlg: DataprocAlgebra[IO],
-    gceAlg: GceAlgebra[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     dbRef: DbReference[IO],
     ec: ExecutionContext,
     clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
-    cs: ContextShift[IO]): Props =
+    cs: ContextShift[IO],
+    runtimeInstances: RuntimeInstances[IO]): Props =
     Props(
       new ClusterMonitorSupervisor(monitorConfig,
                                    dataprocConfig,
@@ -66,8 +65,6 @@ object ClusterMonitorSupervisor {
                                    jupyterProxyDAO,
                                    rstudioProxyDAO,
                                    welderDAO,
-                                   dataprocAlg,
-                                   gceAlg,
                                    publisherQueue)
     )
 
@@ -124,14 +121,13 @@ class ClusterMonitorSupervisor(
   jupyterProxyDAO: JupyterDAO[IO],
   rstudioProxyDAO: RStudioDAO[IO],
   welderProxyDAO: WelderDAO[IO],
-  dataprocAlg: DataprocAlgebra[IO],
-  gceAlg: GceAlgebra[IO],
   publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
 )(implicit metrics: NewRelicMetrics[IO],
   ec: ExecutionContext,
   dbRef: DbReference[IO],
   clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
-  cs: ContextShift[IO])
+  cs: ContextShift[IO],
+  runtimeInstances: RuntimeInstances[IO])
     extends Actor
     with Timers
     with LazyLogging {
@@ -252,8 +248,6 @@ class ClusterMonitorSupervisor(
         google2StorageDAO,
         dbRef,
         authProvider,
-        dataprocAlg,
-        gceAlg,
         publisherQueue
       )
     )
@@ -324,12 +318,8 @@ class ClusterMonitorSupervisor(
       } else IO.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
-      _ <- runtimeConfig.cloudService match {
-        case CloudService.Dataproc =>
-          dataprocAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
-        case CloudService.GCE =>
-          gceAlg.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
-      }
+      _ <- runtimeConfig.cloudService.interpreter
+        .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
       // Update the cluster status to Stopping
       _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
     } yield ()

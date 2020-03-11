@@ -82,7 +82,7 @@ class HttpGoogleDataprocDAO(
             (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") =>
         throw DataprocDisabledException(e.getMessage)
     }.map { op =>
-        Operation(OperationName(op.getName), GoogleId(getOperationUUID(op)))
+        Operation(OperationName(op.getName), getGoogleId(op))
       }
       .handleGoogleException(googleProject, Some(clusterName.asString))
 
@@ -412,8 +412,8 @@ class HttpGoogleDataprocDAO(
     }
   }
 
-  private def getOperationUUID(dop: DataprocOperation): String =
-    dop.getMetadata.get("clusterUuid").toString
+  private def getGoogleId(dop: DataprocOperation): GoogleId =
+    GoogleId(dop.getMetadata.get("clusterUuid").toString)
 
   /**
    * Gets the master instance name from a dataproc cluster, with error handling.

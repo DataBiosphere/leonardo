@@ -49,7 +49,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   metrics: NewRelicMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
-    with GceAlgebra[F] {
+    with RuntimeAlgebra[F] {
 
   override def createRuntime(
     params: CreateRuntimeParams
@@ -172,7 +172,9 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                              InstanceName(runtime.runtimeName.asString))
     } yield ()
 
-  override protected def startGoogleRuntime(runtime: Runtime, welderAction: WelderAction, runtimeConfig: RuntimeConfig)(
+  override protected def startGoogleRuntime(runtime: Runtime,
+                                            welderAction: Option[WelderAction],
+                                            runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
@@ -211,6 +213,9 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                     config.gceConfig.zoneName,
                                     DiskName(params.runtime.runtimeName.asString),
                                     params.diskSize)
+
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    Async[F].unit
 
   private[leonardo] def getResourceConstraints(
     googleProject: GoogleProject,
