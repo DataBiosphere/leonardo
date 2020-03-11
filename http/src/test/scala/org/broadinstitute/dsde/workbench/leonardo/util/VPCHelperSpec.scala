@@ -6,7 +6,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Firewall
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.FirewallRuleName
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
@@ -47,12 +47,12 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
     test.getOrCreateVPCSettings(CommonTestData.project).unsafeRunSync() shouldBe VPCNetwork("default")
   }
 
-  it should "create a firewall rule" in {
+  it should "create a firewall rule with no project labels" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
     val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), computeService)
 
     test
-      .getOrCreateFirewallRule(CommonTestData.project, RegionName("us-central1"), VPCNetwork("default"))
+      .getOrCreateFirewallRule(CommonTestData.project)
       .unsafeRunSync()
     val createdFirewall = computeService.firewallMap.get(FirewallRuleName(CommonTestData.proxyConfig.firewallRuleName))
     createdFirewall shouldBe 'defined
@@ -64,17 +64,23 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
     )
   }
 
-  it should "create a firewall rule with a subnet" in {
+  it should "create a firewall rule with project labels" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
-    val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), computeService)
+    val test = new VPCHelper(CommonTestData.vpcHelperConfig,
+                             stubProjectDAO(
+                               Map(CommonTestData.vpcHelperConfig.projectVPCSubnetLabelName -> "my_subnet",
+                                   CommonTestData.vpcHelperConfig.projectVPCNetworkLabelName -> "my_network")
+                             ),
+                             computeService)
 
     test
-      .getOrCreateFirewallRule(CommonTestData.project, RegionName("us-central1"), VPCSubnet("my_subnet"))
+      .getOrCreateFirewallRule(CommonTestData.project)
       .unsafeRunSync()
     val createdFirewall = computeService.firewallMap.get(FirewallRuleName(CommonTestData.proxyConfig.firewallRuleName))
     createdFirewall shouldBe 'defined
     createdFirewall.get.getName shouldBe CommonTestData.proxyConfig.firewallRuleName
-    createdFirewall.get.getNetwork shouldBe s"projects/${CommonTestData.project.value}/regions/us-central1/subnetworks/my_subnet"
+    // it should ignore the subnet label and use the network
+    createdFirewall.get.getNetwork shouldBe s"projects/${CommonTestData.project.value}/global/networks/my_network"
     createdFirewall.get.getTargetTagsList.asScala shouldBe List(CommonTestData.proxyConfig.networkTag)
     createdFirewall.get.getAllowedList.asScala.flatMap(_.getPortsList.asScala) shouldBe List(
       CommonTestData.proxyConfig.proxyPort.toString

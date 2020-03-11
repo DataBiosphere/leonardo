@@ -72,7 +72,6 @@ object Config {
 
   implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
-      config.as[RegionName]("region"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
