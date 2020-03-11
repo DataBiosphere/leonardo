@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleTopicAdminInterpreter,
   MachineTypeName,
   PublisherConfig,
+  RegionName,
   SubscriberConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
@@ -71,6 +72,7 @@ object Config {
 
   implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
+      config.as[RegionName]("region"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
@@ -252,6 +254,7 @@ object Config {
   }
   implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
+  implicit val regionNameValueReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
   implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
   implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
   implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(

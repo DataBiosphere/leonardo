@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, SaveCluster, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, SaveCluster}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, RuntimeServiceContext}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
+import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
 
@@ -38,13 +38,14 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                            serviceAccountProvider: ServiceAccountProvider[F],
                                            dockerDAO: DockerDAO[F],
                                            googleStorageService: GoogleStorageService[F],
-                                           publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(implicit F: Async[F],
-                                                                                            log: StructuredLogger[F],
-                                                                                            timer: Timer[F],
-                                                                                            cs: ContextShift[F],
-                                                                                            dbReference: DbReference[F],
-                                                                                            ec: ExecutionContext)
-    extends RuntimeService[F] {
+                                           publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
+  implicit F: Async[F],
+  log: StructuredLogger[F],
+  timer: Timer[F],
+  cs: ContextShift[F],
+  dbReference: DbReference[F],
+  ec: ExecutionContext
+) extends RuntimeService[F] {
 
   def createRuntime(userInfo: UserInfo,
                     googleProject: GoogleProject,
