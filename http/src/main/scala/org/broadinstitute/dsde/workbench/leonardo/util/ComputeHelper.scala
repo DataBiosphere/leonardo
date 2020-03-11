@@ -35,9 +35,7 @@ class ComputeHelper(config: ComputeHelperConfig,
     for {
       // Set up VPC network and firewall
       vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
-      firewallRule <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject,
-                                                        config.gceConfig.regionName,
-                                                        vpcSettings)
+      _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject)
 
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
