@@ -1,15 +1,22 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
-import akka.actor.{ActorRef, ActorSystem, Terminated}
+import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import cats.effect.IO
+import cats.effect.concurrent.Deferred
+import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
+import com.google.cloud.compute.v1.Instance
+import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeConfigId, RuntimeName, RuntimeStatus}
+import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
@@ -18,12 +25,12 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Try
 
-class ZombieClusterMonitorSpec
+class ZombieRuntimeMonitorSpec
     extends TestKit(ActorSystem("leonardotest"))
     with FlatSpecLike
     with BeforeAndAfterAll
+    with LeonardoTestSuite
     with TestComponent
     with GcsPathUtils { testKit =>
 
@@ -36,7 +43,7 @@ class ZombieClusterMonitorSpec
     super.afterAll()
   }
 
-  "ZombieClusterMonitor" should "detect zombie clusters when the project is inactive" in isolatedDbTest {
+  "ZombieRuntimeMonitor" should "detect zombie clusters when the project is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -52,7 +59,7 @@ class ZombieClusterMonitorSpec
     }
 
     // zombie actor should flag both clusters as inactive
-    withZombieActor(googleProjectDAO = googleProjectDAO) { _ =>
+    withZombieMonitor(googleProjectDAO = googleProjectDAO) { () =>
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
@@ -68,7 +75,7 @@ class ZombieClusterMonitorSpec
     }
   }
 
-  "ZombieClusterMonitor" should "detect zombie clusters when we get a 403 from google" in isolatedDbTest {
+  it should "detect zombie clusters when we get a 403 from google" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create a running cluster
@@ -85,7 +92,7 @@ class ZombieClusterMonitorSpec
     }
 
     // zombie actor should flag the cluster as inactive
-    withZombieActor(googleProjectDAO = googleProjectDAO) { _ =>
+    withZombieMonitor(googleProjectDAO = googleProjectDAO) { () =>
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
 
@@ -114,7 +121,7 @@ class ZombieClusterMonitorSpec
     }
 
     // zombie actor should flag both clusters as inactive
-    withZombieActor(googleProjectDAO = googleProjectDAO) { _ =>
+    withZombieMonitor(googleProjectDAO = googleProjectDAO) { () =>
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
@@ -130,7 +137,7 @@ class ZombieClusterMonitorSpec
     }
   }
 
-  it should "detect zombie clusters when the cluster is inactive" in isolatedDbTest {
+  it should "detect zombie dataptoc cluster when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -153,7 +160,7 @@ class ZombieClusterMonitorSpec
     }
 
     // c2 should be flagged as a zombie but not c1
-    withZombieActor(gdDAO = gdDAO) { _ =>
+    withZombieMonitor(gdDAO = gdDAO) { () =>
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
@@ -166,6 +173,40 @@ class ZombieClusterMonitorSpec
 
         c1.status shouldBe RuntimeStatus.Running
         c1.errors shouldBe 'empty
+      }
+    }
+  }
+
+  it should "detect zombie gce instance when the cluster is inactive" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    // create 2 running clusters in the same project
+    val runtimeConfig = RuntimeConfig.GceConfig(
+      MachineTypeName("n1-standard-4"),
+      50
+    )
+    val savedTestCluster = testCluster1.saveWithRuntimeConfig(runtimeConfig)
+    savedTestCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
+
+    // stub GoogleDataprocDAO to flag cluster2 as deleted
+    val gce = new MockGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[Instance]] = {
+        val instance = Instance.newBuilder().setStatus("TERMINATED").build()
+        IO.pure(Some(instance))
+      }
+    }
+
+    withZombieMonitor(gce = gce) { () =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster.id) }.get
+
+        c1.status shouldBe RuntimeStatus.Deleted
+        c1.auditInfo.destroyedDate shouldBe 'defined
+        c1.errors.size shouldBe 1
+        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
   }
@@ -190,7 +231,7 @@ class ZombieClusterMonitorSpec
     val shouldHangAfter: Span = zombieClusterConfig.creationHangTolerance.plus(zombieClusterConfig.zombieCheckPeriod)
 
     // cluster2 should be active when it's still within hang tolerance
-    withZombieActor(gdDAO = gdDAO) { _ =>
+    withZombieMonitor(gdDAO = gdDAO) { () =>
       eventually(timeout(3 seconds)) { //This timeout can be anything smaller than hang tolerance
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
@@ -198,8 +239,9 @@ class ZombieClusterMonitorSpec
         c2.auditInfo.destroyedDate shouldBe None
       }
     }
+
     // the Running cluster should be a zombie but the Creating one shouldn't
-    withZombieActor(gdDAO = gdDAO) { _ =>
+    withZombieMonitor(gdDAO = gdDAO) { () =>
       eventually(timeout(shouldHangAfter)) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
@@ -234,9 +276,8 @@ class ZombieClusterMonitorSpec
     }
 
     // the Running cluster should be a zombie but the Creating one shouldn't
-    withZombieActor(gdDAO = gdDAO) { _ =>
+    withZombieMonitor(gdDAO = gdDAO) { () =>
       Thread.sleep(shouldNotHangBefore.toSeconds)
-
       val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster2.id) }.get
       c1.status shouldBe RuntimeStatus.Creating
       c1.errors.size shouldBe 0
@@ -261,14 +302,6 @@ class ZombieClusterMonitorSpec
     val savedGoodCluster = goodCluster.save()
     savedGoodCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual goodCluster
 
-    // stub GoogleProjectDAO to return an error for the bad project
-    val googleProjectDAO = new MockGoogleProjectDAO {
-      override def isProjectActive(projectName: String): Future[Boolean] =
-        if (projectName == clusterBadProject.googleProject.value) {
-          Future.failed(new Exception)
-        } else Future.successful(true)
-    }
-
     // stub GoogleDataprocDAO to return an error for the bad cluster
     val gdDAO = new MockGoogleDataprocDAO {
       override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus] =
@@ -282,7 +315,7 @@ class ZombieClusterMonitorSpec
     }
 
     // only the "good" cluster should be zombified
-    withZombieActor(gdDAO = gdDAO) { _ =>
+    withZombieMonitor(gdDAO = gdDAO) { () =>
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedClusterBadProject.id) }.get
         val c2 = dbFutureValue { clusterQuery.getClusterById(savedBadCluster.id) }.get
@@ -303,18 +336,16 @@ class ZombieClusterMonitorSpec
     }
   }
 
-  private def withZombieActor[T](
+  private def withZombieMonitor[A](
     gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
-    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
-  )(testCode: ActorRef => T): T = {
-    val actor =
-      system.actorOf(ZombieClusterMonitor.props(zombieClusterConfig, gdDAO, googleProjectDAO))
-    val testResult = Try(testCode(actor))
-    // shut down the actor and wait for it to terminate
-    testKit watch actor
-    system.stop(actor)
-    expectMsgClass(5 seconds, classOf[Terminated])
-    testResult.get
+    gce: GoogleComputeService[IO] = new MockGoogleComputeService,
+    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO)(validations: () => A): A = {
+    val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterConfig, gdDAO, gce, googleProjectDAO)
+    val process = Stream.eval(Deferred[IO, A]).flatMap { signalToStop =>
+      val signal =  Stream.eval(IO(validations())).evalMap(r => signalToStop.complete(r))
+      val p = Stream(zombieClusterMonitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal).parJoin(2)
+      p ++ Stream.eval(signalToStop.get)
+    }
+    process.compile.lastOrError.unsafeRunSync().asInstanceOf[A]
   }
-
 }

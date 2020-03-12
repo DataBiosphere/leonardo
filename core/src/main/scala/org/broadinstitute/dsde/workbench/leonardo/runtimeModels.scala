@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CustomDataProc, Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, parseGcsPath}
 import org.broadinstitute.dsde.workbench.model.{ValueObject, WorkbenchEmail}
 
 import scala.collection.immutable
@@ -73,36 +73,46 @@ sealed trait RuntimeStatus extends EnumEntry
 object RuntimeStatus extends Enum[RuntimeStatus] {
   val values = findValues
 
+  // Dataproc statuses: https://googleapis.github.io/google-cloud-dotnet/docs/Google.Cloud.Dataproc.V1/api/Google.Cloud.Dataproc.V1.ClusterStatus.Types.State.html
+  // GCE statuses: PROVISIONING, STAGING, RUNNING, STOPPING, STOPPED, SUSPENDING, SUSPENDED, and TERMINATED
+
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Unknown extends RuntimeStatus
-  case object Creating extends RuntimeStatus
-  case object Running extends RuntimeStatus
-  case object Updating extends RuntimeStatus
-  case object Error extends RuntimeStatus
-  case object Deleting extends RuntimeStatus
-  case object Deleted extends RuntimeStatus
-  case object Stopping extends RuntimeStatus
-  case object Stopped extends RuntimeStatus
-  case object Starting extends RuntimeStatus
+  case object Creating extends RuntimeStatus // dataproc
+  case object Running extends RuntimeStatus // dataproc, gce
+  case object Updating extends RuntimeStatus // dataproc
+  case object Error extends RuntimeStatus // dataproc
+  case object Deleting extends RuntimeStatus // dataproc
+
+  case object Unknown extends RuntimeStatus //leo, dataproc
+  case object Stopping extends RuntimeStatus // leo, gce
+  case object Stopped extends RuntimeStatus // leo, gce
+  case object Starting extends RuntimeStatus // leo
+  case object Deleted extends RuntimeStatus // leo
+
+  case object Provisioning extends RuntimeStatus // gce
+  case object Staging extends RuntimeStatus // gce
+  case object Suspending extends RuntimeStatus // gce
+  case object Suspended extends RuntimeStatus // gce
+  case object Terminated extends RuntimeStatus // gce
 
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[RuntimeStatus] =
-    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
+    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting, Staging, Provisioning)
 
   // Can a user delete this runtime? Contains everything except Creating, Deleting, Deleted.
-  val deletableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting)
+  val deletableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting, Suspending, Terminated, Suspending)
 
   // Non-terminal statuses. Requires monitoring via ClusterMonitorActor.
   val monitoredStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)
 
   // Can a user stop this runtime?
-  val stoppableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Starting)
+  val stoppableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Starting, Provisioning)
 
   // Can a user start this runtime?
-  val startableStatuses: Set[RuntimeStatus] = Set(Stopped, Stopping)
+  val startableStatuses: Set[RuntimeStatus] = Set(Stopped, Stopping, Suspending, Suspended)
 
   // Can a user update (i.e. resize) this runtime?
-  val updatableStatuses: Set[RuntimeStatus] = Set(Running, Stopped)
+  val updatableStatuses: Set[RuntimeStatus] = Set(Running, Stopped, Suspended)
 
   implicit class EnrichedRuntimeStatus(status: RuntimeStatus) {
     def isActive: Boolean = activeStatuses contains status

@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.subscriberConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -74,7 +75,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
     }
   }
 
-  val process: Stream[F, Unit] = subscriber.messages through messageHandler
+  val process: Stream[F, Unit] =
+    (Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName}")) ++ (subscriber.messages through messageHandler))
+      .handleErrorWith(
+        error => Stream.eval(logger.error(error)("Failed to initialize message processor"))
+      )
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] =
     logger.info(s"acking message: ${event}") >> Async[F].delay(

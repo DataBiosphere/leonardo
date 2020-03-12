@@ -218,15 +218,6 @@ object Config {
     )
   }
 
-  implicit val zombieClusterConfigValueReader: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
-    ZombieClusterConfig(
-      config.getBoolean("enableZombieClusterMonitor"),
-      toScalaDuration(config.getDuration("pollPeriod")),
-      toScalaDuration(config.getDuration("creationHangTolerance")),
-      config.getInt("concurrency")
-    )
-  }
-
   implicit val clusterToolConfigValueReader: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
     ClusterToolConfig(
       toScalaDuration(config.getDuration("pollPeriod"))
@@ -307,6 +298,18 @@ object Config {
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
+
+
+  implicit val zombieClusterConfigValueReader: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
+    ZombieClusterConfig(
+      config.getBoolean("enableZombieClusterMonitor"),
+      toScalaDuration(config.getDuration("pollPeriod")),
+      toScalaDuration(config.getDuration("creationHangTolerance")),
+      config.getInt("concurrency"),
+      gceConfig.zoneName
+    )
+  }
+
   val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")

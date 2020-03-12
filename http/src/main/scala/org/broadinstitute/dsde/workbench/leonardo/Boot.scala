@@ -172,11 +172,6 @@ object Boot extends IOApp {
           )
         )
         system.actorOf(
-          ZombieClusterMonitor.props(zombieClusterMonitorConfig,
-                                     appDependencies.googleDataprocDAO,
-                                     appDependencies.googleProjectDAO)
-        )
-        system.actorOf(
           ClusterToolMonitor.props(clusterToolMonitorConfig,
                                    appDependencies.googleDataprocDAO,
                                    appDependencies.googleProjectDAO,
@@ -213,18 +208,11 @@ object Boot extends IOApp {
         appDependencies.google2StorageDao,
         appDependencies.publisherQueue
       )
-      val messageProcessorStream = if (leoExecutionModeConfig.backLeo) {
-        val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
-          new LeoPubsubMessageSubscriber(appDependencies.subscriber)
-        Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName} in boot")) ++ pubsubSubscriber.process
-          .handleErrorWith(
-            error => Stream.eval(logger.error(error)("Failed to initialize message processor in Boot. "))
-          )
-      } else Stream.eval(logger.info(s"Not starting subscriber in boot"))
 
-      val startSubscriber = if (leoExecutionModeConfig.backLeo) {
-        Stream.eval(appDependencies.subscriber.start)
-      } else Stream.eval(IO.unit)
+      val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterMonitorConfig,
+                                                          appDependencies.googleDataprocDAO,
+        appDependencies.googleComputeService,
+                                                          appDependencies.googleProjectDAO)
 
       val httpRoutes = new HttpRoutes(swaggerConfig,
                                       statusService,
@@ -249,12 +237,22 @@ object Boot extends IOApp {
         }
       } yield ()
 
-      val app = Stream(
-        appDependencies.publisherStream, //start the publisher queue .dequeue
-        messageProcessorStream, //start subscriber dequeue
-        Stream.eval(httpServer), //start http server
-        startSubscriber //start asyncly pulling data in subscriber
-      ).parJoin(4)
+      val allStreams = {
+        val extra =
+          if (leoExecutionModeConfig.backLeo) {
+            // only needed for backleo
+            val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
+              new LeoPubsubMessageSubscriber(appDependencies.subscriber)
+            List(pubsubSubscriber.process, Stream.eval(appDependencies.subscriber.start), zombieClusterMonitor.process)
+          } else List.empty[Stream[IO, Unit]]
+
+        List(
+          appDependencies.publisherStream, //start the publisher queue .dequeue
+          Stream.eval[IO, Unit](httpServer) //start http server
+        ) ++ extra
+      }
+
+      val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)
 
       app
         .handleErrorWith { error =>
