@@ -1,10 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
-
     <changeSet logicalFilePath="leonardo" author="rtitle" id="change_google_id_type">
-        <modifyDataType columnName="googleId"
-                        newDataType="varchar(254)"
-                        tableName="CLUSTER"/>
-    </changeSet>
 
+        <addColumn tableName="CLUSTER">
+            <column name="googleIdTmp" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <sql>UPDATE CLUSTER set `googleIdTmp` = LOWER(CONCAT(SUBSTR(HEX(`googleId`), 1, 8), '-', SUBSTR(HEX(`googleId`), 9, 4), '-', SUBSTR(HEX(`googleId`), 13, 4), '-', SUBSTR(HEX(`googleId`), 17, 4), '-', SUBSTR(HEX(`googleId`), 21) ))</sql>
+
+        <dropUniqueConstraint uniqueColumns="googleId" constraintName="IDX_CLUSTER_GOOGLEID_UNIQUE" tableName="CLUSTER"/>
+
+        <dropColumn tableName="CLUSTER">
+            <column name="googleId"></column>
+        </dropColumn>
+
+        <renameColumn tableName="CLUSTER" oldColumnName="googleIdTmp" newColumnName="googleId" columnDataType="varchar(255)"></renameColumn>
+
+        <addUniqueConstraint columnNames="googleId" constraintName="IDX_CLUSTER_GOOGLEID_UNIQUE" tableName="CLUSTER"/>
+    </changeSet>
 </databaseChangeLog>
