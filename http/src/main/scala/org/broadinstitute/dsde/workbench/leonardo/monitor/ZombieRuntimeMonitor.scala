@@ -47,7 +47,7 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
     for {
       start <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       uuid <- F.delay(UUID.randomUUID())
-      implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](TraceId(uuid)) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+      implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](TraceId(uuid))
       startInstant = Instant.ofEpochMilli(start)
       semaphore <- Semaphore[F](config.concurrency)
 
@@ -144,7 +144,7 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
       _ <- dbRef.inTransaction {
         for {
           _ <- clusterQuery.completeDeletion(runtime.id, now)
-          error = RuntimeError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.",
+          error = RuntimeError(s"An underlying resource was removed in Google. Runtime(${runtime.runtimeName.asString}) has been marked deleted in Leo.",
                                -1,
                                now)
           _ <- clusterErrorQuery.save(runtime.id, error)

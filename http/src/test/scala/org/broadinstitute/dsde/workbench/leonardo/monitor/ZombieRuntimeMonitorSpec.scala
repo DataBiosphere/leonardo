@@ -198,7 +198,6 @@ class ZombieRuntimeMonitorSpec
       }
     }
 
-    // c2 should be flagged as a zombie but not c1
     withZombieMonitor(gce = gce) { () =>
       eventually(timeout(Span(10, Seconds))) {
         val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster.id) }.get

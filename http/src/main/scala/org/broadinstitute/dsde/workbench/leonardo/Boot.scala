@@ -209,10 +209,6 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
 
-      // only needed for backleo
-      val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
-        new LeoPubsubMessageSubscriber(appDependencies.subscriber)
-
       val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterMonitorConfig,
                                                           appDependencies.googleDataprocDAO,
         appDependencies.googleComputeService,
@@ -243,9 +239,12 @@ object Boot extends IOApp {
 
       val allStreams = {
         val extra =
-          if (leoExecutionModeConfig.backLeo)
+          if (leoExecutionModeConfig.backLeo) {
+            // only needed for backleo
+            val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
+              new LeoPubsubMessageSubscriber(appDependencies.subscriber)
             List(pubsubSubscriber.process, Stream.eval(appDependencies.subscriber.start), zombieClusterMonitor.process)
-          else List.empty[Stream[IO, Unit]]
+          } else List.empty[Stream[IO, Unit]]
 
         List(
           appDependencies.publisherStream, //start the publisher queue .dequeue
