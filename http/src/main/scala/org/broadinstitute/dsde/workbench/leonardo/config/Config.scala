@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleTopicAdminInterpreter,
   MachineTypeName,
   PublisherConfig,
+  RegionName,
   SubscriberConfig,
   ZoneName
 }
@@ -60,8 +61,8 @@ object Config {
 
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
-      config.getString("dataprocDefaultRegion"),
-      config.getAs[String]("dataprocZone"),
+      config.as[RegionName]("region"),
+      config.getAs[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
       CustomDataprocImage(config.getString("customDataprocImage")),
@@ -278,6 +279,7 @@ object Config {
   implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
   implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
   implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
+  implicit val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
   implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
   implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
   implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)

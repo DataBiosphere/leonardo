@@ -64,7 +64,7 @@ class ClusterHelperSpec
                          blocker)
   val vpcHelperConfig =
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-  val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService, blocker)
+  val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService)
 
   val clusterHelper = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
                                                                             googleGroupsConfig,

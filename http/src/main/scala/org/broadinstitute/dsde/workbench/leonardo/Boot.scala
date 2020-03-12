@@ -99,10 +99,7 @@ object Boot extends IOApp {
         List(NetworkTag(proxyConfig.networkTag))
       )
       val vpcHelper =
-        new VPCHelper(vpcHelperConfig,
-                      appDependencies.googleProjectDAO,
-                      appDependencies.googleComputeService,
-                      appDependencies.blocker)
+        new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
 
       val dataprocInterp = new DataprocInterpreter(DataprocInterpreterConfig(dataprocConfig,
                                                                              googleGroupsConfig,
@@ -325,8 +322,8 @@ object Boot extends IOApp {
                                         json,
                                         workbenchMetricsBaseName,
                                         NetworkTag(proxyConfig.networkTag),
-                                        dataprocConfig.dataprocDefaultRegion,
-                                        dataprocConfig.dataprocZone)
+                                        dataprocConfig.regionName,
+                                        dataprocConfig.zoneName)
 
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
 

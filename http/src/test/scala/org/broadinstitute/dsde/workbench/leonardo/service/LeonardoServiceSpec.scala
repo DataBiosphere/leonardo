@@ -105,7 +105,7 @@ class LeonardoServiceSpec
                            blocker)
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, MockGoogleComputeService, blocker)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, MockGoogleComputeService)
     dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
                                                    dataprocConfig,
                                                    googleGroupsConfig,

@@ -15,7 +15,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
@@ -85,7 +85,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       val ioResult = for {
         // Set up VPC network and firewall
         vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
-        _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject, vpcSettings)
+        _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject)
 
         resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             params.runtimeConfig.machineType)
@@ -472,10 +472,9 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       // Find a zone in which to query the machine type: either the configured zone or
       // an arbitrary zone in the configured region.
       zoneUri <- {
-        val configuredZone = OptionT.fromOption[F](config.dataprocConfig.dataprocZone.map(ZoneName))
+        val configuredZone = OptionT.fromOption[F](config.dataprocConfig.zoneName)
         val zoneList = for {
-          zones <- googleComputeService.getZones(runtimeProjectAndName.googleProject,
-                                                 RegionName(config.dataprocConfig.dataprocDefaultRegion))
+          zones <- googleComputeService.getZones(runtimeProjectAndName.googleProject, config.dataprocConfig.regionName)
           _ <- Logger[F].debug(s"List of zones in project ${runtimeProjectAndName.googleProject}: ${zones}")
           zoneNames = zones.map(z => ZoneName(z.getName))
         } yield zoneNames

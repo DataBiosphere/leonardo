@@ -25,8 +25,7 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
                                Map(CommonTestData.vpcHelperConfig.projectVPCSubnetLabelName -> "my_subnet",
                                    CommonTestData.vpcHelperConfig.projectVPCNetworkLabelName -> "my_network")
                              ),
-                             MockGoogleComputeService,
-                             blocker)
+                             MockGoogleComputeService)
 
     // subnet should take precedence
     test.getOrCreateVPCSettings(CommonTestData.project).unsafeRunSync() shouldBe VPCSubnet("my_subnet")
@@ -37,22 +36,21 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
                              stubProjectDAO(
                                Map(CommonTestData.vpcHelperConfig.projectVPCNetworkLabelName -> "ny_network")
                              ),
-                             MockGoogleComputeService,
-                             blocker)
+                             MockGoogleComputeService)
 
     test.getOrCreateVPCSettings(CommonTestData.project).unsafeRunSync() shouldBe VPCNetwork("ny_network")
   }
 
   it should "create a new subnet if there are no project labels" in {
     val test =
-      new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), MockGoogleComputeService, blocker)
+      new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), MockGoogleComputeService)
 
     test.getOrCreateVPCSettings(CommonTestData.project).unsafeRunSync() shouldBe VPCNetwork("default")
   }
 
   it should "create a firewall rule with no project labels" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
-    val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), computeService, blocker)
+    val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), computeService)
 
     test
       .getOrCreateFirewallRule(CommonTestData.project)

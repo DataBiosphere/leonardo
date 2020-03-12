@@ -6,7 +6,7 @@ import java.time.temporal.ChronoUnit
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -77,7 +77,7 @@ class ClusterMonitorSupervisorSpec
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService, blocker)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
 
     val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
                                                        dataprocConfig,
@@ -167,10 +167,6 @@ class ClusterMonitorSupervisorSpec
         IO.pure(false)
     }
 
-    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
@@ -184,7 +180,7 @@ class ClusterMonitorSupervisorSpec
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService, blocker)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
 
     val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
                                                                                googleGroupsConfig,
@@ -278,7 +274,7 @@ class ClusterMonitorSupervisorSpec
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, computeService, blocker)
+    val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, computeService)
 
     val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
                                                                                googleGroupsConfig,
@@ -361,10 +357,6 @@ class ClusterMonitorSupervisorSpec
         IO.pure(false)
     }
 
-    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
@@ -378,7 +370,7 @@ class ClusterMonitorSupervisorSpec
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService, blocker)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
 
     val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
                                                                                googleGroupsConfig,
