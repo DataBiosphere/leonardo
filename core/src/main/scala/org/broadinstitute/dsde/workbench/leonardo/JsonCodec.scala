@@ -26,6 +26,7 @@ object JsonCodec {
 
   // Encoders
   implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
+  implicit val googleIdEncoder: Encoder[GoogleId] = Encoder.encodeString.contramap(_.value)
   implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.value)
   implicit val gcsBucketNameEncoder: Encoder[GcsBucketName] = Encoder.encodeString.contramap(_.value)
   implicit val workbenchEmailEncoder: Encoder[WorkbenchEmail] = Encoder.encodeString.contramap(_.value)
@@ -114,6 +115,7 @@ object JsonCodec {
 
   // Decoders
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
+  implicit val googleIdDecoder: Decoder[GoogleId] = Decoder.decodeString.map(GoogleId)
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
   implicit val containerImageDecoder: Decoder[ContainerImage] = Decoder.decodeString.emap(
     s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}")

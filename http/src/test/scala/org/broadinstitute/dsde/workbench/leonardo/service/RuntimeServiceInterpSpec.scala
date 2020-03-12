@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeConfigQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, RuntimeServiceContext}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -20,7 +21,6 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import org.scalatest.FlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.runtimeToCreateClusterMessage
 
 class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
@@ -101,11 +101,13 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       runtimeConfig shouldBe (Config.gceConfig.runtimeConfigDefaults)
       cluster.googleProject shouldBe (googleProject)
       cluster.runtimeName shouldBe (runtimeName)
-      val expectedMessage = runtimeToCreateClusterMessage(cluster, runtimeConfig, Some(context.traceId))
+      val expectedMessage = CreateRuntimeMessage
+        .fromRuntime(cluster, runtimeConfig, Some(context.traceId))
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -156,11 +158,13 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
         numberOfPreemptibleWorkers = None
       )
       runtimeConfig shouldBe expectedRuntimeConfig
-      val expectedMessage = runtimeToCreateClusterMessage(cluster, runtimeConfig, Some(context.traceId))
+      val expectedMessage = CreateRuntimeMessage
+        .fromRuntime(cluster, runtimeConfig, Some(context.traceId))
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -204,11 +208,13 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       message <- publisherQueue.dequeue1
     } yield {
       runtimeConfig shouldBe Config.dataprocConfig.runtimeConfigDefaults.copy(numberOfWorkers = 2)
-      val expectedMessage = runtimeToCreateClusterMessage(cluster, runtimeConfig, Some(context.traceId))
+      val expectedMessage = CreateRuntimeMessage
+        .fromRuntime(cluster, runtimeConfig, Some(context.traceId))
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )

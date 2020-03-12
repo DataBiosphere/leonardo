@@ -193,7 +193,7 @@ pipeline {
 
     stage('Pull Leonardo') {
         steps {
-            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
+            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'rt-add-algebra-2'  // TODO revert me
 
             script {
                 configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
@@ -408,6 +408,12 @@ pipeline {
 
                                     # Daisy doesn't clean it up all so we remove the bucket manually
                                     gsutil rm -r $GCE_IMAGE_BUCKET
+
+                                    # Make the image public
+                                    gcloud beta compute images add-iam-policy-binding \
+                                        projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \
+                                        --member='allAuthenticatedUsers' \
+                                        --role='roles/compute.imageUser'
                                 """
                             }
                         }

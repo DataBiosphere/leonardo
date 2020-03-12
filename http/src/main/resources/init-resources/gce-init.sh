@@ -61,7 +61,7 @@ display_time() {
 
 #####################################################################################################
 # Main starts here. It is composed of three sections:
-#   1. Set up that is NOT specific to GCE_OPERATION
+#   1. Set up that is NOT specific to RUNTIME_OPERATION
 #   2. Operations we want to perform only when we are 'creating' a VM
 #   3. Operations we want to perform only when we are 'restarting' a VM that was previously created
 #####################################################################################################
@@ -87,12 +87,12 @@ display_time() {
 START_TIME=$(date +%s)
 
 #####################################################################################################
-# Set up that is NOT specific to GCE_OPERATION
+# Set up that is NOT specific to RUNTIME_OPERATION
 #####################################################################################################
-GCE_OPERATION=$(gceOperation)
+RUNTIME_OPERATION=$(runtimeOperation)
 JUPYTER_HOME=/etc/jupyter
 
-log "Running GCE VM init script in $GCE_OPERATION mode..."
+log "Running GCE VM init script in $RUNTIME_OPERATION mode..."
 
 export CLUSTER_NAME=$(clusterName)
 export GOOGLE_PROJECT=$(googleProject)
@@ -109,13 +109,13 @@ export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
 
 #####################################################################################################
-# Set up that IS specific to GCE_OPERATION:
+# Set up that IS specific to RUNTIME_OPERATION:
 #
 # We perform some of the operations based on whether we are 'creating' a GCE VM or 'restarting'
 # a VM that was previously created and stopped.
 #####################################################################################################
 
-if [[ "$GCE_OPERATION" == 'creating' ]]; then
+if [[ "$RUNTIME_OPERATION" == 'creating' ]]; then
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
     JUPYTER_USER_HOME=/home/jupyter-user
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
@@ -147,8 +147,8 @@ if [[ "$GCE_OPERATION" == 'creating' ]]; then
 
     log 'Copying secrets from GCS...'
 
-    mkdir /work
-    mkdir /certs
+    mkdir -p /work
+    mkdir -p /certs
     chmod a+rwx /work
 
     # Add the certificates from the bucket to the VM. They are used by the docker-compose file
@@ -200,7 +200,11 @@ END
 </source>
 END
 
-    service google-fluentd reload
+    # restarting instead of `service google-fluentd-reload` because of bug:
+    # https://github.com/GoogleCloudPlatform/google-fluentd/issues/232
+    service google-fluentd restart
+
+    echo "" > /etc/google_application_credentials.env
     
     # Install env var config
     if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
@@ -408,7 +412,7 @@ END
     # Do this asynchronously so it doesn't hold up cluster creation
     log 'Pruning docker images...'
     docker image prune -a -f &
-elif [[ "$GCE_OPERATION" == 'restarting' ]]; then
+elif [[ "$RUNTIME_OPERATION" == 'restarting' ]]; then
   export DEPLOY_WELDER=$(deployWelder)
   export UPDATE_WELDER=$(updateWelder)
   export DISABLE_DELOCALIZATION=$(disableDelocalization)
@@ -459,7 +463,7 @@ elif [[ "$GCE_OPERATION" == 'restarting' ]]; then
       docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
   fi
 else
-  log "Invalid GCE_OPERATION: $GCE_OPERATION. Expected it to be either 'creating' or 'restarting'."
+  log "Invalid RUNTIME_OPERATION: $RUNTIME_OPERATION. Expected it to be either 'creating' or 'restarting'."
   exit 1
 fi
 

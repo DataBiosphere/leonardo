@@ -35,7 +35,6 @@ class HttpRoutes(
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String
 )(implicit timer: Timer[IO], ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO]) {
-
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)

@@ -20,6 +20,12 @@ object RuntimeConfigRequest {
     diskSize: Option[Int]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
+
+    def toRuntimeConfigGceConfig(default: RuntimeConfig.GceConfig): RuntimeConfig.GceConfig = {
+      val minimumDiskSize = 10
+      val diskSizeFinal = math.max(minimumDiskSize, diskSize.getOrElse(default.diskSize))
+      RuntimeConfig.GceConfig(machineType.getOrElse(default.machineType), diskSizeFinal)
+    }
   }
 
   final case class DataprocConfig(numberOfWorkers: Option[Int],
@@ -92,7 +98,7 @@ object CreateRuntimeRequest {
                 runtimeName: RuntimeName,
                 googleProject: GoogleProject,
                 serviceAccountInfo: ServiceAccountInfo,
-                machineConfig: RuntimeConfig.DataprocConfig,
+                machineConfig: RuntimeConfig,
                 proxyUrlBase: String,
                 autopauseThreshold: Int,
                 scopes: Set[String],

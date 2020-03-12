@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-import java.util.UUID
 
 import cats.data.Chain
 import cats.implicits._
@@ -26,7 +25,7 @@ import scala.concurrent.ExecutionContext
 final case class ClusterRecord(id: Long,
                                internalId: String,
                                clusterName: RuntimeName,
-                               googleId: Option[UUID],
+                               googleId: Option[GoogleId],
                                googleProject: GoogleProject,
                                operationName: Option[String],
                                status: String,
@@ -53,7 +52,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
   def internalId = column[String]("internalId", O.Length(254))
   def clusterName = column[RuntimeName]("clusterName", O.Length(254))
-  def googleId = column[Option[UUID]]("googleId")
+  def googleId = column[Option[GoogleId]]("googleId")
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
   def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
   def notebookServiceAccount = column[Option[String]]("notebookServiceAccount", O.Length(254))

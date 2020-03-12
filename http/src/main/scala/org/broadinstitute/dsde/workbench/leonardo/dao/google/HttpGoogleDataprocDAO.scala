@@ -24,7 +24,7 @@ import com.google.api.services.dataproc.model.{
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
-import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{InstanceName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
@@ -43,8 +43,8 @@ class HttpGoogleDataprocDAO(
   googleCredentialMode: GoogleCredentialMode,
   override val workbenchMetricBaseName: String,
   networkTag: NetworkTag,
-  defaultRegion: String,
-  zoneOpt: Option[String]
+  regionName: RegionName,
+  zoneNameOpt: Option[ZoneName]
 )(implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
     extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName)
     with GoogleDataprocDAO {
@@ -72,7 +72,7 @@ class HttpGoogleDataprocDAO(
       .setClusterName(clusterName.asString)
       .setConfig(getClusterConfig(createClusterConfig))
 
-    val request = dataproc.projects().regions().clusters().create(googleProject.value, defaultRegion, cluster)
+    val request = dataproc.projects().regions().clusters().create(googleProject.value, regionName.value, cluster)
 
     retryWithRecover(retryPredicates: _*) { () =>
       executeGoogleRequest(request)
@@ -82,7 +82,7 @@ class HttpGoogleDataprocDAO(
             (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") =>
         throw DataprocDisabledException(e.getMessage)
     }.map { op =>
-        Operation(OperationName(op.getName), getOperationUUID(op))
+        Operation(OperationName(op.getName), getGoogleId(op))
       }
       .handleGoogleException(googleProject, Some(clusterName.asString))
 
@@ -90,7 +90,7 @@ class HttpGoogleDataprocDAO(
 
   override def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName): Future[Unit] = {
     val request =
-      dataproc.projects().regions().clusters().delete(googleProject.value, defaultRegion, clusterName.asString)
+      dataproc.projects().regions().clusters().delete(googleProject.value, regionName.value, clusterName.asString)
     retryWithRecover(retryPredicates: _*) { () =>
       executeGoogleRequest(request)
       ()
@@ -115,7 +115,7 @@ class HttpGoogleDataprocDAO(
   }
 
   override def listClusters(googleProject: GoogleProject): Future[List[UUID]] = {
-    val request = dataproc.projects().regions().clusters().list(googleProject.value, defaultRegion)
+    val request = dataproc.projects().regions().clusters().list(googleProject.value, regionName.value)
     // Use OptionT to handle nulls in the Google response
     val transformed = for {
       result <- OptionT.liftF(retry(retryPredicates: _*)(() => executeGoogleRequest(request)))
@@ -217,7 +217,7 @@ class HttpGoogleDataprocDAO(
           .projects()
           .regions()
           .clusters()
-          .patch(googleProject.value, defaultRegion, clusterName.asString, update)
+          .patch(googleProject.value, regionName.value, clusterName.asString, update)
           .setUpdateMask(mask)
         retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void
       case None => Future.successful(())
@@ -287,8 +287,8 @@ class HttpGoogleDataprocDAO(
     masterConfig.setImageUri(config.dataprocCustomImage.asString)
 
     // Set the zone, if specified. If not specified, Dataproc will pick a zone within the configured region.
-    zoneOpt.foreach { zone =>
-      gceClusterConfig.setZoneUri(zone)
+    zoneNameOpt.foreach { zone =>
+      gceClusterConfig.setZoneUri(zone.value)
     }
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
@@ -348,7 +348,7 @@ class HttpGoogleDataprocDAO(
 
     new SoftwareConfig()
       .setProperties(
-        (authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.properties).asJava
+        (authProps ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.machineConfig.properties).asJava
       )
   }
 
@@ -392,7 +392,8 @@ class HttpGoogleDataprocDAO(
    * Gets a dataproc Cluster from the API.
    */
   private def getCluster(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocCluster]] = {
-    val request = dataproc.projects().regions().clusters().get(googleProject.value, defaultRegion, clusterName.asString)
+    val request =
+      dataproc.projects().regions().clusters().get(googleProject.value, regionName.value, clusterName.asString)
     retryWithRecover(retryPredicates: _*) { () =>
       Option(executeGoogleRequest(request))
     } {
@@ -412,8 +413,8 @@ class HttpGoogleDataprocDAO(
     }
   }
 
-  private def getOperationUUID(dop: DataprocOperation): UUID =
-    UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
+  private def getGoogleId(dop: DataprocOperation): GoogleId =
+    GoogleId(dop.getMetadata.get("clusterUuid").toString)
 
   /**
    * Gets the master instance name from a dataproc cluster, with error handling.

@@ -3,12 +3,12 @@ package util
 
 import java.nio.charset.StandardCharsets
 
+import _root_.io.chrisdavenport.log4cats.Logger
 import cats.data.{NonEmptyList, OptionT}
-import cats.effect.{Blocker, ContextShift, IO}
+import cats.effect.{Async, Blocker, Concurrent, ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.Identity
-import com.typesafe.scalalogging.LazyLogging
 import fs2._
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleComputeService, GoogleStorageService, StorageRole}
@@ -17,14 +17,13 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
-class BucketHelper(config: BucketHelperConfig,
-                   googleComputeService: GoogleComputeService[IO],
-                   googleStorageDAO: GoogleStorageDAO,
-                   google2StorageDAO: GoogleStorageService[IO],
-                   googleProjectDAO: GoogleProjectDAO,
-                   serviceAccountProvider: ServiceAccountProvider[IO],
-                   blocker: Blocker)(implicit val contextShift: ContextShift[IO])
-    extends LazyLogging {
+class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperConfig,
+                                                           googleComputeService: GoogleComputeService[F],
+                                                           googleStorageDAO: GoogleStorageDAO,
+                                                           google2StorageDAO: GoogleStorageService[F],
+                                                           googleProjectDAO: GoogleProjectDAO,
+                                                           serviceAccountProvider: ServiceAccountProvider[F],
+                                                           blocker: Blocker)(implicit cs: ContextShift[IO]) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
@@ -33,7 +32,7 @@ class BucketHelper(config: BucketHelperConfig,
    */
   def createInitBucket(googleProject: GoogleProject,
                        bucketName: GcsBucketName,
-                       serviceAccountInfo: ServiceAccountInfo): Stream[IO, Unit] =
+                       serviceAccountInfo: ServiceAccountInfo): Stream[F, Unit] =
     for {
       // The init bucket is created in the cluster's project.
       // Leo service account -> Owner
@@ -58,7 +57,7 @@ class BucketHelper(config: BucketHelperConfig,
     googleProject: GoogleProject,
     bucketName: GcsBucketName,
     serviceAccountInfo: ServiceAccountInfo
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): Stream[IO, Unit] =
+  )(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
     for {
       // The staging bucket is created in the cluster's project.
       // Leo service account -> Owner
@@ -85,16 +84,16 @@ class BucketHelper(config: BucketHelperConfig,
   def storeObject(bucketName: GcsBucketName,
                   objectName: GcsBlobName,
                   objectContents: Array[Byte],
-                  objectType: String): Stream[IO, Unit] =
+                  objectType: String): Stream[F, Unit] =
     google2StorageDAO.createBlob(bucketName, objectName, objectContents, objectType).void
 
-  def deleteInitBucket(initBucketName: GcsBucketName): IO[Unit] =
+  def deleteInitBucket(initBucketName: GcsBucketName): F[Unit] =
     // TODO: implement deleteBucket in google2
-    IO.fromFuture(IO(googleStorageDAO.deleteBucket(initBucketName, recurse = true)))
+    Async[F].liftIO(IO.fromFuture(IO(googleStorageDAO.deleteBucket(initBucketName, recurse = true))))
 
   def initializeBucketObjects(initBucketName: GcsBucketName,
                               templateConfig: RuntimeTemplateValuesConfig,
-                              customClusterEnvironmentVariables: Map[String, String]): Stream[IO, Unit] = {
+                              customClusterEnvironmentVariables: Map[String, String]): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = RuntimeTemplateValues(templateConfig).toMap
 
@@ -115,7 +114,7 @@ class BucketHelper(config: BucketHelperConfig,
           config.clusterFilesConfig.jupyterRootCaPem
         )
       )
-      bytes <- Stream.eval(TemplateHelper.fileStream(f, blocker).compile.to[Array])
+      bytes <- Stream.eval(TemplateHelper.fileStream[F](f, blocker).compile.to[Array])
       _ <- storeObject(initBucketName, GcsBlobName(f.getName), bytes, "text/plain")
     } yield ()
 
@@ -123,6 +122,7 @@ class BucketHelper(config: BucketHelperConfig,
       r <- Stream.emits(
         Seq(
           config.clusterResourcesConfig.jupyterDockerCompose,
+          config.clusterResourcesConfig.jupyterDockerComposeGce,
           config.clusterResourcesConfig.rstudioDockerCompose,
           config.clusterResourcesConfig.proxyDockerCompose,
           config.clusterResourcesConfig.proxySiteConf,
@@ -133,7 +133,7 @@ class BucketHelper(config: BucketHelperConfig,
           config.clusterResourcesConfig.jupyterNotebookConfigUri
         )
       )
-      bytes <- Stream.eval(TemplateHelper.resourceStream(r, blocker).compile.to[Array])
+      bytes <- Stream.eval(TemplateHelper.resourceStream[F](r, blocker).compile.to[Array])
       _ <- storeObject(initBucketName, GcsBlobName(r.asString), bytes, "text/plain")
     } yield ()
 
@@ -141,10 +141,11 @@ class BucketHelper(config: BucketHelperConfig,
       r <- Stream.emits(
         Seq(
           config.clusterResourcesConfig.initActionsScript,
+          config.clusterResourcesConfig.gceInitScript,
           config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
         )
       )
-      bytes <- Stream.eval(TemplateHelper.templateResource(replacements, r, blocker).compile.to[Array])
+      bytes <- Stream.eval(TemplateHelper.templateResource[F](replacements, r, blocker).compile.to[Array])
       _ <- storeObject(initBucketName, GcsBlobName(r.asString), bytes, "text/plain")
     } yield ()
 
@@ -168,14 +169,16 @@ class BucketHelper(config: BucketHelperConfig,
   }
 
   private def getBucketSAs(googleProject: GoogleProject,
-                           serviceAccountInfo: ServiceAccountInfo): Stream[IO, List[Identity]] = {
+                           serviceAccountInfo: ServiceAccountInfo): Stream[F, List[Identity]] = {
     val computeDefaultSA = for {
-      projectNumber <- OptionT(IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value))))
-      sa <- OptionT.pure[IO](googleComputeService.getComputeEngineDefaultServiceAccount(projectNumber))
+      projectNumber <- OptionT(
+        Async[F].liftIO(IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value))))
+      )
+      sa <- OptionT.pure[F](googleComputeService.getComputeEngineDefaultServiceAccount(projectNumber))
     } yield sa
 
     // cluster SA orElse compute engine default SA
-    val clusterOrComputeDefault = OptionT.fromOption[IO](serviceAccountInfo.clusterServiceAccount) orElse computeDefaultSA
+    val clusterOrComputeDefault = OptionT.fromOption[F](serviceAccountInfo.clusterServiceAccount) orElse computeDefaultSA
 
     // List(cluster or default SA, notebook SA) if they exist
     val identities = clusterOrComputeDefault.value.map { clusterOrDefaultSAOpt =>

@@ -1,10 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.{CustomDataprocImage, MemorySize, RuntimeConfig}
 
 final case class DataprocConfig(
-  dataprocDefaultRegion: String,
-  dataprocZone: Option[String],
+  regionName: RegionName,
+  zoneName: Option[ZoneName],
   defaultScopes: Set[String],
   legacyCustomDataprocImage: CustomDataprocImage,
   customDataprocImage: CustomDataprocImage,

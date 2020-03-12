@@ -6,7 +6,7 @@ import java.time.temporal.ChronoUnit
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -14,6 +14,10 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeName, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -63,41 +67,59 @@ class ClusterMonitorSupervisorSpec
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper(bucketHelperConfig,
-                       computeService,
-                       storageDAO,
-                       FakeGoogleStorageService,
-                       projectDAO,
-                       serviceAccountProvider,
-                       blocker)(cs)
+      new BucketHelper[IO](bucketHelperConfig,
+                           computeService,
+                           storageDAO,
+                           FakeGoogleStorageService,
+                           projectDAO,
+                           serviceAccountProvider,
+                           blocker)
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, computeService)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
 
-    val clusterHelper = new ClusterHelper(dataprocConfig,
-                                          imageConfig,
-                                          googleGroupsConfig,
-                                          proxyConfig,
-                                          clusterResourcesConfig,
-                                          clusterFilesConfig,
-                                          monitorConfig,
-                                          welderConfig,
-                                          bucketHelper,
-                                          vpcHelper,
-                                          gdDAO,
-                                          computeService,
-                                          mockGoogleDirectoryDAO,
-                                          iamDAO,
-                                          projectDAO,
-                                          MockWelderDAO,
-                                          blocker)
+    val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
+                                                       dataprocConfig,
+                                                       googleGroupsConfig,
+                                                       welderConfig,
+                                                       imageConfig,
+                                                       proxyConfig,
+                                                       clusterResourcesConfig,
+                                                       clusterFilesConfig,
+                                                       monitorConfig
+                                                     ),
+                                                     bucketHelper,
+                                                     vpcHelper,
+                                                     gdDAO,
+                                                     computeService,
+                                                     mockGoogleDirectoryDAO,
+                                                     iamDAO,
+                                                     projectDAO,
+                                                     MockWelderDAO,
+                                                     blocker)
+    val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(
+                                             gceConfig,
+                                             welderConfig,
+                                             imageConfig,
+                                             proxyConfig,
+                                             clusterResourcesConfig,
+                                             clusterFilesConfig,
+                                             monitorConfig
+                                           ),
+                                           bucketHelper,
+                                           vpcHelper,
+                                           computeService,
+                                           MockWelderDAO,
+                                           blocker)
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(MockJupyterDAO, MockWelderDAO, MockRStudioDAO)
     system.actorOf(
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -109,7 +131,6 @@ class ClusterMonitorSupervisorSpec
         MockJupyterDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper,
         QueueFactory.makePublisherQueue()
       )
     )
@@ -146,48 +167,58 @@ class ClusterMonitorSupervisorSpec
         IO.pure(false)
     }
 
-    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper(bucketHelperConfig,
-                       computeService,
-                       storageDAO,
-                       FakeGoogleStorageService,
-                       projectDAO,
-                       serviceAccountProvider,
-                       blocker)(cs)
+      new BucketHelper[IO](bucketHelperConfig,
+                           computeService,
+                           storageDAO,
+                           FakeGoogleStorageService,
+                           projectDAO,
+                           serviceAccountProvider,
+                           blocker)
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, computeService)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
 
-    val clusterHelper = new ClusterHelper(dataprocConfig,
-                                          imageConfig,
-                                          googleGroupsConfig,
-                                          proxyConfig,
-                                          clusterResourcesConfig,
-                                          clusterFilesConfig,
-                                          monitorConfig,
-                                          welderConfig,
-                                          bucketHelper,
-                                          vpcHelper,
-                                          gdDAO,
-                                          computeService,
-                                          mockGoogleDirectoryDAO,
-                                          iamDAO,
-                                          projectDAO,
-                                          MockWelderDAO,
-                                          blocker)
+    val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                                               googleGroupsConfig,
+                                                                               welderConfig,
+                                                                               imageConfig,
+                                                                               proxyConfig,
+                                                                               clusterResourcesConfig,
+                                                                               clusterFilesConfig,
+                                                                               monitorConfig),
+                                                     bucketHelper,
+                                                     vpcHelper,
+                                                     gdDAO,
+                                                     computeService,
+                                                     mockGoogleDirectoryDAO,
+                                                     iamDAO,
+                                                     projectDAO,
+                                                     MockWelderDAO,
+                                                     blocker)
+    val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
+                                                                welderConfig,
+                                                                imageConfig,
+                                                                proxyConfig,
+                                                                clusterResourcesConfig,
+                                                                clusterFilesConfig,
+                                                                monitorConfig),
+                                           bucketHelper,
+                                           vpcHelper,
+                                           computeService,
+                                           MockWelderDAO,
+                                           blocker)
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
     val clusterSupervisorActor = system.actorOf(
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -199,7 +230,6 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper,
         QueueFactory.makePublisherQueue()
       )
     )
@@ -234,41 +264,55 @@ class ClusterMonitorSupervisorSpec
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper(bucketHelperConfig,
-                       computeService,
-                       storageDAO,
-                       FakeGoogleStorageService,
-                       projectDAO,
-                       serviceAccountProvider,
-                       blocker)(cs)
+      new BucketHelper[IO](bucketHelperConfig,
+                           computeService,
+                           storageDAO,
+                           FakeGoogleStorageService,
+                           projectDAO,
+                           serviceAccountProvider,
+                           blocker)
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
     val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, computeService)
 
-    val clusterHelper = new ClusterHelper(dataprocConfig,
-                                          imageConfig,
-                                          googleGroupsConfig,
-                                          proxyConfig,
-                                          clusterResourcesConfig,
-                                          clusterFilesConfig,
-                                          monitorConfig,
-                                          welderConfig,
-                                          bucketHelper,
-                                          vpcHelper,
-                                          gdDAO,
-                                          computeService,
-                                          mockGoogleDirectoryDAO,
-                                          iamDAO,
-                                          projectDAO,
-                                          MockWelderDAO,
-                                          blocker)
+    val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                                               googleGroupsConfig,
+                                                                               welderConfig,
+                                                                               imageConfig,
+                                                                               proxyConfig,
+                                                                               clusterResourcesConfig,
+                                                                               clusterFilesConfig,
+                                                                               monitorConfig),
+                                                     bucketHelper,
+                                                     vpcHelper,
+                                                     gdDAO,
+                                                     computeService,
+                                                     mockGoogleDirectoryDAO,
+                                                     iamDAO,
+                                                     projectDAO,
+                                                     MockWelderDAO,
+                                                     blocker)
+    val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
+                                                                welderConfig,
+                                                                imageConfig,
+                                                                proxyConfig,
+                                                                clusterResourcesConfig,
+                                                                clusterFilesConfig,
+                                                                monitorConfig),
+                                           bucketHelper,
+                                           vpcHelper,
+                                           computeService,
+                                           MockWelderDAO,
+                                           blocker)
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
     val clusterSupervisorActor = system.actorOf(
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -280,7 +324,6 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper,
         QueueFactory.makePublisherQueue()
       )
     )
@@ -314,42 +357,51 @@ class ClusterMonitorSupervisorSpec
         IO.pure(false)
     }
 
-    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper(bucketHelperConfig,
-                       computeService,
-                       storageDAO,
-                       FakeGoogleStorageService,
-                       projectDAO,
-                       serviceAccountProvider,
-                       blocker)(cs)
+      new BucketHelper[IO](bucketHelperConfig,
+                           computeService,
+                           storageDAO,
+                           FakeGoogleStorageService,
+                           projectDAO,
+                           serviceAccountProvider,
+                           blocker)
 
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, computeService)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
 
-    val clusterHelper = new ClusterHelper(dataprocConfig,
-                                          imageConfig,
-                                          googleGroupsConfig,
-                                          proxyConfig,
-                                          clusterResourcesConfig,
-                                          clusterFilesConfig,
-                                          monitorConfig,
-                                          welderConfig,
-                                          bucketHelper,
-                                          vpcHelper,
-                                          gdDAO,
-                                          computeService,
-                                          mockGoogleDirectoryDAO,
-                                          iamDAO,
-                                          projectDAO,
-                                          MockWelderDAO,
-                                          blocker)
+    val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                                               googleGroupsConfig,
+                                                                               welderConfig,
+                                                                               imageConfig,
+                                                                               proxyConfig,
+                                                                               clusterResourcesConfig,
+                                                                               clusterFilesConfig,
+                                                                               monitorConfig),
+                                                     bucketHelper,
+                                                     vpcHelper,
+                                                     gdDAO,
+                                                     computeService,
+                                                     mockGoogleDirectoryDAO,
+                                                     iamDAO,
+                                                     projectDAO,
+                                                     MockWelderDAO,
+                                                     blocker)
+    val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
+                                                                welderConfig,
+                                                                imageConfig,
+                                                                proxyConfig,
+                                                                clusterResourcesConfig,
+                                                                clusterFilesConfig,
+                                                                monitorConfig),
+                                           bucketHelper,
+                                           vpcHelper,
+                                           computeService,
+                                           MockWelderDAO,
+                                           blocker)
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
 
@@ -357,6 +409,7 @@ class ClusterMonitorSupervisorSpec
       ClusterMonitorSupervisor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -368,7 +421,6 @@ class ClusterMonitorSupervisorSpec
         jupyterProxyDAO,
         MockRStudioDAO,
         MockWelderDAO,
-        clusterHelper,
         QueueFactory.makePublisherQueue()
       )
     )

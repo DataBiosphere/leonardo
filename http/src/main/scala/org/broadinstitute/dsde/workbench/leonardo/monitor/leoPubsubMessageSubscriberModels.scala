@@ -3,8 +3,7 @@ package monitor
 
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -16,39 +15,39 @@ sealed trait LeoPubsubMessage {
 }
 
 object LeoPubsubMessage {
-  final case class StopUpdate(updatedMachineConfig: RuntimeConfig, clusterId: Long, traceId: Option[TraceId])
+  final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, runtimeId: Long, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType = "stopUpdate"
   }
 
-  case class ClusterTransition(clusterFollowupDetails: ClusterFollowupDetails, traceId: Option[TraceId])
+  final case class RuntimeTransitionMessage(runtimeFollowupDetails: RuntimeFollowupDetails, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType = "transitionFinished"
   }
 
-  case class CreateCluster(id: Long,
-                           clusterProjectAndName: RuntimeProjectAndName,
-                           serviceAccountInfo: ServiceAccountInfo,
-                           asyncRuntimeFields: Option[AsyncRuntimeFields],
-                           auditInfo: AuditInfo,
-                           jupyterExtensionUri: Option[GcsPath],
-                           jupyterUserScriptUri: Option[UserScriptPath],
-                           jupyterStartUserScriptUri: Option[UserScriptPath],
-                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                           defaultClientId: Option[String],
-                           runtimeImages: Set[RuntimeImage],
-                           scopes: Set[String],
-                           welderEnabled: Boolean,
-                           customClusterEnvironmentVariables: Map[String, String],
-                           runtimeConfig: RuntimeConfig,
-                           traceId: Option[TraceId])
+  final case class CreateRuntimeMessage(id: Long,
+                                        runtimeProjectAndName: RuntimeProjectAndName,
+                                        serviceAccountInfo: ServiceAccountInfo,
+                                        asyncRuntimeFields: Option[AsyncRuntimeFields],
+                                        auditInfo: AuditInfo,
+                                        jupyterExtensionUri: Option[GcsPath],
+                                        jupyterUserScriptUri: Option[UserScriptPath],
+                                        jupyterStartUserScriptUri: Option[UserScriptPath],
+                                        userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                        defaultClientId: Option[String],
+                                        runtimeImages: Set[RuntimeImage],
+                                        scopes: Set[String],
+                                        welderEnabled: Boolean,
+                                        customEnvironmentVariables: Map[String, String],
+                                        runtimeConfig: RuntimeConfig,
+                                        traceId: Option[TraceId])
       extends LeoPubsubMessage {
-    val messageType = "createCluster"
+    val messageType = "createRuntime"
   }
 
-  object CreateCluster {
-    def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig, traceId: Option[TraceId]): CreateCluster =
-      CreateCluster(
+  object CreateRuntimeMessage {
+    def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig, traceId: Option[TraceId]): CreateRuntimeMessage =
+      CreateRuntimeMessage(
         runtime.id,
         RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
         runtime.serviceAccountInfo,
@@ -68,7 +67,7 @@ object LeoPubsubMessage {
       )
   }
 
-  final case class ClusterFollowupDetails(clusterId: Long, runtimeStatus: RuntimeStatus)
+  final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus)
       extends Product
       with Serializable
 }
@@ -76,16 +75,16 @@ object LeoPubsubMessage {
 final case class PubsubException(message: String) extends Exception
 
 object LeoPubsubCodec {
-  implicit val stopUpdateMessageDecoder: Decoder[StopUpdate] =
-    Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdate.apply)
+  implicit val stopUpdateMessageDecoder: Decoder[StopUpdateMessage] =
+    Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdateMessage.apply)
 
-  implicit val clusterFollowupDetailsDecoder: Decoder[ClusterFollowupDetails] =
-    Decoder.forProduct2("clusterId", "clusterStatus")(ClusterFollowupDetails.apply)
+  implicit val runtimeFollowupDetailsDecoder: Decoder[RuntimeFollowupDetails] =
+    Decoder.forProduct2("clusterId", "clusterStatus")(RuntimeFollowupDetails.apply)
 
-  implicit val clusterTransitionFinishedDecoder: Decoder[ClusterTransition] =
-    Decoder.forProduct2("clusterFollowupDetails", "traceId")(ClusterTransition.apply)
+  implicit val clusterTransitionFinishedDecoder: Decoder[RuntimeTransitionMessage] =
+    Decoder.forProduct2("clusterFollowupDetails", "traceId")(RuntimeTransitionMessage.apply)
 
-  implicit val createClusterDecoder: Decoder[CreateCluster] =
+  implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
     Decoder.forProduct16(
       "id",
       "clusterProjectAndName",
@@ -103,32 +102,32 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "traceId"
-    )(CreateCluster.apply)
+    )(CreateRuntimeMessage.apply)
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
       messageType <- message.downField("messageType").as[String]
       value <- messageType match {
-        case "stopUpdate"         => message.as[StopUpdate]
-        case "transitionFinished" => message.as[ClusterTransition]
-        case "createCluster"      => message.as[CreateCluster]
-        case other                => Left(DecodingFailure(s"invalid message type: ${other}", List.empty))
+        case "stopUpdate"         => message.as[StopUpdateMessage]
+        case "transitionFinished" => message.as[RuntimeTransitionMessage]
+        case "createRuntime"      => message.as[CreateRuntimeMessage]
+        case other                => Left(DecodingFailure(s"invalid message type: $other", List.empty))
       }
     } yield value
   }
 
-  implicit val stopUpdateMessageEncoder: Encoder[StopUpdate] =
+  implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
     Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(
-      x => (x.messageType, x.updatedMachineConfig, x.clusterId)
+      x => (x.messageType, x.updatedMachineConfig, x.runtimeId)
     )
 
-  implicit val clusterFollowupDetailsEncoder: Encoder[ClusterFollowupDetails] =
-    Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.clusterId, x.runtimeStatus))
+  implicit val runtimeFollowupDetailsEncoder: Encoder[RuntimeFollowupDetails] =
+    Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.runtimeId, x.runtimeStatus))
 
-  implicit val clusterTransitionFinishedEncoder: Encoder[ClusterTransition] =
-    Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.clusterFollowupDetails))
+  implicit val runtimeTransitionFinishedEncoder: Encoder[RuntimeTransitionMessage] =
+    Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.runtimeFollowupDetails))
 
-  implicit val createClusterEncoder: Encoder[CreateCluster] =
+  implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
     Encoder.forProduct17(
       "messageType",
       "id",
@@ -151,7 +150,7 @@ object LeoPubsubCodec {
       x =>
         (x.messageType,
          x.id,
-         x.clusterProjectAndName,
+         x.runtimeProjectAndName,
          x.serviceAccountInfo,
          x.asyncRuntimeFields,
          x.auditInfo,
@@ -163,16 +162,16 @@ object LeoPubsubCodec {
          x.runtimeImages,
          x.scopes,
          x.welderEnabled,
-         x.customClusterEnvironmentVariables,
+         x.customEnvironmentVariables,
          x.runtimeConfig,
          x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
     message match {
-      case m: StopUpdate        => m.asJson
-      case m: ClusterTransition => m.asJson
-      case m: CreateCluster     => m.asJson
+      case m: StopUpdateMessage        => m.asJson
+      case m: RuntimeTransitionMessage => m.asJson
+      case m: CreateRuntimeMessage     => m.asJson
     }
   }
 }

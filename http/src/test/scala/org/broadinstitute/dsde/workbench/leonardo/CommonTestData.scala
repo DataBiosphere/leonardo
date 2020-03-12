@@ -74,6 +74,7 @@ object CommonTestData {
   val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
+  val gceConfig = config.as[GceConfig]("gce")
   val imageConfig = config.as[ImageConfig]("image")
   val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
@@ -161,7 +162,7 @@ object CommonTestData {
 
   def makeDataprocInfo(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(
-      UUID.randomUUID(),
+      GoogleId(UUID.randomUUID().toString),
       OperationName("operationName" + index.toString),
       GcsBucketName("stagingbucketname" + index.toString),
       Some(IP("numbers.and.dots"))
@@ -215,8 +216,12 @@ object CommonTestData {
     internalId = internalId,
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
-    asyncRuntimeFields =
-      Some(AsyncRuntimeFields(UUID.randomUUID(), OperationName("op"), GcsBucketName("testStagingBucket1"), None)),
+    asyncRuntimeFields = Some(
+      AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString),
+                         OperationName("op"),
+                         GcsBucketName("testStagingBucket1"),
+                         None)
+    ),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,

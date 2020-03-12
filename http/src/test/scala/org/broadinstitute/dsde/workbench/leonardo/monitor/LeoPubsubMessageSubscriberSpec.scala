@@ -26,6 +26,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   ClusterInvalidState,
   ClusterNotStopped
 }
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.mockito.Mockito
 import org.scalatest.concurrent._
@@ -59,35 +63,52 @@ class LeoPubsubMessageSubscriberSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
-    new BucketHelper(bucketHelperConfig,
-                     MockGoogleComputeService,
-                     storageDAO,
-                     FakeGoogleStorageService,
-                     projectDAO,
-                     serviceAccountProvider,
-                     blocker)(cs)
+    new BucketHelper[IO](bucketHelperConfig,
+                         MockGoogleComputeService,
+                         storageDAO,
+                         FakeGoogleStorageService,
+                         projectDAO,
+                         serviceAccountProvider,
+                         blocker)
 
   val vpcHelperConfig =
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-  val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, MockGoogleComputeService)
+  val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, MockGoogleComputeService)
 
-  val clusterHelper = new ClusterHelper(dataprocConfig,
-                                        imageConfig,
-                                        googleGroupsConfig,
-                                        proxyConfig,
-                                        clusterResourcesConfig,
-                                        clusterFilesConfig,
-                                        monitorConfig,
-                                        welderConfig,
-                                        bucketHelper,
-                                        vpcHelper,
-                                        gdDAO,
-                                        MockGoogleComputeService,
-                                        mockGoogleDirectoryDAO,
-                                        iamDAO,
-                                        projectDAO,
-                                        mockWelderDAO,
-                                        blocker)
+  val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
+                                                     dataprocConfig,
+                                                     googleGroupsConfig,
+                                                     welderConfig,
+                                                     imageConfig,
+                                                     proxyConfig,
+                                                     clusterResourcesConfig,
+                                                     clusterFilesConfig,
+                                                     monitorConfig
+                                                   ),
+                                                   bucketHelper,
+                                                   vpcHelper,
+                                                   gdDAO,
+                                                   MockGoogleComputeService,
+                                                   mockGoogleDirectoryDAO,
+                                                   iamDAO,
+                                                   projectDAO,
+                                                   mockWelderDAO,
+                                                   blocker)
+  val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(
+                                           gceConfig,
+                                           welderConfig,
+                                           imageConfig,
+                                           proxyConfig,
+                                           clusterResourcesConfig,
+                                           clusterFilesConfig,
+                                           monitorConfig
+                                         ),
+                                         bucketHelper,
+                                         vpcHelper,
+                                         MockGoogleComputeService,
+                                         mockWelderDAO,
+                                         blocker)
+  implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val runningCluster = makeCluster(1).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount),
@@ -111,9 +132,9 @@ class LeoPubsubMessageSubscriberSpec
 
     val clusterId = savedRunningCluster.id
     val newMachineConfig = defaultRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
-    val message = StopUpdate(newMachineConfig, clusterId, None)
+    val message = StopUpdateMessage(newMachineConfig, clusterId, None)
 
-    val followupDetails = ClusterFollowupDetails(clusterId, RuntimeStatus.Stopped)
+    val followupDetails = RuntimeFollowupDetails(clusterId, RuntimeStatus.Stopped)
 
     dbRef
       .inTransaction(
@@ -145,8 +166,8 @@ class LeoPubsubMessageSubscriberSpec
 
     val clusterId = savedRunningCluster.id
     val newMasterMachineType = MachineTypeName("n1-standard-8")
-    val followupKey = ClusterFollowupDetails(clusterId, RuntimeStatus.Stopped)
-    val message = ClusterTransition(followupKey, None)
+    val followupKey = RuntimeFollowupDetails(clusterId, RuntimeStatus.Stopped)
+    val message = RuntimeTransitionMessage(followupKey, None)
 
     val preStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupKey)).unsafeRunSync()
     preStorage shouldBe None
@@ -169,8 +190,8 @@ class LeoPubsubMessageSubscriberSpec
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
     val savedRunningCluster = runningCluster.save()
-    val followupKey = ClusterFollowupDetails(savedRunningCluster.id, RuntimeStatus.Stopped)
-    val message = ClusterTransition(followupKey, None)
+    val followupKey = RuntimeFollowupDetails(savedRunningCluster.id, RuntimeStatus.Stopped)
+    val message = RuntimeTransitionMessage(followupKey, None)
     val newMasterMachineType = MachineTypeName("n1-standard-8")
 
     val consumer = mock[AckReplyConsumer]
@@ -197,8 +218,8 @@ class LeoPubsubMessageSubscriberSpec
 
     val clusterId = savedStoppedCluster.id
     val newMachineConfig = defaultRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
-    val message = StopUpdate(newMachineConfig, clusterId, None)
-    val followupKey = ClusterFollowupDetails(clusterId, RuntimeStatus.Stopping)
+    val message = StopUpdateMessage(newMachineConfig, clusterId, None)
+    val followupKey = RuntimeFollowupDetails(clusterId, RuntimeStatus.Stopping)
 
     dbRef
       .inTransaction(followupQuery.getFollowupAction(followupKey))
@@ -222,7 +243,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
 
-    val followupDetails = ClusterFollowupDetails(clusterId, RuntimeStatus.Stopped)
+    val followupDetails = RuntimeFollowupDetails(clusterId, RuntimeStatus.Stopped)
 
     //subscriber has a follow-up when the cluster is stopped
     dbRef
@@ -233,7 +254,7 @@ class LeoPubsubMessageSubscriberSpec
 
     //we are notifying the subscriber the cluster has finished creating (aka, noise as far as its concerned)
     val transitionFinishedMessage =
-      ClusterTransition(ClusterFollowupDetails(clusterId, RuntimeStatus.Creating), None)
+      RuntimeTransitionMessage(RuntimeFollowupDetails(clusterId, RuntimeStatus.Creating), None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
     val postStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupDetails)).unsafeRunSync()
@@ -251,8 +272,8 @@ class LeoPubsubMessageSubscriberSpec
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
 
-    val followupKey = ClusterFollowupDetails(clusterId, RuntimeStatus.Stopped)
-    val transitionFinishedMessage = ClusterTransition(followupKey, None)
+    val followupKey = RuntimeFollowupDetails(clusterId, RuntimeStatus.Stopped)
+    val transitionFinishedMessage = RuntimeTransitionMessage(followupKey, None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
 
@@ -269,13 +290,13 @@ class LeoPubsubMessageSubscriberSpec
     val queue = QueueFactory.makeSubscriberQueue()
     val leoSubscriber = makeLeoSubscriber(queue)
 
-    val followupDetails = ClusterFollowupDetails(cluster.id, RuntimeStatus.Stopped)
+    val followupDetails = RuntimeFollowupDetails(cluster.id, RuntimeStatus.Stopped)
 
     dbRef
       .inTransaction(followupQuery.save(followupDetails, Some(newMachineType)))
       .unsafeRunSync()
 
-    val transitionFinishedMessage = ClusterTransition(followupDetails, None)
+    val transitionFinishedMessage = RuntimeTransitionMessage(followupDetails, None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
 
@@ -295,7 +316,7 @@ class LeoPubsubMessageSubscriberSpec
 
   "LeoPubsubCodec" should "encode/decode a StopUpdate message" in isolatedDbTest {
     val originalMessage =
-      StopUpdate(defaultRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8")), 1, None)
+      StopUpdateMessage(defaultRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8")), 1, None)
     val json = originalMessage.asJson
     val actualJsonString = json.noSpaces
 
@@ -319,13 +340,13 @@ class LeoPubsubMessageSubscriberSpec
 
     actualJsonString shouldBe expectedJsonString.filterNot(_.isWhitespace)
 
-    val decodedMessage = decode[StopUpdate](expectedJsonString)
+    val decodedMessage = decode[StopUpdateMessage](expectedJsonString)
     decodedMessage.right.get shouldBe originalMessage
   }
 
   "LeoPubsubCodec" should "encode/decode a ClusterTransitionFinished message" in isolatedDbTest {
-    val clusterFollowupDetails = ClusterFollowupDetails(1, RuntimeStatus.Stopping)
-    val originalMessage = ClusterTransition(clusterFollowupDetails, None)
+    val clusterFollowupDetails = RuntimeFollowupDetails(1, RuntimeStatus.Stopping)
+    val originalMessage = RuntimeTransitionMessage(clusterFollowupDetails, None)
     val json = originalMessage.asJson
     val actualJson = json.toString
 
@@ -342,14 +363,14 @@ class LeoPubsubMessageSubscriberSpec
 
     actualJson.filterNot(_.isWhitespace) shouldBe expectedJson.filterNot(_.isWhitespace)
 
-    val decodedMessage = decode[ClusterTransition](expectedJson)
+    val decodedMessage = decode[RuntimeTransitionMessage](expectedJson)
     decodedMessage.right.get shouldBe originalMessage
   }
 
   def makeLeoSubscriber(queue: InspectableQueue[IO, Event[LeoPubsubMessage]]) = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](googleSubscriber, clusterHelper)
+    new LeoPubsubMessageSubscriber[IO](googleSubscriber)
   }
 
 }

@@ -40,4 +40,5 @@
     <include file="changesets/20200123_cluster_table_gce_refactor.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200123_populate_date_accessed.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200305_move_properties_to_runtime_config.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200309_change_google_id_type.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

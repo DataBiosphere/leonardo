@@ -42,7 +42,8 @@ class VPCHelperSpec extends FlatSpecLike with LeonardoTestSuite {
   }
 
   it should "create a new subnet if there are no project labels" in {
-    val test = new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), MockGoogleComputeService)
+    val test =
+      new VPCHelper(CommonTestData.vpcHelperConfig, stubProjectDAO(Map.empty), MockGoogleComputeService)
 
     test.getOrCreateVPCSettings(CommonTestData.project).unsafeRunSync() shouldBe VPCNetwork("default")
   }

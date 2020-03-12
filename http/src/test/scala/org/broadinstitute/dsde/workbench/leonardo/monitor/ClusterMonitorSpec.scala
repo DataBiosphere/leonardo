@@ -35,7 +35,11 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
@@ -193,37 +197,55 @@ class ClusterMonitorSpec
     val bucketHelperConfig =
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
-      new BucketHelper(bucketHelperConfig,
-                       computeService,
-                       storageDAO,
-                       storage2DAO,
-                       projectDAO,
-                       serviceAccountProvider,
-                       blocker)(cs)
+      new BucketHelper[IO](bucketHelperConfig,
+                           computeService,
+                           storageDAO,
+                           storage2DAO,
+                           projectDAO,
+                           serviceAccountProvider,
+                           blocker)
     val vpcHelperConfig =
       VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper(vpcHelperConfig, projectDAO, computeService)
-    val clusterHelper = new ClusterHelper(dataprocConfig,
-                                          imageConfig,
-                                          googleGroupsConfig,
-                                          proxyConfig,
-                                          clusterResourcesConfig,
-                                          clusterFilesConfig,
-                                          monitorConfig,
-                                          welderConfig,
-                                          bucketHelper,
-                                          vpcHelper,
-                                          gdDAO,
-                                          computeService,
-                                          directoryDAO,
-                                          iamDAO,
-                                          projectDAO,
-                                          MockWelderDAO,
-                                          blocker)
+    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
+    val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
+                                                       dataprocConfig,
+                                                       googleGroupsConfig,
+                                                       welderConfig,
+                                                       imageConfig,
+                                                       proxyConfig,
+                                                       clusterResourcesConfig,
+                                                       clusterFilesConfig,
+                                                       monitorConfig
+                                                     ),
+                                                     bucketHelper,
+                                                     vpcHelper,
+                                                     gdDAO,
+                                                     computeService,
+                                                     directoryDAO,
+                                                     iamDAO,
+                                                     projectDAO,
+                                                     MockWelderDAO,
+                                                     blocker)
+    val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(
+                                             gceConfig,
+                                             welderConfig,
+                                             imageConfig,
+                                             proxyConfig,
+                                             clusterResourcesConfig,
+                                             clusterFilesConfig,
+                                             monitorConfig
+                                           ),
+                                           bucketHelper,
+                                           vpcHelper,
+                                           computeService,
+                                           MockWelderDAO,
+                                           blocker)
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     system.actorOf(
       TestClusterSupervisorActor.props(
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -237,7 +259,6 @@ class ClusterMonitorSpec
         jupyterDAO,
         rstudioDAO,
         welderDAO,
-        clusterHelper,
         queue
       )
     )
@@ -867,7 +888,7 @@ class ClusterMonitorSpec
                           RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
     } thenReturn Future.unit
 
-    val newClusterId = UUID.randomUUID()
+    val newClusterId = GoogleId(UUID.randomUUID().toString)
     when {
       gdDAO.createCluster(mockitoEq(creatingCluster.googleProject),
                           RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)),
@@ -990,8 +1011,9 @@ class ClusterMonitorSpec
         }
         newCluster.get.status shouldBe RuntimeStatus.Creating
         // Since creating cluster is now initiated by pubsub message, we're only validating that we've published the right message
-        val createClusterMsg = publisherQueue.dequeue1.unsafeRunSync().asInstanceOf[LeoPubsubMessage.CreateCluster]
-        val expectedMsg = CreateCluster.fromRuntime(creatingCluster, CommonTestData.defaultRuntimeConfig, None)
+        val createClusterMsg =
+          publisherQueue.dequeue1.unsafeRunSync().asInstanceOf[LeoPubsubMessage.CreateRuntimeMessage]
+        val expectedMsg = CreateRuntimeMessage.fromRuntime(creatingCluster, CommonTestData.defaultRuntimeConfig, None)
         createClusterMsg.copy(traceId = None, scopes = Set.empty, id = -1) shouldBe (expectedMsg.copy(
           scopes = Set.empty
         ))
@@ -1077,8 +1099,9 @@ class ClusterMonitorSpec
 
     val creatingCluster2 = creatingCluster.copy(
       runtimeName = RuntimeName(creatingCluster.runtimeName.asString + "_2"),
-      asyncRuntimeFields =
-        creatingCluster.asyncRuntimeFields.map(_.copy(googleId = UUID.randomUUID(), hostIp = Some(IP("5.6.7.8"))))
+      asyncRuntimeFields = creatingCluster.asyncRuntimeFields.map(
+        _.copy(googleId = GoogleId(UUID.randomUUID().toString), hostIp = Some(IP("5.6.7.8")))
+      )
     )
     val savedCreatingCluster2 = creatingCluster2.save()
     creatingCluster2 shouldEqual savedCreatingCluster2.copy(runtimeConfigId = RuntimeConfigId(-1))

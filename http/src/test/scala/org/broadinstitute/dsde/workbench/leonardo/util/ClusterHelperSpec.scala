@@ -5,6 +5,7 @@ import java.time.Instant
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import cats.effect.IO
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
@@ -18,7 +19,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, MockGoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
@@ -53,34 +55,34 @@ class ClusterHelperSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
-    new BucketHelper(bucketHelperConfig,
-                     MockGoogleComputeService,
-                     mockGoogleStorageDAO,
-                     FakeGoogleStorageService,
-                     mockGoogleProjectDAO,
-                     serviceAccountProvider,
-                     blocker)(cs)
+    new BucketHelper[IO](bucketHelperConfig,
+                         MockGoogleComputeService,
+                         mockGoogleStorageDAO,
+                         FakeGoogleStorageService,
+                         mockGoogleProjectDAO,
+                         serviceAccountProvider,
+                         blocker)
   val vpcHelperConfig =
     VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-  val vpcHelper = new VPCHelper(vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService)
+  val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService)
 
-  val clusterHelper = new ClusterHelper(dataprocConfig,
-                                        imageConfig,
-                                        googleGroupsConfig,
-                                        proxyConfig,
-                                        clusterResourcesConfig,
-                                        clusterFilesConfig,
-                                        monitorConfig,
-                                        welderConfig,
-                                        bucketHelper,
-                                        vpcHelper,
-                                        mockGoogleDataprocDAO,
-                                        MockGoogleComputeService,
-                                        mockGoogleDirectoryDAO,
-                                        mockGoogleIamDAO,
-                                        mockGoogleProjectDAO,
-                                        MockWelderDAO,
-                                        blocker)
+  val clusterHelper = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                                            googleGroupsConfig,
+                                                                            welderConfig,
+                                                                            imageConfig,
+                                                                            proxyConfig,
+                                                                            clusterResourcesConfig,
+                                                                            clusterFilesConfig,
+                                                                            monitorConfig),
+                                                  bucketHelper,
+                                                  vpcHelper,
+                                                  mockGoogleDataprocDAO,
+                                                  MockGoogleComputeService,
+                                                  mockGoogleDirectoryDAO,
+                                                  mockGoogleIamDAO,
+                                                  mockGoogleProjectDAO,
+                                                  MockWelderDAO,
+                                                  blocker)
 
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
@@ -93,7 +95,10 @@ class ClusterHelperSpec
   "ClusterHelper" should "create a google cluster" in isolatedDbTest {
     val clusterCreationRes =
       clusterHelper
-        .createCluster(CreateCluster.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        .createRuntime(
+          CreateRuntimeParams
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        )
         .unsafeToFuture()
         .futureValue
 
@@ -110,7 +115,7 @@ class ClusterHelperSpec
     // verify the returned cluster
     val dpInfo = clusterCreationRes.asyncRuntimeFields
     dpInfo.operationName shouldBe operation.name
-    dpInfo.googleId shouldBe operation.uuid
+    dpInfo.googleId shouldBe operation.id
     dpInfo.hostIp shouldBe None
     dpInfo.stagingBucket.value should startWith("leostaging")
 
@@ -135,7 +140,10 @@ class ClusterHelperSpec
 
     val res =
       clusterHelper
-        .createCluster(CreateCluster.fromRuntime(cluster, defaultRuntimeConfig, None))
+        .createRuntime(
+          CreateRuntimeParams
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, defaultRuntimeConfig, None))
+        )
         .unsafeToFuture()
         .futureValue
     res.customDataprocImage shouldBe Config.dataprocConfig.customDataprocImage
@@ -151,7 +159,11 @@ class ClusterHelperSpec
 
     val resForLegacyImage =
       clusterHelper
-        .createCluster(CreateCluster.fromRuntime(clusterWithLegacyImage, defaultRuntimeConfig, None))
+        .createRuntime(
+          CreateRuntimeParams.fromCreateRuntimeMessage(
+            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage, defaultRuntimeConfig, None)
+          )
+        )
         .unsafeToFuture()
         .futureValue
 
@@ -160,27 +172,30 @@ class ClusterHelperSpec
 
   it should "clean up Google resources on error" in isolatedDbTest {
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO
-    val erroredClusterHelper = new ClusterHelper(dataprocConfig,
-                                                 imageConfig,
-                                                 googleGroupsConfig,
-                                                 proxyConfig,
-                                                 clusterResourcesConfig,
-                                                 clusterFilesConfig,
-                                                 monitorConfig,
-                                                 welderConfig,
-                                                 bucketHelper,
-                                                 vpcHelper,
-                                                 erroredDataprocDAO,
-                                                 MockGoogleComputeService,
-                                                 mockGoogleDirectoryDAO,
-                                                 mockGoogleIamDAO,
-                                                 mockGoogleProjectDAO,
-                                                 MockWelderDAO,
-                                                 blocker)
+    val erroredClusterHelper = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                                                     googleGroupsConfig,
+                                                                                     welderConfig,
+                                                                                     imageConfig,
+                                                                                     proxyConfig,
+                                                                                     clusterResourcesConfig,
+                                                                                     clusterFilesConfig,
+                                                                                     monitorConfig),
+                                                           bucketHelper,
+                                                           vpcHelper,
+                                                           erroredDataprocDAO,
+                                                           MockGoogleComputeService,
+                                                           mockGoogleDirectoryDAO,
+                                                           mockGoogleIamDAO,
+                                                           mockGoogleProjectDAO,
+                                                           MockWelderDAO,
+                                                           blocker)
 
     val exception =
       erroredClusterHelper
-        .createCluster(CreateCluster.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        .createRuntime(
+          CreateRuntimeParams
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        )
         .unsafeToFuture()
         .failed
         .futureValue
@@ -198,27 +213,30 @@ class ClusterHelperSpec
   it should "retry zone capacity issues" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO(429)
-    val erroredClusterHelper = new ClusterHelper(dataprocConfig,
-                                                 imageConfig,
-                                                 googleGroupsConfig,
-                                                 proxyConfig,
-                                                 clusterResourcesConfig,
-                                                 clusterFilesConfig,
-                                                 monitorConfig,
-                                                 welderConfig,
-                                                 bucketHelper,
-                                                 vpcHelper,
-                                                 erroredDataprocDAO,
-                                                 MockGoogleComputeService,
-                                                 mockGoogleDirectoryDAO,
-                                                 mockGoogleIamDAO,
-                                                 mockGoogleProjectDAO,
-                                                 MockWelderDAO,
-                                                 blocker)
+    val erroredClusterHelper = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                                                     googleGroupsConfig,
+                                                                                     welderConfig,
+                                                                                     imageConfig,
+                                                                                     proxyConfig,
+                                                                                     clusterResourcesConfig,
+                                                                                     clusterFilesConfig,
+                                                                                     monitorConfig),
+                                                           bucketHelper,
+                                                           vpcHelper,
+                                                           erroredDataprocDAO,
+                                                           MockGoogleComputeService,
+                                                           mockGoogleDirectoryDAO,
+                                                           mockGoogleIamDAO,
+                                                           mockGoogleProjectDAO,
+                                                           MockWelderDAO,
+                                                           blocker)
 
     val exception =
       erroredClusterHelper
-        .createCluster(CreateCluster.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        .createRuntime(
+          CreateRuntimeParams
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        )
         .unsafeToFuture()
         .failed
         .futureValue
@@ -285,27 +303,30 @@ class ClusterHelperSpec
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
-    val erroredClusterHelper = new ClusterHelper(dataprocConfig,
-                                                 imageConfig,
-                                                 googleGroupsConfig,
-                                                 proxyConfig,
-                                                 clusterResourcesConfig,
-                                                 clusterFilesConfig,
-                                                 monitorConfig,
-                                                 welderConfig,
-                                                 bucketHelper,
-                                                 vpcHelper,
-                                                 mockGoogleDataprocDAO,
-                                                 MockGoogleComputeService,
-                                                 mockGoogleDirectoryDAO,
-                                                 erroredIamDAO,
-                                                 mockGoogleProjectDAO,
-                                                 MockWelderDAO,
-                                                 blocker)
+    val erroredClusterHelper = new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
+                                                                                     googleGroupsConfig,
+                                                                                     welderConfig,
+                                                                                     imageConfig,
+                                                                                     proxyConfig,
+                                                                                     clusterResourcesConfig,
+                                                                                     clusterFilesConfig,
+                                                                                     monitorConfig),
+                                                           bucketHelper,
+                                                           vpcHelper,
+                                                           mockGoogleDataprocDAO,
+                                                           MockGoogleComputeService,
+                                                           mockGoogleDirectoryDAO,
+                                                           erroredIamDAO,
+                                                           mockGoogleProjectDAO,
+                                                           MockWelderDAO,
+                                                           blocker)
 
     val exception =
       erroredClusterHelper
-        .createCluster(CreateCluster.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        .createRuntime(
+          CreateRuntimeParams
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+        )
         .unsafeToFuture()
         .failed
         .futureValue

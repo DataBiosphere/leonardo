@@ -34,7 +34,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     if (clusterName == badClusterName) {
       Future.failed(new Exception("bad cluster!"))
     } else {
-      val operation = Operation(OperationName("op-name"), UUID.randomUUID())
+      val operation = Operation(OperationName("op-name"), GoogleId(UUID.randomUUID().toString))
       clusters += clusterName -> operation
 
       val masterInstance = Set(DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName("master-instance")))

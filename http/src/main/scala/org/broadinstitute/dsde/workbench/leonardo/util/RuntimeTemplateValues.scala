@@ -1,8 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.WelderAction.{DeployWelder, DisableDelocalization, UpdateWelder}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
@@ -17,6 +17,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           jupyterServerKey: String,
                                           rootCaPem: String,
                                           jupyterDockerCompose: String,
+                                          jupyterDockerComposeGce: String,
                                           rstudioDockerCompose: String,
                                           proxyDockerCompose: String,
                                           welderDockerCompose: String,
@@ -41,7 +42,11 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           welderEnabled: String,
                                           notebooksDir: String,
                                           customEnvVarsConfigUri: String,
-                                          memLimit: String) {
+                                          memLimit: String,
+                                          runtimeOperation: String,
+                                          deployWelder: String,
+                                          updateWelder: String,
+                                          disableDelocalization: String) {
 
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
@@ -64,49 +69,55 @@ case class RuntimeTemplateValuesConfig(runtimeProjectAndName: RuntimeProjectAndN
                                        proxyConfig: ProxyConfig,
                                        clusterFilesConfig: ClusterFilesConfig,
                                        clusterResourcesConfig: ClusterResourcesConfig,
-                                       clusterResourceConstraints: Option[RuntimeResourceConstraints])
+                                       clusterResourceConstraints: Option[RuntimeResourceConstraints],
+                                       runtimeOperation: RuntimeOperation,
+                                       welderAction: Option[WelderAction])
 object RuntimeTemplateValuesConfig {
-  def fromCreateCluster(createCluster: CreateCluster,
-                        initBucketName: Option[GcsBucketName],
-                        stagingBucketName: Option[GcsBucketName],
-                        serviceAccountKey: Option[ServiceAccountKey],
-                        dataprocConfig: DataprocConfig,
-                        imageConfig: ImageConfig,
-                        welderConfig: WelderConfig,
-                        proxyConfig: ProxyConfig,
-                        clusterFilesConfig: ClusterFilesConfig,
-                        clusterResourcesConfig: ClusterResourcesConfig,
-                        clusterResourceConstraints: Option[RuntimeResourceConstraints]): RuntimeTemplateValuesConfig =
+  def fromCreateRuntimeParams(
+    params: CreateRuntimeParams,
+    initBucketName: Option[GcsBucketName],
+    stagingBucketName: Option[GcsBucketName],
+    serviceAccountKey: Option[ServiceAccountKey],
+    imageConfig: ImageConfig,
+    welderConfig: WelderConfig,
+    proxyConfig: ProxyConfig,
+    clusterFilesConfig: ClusterFilesConfig,
+    clusterResourcesConfig: ClusterResourcesConfig,
+    clusterResourceConstraints: Option[RuntimeResourceConstraints]
+  ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
-      createCluster.clusterProjectAndName,
+      params.runtimeProjectAndName,
       stagingBucketName,
-      createCluster.runtimeImages,
+      params.runtimeImages,
       initBucketName,
-      createCluster.jupyterUserScriptUri,
-      createCluster.jupyterStartUserScriptUri,
+      params.jupyterUserScriptUri,
+      params.jupyterStartUserScriptUri,
       serviceAccountKey,
-      createCluster.userJupyterExtensionConfig,
-      createCluster.defaultClientId,
-      createCluster.welderEnabled,
-      createCluster.auditInfo,
+      params.userJupyterExtensionConfig,
+      params.defaultClientId,
+      params.welderEnabled,
+      params.auditInfo,
       imageConfig,
       welderConfig,
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
-      clusterResourceConstraints
+      clusterResourceConstraints,
+      RuntimeOperation.Creating,
+      None
     )
 
   def fromRuntime(runtime: Runtime,
                   initBucketName: Option[GcsBucketName],
                   serviceAccountKey: Option[ServiceAccountKey],
-                  dataprocConfig: DataprocConfig,
                   imageConfig: ImageConfig,
                   welderConfig: WelderConfig,
                   proxyConfig: ProxyConfig,
                   clusterFilesConfig: ClusterFilesConfig,
                   clusterResourcesConfig: ClusterResourcesConfig,
-                  clusterResourceConstraints: Option[RuntimeResourceConstraints]): RuntimeTemplateValuesConfig =
+                  clusterResourceConstraints: Option[RuntimeResourceConstraints],
+                  runtimeOperation: RuntimeOperation,
+                  welderAction: Option[WelderAction]): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
       runtime.asyncRuntimeFields.map(_.stagingBucket),
@@ -124,7 +135,9 @@ object RuntimeTemplateValuesConfig {
       proxyConfig,
       clusterFilesConfig,
       clusterResourcesConfig,
-      clusterResourceConstraints
+      clusterResourceConstraints,
+      runtimeOperation,
+      welderAction
     )
 }
 
@@ -152,6 +165,9 @@ object RuntimeTemplateValues {
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerCompose.asString)).toUri)
+        .getOrElse(""),
+      config.initBucketName
+        .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerComposeGce.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.rstudioDockerCompose.asString)).toUri)
@@ -197,6 +213,10 @@ object RuntimeTemplateValues {
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
         .getOrElse(""),
-      config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse("")
+      config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse(""),
+      config.runtimeOperation.asString,
+      (config.welderAction == Some(DeployWelder)).toString,
+      (config.welderAction == Some(UpdateWelder)).toString,
+      (config.welderAction == Some(DisableDelocalization)).toString
     )
 }

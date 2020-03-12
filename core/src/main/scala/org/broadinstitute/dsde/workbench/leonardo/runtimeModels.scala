@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
-import java.util.UUID
 
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
@@ -87,7 +86,8 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   case object Starting extends RuntimeStatus
 
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
-  val activeStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
+  val activeStatuses: Set[RuntimeStatus] =
+    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
 
   // Can a user delete this runtime? Contains everything except Creating, Deleting, Deleted.
   val deletableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting)
@@ -115,7 +115,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
 }
 
 /** Fields that are populated asynchronous to the runtime's creation */
-case class AsyncRuntimeFields(googleId: UUID,
+case class AsyncRuntimeFields(googleId: GoogleId,
                               operationName: OperationName,
                               stagingBucket: GcsBucketName,
                               hostIp: Option[IP])
@@ -305,8 +305,6 @@ object WelderAction extends Enum[WelderAction] {
 
   case object DeployWelder extends WelderAction
   case object UpdateWelder extends WelderAction
-  case object NoAction extends WelderAction
-  case object RuntimeOutOfDate extends WelderAction
   case object DisableDelocalization extends WelderAction
 }
 
@@ -338,10 +336,12 @@ final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName: RuntimeName) {
   override def toString: String = s"${googleProject.value}/${runtimeName.asString}"
 }
-case class IP(value: String) extends ValueObject
-case class NetworkTag(value: String) extends ValueObject
-case class OperationName(value: String) extends ValueObject
-case class Operation(name: OperationName, uuid: UUID)
+final case class RuntimeAndRuntimeConfig(runtime: Runtime, runtimeConfig: RuntimeConfig)
+final case class IP(value: String) extends ValueObject
+final case class NetworkTag(value: String) extends ValueObject
+final case class OperationName(value: String) extends ValueObject
+final case class Operation(name: OperationName, id: GoogleId)
+final case class GoogleId(value: String) extends AnyVal
 
 sealed trait VPCConfig extends Product with Serializable {
   def value: String
@@ -351,4 +351,20 @@ object VPCConfig {
   final case class VPCSubnet(value: String) extends VPCConfig
 
   final val defaultNetwork = VPCNetwork("default")
+}
+
+sealed trait RuntimeOperation extends Product with Serializable {
+  def asString: String
+  final override def toString = asString
+}
+object RuntimeOperation {
+  final case object Creating extends RuntimeOperation {
+    val asString = "creating"
+  }
+  final case object Restarting extends RuntimeOperation {
+    val asString = "restarting"
+  }
+  final case object Stopping extends RuntimeOperation {
+    val asString = "stopping"
+  }
 }

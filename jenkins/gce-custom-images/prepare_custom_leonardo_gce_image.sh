@@ -101,11 +101,6 @@ log 'Installing prerequisites...'
 retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 retry 5 apt-key update
 
-# install Docker
-# https://docs.docker.com/install/linux/docker-ce/debian/
-# export DOCKER_CE_VERSION="19.03.2~ce~3-0~debian"
-
-# retry 5 betterAptGet
 retry 5 apt-get install -y -q \
     apt-transport-https \
     ca-certificates \
@@ -113,6 +108,11 @@ retry 5 apt-get install -y -q \
     gnupg2 \
     software-properties-common \
     libffi-dev
+
+# Install google-fluent-d
+# https://cloud.google.com/logging/docs/agent/installation
+curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
+bash install-logging-agent.sh
 
 log 'Adding Docker package sources...'
 

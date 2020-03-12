@@ -23,7 +23,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     dbFutureValue { clusterQuery.listWithLabels } shouldEqual Seq()
 
     lazy val err1 = RuntimeError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
-    lazy val cluster1UUID = UUID.randomUUID()
+    lazy val cluster1UUID = GoogleId(UUID.randomUUID().toString)
     val cluster1 = makeCluster(1).copy(
       asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
       dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2),

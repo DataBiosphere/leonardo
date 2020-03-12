@@ -19,8 +19,9 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference,
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateCluster
-import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterSupervisorMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeInstances, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -30,6 +31,7 @@ object ClusterMonitorSupervisor {
   def props(
     monitorConfig: MonitorConfig,
     dataprocConfig: DataprocConfig,
+    gceConfig: GceConfig,
     imageConfig: ImageConfig,
     clusterBucketConfig: ClusterBucketConfig,
     gdDAO: GoogleDataprocDAO,
@@ -41,16 +43,17 @@ object ClusterMonitorSupervisor {
     jupyterProxyDAO: JupyterDAO[IO],
     rstudioProxyDAO: RStudioDAO[IO],
     welderDAO: WelderDAO[IO],
-    clusterHelper: ClusterHelper,
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit metrics: NewRelicMetrics[IO],
     dbRef: DbReference[IO],
     ec: ExecutionContext,
     clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
-    cs: ContextShift[IO]): Props =
+    cs: ContextShift[IO],
+    runtimeInstances: RuntimeInstances[IO]): Props =
     Props(
       new ClusterMonitorSupervisor(monitorConfig,
                                    dataprocConfig,
+                                   gceConfig,
                                    imageConfig,
                                    clusterBucketConfig,
                                    gdDAO,
@@ -62,30 +65,41 @@ object ClusterMonitorSupervisor {
                                    jupyterProxyDAO,
                                    rstudioProxyDAO,
                                    welderDAO,
-                                   clusterHelper,
                                    publisherQueue)
     )
 
-  sealed trait ClusterSupervisorMessage
+  sealed trait ClusterSupervisorMessage extends Product with Serializable
 
-  // sent after a cluster is created by the user
-  case class ClusterCreated(cluster: Runtime, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
-  // sent after a cluster is deleted by the user
-  case class ClusterDeleted(cluster: Runtime, recreate: Boolean = false) extends ClusterSupervisorMessage
-  // sent after a cluster is stopped by the user
-  case class ClusterStopped(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after a cluster is started by the user
-  case class ClusterStarted(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after a cluster is updated by the user
-  case class ClusterUpdated(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after cluster creation fails, and the cluster should be recreated
-  case class RecreateCluster(cluster: Runtime) extends ClusterSupervisorMessage
-  // sent after cluster creation succeeds, and the cluster should be stopped
-  case class StopClusterAfterCreation(cluster: Runtime) extends ClusterSupervisorMessage
-  //Sent when the cluster should be removed from the monitored cluster list
-  case class RemoveFromList(cluster: Runtime) extends ClusterSupervisorMessage
-  // Auto freeze idle clusters
-  case object AutoFreezeClusters extends ClusterSupervisorMessage
+  object ClusterSupervisorMessage {
+
+    // sent after a cluster is created by the user
+    case class ClusterCreated(cluster: Runtime, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
+
+    // sent after a cluster is deleted by the user
+    case class ClusterDeleted(cluster: Runtime, recreate: Boolean = false) extends ClusterSupervisorMessage
+
+    // sent after a cluster is stopped by the user
+    case class ClusterStopped(cluster: Runtime) extends ClusterSupervisorMessage
+
+    // sent after a cluster is started by the user
+    case class ClusterStarted(cluster: Runtime) extends ClusterSupervisorMessage
+
+    // sent after a cluster is updated by the user
+    case class ClusterUpdated(cluster: Runtime) extends ClusterSupervisorMessage
+
+    // sent after cluster creation fails, and the cluster should be recreated
+    case class RecreateCluster(cluster: Runtime) extends ClusterSupervisorMessage
+
+    // sent after cluster creation succeeds, and the cluster should be stopped
+    case class StopClusterAfterCreation(cluster: Runtime) extends ClusterSupervisorMessage
+
+    //Sent when the cluster should be removed from the monitored cluster list
+    case class RemoveFromList(cluster: Runtime) extends ClusterSupervisorMessage
+
+    // Auto freeze idle clusters
+    case object AutoFreezeClusters extends ClusterSupervisorMessage
+
+  }
 
   case object CheckClusterTimerKey
   case object AutoFreezeTimerKey
@@ -95,6 +109,7 @@ object ClusterMonitorSupervisor {
 class ClusterMonitorSupervisor(
   monitorConfig: MonitorConfig,
   dataprocConfig: DataprocConfig,
+  gceConfig: GceConfig,
   imageConfig: ImageConfig,
   clusterBucketConfig: ClusterBucketConfig,
   gdDAO: GoogleDataprocDAO,
@@ -106,13 +121,13 @@ class ClusterMonitorSupervisor(
   jupyterProxyDAO: JupyterDAO[IO],
   rstudioProxyDAO: RStudioDAO[IO],
   welderProxyDAO: WelderDAO[IO],
-  clusterHelper: ClusterHelper,
   publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
 )(implicit metrics: NewRelicMetrics[IO],
   ec: ExecutionContext,
   dbRef: DbReference[IO],
   clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
-  cs: ContextShift[IO])
+  cs: ContextShift[IO],
+  runtimeInstances: RuntimeInstances[IO])
     extends Actor
     with Timers
     with LazyLogging {
@@ -157,7 +172,7 @@ class ClusterMonitorSupervisor(
           _ <- (clusterQuery.clearAsyncClusterCreationFields(cluster, now) >>
             clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Creating, now)).transaction
           runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-          _ <- publisherQueue.enqueue1(CreateCluster.fromRuntime(cluster, runtimeConfig, Some(traceId)))
+          _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(cluster, runtimeConfig, Some(traceId)))
         } yield ()
       } else {
         IO(
@@ -174,12 +189,11 @@ class ClusterMonitorSupervisor(
       implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
 
       logger.info(s"Stopping cluster ${cluster.projectNameString} after creation...")
-      val res = clusterQuery
-        .getClusterById(cluster.id)
-        .transaction
-        .flatMap {
-          case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
-            IO(Instant.now()).flatMap(now => stopCluster(resolvedCluster, now))
+      (for {
+        now <- IO(Instant.now())
+        runtimeOpt <- clusterQuery.getClusterById(cluster.id).transaction
+        _ <- runtimeOpt match {
+          case Some(resolvedCluster) if resolvedCluster.status.isStoppable => stopCluster(resolvedCluster, now)
           case Some(resolvedCluster) =>
             IO(
               logger.warn(
@@ -189,12 +203,13 @@ class ClusterMonitorSupervisor(
           case None =>
             IO.raiseError(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
         }
+      } yield ())
         .handleErrorWith(
           e =>
             IO(logger.error(s"Error occurred stopping cluster ${cluster.projectNameString} after creation", e)) >> IO
               .raiseError(e)
         )
-      res.unsafeToFuture()
+        .unsafeToFuture()
 
     case ClusterStopped(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after stopping.")
@@ -224,6 +239,7 @@ class ClusterMonitorSupervisor(
         cluster.id,
         monitorConfig,
         dataprocConfig,
+        gceConfig,
         imageConfig,
         clusterBucketConfig,
         gdDAO,
@@ -232,7 +248,6 @@ class ClusterMonitorSupervisor(
         google2StorageDAO,
         dbRef,
         authProvider,
-        clusterHelper,
         publisherQueue
       )
     )
@@ -301,11 +316,10 @@ class ClusterMonitorSupervisor(
           .flushCache(cluster.googleProject, cluster.runtimeName)
           .handleError(e => logger.error(s"Failed to flush welder cache for ${cluster.projectNameString}", e))
       } else IO.unit
-
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       // Stop the cluster in Google
-      _ <- clusterHelper.stopCluster(cluster, runtimeConfig)
-
+      _ <- runtimeConfig.cloudService.interpreter
+        .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
       // Update the cluster status to Stopping
       _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
     } yield ()

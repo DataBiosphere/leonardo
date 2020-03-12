@@ -3,7 +3,6 @@ package model
 
 import java.net.{MalformedURLException, URL}
 import java.time.Instant
-import java.util.UUID._
 
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
@@ -16,7 +15,7 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
   val cluster = makeCluster(1).copy(
-    asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
+    asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = GoogleId("4ba97751-026a-4555-961b-89ae6ce78df4"))),
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     stopAfterCreation = true,

@@ -13,7 +13,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   PublisherConfig,
   RegionName,
-  SubscriberConfig
+  SubscriberConfig,
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
@@ -41,7 +42,7 @@ object Config {
   implicit val dataprocRuntimeConfigReader: ValueReader[RuntimeConfig.DataprocConfig] = ValueReader.relative { config =>
     RuntimeConfig.DataprocConfig(
       config.getInt("numberOfWorkers"),
-      MachineTypeName(config.getString("masterMachineType")),
+      config.as[MachineTypeName]("masterMachineType"),
       config.getInt("masterDiskSize"),
       config.getAs[String]("workerMachineType").map(MachineTypeName),
       config.getAs[Int]("workerDiskSize"),
@@ -53,15 +54,15 @@ object Config {
 
   implicit val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
     RuntimeConfig.GceConfig(
-      MachineTypeName(config.getString("machineType")),
+      config.as[MachineTypeName]("machineType"),
       config.getInt("diskSize")
     )
   }
 
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
-      config.getString("dataprocDefaultRegion"),
-      config.getAs[String]("dataprocZone"),
+      config.as[RegionName]("region"),
+      config.getAs[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
       CustomDataprocImage(config.getString("customDataprocImage")),
@@ -72,6 +73,9 @@ object Config {
 
   implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
+      config.as[GceCustomImage]("customGceImage"),
+      config.as[RegionName]("region"),
+      config.as[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
@@ -115,17 +119,19 @@ object Config {
 
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
-      RuntimeResource(config.getString("initActionsScript")),
-      RuntimeResource(config.getString("startupScript")),
-      RuntimeResource(config.getString("shutdownScript")),
-      RuntimeResource(config.getString("jupyterDockerCompose")),
-      RuntimeResource(config.getString("rstudioDockerCompose")),
-      RuntimeResource(config.getString("proxyDockerCompose")),
-      RuntimeResource(config.getString("welderDockerCompose")),
-      RuntimeResource(config.getString("proxySiteConf")),
-      RuntimeResource(config.getString("jupyterNotebookConfigUri")),
-      RuntimeResource(config.getString("jupyterNotebookFrontendConfigUri")),
-      RuntimeResource(config.getString("customEnvVarsConfigUri"))
+      config.as[RuntimeResource]("initActionsScript"),
+      config.as[RuntimeResource]("gceInitScript"),
+      config.as[RuntimeResource]("startupScript"),
+      config.as[RuntimeResource]("shutdownScript"),
+      config.as[RuntimeResource]("jupyterDockerCompose"),
+      config.as[RuntimeResource]("jupyterDockerComposeGce"),
+      config.as[RuntimeResource]("rstudioDockerCompose"),
+      config.as[RuntimeResource]("proxyDockerCompose"),
+      config.as[RuntimeResource]("welderDockerCompose"),
+      config.as[RuntimeResource]("proxySiteConf"),
+      config.as[RuntimeResource]("jupyterNotebookConfigUri"),
+      config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),
+      config.as[RuntimeResource]("customEnvVarsConfigUri")
     )
   }
 
@@ -251,14 +257,7 @@ object Config {
       config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
     )
   }
-  implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
-  implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
-  implicit val regionNameValueReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
-  implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
-  implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
-  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
-    s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
-  )
+
   implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
     ValueReader.relative { config =>
       ServiceAccountProviderConfig(
@@ -266,8 +265,6 @@ object Config {
         config.as[WorkbenchEmail]("leoServiceAccountEmail")
       )
     }
-
-  val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
 
   implicit val httpSamDao2ConfigValueReader: ValueReader[HttpSamDaoConfig] = ValueReader.relative { config =>
     HttpSamDaoConfig(
@@ -279,6 +276,18 @@ object Config {
     )
   }
 
+  implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
+  implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
+  implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
+  implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
+  implicit val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
+  implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
+  implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
+  implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
+  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
+    s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
+  )
+  implicit val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
 
@@ -295,6 +304,7 @@ object Config {
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
+  val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")

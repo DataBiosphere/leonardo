@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   AutoFreezeConfig,
   ClusterBucketConfig,
   DataprocConfig,
+  GceConfig,
   ImageConfig,
   MonitorConfig
 }
@@ -18,32 +19,35 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInstances
 import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 import scala.concurrent.ExecutionContext.global
 
 object TestClusterSupervisorActor {
-  def props(monitorConfig: MonitorConfig,
-            dataprocConfig: DataprocConfig,
-            imageConfig: ImageConfig,
-            clusterBucketConfig: ClusterBucketConfig,
-            gdDAO: GoogleDataprocDAO,
-            googleComputeService: GoogleComputeService[IO],
-            googleStorageDAO: GoogleStorageDAO,
-            google2StorageDAO: GoogleStorageService[IO],
-            dbRef: DbReference[IO],
-            testKit: TestKit,
-            authProvider: LeoAuthProvider[IO],
-            autoFreezeConfig: AutoFreezeConfig,
-            jupyterProxyDAO: JupyterDAO[IO],
-            rstudioProxyDAO: RStudioDAO[IO],
-            welderDAO: WelderDAO[IO],
-            clusterHelper: ClusterHelper,
-            publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO]): Props =
+  def props(
+    monitorConfig: MonitorConfig,
+    dataprocConfig: DataprocConfig,
+    gceConfig: GceConfig,
+    imageConfig: ImageConfig,
+    clusterBucketConfig: ClusterBucketConfig,
+    gdDAO: GoogleDataprocDAO,
+    googleComputeService: GoogleComputeService[IO],
+    googleStorageDAO: GoogleStorageDAO,
+    google2StorageDAO: GoogleStorageService[IO],
+    dbRef: DbReference[IO],
+    testKit: TestKit,
+    authProvider: LeoAuthProvider[IO],
+    autoFreezeConfig: AutoFreezeConfig,
+    jupyterProxyDAO: JupyterDAO[IO],
+    rstudioProxyDAO: RStudioDAO[IO],
+    welderDAO: WelderDAO[IO],
+    publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+  )(implicit cs: ContextShift[IO], runtimeInstances: RuntimeInstances[IO]): Props =
     Props(
       new TestClusterSupervisorActor(monitorConfig,
                                      dataprocConfig,
+                                     gceConfig,
                                      imageConfig,
                                      clusterBucketConfig,
                                      gdDAO,
@@ -57,7 +61,6 @@ object TestClusterSupervisorActor {
                                      jupyterProxyDAO,
                                      rstudioProxyDAO,
                                      welderDAO,
-                                     clusterHelper,
                                      publisherQueue)
     )
 }
@@ -67,26 +70,29 @@ object TearDown
 /**
  * Extends ClusterMonitorSupervisor so the akka TestKit can watch the child ClusterMonitorActors.
  */
-class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
-                                 dataprocConfig: DataprocConfig,
-                                 imageConfig: ImageConfig,
-                                 clusterBucketConfig: ClusterBucketConfig,
-                                 gdDAO: GoogleDataprocDAO,
-                                 googleComputeService: GoogleComputeService[IO],
-                                 googleStorageDAO: GoogleStorageDAO,
-                                 google2StorageDAO: GoogleStorageService[IO],
-                                 dbRef: DbReference[IO],
-                                 testKit: TestKit,
-                                 authProvider: LeoAuthProvider[IO],
-                                 autoFreezeConfig: AutoFreezeConfig,
-                                 jupyterProxyDAO: JupyterDAO[IO],
-                                 rstudioProxyDAO: RStudioDAO[IO],
-                                 welderDAO: WelderDAO[IO],
-                                 clusterHelper: ClusterHelper,
-                                 publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(implicit cs: ContextShift[IO])
+class TestClusterSupervisorActor(
+  monitorConfig: MonitorConfig,
+  dataprocConfig: DataprocConfig,
+  gceConfig: GceConfig,
+  imageConfig: ImageConfig,
+  clusterBucketConfig: ClusterBucketConfig,
+  gdDAO: GoogleDataprocDAO,
+  googleComputeService: GoogleComputeService[IO],
+  googleStorageDAO: GoogleStorageDAO,
+  google2StorageDAO: GoogleStorageService[IO],
+  dbRef: DbReference[IO],
+  testKit: TestKit,
+  authProvider: LeoAuthProvider[IO],
+  autoFreezeConfig: AutoFreezeConfig,
+  jupyterProxyDAO: JupyterDAO[IO],
+  rstudioProxyDAO: RStudioDAO[IO],
+  welderDAO: WelderDAO[IO],
+  publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+)(implicit cs: ContextShift[IO], runtimeInstances: RuntimeInstances[IO])
     extends ClusterMonitorSupervisor(
       monitorConfig,
       dataprocConfig,
+      gceConfig,
       imageConfig,
       clusterBucketConfig,
       gdDAO,
@@ -98,13 +104,13 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
       jupyterProxyDAO,
       rstudioProxyDAO,
       welderDAO,
-      clusterHelper,
       publisherQueue
     )(FakeNewRelicMetricsInterpreter,
       global,
       dbRef,
       ToolDAO.clusterToolToToolDao(jupyterProxyDAO, welderDAO, rstudioProxyDAO),
-      cs) {
+      cs,
+      runtimeInstances) {
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
 
