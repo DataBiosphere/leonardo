@@ -240,7 +240,9 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       case v @ VPCNetwork(_) =>
         NetworkInterface.newBuilder().setNetwork(buildNetworkUri(runtimeProjectAndName.googleProject, v))
       case v @ VPCSubnet(_) =>
-        NetworkInterface.newBuilder().setSubnetwork(buildNetworkUri(runtimeProjectAndName.googleProject, v))
+        NetworkInterface
+          .newBuilder()
+          .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, v))
     }
     bldr.addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build).build
   }

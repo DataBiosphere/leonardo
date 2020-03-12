@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.{NetworkTag, VPCConfig}
 import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -54,9 +55,7 @@ class VPCHelper[F[_]: Async: ContextShift: Logger](
     Firewall
       .newBuilder()
       .setName(config.firewallRuleName.value)
-      // Note networks are global, not regional. See:
-      // https://cloud.google.com/vpc/docs/vpc
-      .setNetwork(s"projects/${googleProject.value}/global/networks/${vpcNetwork.value}")
+      .setNetwork(buildNetworkUri(googleProject, vpcNetwork))
       .addAllTargetTags(config.firewallRuleTargetTags.map(_.value).asJava)
       .addAllowed(
         Allowed

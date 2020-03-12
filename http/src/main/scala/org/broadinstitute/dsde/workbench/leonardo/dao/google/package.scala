@@ -6,8 +6,9 @@ import java.time.Instant
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.cloud.compute.v1.Instance
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.{IP, VPCConfig}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
+import org.broadinstitute.dsde.workbench.leonardo.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
@@ -58,6 +59,12 @@ package object google {
   def buildMachineTypeUri(zone: ZoneName, machineTypeName: MachineTypeName): String =
     s"zones/${zone.value}/machineTypes/${machineTypeName.value}"
 
-  def buildNetworkUri(googleProject: GoogleProject, vpcConfig: VPCConfig): String =
-    s"projects/${googleProject.value}/global/networks/${vpcConfig.value}"
+  // Note networks are global, subnets are regional
+  // See: https://cloud.google.com/vpc/docs/vpc
+
+  def buildNetworkUri(googleProject: GoogleProject, vpcNetwork: VPCNetwork): String =
+    s"projects/${googleProject.value}/global/networks/${vpcNetwork.value}"
+
+  def buildSubnetworkUri(googleProject: GoogleProject, regionName: RegionName, vpcSubnet: VPCSubnet): String =
+    s"projects/${googleProject.value}/regions/${regionName.value}/subnetworks/${vpcSubnet.value}"
 }
