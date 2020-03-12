@@ -4,15 +4,19 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
 import cats.effect.concurrent.Deferred
+import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
+import com.google.cloud.compute.v1.Instance
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
@@ -133,7 +137,7 @@ class ZombieRuntimeMonitorSpec
     }
   }
 
-  it should "detect zombie clusters when the cluster is inactive" in isolatedDbTest {
+  it should "detect zombie dataptoc cluster when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -169,6 +173,41 @@ class ZombieRuntimeMonitorSpec
 
         c1.status shouldBe RuntimeStatus.Running
         c1.errors shouldBe 'empty
+      }
+    }
+  }
+
+  it should "detect zombie gce instance when the cluster is inactive" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    // create 2 running clusters in the same project
+    val runtimeConfig = RuntimeConfig.GceConfig(
+      MachineTypeName("n1-standard-4"),
+      50
+    )
+    val savedTestCluster = testCluster1.saveWithRuntimeConfig(runtimeConfig)
+    savedTestCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
+
+    // stub GoogleDataprocDAO to flag cluster2 as deleted
+    val gce = new MockGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[Instance]] = {
+        val instance = Instance.newBuilder().setStatus("TERMINATED").build()
+        IO.pure(Some(instance))
+      }
+    }
+
+    // c2 should be flagged as a zombie but not c1
+    withZombieMonitor(gce = gce) { () =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster.id) }.get
+
+        c1.status shouldBe RuntimeStatus.Deleted
+        c1.auditInfo.destroyedDate shouldBe 'defined
+        c1.errors.size shouldBe 1
+        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
   }
@@ -300,8 +339,9 @@ class ZombieRuntimeMonitorSpec
 
   private def withZombieMonitor[A](
     gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
+    gce: GoogleComputeService[IO] = new MockGoogleComputeService,
     googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO)(validations: () => A): A = {
-    val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterConfig, gdDAO, googleProjectDAO)
+    val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterConfig, gdDAO, gce, googleProjectDAO)
     val process = Stream.eval(Deferred[IO, A]).flatMap { signalToStop =>
       val signal =  Stream.eval(IO(validations())).evalMap(r => signalToStop.complete(r))
       val p = Stream(zombieClusterMonitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal).parJoin(2)

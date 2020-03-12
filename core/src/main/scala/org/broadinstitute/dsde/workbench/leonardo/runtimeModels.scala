@@ -76,21 +76,25 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
   case object Unknown extends RuntimeStatus
   case object Creating extends RuntimeStatus
-  case object Running extends RuntimeStatus
+  case object Running extends RuntimeStatus // dataproc, gce status
   case object Updating extends RuntimeStatus
   case object Error extends RuntimeStatus
   case object Deleting extends RuntimeStatus
   case object Deleted extends RuntimeStatus
-  case object Stopping extends RuntimeStatus
-  case object Stopped extends RuntimeStatus
+  case object Stopping extends RuntimeStatus // dataproc, gce status
+  case object Stopped extends RuntimeStatus // dataproc, gce status
   case object Starting extends RuntimeStatus
+  case object Provisioning extends RuntimeStatus // gce status
+  case object Staging extends RuntimeStatus // gce status
+  case object Suspending extends RuntimeStatus // gce status
+  case object Terminated extends RuntimeStatus // gce status
 
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[RuntimeStatus] =
-    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
+    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting, Staging)
 
   // Can a user delete this runtime? Contains everything except Creating, Deleting, Deleted.
-  val deletableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting)
+  val deletableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting, Suspending, Terminated)
 
   // Non-terminal statuses. Requires monitoring via ClusterMonitorActor.
   val monitoredStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)

@@ -41,7 +41,7 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
   cs: ContextShift[IO]) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(F.delay(println("evaluating")))++ Stream.eval(zombieCheck)).repeat
+    (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(zombieCheck)).repeat
 
   private[monitor] val zombieCheck: F[Unit] =
     for {
