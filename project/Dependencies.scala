@@ -58,8 +58,7 @@ object Dependencies {
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
   val ravenLogback: ModuleID =    "com.getsentry.raven"         % "raven-logback"   % "8.0.3" excludeAll (excludeJacksonCore, excludeSlf4j, excludeLogbackCore, excludeLogbackClassic)
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "2.2.5"
-//  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.25.0"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.25.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.4.7"
   val httpClient: ModuleID =      "org.apache.httpcomponents"   % "httpclient"      % "4.5.5" // upgrading a transitive dependency to avoid security warnings
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.5.13"

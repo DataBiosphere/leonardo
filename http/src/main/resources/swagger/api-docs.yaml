@@ -1,19 +1,14 @@
-swagger: '2.0'
+openapi: 3.0.0
 info:
   title: Leonardo
   description: |
     Workbench notebooks service.
-  version: '0.1'
+  version: "0.1"
   license:
     name: BSD
-    url: 'http://opensource.org/licenses/BSD-3-Clause'
-  termsOfService: 'https://github.com/broadinstitute/leonardo'
-basePath: /
-produces:
-  - application/json
+    url: http://opensource.org/licenses/BSD-3-Clause
+  termsOfService: https://github.com/broadinstitute/leonardo
 tags:
-  - name: test
-    description: Test API
   - name: cluster
     description: Clusters API
   - name: notebooks
@@ -22,74 +17,51 @@ tags:
     description: Proxy API
   - name: status
     description: Status API
-
 security:
   - googleoauth:
       - openid
       - email
       - profile
 
-securityDefinitions:
-  googleoauth:
-    type: oauth2
-    authorizationUrl: 'https://accounts.google.com/o/oauth2/auth'
-    flow: implicit
-    scopes:
-      openid: open id authorization
-      email: email authorization
-      profile: profile authorization
-
 ##########################################################################################
 ## PATHS
 ##########################################################################################
 paths:
-
-  '/ping':
-    get:
-      summary: Ping
-      responses:
-        '200':
-          description: Pong
-        '500':
-          description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-      operationId: ping
-      tags:
-        - test
-
-  '/status':
+  /status:
     get:
       summary: Gets system status
       responses:
-        '200':
-          description: 'System ok'
-          schema:
-            $ref: '#/definitions/SystemStatus'
-        '500':
-          description: 'One or more subsystems down'
-          schema:
-            $ref: '#/definitions/SystemStatus'
+        "200":
+          description: System ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStatus"
+        "500":
+          description: One or more subsystems down
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStatus"
       operationId: getSystemStatus
       tags:
         - status
-      security: [] # no security
-
-  '/version':
+      security: []
+  /version:
     get:
       tags:
         - Version
       operationId: leonardoVersion
       summary: Returns the currently deployed version of this service.
       responses:
-        200:
+        "200":
           description: OK
-          schema:
-            $ref: '#/definitions/LeonardoVersion'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeonardoVersion"
       security: []
-
-
-  '/api/clusters':
+  /api/clusters:
     get:
       summary: List all active clusters
       description: List all active clusters, optionally filtering on a set of labels
@@ -99,96 +71,123 @@ paths:
       parameters:
         - in: query
           name: _labels
-          description: |
-            Optional label key-value pairs to filter results by. Example: Querying by key1=val1,key2=val2
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+
             returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+
             Note: this string format is a workaround because Swagger doesn't support free-form
+
             query string parameters. The recommended way to use this endpoint is to specify the
+
             labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
           required: false
-          type: string
+          schema:
+            type: string
         - in: query
           name: includeDeleted
           description: Optional filter that includes any clusters with a Deleted status.
           required: false
-          type: boolean
-          default: false
+          schema:
+            type: boolean
+            default: false
       responses:
-        '200':
+        "200":
           description: List of clusters
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/ListClusterResponse'
-        '400':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListClusterResponse"
+        "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
       security:
         - googleoauth:
             - openid
             - email
             - profile
-
-  '/api/clusters/{googleProject}':
+  "/api/clusters/{googleProject}":
     get:
       summary: List all active clusters within the given Google project
-      description: List all active clusters within the given Google project, optionally filtering on a set of labels
+      description: List all active clusters within the given Google project, optionally
+        filtering on a set of labels
       operationId: listClustersByProject
       tags:
-      - cluster
+        - cluster
       parameters:
-      - in: path
-        name: googleProject
-        description: googleProject
-        required: true
-        type: string
-      - in: query
-        name: _labels
-        description: |
-          Optional label key-value pairs to filter results by. Example: Querying by key1=val1,key2=val2
-          returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
-          Note: this string format is a workaround because Swagger doesn't support free-form
-          query string parameters. The recommended way to use this endpoint is to specify the
-          labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
-        required: false
-        type: string
-      - in: query
-        name: includeDeleted
-        description: Optional filter that includes any clusters with a Deleted status.
-        required: false
-        type: boolean
-        default: false
-      responses:
-        '200':
-          description: List of clusters
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
           schema:
-            type: array
-            items:
-              $ref: '#/definitions/ListClusterResponse'
-        '400':
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
-          description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-      security:
-      - googleoauth:
-        - openid
-        - email
-        - profile
+            type: string
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
 
-  '/api/cluster/v2/{googleProject}/{clusterName}':
+            returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+
+            Note: this string format is a workaround because Swagger doesn't support free-form
+
+            query string parameters. The recommended way to use this endpoint is to specify the
+
+            labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any clusters with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of clusters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListClusterResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+  "/api/cluster/v2/{googleProject}/{clusterName}":
     put:
       summary: Creates a new Dataproc cluster in the given project with the given name.
-      description: |
-        * The request is completed without waiting for the initiation of the cluster's creation on the Google side.
+      description: >
+        * The request is completed without waiting for the initiation of the
+        cluster's creation on the Google side.
           This reduces the response time compared with the other version.
         * Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
       operationId: createClusterV2
@@ -199,45 +198,52 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
-          description: clusterName. only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name
-          required: true
-          type: string
-        - in: body
-          description: Request for new cluster
-          name: clusterRequest
+          description: clusterName. only lowercase alphanumeric characters, numbers and
+            dashes are allowed in cluster name
           required: true
           schema:
-            $ref: '#/definitions/ClusterRequest'
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/ClusterRequest"
       responses:
-        '202':
+        "202":
           description: Cluster creation request accepted
-          schema:
-            $ref: '#/definitions/Cluster'
-        '400':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cluster"
+        "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '409':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
           description: Conflict
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
       security:
         - googleoauth:
             - openid
             - email
             - profile
-
-  '/api/cluster/{googleProject}/{clusterName}':
+  "/api/cluster/{googleProject}/{clusterName}":
     patch:
       summary: Updates the configuration of a cluster.
-      description: In order to update the configuration of a cluster, it must first be running
+      description: In order to update the configuration of a cluster, it must first be
+        running
       operationId: updateCluster
       tags:
         - cluster
@@ -246,35 +252,44 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
-        - in: body
-          description: Request for updated cluster
-          name: updateClusterRequest
-          required: true
           schema:
-            $ref: '#/definitions/UpdateClusterRequest'
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClusterRequest"
+        description: Request for updated cluster
+        required: true
       responses:
-        '202':
+        "202":
           description: Cluster update in progress
-          schema:
-            $ref: '#/definitions/Cluster'
-        '400':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cluster"
+        "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '403':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "403":
           description: User does not have permission to perform action on cluster
-        '409':
+        "409":
           description: Cluster must be running before it can be updated
-        '500':
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
       security:
         - googleoauth:
             - openid
@@ -282,7 +297,8 @@ paths:
             - profile
     put:
       summary: Creates a new Dataproc cluster in the given project with the given name
-      description: Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
+      description: Default labels clusterName, googleProject, serviceAccount, and
+        notebookExtension cannot be overridden.
       operationId: createCluster
       tags:
         - cluster
@@ -291,37 +307,43 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
-        - in: body
-          description: Request for new cluster
-          name: clusterRequest
-          required: true
           schema:
-            $ref: '#/definitions/ClusterRequest'
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/ClusterRequest"
       responses:
-        '200':
+        "200":
           description: Cluster creation successful
-          schema:
-            $ref: '#/definitions/Cluster'
-        '400':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cluster"
+        "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '403':
-            description: User does not have permission to perform action on cluster
-        '409':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "403":
+          description: User does not have permission to perform action on cluster
+        "409":
           description: Conflict
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
       security:
         - googleoauth:
             - openid
@@ -329,7 +351,8 @@ paths:
             - profile
     get:
       summary: Get details of a Dataproc cluster
-      description: Returns information about an existing Dataproc cluster managed by Leo. Poll this to find out when your cluster has finished starting up.
+      description: Returns information about an existing Dataproc cluster managed by Leo.
+        Poll this to find out when your cluster has finished starting up.
       operationId: getCluster
       tags:
         - cluster
@@ -338,27 +361,35 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '200':
+        "200":
           description: Cluster found, here are the details
-          schema:
-            $ref: '#/definitions/Cluster'
-        '403':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cluster"
+        "403":
           description: User does not have permission to perform action on cluster
-        '404':
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
       security:
         - googleoauth:
             - openid
@@ -375,31 +406,38 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '202':
+        "202":
           description: Cluster deletion request accepted
-        '403':
+        "403":
           description: User does not have permission to perform action on cluster
-        '404':
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-
-  '/api/cluster/{googleProject}/{clusterName}/stop':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/api/cluster/{googleProject}/{clusterName}/stop":
     post:
       summary: Stops a Dataproc cluster
-      description: |
-        Stops the instances of a Dataproc cluster, but retains any data persisted on disk. The
+      description: >
+        Stops the instances of a Dataproc cluster, but retains any data
+        persisted on disk. The
+
         cluster may be restarted with the /start endpoint.
       operationId: stopCluster
       tags:
@@ -409,31 +447,38 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '202':
+        "202":
           description: Cluster stop request accepted
-        '403':
+        "403":
           description: User does not have permission to perform action on cluster
-        '404':
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '409':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
           description: Cluster cannot be stopped
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-
-  '/api/cluster/{googleProject}/{clusterName}/start':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/api/cluster/{googleProject}/{clusterName}/start":
     post:
       summary: Starts a Dataproc cluster
       description: |
@@ -446,35 +491,45 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '202':
+        "202":
           description: Cluster start request accepted
-        '403':
+        "403":
           description: User does not have permission to perform action on cluster
-        '404':
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '409':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
           description: Cluster cannot be started
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-
-  '/notebooks/{googleProject}/{clusterName}':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/notebooks/{googleProject}/{clusterName}":
     get:
+      deprecated: true
       summary: (Deprecated) Access Jupyter notebooks on a Dataproc cluster
-      description: |
-        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+      description: >
+        This URI supports all HTTP methods, not just GET as implied by this
+        Swagger.
+
         Proxies all requests through to the Jupyter notebook server running on the given cluster.
       operationId: proxyCluster
       tags:
@@ -484,43 +539,59 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '200':
+        "200":
           description: Proxy connection successful
-        '403':
+        "403":
           description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '422':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
           description: Cluster is stopped
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '423':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "423":
           description: Cluster not ready for requests. It could be starting.
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-
-  '/notebooks/{googleProject}/{clusterName}/api/localize':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/notebooks/{googleProject}/{clusterName}/api/localize":
     post:
       summary: Localize files to/from a Jupyter notebook server
-      description: |
-        Sends a command to a Jupyter notebook server to localize files to/from the server. Supports GCS paths and [Data URIs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs).
+      description: >
+        Sends a command to a Jupyter notebook server to localize files to/from
+        the server. Supports GCS paths and [Data
+        URIs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs).
+
         Output, including any errors, will appear in `localization.log` in the working directory of the Jupyter notebook server.
+
         By default this operation will happen synchronously and the response status will reflect any errors encountered in the copy.
+
         However, if the `async` parameter is specfied then the localization will happen asynchronously to the request, and the API will always return 200.
       operationId: proxyLocalize
       tags:
@@ -530,123 +601,162 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
         - in: query
           name: async
-          description: |
-            If true, the copy will happen asynchronously to the request and the API will always return 200.
+          description: >
+            If true, the copy will happen asynchronously to the request and the
+            API will always return 200.
+
             If false (the default), the copy will happen synchronously and the response will reflect any errors encountered during the copy.
           required: false
-          type: boolean
-          default: false
-        - in: body
-          description: |
-            JSON object. Keys represent destinations, values represent sources. The following rules apply:
-            * If either the source or destination is a GCS path, it will be sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp). Therefore
-              this can be used to localize a file _from_ a bucket _to_ the notebook server; or delocalize a file _from_ the notebook server _to_ a bucket.
-            * If the source is a Data URI, then the destination file will be created with the decoded data URI contents. This mode can only be used to localize
-              files to the notebook server.
-            In both cases all paths will be quoted & sanitized, and intermediate local directories will be made.
-            Note that duplicate keys will lead to unexpected behaviour, so specify the destination filename explicitly if you want to localize multiple files to the same directory.
-          name: filesToLocalize
-          required: true
           schema:
-            type: object
-            description: ''
-            example:
-              "~/file.txt" : "gs://somebucket/file.txt"
-              "~/directory" : "gs://somebucket/*"
-              "gs://upload/to/this/bucketdir" : "~/file.txt"
-              "~/data.txt" : "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D"
-      responses:
-        '200':
-          description: Proxy connection successful
-        '400':
-          description: "Bad request. Your POST body is probably malformed: it should be a string/string JSON object."
-        '403':
-          description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
-          description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '420':
-          description: Cluster not ready
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '422':
-          description: Cluster is stopped
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
-          description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
+            type: boolean
+            default: false
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: ""
+              example:
+                ~/file.txt: gs://somebucket/file.txt
+                ~/directory: gs://somebucket/*
+                gs://upload/to/this/bucketdir: ~/file.txt
+                ~/data.txt: data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D
+        description: >
+          JSON object. Keys represent destinations, values represent sources.
+          The following rules apply:
 
-  '/notebooks/{googleProject}/{clusterName}/setCookie':
+          * If either the source or destination is a GCS path, it will be sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp). Therefore
+            this can be used to localize a file _from_ a bucket _to_ the notebook server; or delocalize a file _from_ the notebook server _to_ a bucket.
+          * If the source is a Data URI, then the destination file will be created with the decoded data URI contents. This mode can only be used to localize
+            files to the notebook server.
+          In both cases all paths will be quoted & sanitized, and intermediate local directories will be made.
+
+          Note that duplicate keys will lead to unexpected behaviour, so specify the destination filename explicitly if you want to localize multiple files to the same directory.
+        required: true
+      responses:
+        "200":
+          description: Proxy connection successful
+        "400":
+          description: "Bad request. Your POST body is probably malformed: it should be a
+            string/string JSON object."
+        "403":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "420":
+          description: Cluster not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
+          description: Cluster is stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/notebooks/{googleProject}/{clusterName}/setCookie":
     get:
-      summary: (Deprecated) Sets a browser cookie needed to authorize connections to a Jupyter notebook
-      description: |
-        If using Google token-based authorization to a Jupyter notebook, the Leo proxy accepts a
+      deprecated: true
+      summary: (Deprecated) Sets a browser cookie needed to authorize connections to a
+        Jupyter notebook
+      description: >
+        If using Google token-based authorization to a Jupyter notebook, the Leo
+        proxy accepts a
+
         Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+
         It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
-      operationId: setCookie
+      operationId: setCookieApi
       tags:
         - notebooks
       parameters:
         - in: path
           name: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '204':
+        "204":
           description: Successfully set a cookie
-        '401':
+        "401":
           description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-
-  '/notebooks/invalidateToken':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  /notebooks/invalidateToken:
     get:
+      deprecated: true
       summary: (Deprecated) Invalidates a token
-      description: |
-        If using Google token-based auth, call this endpoint when a user's Google token is invalidated
+      description: >
+        If using Google token-based auth, call this endpoint when a user's
+        Google token is invalidated
+
         (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
+
         and that the user's proxied notebook connections stop working.
-      operationId: invalidateToken
+      operationId: invalidateTokenApi
       tags:
         - notebooks
       responses:
-        '200':
+        "200":
           description: Successfully invalidated a token
-        '500':
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-  '/proxy/{googleProject}/{clusterName}/jupyter':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{clusterName}/jupyter":
     get:
       summary: Access Jupyter (if installed) on a Dataproc cluster
-      description: |
-        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+      description: >
+        This URI supports all HTTP methods, not just GET as implied by this
+        Swagger.
+
         Proxies all requests through to the tool server running on the given cluster.
       operationId: proxyClusterJupyter
       tags:
@@ -656,40 +766,54 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '200':
+        "200":
           description: Proxy connection successful
-        '403':
+        "403":
           description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '420':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "420":
           description: Cluster not ready
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '422':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
           description: Cluster is stopped
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-  '/proxy/{googleProject}/{clusterName}/jupyter/lab':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{clusterName}/jupyter/lab":
     get:
       summary: Access Jupyter Lab (if installed) on a Dataproc cluster
-      description: |
-        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+      description: >
+        This URI supports all HTTP methods, not just GET as implied by this
+        Swagger.
+
         Proxies all requests through to the tool server running on the given cluster.
       operationId: proxyClusterJupyterLab
       tags:
@@ -699,40 +823,54 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '200':
+        "200":
           description: Proxy connection successful
-        '403':
+        "403":
           description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '420':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "420":
           description: Cluster not ready
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '422':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
           description: Cluster is stopped
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-  '/proxy/{googleProject}/{clusterName}/rstudio':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{clusterName}/rstudio":
     get:
       summary: Access RStudio (if installed) on a Dataproc cluster
-      description: |
-        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+      description: >
+        This URI supports all HTTP methods, not just GET as implied by this
+        Swagger.
+
         Proxies all requests through to the tool server running on the given cluster.
       operationId: proxyClusterRStudio
       tags:
@@ -742,41 +880,57 @@ paths:
           name: googleProject
           description: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '200':
+        "200":
           description: Proxy connection successful
-        '403':
+        "403":
           description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '420':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "420":
           description: Cluster not ready
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '422':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
           description: Cluster is stopped
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-  '/proxy/{googleProject}/{clusterName}/setCookie':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{clusterName}/setCookie":
     get:
-      summary: Sets a browser cookie needed to authorize connections to a Dataproc cluster
-      description: |
-        If using Google token-based authorization to a cluster, the Leo proxy accepts a
+      summary: Sets a browser cookie needed to authorize connections to a Dataproc
+        cluster
+      description: >
+        If using Google token-based authorization to a cluster, the Leo proxy
+        accepts a
+
         Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+
         It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
       operationId: setCookie
       tags:
@@ -785,552 +939,655 @@ paths:
         - in: path
           name: googleProject
           required: true
-          type: string
+          schema:
+            type: string
         - in: path
           name: clusterName
           description: clusterName
           required: true
-          type: string
+          schema:
+            type: string
       responses:
-        '204':
+        "204":
           description: Successfully set a cookie
-        '401':
+        "401":
           description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
           description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
           description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-  '/proxy/invalidateToken':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  /proxy/invalidateToken:
     get:
       summary: Invalidates a token
-      description: |
-        If using Google token-based auth, call this endpoint when a user's Google token is invalidated
+      description: >
+        If using Google token-based auth, call this endpoint when a user's
+        Google token is invalidated
+
         (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
+
         and that the user's proxied connections stop working.
       operationId: invalidateToken
       tags:
         - proxy
       responses:
-        '200':
+        "200":
           description: Successfully invalidated a token
-        '500':
+        "500":
           description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
+components:
+  requestBodies:
+    ClusterRequest:
+      content:
+        application/json:
           schema:
-            $ref: '#/definitions/ErrorReport'
-
-##########################################################################################
-## DEFINITIONS
-##########################################################################################
-definitions:
-  ClusterStatus:
-    type: string
-    enum: &CLUSTERSTATUS
-      - Creating
-      - Running
-      - Updating
-      - Error
-      - Stopping
-      - Stopped
-      - Starting
-      - Deleting
-      - Deleted
-      - Unknown
-
-  InstanceStatus:
-    type: string
-    enum: &INSTANCESTATUS
-      - Provisioning
-      - Staging
-      - Running
-      - Stopping
-      - Stopped
-      - Suspending
-      - Suspended
-      - Terminated
-
-  ErrorReport:
-    description: ''
-    required:
-      - source
-      - message
-      - causes
-      - stackTrace
-    properties:
-      source:
-        type: string
-        description: service causing error
-      message:
-        type: string
-        description: what went wrong
-      exceptionClass:
-        type: string
-        description: class of exception thrown
-      statusCode:
-        type: integer
-        description: HTTP status code
-      causes:
-        type: array
-        description: errors triggering this one
-        items:
-          $ref: '#/definitions/ErrorReport'
-      stackTrace:
-        type: array
-        description: stack trace
-        items:
-          $ref: '#/definitions/StackTraceElement'
-
-  StackTraceElement:
-    description: ''
-    required:
-      - className
-      - methodName
-      - fileName
-      - lineNumber
-    properties:
-      className:
-        type: string
-        description: class name
-      methodName:
-        type: string
-        description: method name
-      fileName:
-        type: string
-        description: source file name
-      lineNumber:
-        type: integer
-        description: line number
-
-  Cluster:
-    description: ''
-    required:
-      - id
-      - clusterName
-      - googleProject
-      - googleServiceAccount
-      - machineConfig
-      - status
-      - createdDate
-      - labels
-      - dateAccessed
-      - autopauseThreshold
-      - defaultClientId
-      - scopes
-    properties:
-      id:
-        type: string
-        description: The internally-referenced ID of the cluster
-      internalId:
-        type: string
-        description: Internal resource ID of the cluster
-      clusterName:
-        type: string
-        description: The user-supplied name for the cluster
-      googleId:
-        type: string
-        description: Google's UUID for the cluster
-      googleProject:
-        type: string
-        description: The Google Project used to create the cluster
-      googleServiceAccount:
-        type: string
-        description: The Google Service Account used to create the cluster
-      machineConfig:
-        description: The machine configurations for the master and worker nodes
-        $ref: '#/definitions/MachineConfig'
-      operationName:
-        type: string
-        description: Google's operation ID for the cluster
-      status:
-        $ref: "#/definitions/ClusterStatus"
-      hostIp:
-        type: string
-        description: The IP address of the cluster master node
-      createdDate:
-        type: string
-        description: The date and time the cluster was created, in ISO-8601 format
-      destroyedDate:
-        type: string
-        description: The date and time the cluster was destroyed, in ISO-8601 format
-      labels:
-        type: object
-        description: The labels to be placed on the cluster. Of type Map[String,String]
-      errors:
-        type: array
-        description: The list of errors that were encountered on cluster create. Each error consists of the error message, code and timestamp
-        items:
-          $ref: "#/definitions/ClusterError"
-      instances:
-        description: Array of instances belonging to this cluster
-        type: array
-        items:
-          $ref: '#/definitions/Instance'
-      dateAccessed:
-        type: string
-        description: |
-          The date and time the cluster was last accessed, in ISO-8601 format.
-          Date accessed is defined as the last time the cluster was created, modified, or accessed via the proxy.
-      autopauseThreshold:
-        type: integer
-        description: The number of minutes of idle time to elapse before the cluster is autopaused. A value of 0 is equivalent to autopause being turned off.
-      defaultClientId:
-        type: string
-        description: The default Google Client ID.
-      scopes:
-        type: array
-        items:
-          type: string
-        description: The scopes for the cluster.
-      customClusterEnvironmentVariables:
-        type: object
-        description: Optional environment variables to be set on the cluster.
-
-  ListClusterResponse:
-    description: ''
-    required:
-      - clusterName
-      - googleProject
-      - googleServiceAccount
-      - machineConfig
-      - status
-      - createdDate
-      - labels
-      - dateAccessed
-      - autopauseThreshold
-      - defaultClientId
-    properties:
-      internalId:
-        type: string
-        description: Internal resource ID of the cluster
-      clusterName:
-        type: string
-        description: The user-supplied name for the cluster
-      googleId:
-        type: string
-        description: Google's UUID for the cluster
-      googleProject:
-        type: string
-        description: The Google Project used to create the cluster
-      googleServiceAccount:
-        type: string
-        description: The Google Service Account used to create the cluster
-      machineConfig:
-        description: The machine configurations for the master and worker nodes
-        $ref: '#/definitions/MachineConfig'
-      operationName:
-        type: string
-        description: Google's operation ID for the cluster
-      status:
-        $ref: "#/definitions/ClusterStatus"
-      hostIp:
-        type: string
-        description: The IP address of the cluster master node
-      createdDate:
-        type: string
-        description: The date and time the cluster was created, in ISO-8601 format
-      destroyedDate:
-        type: string
-        description: The date and time the cluster was destroyed, in ISO-8601 format
-      labels:
-        type: object
-        description: The labels to be placed on the cluster. Of type Map[String,String]
-      instances:
-        description: Array of instances belonging to this cluster
-        type: array
-        items:
-          $ref: '#/definitions/Instance'
-      dateAccessed:
-        type: string
-        description: |
-          The date and time the cluster was last accessed, in ISO-8601 format.
-          Date accessed is defined as the last time the cluster was created, modified, or accessed via the proxy.
-      autopauseThreshold:
-        type: integer
-        description: The number of minutes of idle time to elapse before the cluster is autopaused. A value of 0 is equivalent to autopause being turned off.
-      jupyterUserScriptUri:
-        type: string
-      defaultClientId:
-        type: string
-        description: The default Google Client ID.
-
-  InstanceKey:
-    description: ''
-    required:
-      - project
-      - zone
-      - name
-    properties:
-      project:
-        type: string
-        description: The Google Project the instance belongs to
-      zone:
-        type: string
-        description: The Google zone the instance belongs to
-      name:
-        type: string
-        description: The name of the instance
-
-  Instance:
-    description: ''
-    required:
-      - key
-      - googleId
-      - status
-    properties:
-      key:
-        description: Unique identifier of (project, zone, name) for this instance
-        $ref: '#/definitions/InstanceKey'
-      googleId:
-        type: string
-        description: Google's unique id for this instance
-      status:
-        $ref: "#/definitions/InstanceStatus"
-      ip:
-        type: string
-        description: The public IP address of the instance, if any
-      dataprocRole:
-        type: string
-        description: The dataproc role (master, worker, preemptible worker) of this instance, if any
-      createdDate:
-        type: string
-        description: The date and time the instance was created, in ISO-8601 format
-
-  ClusterRequest:
-    description: ''
-    properties:
-      labels:
-        type: object
-        description: The labels to be placed on the cluster. Of type Map[String,String]
-      userJupyterExtensionConfig:
-        $ref: "#/definitions/UserJupyterExtensionConfig"
-        description: Jupyter extensions to be installed in the notebook
-      jupyterExtensionUri:
-        type: string
-        description: Deprecated. Please use userJupyterExtensionConfig.
-      jupyterUserScriptUri:
-        type: string
-        description: |
-          Optional GCS object URI to a bash script the user wishes to run inside their jupyter
-          docker. This script runs exactly once when the cluster is first initialized. Logs from
-          this script can be found in the Leo staging bucket for the cluster. Script is run as root
-          and docker --privileged.
-      jupyterStartUserScriptUri:
-        type: string
-        description: |
-          Optional GCS object URI to a bash script the user wishes to run on cluster start inside
-          the jupyter docker. In contrast to jupyterUserScriptUri, this always runs before starting
-          Jupyter, both on initial cluster creation and on cluster resume (jupyterUserScriptUri runs
-          once on cluster creation). This script may be used to launch background processes which
-          would not otherwise survive a cluster stop/start.
-          The script is pulled once at cluster creation time; subsequent client changes to the user
-          script at this URI do not affect the cluster. Timestamped logs for this script can be
-          found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
-      machineConfig:
-        description: The machine configurations for the master and worker nodes
-        $ref: '#/definitions/MachineConfig'
-      stopAfterCreation:
-        description: |
-          If true, Leo will immediately stop the cluster once it's created, with the end result being a
-          a cluster in Stopped state. Otherwise, the end result will be a cluster in Running state.
-          Defaults to false.
-        type: boolean
-        default: false
-      allowStop:
-        type: boolean
-        description: If true, leo will allow updates that require a stop for this cluster. This flag should not be used at the time of cluster creation, but should be specified in the payload for the patch endpoint.
-        default: false
-      autopause:
-        type: boolean
-        description: Whether autopause feature is enabled for this specific cluster. If unset, autopause will be enabled and a system default threshold will be used.
-      autopauseThreshold:
-        type: integer
-        description: The number of minutes of idle time to elapse before the cluster is autopaused. If autopause is set to false, this value is disregarded. A value of 0 is equivalent to autopause being turned off. If autopause is enabled and this is unset, a system default threshold will be used.
-      defaultClientId:
-        type: string
-        description: The default Google Client ID.
-      jupyterDockerImage:
-        type: string
-        description: Deprecated. Please use toolDockerImage.
-      toolDockerImage:
-        type: string
-        description: The tool docker image to install. May be Dockerhub or GCR. If not set, a default Jupyter image will be installed.
-      welderDockerImage:
-        type: string
-        description: |
-          The Welder docker image to install. Only takes effect if the tool being installed supports welder.
-          May be Dockerhub or GCR. If not set, then a default Welder image will be installed.
-      scopes:
-        type: array
-        items:
-          type: string
-        description: >
-          The scopes for the cluster. Defaults (userinfo.email, userinfo.profile, bigquery, source.read_only) will be used if left blank. Important: If you choose to specify custom scopes, the defaults will be overwritten. Thus, if you need the defaults, you will need to include the default scopes in your custom list of scopes.
-        default: ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only"]
-      enableWelder:
-        type: boolean
-        description: If set to true, sets up welder on the cluster. If unset, welder will not be put on the cluster.
-        default: true
-      customClusterEnvironmentVariables:
-        type: object
-        description: Optional environment variables to be set on the cluster.
-
-  ClusterError:
-    description: 'Errors encountered on cluster create'
-    properties:
-      errorMessage:
-        type: string
-        description: Error message
-      errorCode:
-        type: integer
-        description: Error code
-      timestamp:
-        type: string
-        description: timestamp for error in ISO 8601 format
-
-  LeonardoVersion:
-    type: object
-    properties:
-      version:
-        type: string
-
-  MachineConfig:
-    description: 'The configuration for a single Dataproc cluster'
-    properties:
-      numberOfWorkers:
-        type: integer
-        description: |
-          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Google Dataproc does not allow 1 worker.
-      masterMachineType:
-        type: string
-        description: |
-          Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-          see https://cloud.google.com/compute/docs/machine-types
-      masterDiskSize:
-        type: integer
-        description: |
-          Optional, the size in gigabytes of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 100GB.
-      workerMachineType:
-        type: string
-        description: |
-          Optional, the machine type determines the number of CPUs and memory for the worker nodes. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-          see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
-      workerDiskSize:
-        type: integer
-        description: |
-          Optional, the size in gigabytes of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 100GB.
-          Ignored if numberOfWorkers is 0.
-      numberOfWorkerLocalSSDs:
-        type: integer
-        description: |
-          Optional, the number of local solid state disks for workers. If unspecified, the default number is 0.
-          Ignored if numberOfWorkers is 0.
-      numberOfPreemptibleWorkers:
-        type: integer
-        description: |
-          Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
-          For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+            $ref: "#/components/schemas/ClusterRequest"
+      description: Request for new cluster
+      required: true
+  securitySchemes:
+    googleoauth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://accounts.google.com/o/oauth2/auth
+          scopes:
+            openid: open id authorization
+            email: email authorization
+            profile: profile authorization
+  schemas:
+    ClusterStatus:
+      type: string
+      enum:
+        - Creating
+        - Running
+        - Updating
+        - Error
+        - Stopping
+        - Stopped
+        - Starting
+        - Deleting
+        - Deleted
+        - Unknown
+    InstanceStatus:
+      type: string
+      enum:
+        - Provisioning
+        - Staging
+        - Running
+        - Stopping
+        - Stopped
+        - Suspending
+        - Suspended
+        - Terminated
+    ErrorReport:
+      description: ""
+      required:
+        - source
+        - message
+        - causes
+        - stackTrace
       properties:
-        description: >
-          Example {"spark:spark.executor.memory": "10g"}. See https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties for allowed property settings
-        type: object
-        additionalProperties:
+        source:
           type: string
-
-  UserJupyterExtensionConfig:
-    description: 'Specification of Jupyter Extensions to be installed on the cluster'
-    properties:
-      nbExtensions:
-        type: object
-        description: |
-          Optional, map of extension name and nbExtension. The nbExtension can either be a tar.gz or .js file, either on google storage or at a URL, or a python package.
-          An archive must not include a parent directory, and must have an entry point named 'main'.
-          For more information on notebook extensions, see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
-          Example, {"ext1":"gs://bucket/extension.tar.gz", "ext2":"python-package",  "ext3":"http://foo.com/extension.js"}
-      serverExtensions:
-        type: object
-        description: |
-          Optional, map of extension name and server extension. The serverExtensions can either be a tar.gz file on google storage or a python package.
-          Example, {"ext1":"gs://bucket/extension.tar.gz", "ext2":"python-package"}
-      combinedExtensions:
-        type: object
-        description: |
-          Optional, map of extension name and notebook plus server extension. The extension can either be a tar.gz file on google storage or a python package.
-          Example, {"ext1":"gs://bucket/extension.tar.gz", "ext2":"python-package"}
-      labExtensions:
-        type: object
-        description: |
-          Optional, map of extension name and lab extension. The extension should be a verified jupyterlab extension that is uploaded to npm (list of public extensions here: https://github.com/search?utf8=%E2%9C%93&q=topic%3Ajupyterlab-extension&type=Repositories), a gzipped tarball made using 'npm pack', a folder structured by 'jlpm build', a JS file to be inserted into an JL extension template (see https://github.com/jupyterlab/extension-cookiecutter-js), or a URL to one of the last three options.
-
-  SubsystemStatus:
-    description: status of a subsystem Leonardo depends on
-    type: object
-    required:
-      - ok
-    properties:
-      ok:
-        type: boolean
-        description: whether this system is up or down from Leonardo's point of view
-      messages:
-        type: array
-        items:
+          description: service causing error
+        message:
           type: string
+          description: what went wrong
+        exceptionClass:
+          type: string
+          description: class of exception thrown
+        statusCode:
+          type: integer
+          description: HTTP status code
+        causes:
+          type: array
+          description: errors triggering this one
+          items:
+            $ref: "#/components/schemas/ErrorReport"
+        stackTrace:
+          type: array
+          description: stack trace
+          items:
+            $ref: "#/components/schemas/StackTraceElement"
+    StackTraceElement:
+      description: ""
+      required:
+        - className
+        - methodName
+        - fileName
+        - lineNumber
+      properties:
+        className:
+          type: string
+          description: class name
+        methodName:
+          type: string
+          description: method name
+        fileName:
+          type: string
+          description: source file name
+        lineNumber:
+          type: integer
+          description: line number
+    Cluster:
+      description: ""
+      required:
+        - id
+        - clusterName
+        - googleProject
+        - googleServiceAccount
+        - machineConfig
+        - status
+        - createdDate
+        - labels
+        - dateAccessed
+        - autopauseThreshold
+        - defaultClientId
+        - scopes
+      properties:
+        id:
+          type: string
+          description: The internally-referenced ID of the cluster
+        internalId:
+          type: string
+          description: Internal resource ID of the cluster
+        clusterName:
+          type: string
+          description: The user-supplied name for the cluster
+        googleId:
+          type: string
+          description: Google's UUID for the cluster
+        googleProject:
+          type: string
+          description: The Google Project used to create the cluster
+        googleServiceAccount:
+          type: string
+          description: The Google Service Account used to create the cluster
+        machineConfig:
+          $ref: "#/components/schemas/MachineConfig"
+        operationName:
+          type: string
+          description: Google's operation ID for the cluster
+        status:
+          $ref: "#/components/schemas/ClusterStatus"
+        hostIp:
+          type: string
+          description: The IP address of the cluster master node
+        createdDate:
+          type: string
+          description: The date and time the cluster was created, in ISO-8601 format
+        destroyedDate:
+          type: string
+          description: The date and time the cluster was destroyed, in ISO-8601 format
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+        errors:
+          type: array
+          description: The list of errors that were encountered on cluster create. Each
+            error consists of the error message, code and timestamp
+          items:
+            $ref: "#/components/schemas/ClusterError"
+        instances:
+          description: Array of instances belonging to this cluster
+          type: array
+          items:
+            $ref: "#/components/schemas/Instance"
+        dateAccessed:
+          type: string
+          description: >
+            The date and time the cluster was last accessed, in ISO-8601 format.
 
-  SystemStatus:
-    description: status of each subsystem Leonardo depends on
-    type: object
-    required:
-      - ok
-      - systems
-    properties:
-      ok:
-        type: boolean
-        description: true if everything is ok, false if anything is amiss
-      systems:
-        type: object
-        description: Map[String, SubsystemStatus]
+            Date accessed is defined as the last time the cluster was created, modified, or accessed via the proxy.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. A value of 0 is equivalent to autopause being turned
+            off.
+        defaultClientId:
+          type: string
+          description: The default Google Client ID.
+        scopes:
+          type: array
+          items:
+            type: string
+          description: The scopes for the cluster.
+        customClusterEnvironmentVariables:
+          type: object
+          description: Optional environment variables to be set on the cluster.
+    ListClusterResponse:
+      description: ""
+      required:
+        - clusterName
+        - googleProject
+        - googleServiceAccount
+        - machineConfig
+        - status
+        - createdDate
+        - labels
+        - dateAccessed
+        - autopauseThreshold
+        - defaultClientId
+      properties:
+        internalId:
+          type: string
+          description: Internal resource ID of the cluster
+        clusterName:
+          type: string
+          description: The user-supplied name for the cluster
+        googleId:
+          type: string
+          description: Google's UUID for the cluster
+        googleProject:
+          type: string
+          description: The Google Project used to create the cluster
+        googleServiceAccount:
+          type: string
+          description: The Google Service Account used to create the cluster
+        machineConfig:
+          $ref: "#/components/schemas/MachineConfig"
+        operationName:
+          type: string
+          description: Google's operation ID for the cluster
+        status:
+          $ref: "#/components/schemas/ClusterStatus"
+        hostIp:
+          type: string
+          description: The IP address of the cluster master node
+        createdDate:
+          type: string
+          description: The date and time the cluster was created, in ISO-8601 format
+        destroyedDate:
+          type: string
+          description: The date and time the cluster was destroyed, in ISO-8601 format
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+        instances:
+          description: Array of instances belonging to this cluster
+          type: array
+          items:
+            $ref: "#/components/schemas/Instance"
+        dateAccessed:
+          type: string
+          description: >
+            The date and time the cluster was last accessed, in ISO-8601 format.
 
-  UpdateClusterRequest:
-    description: ''
-    properties:
-      machineConfig:
-        description: The machine configurations for the master and worker nodes
-        $ref: '#/definitions/UpdateMachineConfig'
-      allowStop:
-        type: boolean
-        description: Whether leo should stop the cluster if it is necessary for the update. If false, an exception will be thrown in cases where a stop was required. This cluster will undergo the follow transition. Running -> Stopping -> Stopped -> Update (the cluster will not have the Updating status though) -> Starting -> Running
-      autopause:
-        type: boolean
-        description: Whether autopause feature is enabled for this specific cluster. If unset, autopause will be enabled and a system default threshold will be used.
-      autopauseThreshold:
-        type: integer
-        description: The number of minutes of idle time to elapse before the cluster is autopaused. If autopause is set to false, this value is disregarded. A value of 0 is equivalent to autopause being turned off. If autopause is enabled and this is unset, a system default threshold will be used.
+            Date accessed is defined as the last time the cluster was created, modified, or accessed via the proxy.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. A value of 0 is equivalent to autopause being turned
+            off.
+        jupyterUserScriptUri:
+          type: string
+        defaultClientId:
+          type: string
+          description: The default Google Client ID.
+    InstanceKey:
+      description: ""
+      required:
+        - project
+        - zone
+        - name
+      properties:
+        project:
+          type: string
+          description: The Google Project the instance belongs to
+        zone:
+          type: string
+          description: The Google zone the instance belongs to
+        name:
+          type: string
+          description: The name of the instance
+    Instance:
+      description: ""
+      required:
+        - key
+        - googleId
+        - status
+      properties:
+        key:
+          $ref: "#/components/schemas/InstanceKey"
+        googleId:
+          type: string
+          description: Google's unique id for this instance
+        status:
+          $ref: "#/components/schemas/InstanceStatus"
+        ip:
+          type: string
+          description: The public IP address of the instance, if any
+        dataprocRole:
+          type: string
+          description: The dataproc role (master, worker, preemptible worker) of this
+            instance, if any
+        createdDate:
+          type: string
+          description: The date and time the instance was created, in ISO-8601 format
+    ClusterRequest:
+      description: ""
+      properties:
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+        userJupyterExtensionConfig:
+          $ref: "#/components/schemas/UserJupyterExtensionConfig"
+        jupyterExtensionUri:
+          type: string
+          description: Deprecated. Please use userJupyterExtensionConfig.
+        jupyterUserScriptUri:
+          type: string
+          description: >
+            Optional GCS object URI to a bash script the user wishes to run
+            inside their jupyter
 
-  UpdateMachineConfig:
-    description: 'The configuration for a single Dataproc cluster'
-    properties:
-      numberOfWorkers:
-        type: integer
-        description: |
-          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Google Dataproc does not allow 1 worker.
-      numberOfPreemptibleWorkers:
-        type: integer
-        description: |
-          Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
-          For more information, see https://cloud.google.com/compute/docs/instances/preemptible
-      masterMachineType:
-        type: string
-        description: |
-          Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
-          or "n1-highmem-64". To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
-      masterDiskSize:
-        type: integer
-        description: |
-          Optional, the size in gigabytes of the disk on the master node. Minimum size is 10GB. Note: disk size cannot be
-          decreased in an update request, only increased.
+            docker. This script runs exactly once when the cluster is first initialized. Logs from
+
+            this script can be found in the Leo staging bucket for the cluster. Script is run as root
+
+            and docker --privileged.
+        jupyterStartUserScriptUri:
+          type: string
+          description: >
+            Optional GCS object URI to a bash script the user wishes to run on
+            cluster start inside
+
+            the jupyter docker. In contrast to jupyterUserScriptUri, this always runs before starting
+
+            Jupyter, both on initial cluster creation and on cluster resume (jupyterUserScriptUri runs
+
+            once on cluster creation). This script may be used to launch background processes which
+
+            would not otherwise survive a cluster stop/start.
+
+            The script is pulled once at cluster creation time; subsequent client changes to the user
+
+            script at this URI do not affect the cluster. Timestamped logs for this script can be
+
+            found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
+        machineConfig:
+          $ref: "#/components/schemas/MachineConfig"
+        stopAfterCreation:
+          description: >
+            If true, Leo will immediately stop the cluster once it's created,
+            with the end result being a
+
+            a cluster in Stopped state. Otherwise, the end result will be a cluster in Running state.
+
+            Defaults to false.
+          type: boolean
+          default: false
+        allowStop:
+          type: boolean
+          description: If true, leo will allow updates that require a stop for this
+            cluster. This flag should not be used at the time of cluster
+            creation, but should be specified in the payload for the patch
+            endpoint.
+          default: false
+        autopause:
+          type: boolean
+          description: Whether autopause feature is enabled for this specific cluster. If
+            unset, autopause will be enabled and a system default threshold will
+            be used.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. If autopause is set to false, this value is disregarded.
+            A value of 0 is equivalent to autopause being turned off. If
+            autopause is enabled and this is unset, a system default threshold
+            will be used.
+        defaultClientId:
+          type: string
+          description: The default Google Client ID.
+        jupyterDockerImage:
+          type: string
+          description: Deprecated. Please use toolDockerImage.
+        toolDockerImage:
+          type: string
+          description: The tool docker image to install. May be Dockerhub or GCR. If not
+            set, a default Jupyter image will be installed.
+        welderDockerImage:
+          type: string
+          description: >
+            The Welder docker image to install. Only takes effect if the tool
+            being installed supports welder.
+
+            May be Dockerhub or GCR. If not set, then a default Welder image will be installed.
+        scopes:
+          type: array
+          items:
+            type: string
+          description: >
+            The scopes for the cluster. Defaults (userinfo.email,
+            userinfo.profile, bigquery, source.read_only) will be used if left
+            blank. Important: If you choose to specify custom scopes, the
+            defaults will be overwritten. Thus, if you need the defaults, you
+            will need to include the default scopes in your custom list of
+            scopes.
+          default:
+            - https://www.googleapis.com/auth/userinfo.email
+            - https://www.googleapis.com/auth/userinfo.profile
+            - https://www.googleapis.com/auth/bigquery
+            - https://www.googleapis.com/auth/source.read_only
+        enableWelder:
+          type: boolean
+          description: If set to true, sets up welder on the cluster. If unset, welder will
+            not be put on the cluster.
+          default: true
+        customClusterEnvironmentVariables:
+          type: object
+          description: Optional environment variables to be set on the cluster.
+    ClusterError:
+      description: Errors encountered on cluster create
+      properties:
+        errorMessage:
+          type: string
+          description: Error message
+        errorCode:
+          type: integer
+          description: Error code
+        timestamp:
+          type: string
+          description: timestamp for error in ISO 8601 format
+    LeonardoVersion:
+      type: object
+      properties:
+        version:
+          type: string
+    MachineConfig:
+      description: The configuration for a single Dataproc cluster
+      properties:
+        numberOfWorkers:
+          type: integer
+          description: >
+            Optional, number of workers in the cluster. Can be 0 (default), 2 or
+            more. Google Dataproc does not allow 1 worker.
+        masterMachineType:
+          type: string
+          description: >
+            Optional, the machine type determines the number of CPUs and memory
+            for the master node. For example "n1-standard-16"
+
+            or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+            see https://cloud.google.com/compute/docs/machine-types
+        masterDiskSize:
+          type: integer
+          description: >
+            Optional, the size in gigabytes of the disk on the master node.
+            Minimum size is 10GB. If unspecified, default size is 100GB.
+        workerMachineType:
+          type: string
+          description: >
+            Optional, the machine type determines the number of CPUs and memory
+            for the worker nodes. For example "n1-standard-16"
+
+            or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+            see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
+        workerDiskSize:
+          type: integer
+          description: >
+            Optional, the size in gigabytes of the disk on the master node.
+            Minimum size is 10GB. If unspecified, default size is 100GB.
+
+            Ignored if numberOfWorkers is 0.
+        numberOfWorkerLocalSSDs:
+          type: integer
+          description: >
+            Optional, the number of local solid state disks for workers. If
+            unspecified, the default number is 0.
+
+            Ignored if numberOfWorkers is 0.
+        numberOfPreemptibleWorkers:
+          type: integer
+          description: >
+            Optional, the number of preemptible workers. If unspecified, the
+            default number is 0. Ignored if numberOfWorkers is 0.
+
+            For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+        properties:
+          description: >
+            Example {"spark:spark.executor.memory": "10g"}. See
+            https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+            for allowed property settings
+          type: object
+          additionalProperties:
+            type: string
+    UserJupyterExtensionConfig:
+      description: Specification of Jupyter Extensions to be installed on the cluster
+      properties:
+        nbExtensions:
+          type: object
+          description: >
+            Optional, map of extension name and nbExtension. The nbExtension can
+            either be a tar.gz or .js file, either on google storage or at a
+            URL, or a python package.
+
+            An archive must not include a parent directory, and must have an entry point named 'main'.
+
+            For more information on notebook extensions, see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+
+            Example, {"ext1":"gs://bucket/extension.tar.gz", "ext2":"python-package",  "ext3":"http://foo.com/extension.js"}
+        serverExtensions:
+          type: object
+          description: >
+            Optional, map of extension name and server extension. The
+            serverExtensions can either be a tar.gz file on google storage or a
+            python package.
+
+            Example, {"ext1":"gs://bucket/extension.tar.gz", "ext2":"python-package"}
+        combinedExtensions:
+          type: object
+          description: >
+            Optional, map of extension name and notebook plus server extension.
+            The extension can either be a tar.gz file on google storage or a
+            python package.
+
+            Example, {"ext1":"gs://bucket/extension.tar.gz", "ext2":"python-package"}
+        labExtensions:
+          type: object
+          description: >
+            Optional, map of extension name and lab extension. The extension
+            should be a verified jupyterlab extension that is uploaded to npm
+            (list of public extensions here:
+            https://github.com/search?utf8=%E2%9C%93&q=topic%3Ajupyterlab-extension&type=Repositories),
+            a gzipped tarball made using 'npm pack', a folder structured by
+            'jlpm build', a JS file to be inserted into an JL extension template
+            (see https://github.com/jupyterlab/extension-cookiecutter-js), or a
+            URL to one of the last three options.
+    SubsystemStatus:
+      description: status of a subsystem Leonardo depends on
+      type: object
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+          description: whether this system is up or down from Leonardo's point of view
+        messages:
+          type: array
+          items:
+            type: string
+    SystemStatus:
+      description: status of each subsystem Leonardo depends on
+      type: object
+      required:
+        - ok
+        - systems
+      properties:
+        ok:
+          type: boolean
+          description: true if everything is ok, false if anything is amiss
+        systems:
+          type: object
+          description: Map[String, SubsystemStatus]
+    UpdateClusterRequest:
+      description: ""
+      properties:
+        machineConfig:
+          $ref: "#/components/schemas/UpdateMachineConfig"
+        allowStop:
+          type: boolean
+          description: Whether leo should stop the cluster if it is necessary for the
+            update. If false, an exception will be thrown in cases where a stop
+            was required. This cluster will undergo the follow transition.
+            Running -> Stopping -> Stopped -> Update (the cluster will not have
+            the Updating status though) -> Starting -> Running
+        autopause:
+          type: boolean
+          description: Whether autopause feature is enabled for this specific cluster. If
+            unset, autopause will be enabled and a system default threshold will
+            be used.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. If autopause is set to false, this value is disregarded.
+            A value of 0 is equivalent to autopause being turned off. If
+            autopause is enabled and this is unset, a system default threshold
+            will be used.
+    UpdateMachineConfig:
+      description: The configuration for a single Dataproc cluster
+      properties:
+        numberOfWorkers:
+          type: integer
+          description: >
+            Optional, number of workers in the cluster. Can be 0 (default), 2 or
+            more. Google Dataproc does not allow 1 worker.
+        numberOfPreemptibleWorkers:
+          type: integer
+          description: >
+            Optional, the number of preemptible workers. If unspecified, the
+            default number is 0. Ignored if numberOfWorkers is 0.
+
+            For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+        masterMachineType:
+          type: string
+          description: >
+            Optional, the machine type determines the number of CPUs and memory
+            for the master node. For example "n1-standard-16"
+
+            or "n1-highmem-64". To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+        masterDiskSize:
+          type: integer
+          description: >
+            Optional, the size in gigabytes of the disk on the master node.
+            Minimum size is 10GB. Note: disk size cannot be
+
+            decreased in an update request, only increased.

@@ -93,7 +93,7 @@ class HttpRoutes(
 
   val route: Route = {
     (logRequestResult & handleExceptions(myExceptionHandler)) {
-      swaggerRoutes.swaggerRoutes ~ proxyRoutes.route ~ statusRoutes.route ~
+      swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
         pathPrefix("api") {
           leonardoRoutes.route ~ runtimeRoutes.routes
         }
