@@ -11,7 +11,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, InstanceName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CustomDataProc, Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Custom, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -156,7 +156,7 @@ object CommonTestData {
   val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
-  val customDataprocImage = RuntimeImage(CustomDataProc, "custom_dataproc", Instant.now)
+  val customDataprocImage = RuntimeImage(Custom, "custom_dataproc", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
 

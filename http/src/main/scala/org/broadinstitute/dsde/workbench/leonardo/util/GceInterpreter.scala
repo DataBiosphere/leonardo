@@ -156,7 +156,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                               OperationName(operation.getName),
                                               stagingBucketName,
                                               None)
-    } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, CustomDataprocImage("foo"))
+    } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
 
   override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]

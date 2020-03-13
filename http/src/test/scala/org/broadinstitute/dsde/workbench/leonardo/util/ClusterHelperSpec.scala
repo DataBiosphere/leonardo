@@ -146,7 +146,7 @@ class ClusterHelperSpec
         )
         .unsafeToFuture()
         .futureValue
-    res.customDataprocImage shouldBe Config.dataprocConfig.customDataprocImage
+    res.customImage shouldBe Config.dataprocConfig.customDataprocImage
     val clusterWithLegacyImage = LeoLenses.runtimeToRuntimeImages
       .modify(
         _ =>
@@ -167,7 +167,7 @@ class ClusterHelperSpec
         .unsafeToFuture()
         .futureValue
 
-    resForLegacyImage.customDataprocImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
+    resForLegacyImage.customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
   }
 
   it should "clean up Google resources on error" in isolatedDbTest {

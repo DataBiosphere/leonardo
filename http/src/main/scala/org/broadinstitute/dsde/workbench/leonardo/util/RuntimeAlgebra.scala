@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Creat
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,
-  CustomDataprocImage,
+  CustomImage,
   Runtime,
   RuntimeAndRuntimeConfig,
   RuntimeConfig,
@@ -86,7 +86,7 @@ object CreateRuntimeParams {
 final case class CreateRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                        initBucket: GcsBucketName,
                                        serviceAccountKey: Option[ServiceAccountKey],
-                                       customDataprocImage: CustomDataprocImage)
+                                       customImage: CustomImage)
 final case class DeleteRuntimeParams(runtime: Runtime)
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)

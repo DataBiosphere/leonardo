@@ -191,10 +191,12 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         Some(clusterResult.asyncRuntimeFields),
         now
       )
-      _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
-      clusterImage = RuntimeImage(RuntimeImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
-      // Save dataproc image in the database
-      _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
+      // Save the custom image and async fields in the database
+      clusterImage = RuntimeImage(RuntimeImageType.Custom, clusterResult.customImage.asString, now)
+      _ <- (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
+        msg.id,
+        clusterImage
+      )).transaction
       _ <- logger.info(
         s"Cluster ${msg.runtimeProjectAndName} was successfully created. Will monitor the creation process."
       )

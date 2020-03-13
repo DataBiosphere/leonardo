@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
@@ -581,7 +582,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
           )
       }
 
-  private def addIamRoleToDataprocImageGroup(customDataprocImage: CustomDataprocImage): F[Unit] = {
+  private def addIamRoleToDataprocImageGroup(customDataprocImage: DataprocCustomImage): F[Unit] = {
     val computeImageUserRole = Set("roles/compute.imageUser")
     parseImageProject(config.dataprocConfig.customDataprocImage).fold(
       Async[F].raiseError[Unit](ImageProjectNotFoundException)
@@ -631,7 +632,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     })
 
   // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri
-  private def parseImageProject(customDataprocImage: CustomDataprocImage): Option[GoogleProject] = {
+  private def parseImageProject(customDataprocImage: DataprocCustomImage): Option[GoogleProject] = {
     val regex = ".*projects/(.*)/global/images/(.*)".r
     customDataprocImage.asString match {
       case regex(project, _) => Some(GoogleProject(project))

@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.{GceCustomImage, MemorySize, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.CustomImage.GceCustomImage
+import org.broadinstitute.dsde.workbench.leonardo.{MemorySize, RuntimeConfig}
 
 case class GceConfig(customGceImage: GceCustomImage,
                      regionName: RegionName,
