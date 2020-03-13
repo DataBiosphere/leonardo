@@ -11,12 +11,14 @@ info:
 tags:
   - name: cluster
     description: Clusters API
+  - name: runtime
+    description: Runtime API. Support both Dataproc cluster and Gce instances.
   - name: notebooks
     description: Notebooks API
   - name: proxy
     description: Proxy API
-  - name: status
-    description: Status API
+  - name: service_info
+    description: Service Info API
 security:
   - googleoauth:
       - openid
@@ -45,12 +47,12 @@ paths:
                 $ref: "#/components/schemas/SystemStatus"
       operationId: getSystemStatus
       tags:
-        - status
+        - service_info
       security: []
   /version:
     get:
       tags:
-        - Version
+        - service_info
       operationId: leonardoVersion
       summary: Returns the currently deployed version of this service.
       responses:
@@ -61,6 +63,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/LeonardoVersion"
       security: []
+  /api/google/v1/runtime/{googleProject}/{name}:
+    post:
+      summary: Creates a new GCE compute instance in the given project with the given name.
+      description: >
+        * The request is completed without waiting for the initiation of the
+        cluster's creation on the Google side.
+          This reduces the response time compared with the other version.
+        * Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
+      operationId: createRuntime
+      tags:
+        - runtime
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: runtime name. only lowercase alphanumeric characters, numbers and
+            dashes are allowed in cluster name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRuntimeRequest"
+      responses:
+        "202":
+          description: Cluster creation request accepted
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
   /api/clusters:
     get:
       summary: List all active clusters
@@ -1393,6 +1451,95 @@ components:
         customClusterEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
+    CreateRuntimeRequest:
+      description: ""
+      type: object
+      properties:
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+        userJupyterExtensionConfig:
+          $ref: "#/components/schemas/UserJupyterExtensionConfig"
+        jupyterExtensionUri:
+          type: string
+          description: Deprecated. Please use userJupyterExtensionConfig.
+        jupyterUserScriptUri:
+          type: string
+          description: >
+            Optional GCS object URI to a bash script the user wishes to run
+            inside their jupyter
+
+            docker. This script runs exactly once when the cluster is first initialized. Logs from
+
+            this script can be found in the Leo staging bucket for the cluster. Script is run as root
+
+            and docker --privileged.
+        jupyterStartUserScriptUri:
+          type: string
+          description: >
+            Optional GCS object URI to a bash script the user wishes to run on
+            cluster start inside
+
+            the jupyter docker. In contrast to jupyterUserScriptUri, this always runs before starting
+
+            Jupyter, both on initial cluster creation and on cluster resume (jupyterUserScriptUri runs
+
+            once on cluster creation). This script may be used to launch background processes which
+
+            would not otherwise survive a cluster stop/start.
+
+            The script is pulled once at cluster creation time; subsequent client changes to the user
+
+            script at this URI do not affect the cluster. Timestamped logs for this script can be
+
+            found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
+        runtimeConfig:
+          $ref: "#/components/schemas/RuntimeConfig"
+        autopause:
+          type: boolean
+          description: Whether autopause feature is enabled for this specific cluster. If
+            unset, autopause will be enabled and a system default threshold will
+            be used.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. If autopause is set to false, this value is disregarded.
+            A value of 0 is equivalent to autopause being turned off. If
+            autopause is enabled and this is unset, a system default threshold
+            will be used.
+        defaultClientId:
+          type: string
+          description: The default Google Client ID.
+        toolDockerImage:
+          type: string
+          description: The tool docker image to install. May be Dockerhub or GCR. If not
+            set, a default Jupyter image will be installed.
+        welderDockerImage:
+          type: string
+          description: >
+            The Welder docker image to install. Only takes effect if the tool
+            being installed supports welder.
+
+            May be Dockerhub or GCR. If not set, then a default Welder image will be installed.
+        scopes:
+          type: array
+          items:
+            type: string
+          description: >
+            The scopes for the cluster. Defaults (userinfo.email,
+            userinfo.profile, bigquery, source.read_only) will be used if left
+            blank. Important: If you choose to specify custom scopes, the
+            defaults will be overwritten. Thus, if you need the defaults, you
+            will need to include the default scopes in your custom list of
+            scopes.
+          default:
+            - https://www.googleapis.com/auth/userinfo.email
+            - https://www.googleapis.com/auth/userinfo.profile
+            - https://www.googleapis.com/auth/bigquery
+            - https://www.googleapis.com/auth/source.read_only
+        customEnvironmentVariables:
+          type: object
+          description: Optional environment variables to be set on the cluster.
     ClusterError:
       description: Errors encountered on cluster create
       properties:
@@ -1410,66 +1557,97 @@ components:
       properties:
         version:
           type: string
-    MachineConfig:
-      description: The configuration for a single Dataproc cluster
+    RuntimeConfig:
+      type: object
+      required:
+        - cloudService
       properties:
-        numberOfWorkers:
-          type: integer
-          description: >
-            Optional, number of workers in the cluster. Can be 0 (default), 2 or
-            more. Google Dataproc does not allow 1 worker.
-        masterMachineType:
+        cloudService:
           type: string
-          description: >
-            Optional, the machine type determines the number of CPUs and memory
-            for the master node. For example "n1-standard-16"
-
-            or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-
-            see https://cloud.google.com/compute/docs/machine-types
-        masterDiskSize:
-          type: integer
-          description: >
-            Optional, the size in gigabytes of the disk on the master node.
-            Minimum size is 10GB. If unspecified, default size is 100GB.
-        workerMachineType:
-          type: string
-          description: >
-            Optional, the machine type determines the number of CPUs and memory
-            for the worker nodes. For example "n1-standard-16"
-
-            or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-
-            see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
-        workerDiskSize:
-          type: integer
-          description: >
-            Optional, the size in gigabytes of the disk on the master node.
-            Minimum size is 10GB. If unspecified, default size is 100GB.
-
-            Ignored if numberOfWorkers is 0.
-        numberOfWorkerLocalSSDs:
-          type: integer
-          description: >
-            Optional, the number of local solid state disks for workers. If
-            unspecified, the default number is 0.
-
-            Ignored if numberOfWorkers is 0.
-        numberOfPreemptibleWorkers:
-          type: integer
-          description: >
-            Optional, the number of preemptible workers. If unspecified, the
-            default number is 0. Ignored if numberOfWorkers is 0.
-
-            For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+          enum: [gce, dataproc]
+      discriminator:
+        propertyName: cloudService
+        mapping:
+          gce: GceConfig
+          dataproc: MachineConfig
+    GceConfig:
+      description: Configuration for Google Compute Engine instances.
+      allOf:
+      - $ref: '#/components/schemas/RuntimeConfig'
+      - type: object
         properties:
-          description: >
-            Example {"spark:spark.executor.memory": "10g"}. See
-            https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
-            for allowed property settings
-          type: object
-          additionalProperties:
+          machineType:
             type: string
+            description: >
+              Optional, the machine type determines the number of CPUs and memory
+              for the master node. For example "n1-standard-16"
+
+              or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+              see https://cloud.google.com/compute/docs/machine-types
+    MachineConfig:
+      description: Configuration for a single Dataproc cluster.
+      allOf:
+      - $ref: '#/components/schemas/RuntimeConfig'
+      - type: object
+        properties:
+          numberOfWorkers:
+            type: integer
+            description: >
+              Optional, number of workers in the cluster. Can be 0 (default), 2 or
+              more. Google Dataproc does not allow 1 worker.
+          masterMachineType:
+            type: string
+            description: >
+              Optional, the machine type determines the number of CPUs and memory
+              for the master node. For example "n1-standard-16"
+
+              or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+              see https://cloud.google.com/compute/docs/machine-types
+          masterDiskSize:
+            type: integer
+            description: >
+              Optional, the size in gigabytes of the disk on the master node.
+              Minimum size is 10GB. If unspecified, default size is 100GB.
+          workerMachineType:
+            type: string
+            description: >
+              Optional, the machine type determines the number of CPUs and memory
+              for the worker nodes. For example "n1-standard-16"
+
+              or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+              see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
+          workerDiskSize:
+            type: integer
+            description: >
+              Optional, the size in gigabytes of the disk on the master node.
+              Minimum size is 10GB. If unspecified, default size is 100GB.
+
+              Ignored if numberOfWorkers is 0.
+          numberOfWorkerLocalSSDs:
+            type: integer
+            description: >
+              Optional, the number of local solid state disks for workers. If
+              unspecified, the default number is 0.
+
+              Ignored if numberOfWorkers is 0.
+          numberOfPreemptibleWorkers:
+            type: integer
+            description: >
+              Optional, the number of preemptible workers. If unspecified, the
+              default number is 0. Ignored if numberOfWorkers is 0.
+
+              For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+          properties:
+            description: >
+              Example {"spark:spark.executor.memory": "10g"}. See
+              https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+              for allowed property settings
+            type: object
+            additionalProperties:
+              type: string
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:
