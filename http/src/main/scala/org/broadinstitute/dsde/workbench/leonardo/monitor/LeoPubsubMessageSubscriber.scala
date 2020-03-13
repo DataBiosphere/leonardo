@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-import java.util.UUID
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.effect.{Async, Concurrent, ContextShift, Timer}
@@ -33,15 +32,17 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
       case msg: StopUpdateMessage =>
-        implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
         handleStopUpdateMessage(msg, now)
       case msg: RuntimeTransitionMessage =>
-        implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
         handleRuntimeTransitionFinished(msg, now)
       case msg: CreateRuntimeMessage =>
         handleCreateRuntimeMessage(msg, now)
       case msg: DeleteRuntimeMessage =>
         handleDeleteRuntimeMessage(msg, now)
+      case msg: StopRuntimeMessage =>
+        handleStopRuntimeMessage(msg, now)
+      case msg: StartRuntimeMessage =>
+        handleStartRuntimeMessage(msg, now)
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
@@ -223,6 +224,41 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         )
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- runtimeConfig.cloudService.interpreter.deleteRuntime(DeleteRuntimeParams(runtime))
+    } yield ()
+
+  private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+      runtime <- runtimeOpt.fold(
+        Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      )(Async[F].pure)
+      _ <- if (runtime.status.isStoppable) Async[F].unit
+      else
+        Async[F].raiseError[Unit](
+          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+        )
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig.cloudService.interpreter
+        .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
+    } yield ()
+
+  private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+      runtime <- runtimeOpt.fold(
+        Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      )(Async[F].pure)
+      _ <- if (runtime.status.isStartable) Async[F].unit
+      else
+        Async[F].raiseError[Unit](
+          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+        )
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, now))
     } yield ()
 }
 

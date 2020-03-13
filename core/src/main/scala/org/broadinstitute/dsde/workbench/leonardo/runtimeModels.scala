@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CustomDataProc, Jupyter, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ValueObject, WorkbenchEmail}
 
 import scala.collection.immutable
@@ -100,7 +100,8 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
     Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting, Staging, Provisioning)
 
   // Can a user delete this runtime? Contains everything except Creating, Deleting, Deleted.
-  val deletableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting, Suspending, Terminated, Suspending)
+  val deletableStatuses: Set[RuntimeStatus] =
+    Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting, Suspending, Terminated, Suspending)
 
   // Non-terminal statuses. Requires monitoring via ClusterMonitorActor.
   val monitoredStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)

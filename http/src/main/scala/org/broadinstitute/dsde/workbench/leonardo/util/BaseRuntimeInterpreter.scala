@@ -13,18 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  RuntimeCannotBeStartedException,
-  RuntimeCannotBeStoppedException
-}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  Runtime,
-  RuntimeConfig,
-  RuntimeImage,
-  RuntimeOperation,
-  RuntimeStatus,
-  WelderAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfig, RuntimeImage, RuntimeOperation, WelderAction}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -50,63 +39,43 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   ): F[Unit]
 
   final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    if (params.runtimeAndRuntimeConfig.runtime.status.isStoppable) {
-      for {
-        // Flush the welder cache to disk
-        _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
-          welderDao
-            .flushCache(params.runtimeAndRuntimeConfig.runtime.googleProject,
-                        params.runtimeAndRuntimeConfig.runtime.runtimeName)
-            .handleErrorWith(
-              e =>
-                Logger[F].error(e)(
-                  s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
-                )
-            )
-        } else Async[F].unit
+    for {
+      // Flush the welder cache to disk
+      _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
+        welderDao
+          .flushCache(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                      params.runtimeAndRuntimeConfig.runtime.runtimeName)
+          .handleErrorWith(
+            e =>
+              Logger[F].error(e)(
+                s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
+              )
+          )
+      } else Async[F].unit
 
-        // Stop the cluster in Google
-        _ <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
+      // Stop the cluster in Google
+      _ <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
+    } yield ()
 
-        // Update the cluster status to Stopping
-        _ <- dbRef.inTransaction { clusterQuery.setToStopping(params.runtimeAndRuntimeConfig.runtime.id, params.now) }
-      } yield ()
-
-    } else
-      Async[F].raiseError(
-        RuntimeCannotBeStoppedException(params.runtimeAndRuntimeConfig.runtime.googleProject,
-                                        params.runtimeAndRuntimeConfig.runtime.runtimeName,
-                                        params.runtimeAndRuntimeConfig.runtime.status)
-      )
-
-  final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    if (params.runtime.status.isStartable) {
-      val welderAction = getWelderAction(params.runtime)
-      for {
-        // Check if welder should be deployed or updated
-        updatedRuntime <- getWelderAction(params.runtime)
-          .traverse {
-            case DeployWelder | UpdateWelder => updateWelder(params.runtime, params.now)
-            case DisableDelocalization =>
-              labelQuery.save(params.runtime.id, "welderInstallFailed", "true").transaction.as(params.runtime)
-          }
-          .map(_.getOrElse(params.runtime))
-
-        runtimeConfig <- dbRef.inTransaction(
-          RuntimeConfigQueries.getRuntimeConfig(params.runtime.runtimeConfigId)
-        )
-        // Start the cluster in Google
-        _ <- startGoogleRuntime(updatedRuntime, welderAction, runtimeConfig)
-
-        // Update the cluster status to Starting
-        _ <- dbRef.inTransaction {
-          clusterQuery.updateClusterStatus(updatedRuntime.id, RuntimeStatus.Starting, params.now)
+  final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+    val welderAction = getWelderAction(params.runtime)
+    for {
+      // Check if welder should be deployed or updated
+      updatedRuntime <- welderAction
+        .traverse {
+          case DeployWelder | UpdateWelder => updateWelder(params.runtime, params.now)
+          case DisableDelocalization =>
+            labelQuery.save(params.runtime.id, "welderInstallFailed", "true").transaction.as(params.runtime)
         }
-      } yield ()
-    } else
-      Async[F].raiseError(
-        RuntimeCannotBeStartedException(params.runtime.googleProject, params.runtime.runtimeName, params.runtime.status)
+        .map(_.getOrElse(params.runtime))
+
+      runtimeConfig <- dbRef.inTransaction(
+        RuntimeConfigQueries.getRuntimeConfig(params.runtime.runtimeConfigId)
       )
+      // Start the cluster in Google
+      _ <- startGoogleRuntime(updatedRuntime, welderAction, runtimeConfig)
+    } yield ()
+  }
 
   private def getWelderAction(runtime: Runtime): Option[WelderAction] =
     if (runtime.welderEnabled) {

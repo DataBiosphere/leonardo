@@ -56,19 +56,38 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                   )
                 } ~
                 patch {
-                  ???
+                  // TODO
+                  complete(StatusCodes.NotImplemented)
                 } ~
                 delete {
-                  ???
+                  complete(
+                    deleteRuntimeHandler(
+                      userInfo,
+                      googleProject,
+                      runtimeName
+                    )
+                  )
                 } ~
                 path("stop") {
                   post {
-                    ???
+                    complete(
+                      stopRuntimeHandler(
+                        userInfo,
+                        googleProject,
+                        runtimeName
+                      )
+                    )
                   }
                 } ~
                 path("start") {
                   post {
-                    ???
+                    complete(
+                      startRuntimeHandler(
+                        userInfo,
+                        googleProject,
+                        runtimeName
+                      )
+                    )
                   }
                 }
             }
@@ -145,6 +164,42 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
       )
       resp <- runtimeService.listRuntimes(userInfo, googleProject, params)
     } yield StatusCodes.OK -> resp
+
+  private[api] def deleteRuntimeHandler(userInfo: UserInfo,
+                                        googleProject: GoogleProject,
+                                        runtimeName: RuntimeName): IO[ToResponseMarshallable] =
+    for {
+      traceId <- IO(UUID.randomUUID())
+      now <- nowInstant
+      implicit0(context: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        RuntimeServiceContext(TraceId(traceId), now)
+      )
+      _ <- runtimeService.deleteRuntime(userInfo, googleProject, runtimeName)
+    } yield StatusCodes.Accepted
+
+  private[api] def stopRuntimeHandler(userInfo: UserInfo,
+                                      googleProject: GoogleProject,
+                                      runtimeName: RuntimeName): IO[ToResponseMarshallable] =
+    for {
+      traceId <- IO(UUID.randomUUID())
+      now <- nowInstant
+      implicit0(context: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        RuntimeServiceContext(TraceId(traceId), now)
+      )
+      _ <- runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
+    } yield StatusCodes.Accepted
+
+  private[api] def startRuntimeHandler(userInfo: UserInfo,
+                                       googleProject: GoogleProject,
+                                       runtimeName: RuntimeName): IO[ToResponseMarshallable] =
+    for {
+      traceId <- IO(UUID.randomUUID())
+      now <- nowInstant
+      implicit0(context: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        RuntimeServiceContext(TraceId(traceId), now)
+      )
+      _ <- runtimeService.startRuntime(userInfo, googleProject, runtimeName)
+    } yield StatusCodes.Accepted
 }
 
 object RuntimeRoutes {

@@ -25,7 +25,12 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, DeleteRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateRuntimeMessage,
+  DeleteRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 
@@ -197,6 +202,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
       else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
+      // delete the runtime
       ctx <- as.ask
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
         clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction.void >> publisherQueue.enqueue1(
@@ -211,6 +217,68 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
           runtime.runtimeName
         )
       }
+    } yield ()
+
+  def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[Unit] =
+    for {
+      // throw 404 if not existent
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
+      // throw 404 if no GetClusterStatus permission
+      hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                 userInfo,
+                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 googleProject,
+                                                                 runtimeName)
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      // throw 403 if no StopStartCluster permission
+      hasStopPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                     userInfo,
+                                                                     NotebookClusterActions.StopStartCluster,
+                                                                     googleProject,
+                                                                     runtimeName)
+      _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      // throw 409 if the cluster is not stoppable
+      _ <- if (runtime.status.isStoppable) F.unit
+      else
+        F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
+      // stop the runtime
+      ctx <- as.ask
+      _ <- clusterQuery.setToStopping(runtime.id, ctx.now).transaction
+      _ <- publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
+    } yield ()
+
+  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[Unit] =
+    for {
+      // throw 404 if not existent
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
+      // throw 404 if no GetClusterStatus permission
+      hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                 userInfo,
+                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 googleProject,
+                                                                 runtimeName)
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      // throw 403 if no StopStartCluster permission
+      hasStartPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                      userInfo,
+                                                                      NotebookClusterActions.StopStartCluster,
+                                                                      googleProject,
+                                                                      runtimeName)
+      _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      // throw 409 if the cluster is not startable
+      _ <- if (runtime.status.isStartable) F.unit
+      else
+        F.raiseError[Unit](RuntimeCannotBeStartedException(runtime.googleProject, runtime.runtimeName, runtime.status))
+      // start the runtime
+      ctx <- as.ask
+      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Starting, ctx.now).transaction
+      _ <- publisherQueue.enqueue1(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
     } yield ()
 
   private[service] def getRuntimeImages(

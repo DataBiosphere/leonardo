@@ -211,7 +211,7 @@ object Boot extends IOApp {
 
       val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterMonitorConfig,
                                                           appDependencies.googleDataprocDAO,
-        appDependencies.googleComputeService,
+                                                          appDependencies.googleComputeService,
                                                           appDependencies.googleProjectDAO)
 
       val httpRoutes = new HttpRoutes(swaggerConfig,

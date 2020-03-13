@@ -299,7 +299,6 @@ object Config {
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
 
-
   implicit val zombieClusterConfigValueReader: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
     ZombieClusterConfig(
       config.getBoolean("enableZombieClusterMonitor"),

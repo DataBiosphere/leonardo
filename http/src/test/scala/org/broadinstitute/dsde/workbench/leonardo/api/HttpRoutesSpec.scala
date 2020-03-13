@@ -58,6 +58,14 @@ class HttpRoutesSpec
           params: Map[String, String]
         )(implicit as: ApplicativeAsk[IO, RuntimeServiceContext]): IO[Vector[ListRuntimeResponse]] =
           IO.pure(Vector.empty)
+
+        override def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
+        ): IO[Unit] = ???
+
+        override def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
+        ): IO[Unit] = ???
       },
       userInfoDirectives,
       contentSecurityPolicy

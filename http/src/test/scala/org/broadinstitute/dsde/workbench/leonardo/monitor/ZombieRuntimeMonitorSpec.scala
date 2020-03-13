@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, Instance
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
@@ -339,11 +339,13 @@ class ZombieRuntimeMonitorSpec
   private def withZombieMonitor[A](
     gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
     gce: GoogleComputeService[IO] = new MockGoogleComputeService,
-    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO)(validations: () => A): A = {
+    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
+  )(validations: () => A): A = {
     val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterConfig, gdDAO, gce, googleProjectDAO)
     val process = Stream.eval(Deferred[IO, A]).flatMap { signalToStop =>
-      val signal =  Stream.eval(IO(validations())).evalMap(r => signalToStop.complete(r))
-      val p = Stream(zombieClusterMonitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal).parJoin(2)
+      val signal = Stream.eval(IO(validations())).evalMap(r => signalToStop.complete(r))
+      val p = Stream(zombieClusterMonitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)
+        .parJoin(2)
       p ++ Stream.eval(signalToStop.get)
     }
     process.compile.lastOrError.unsafeRunSync().asInstanceOf[A]

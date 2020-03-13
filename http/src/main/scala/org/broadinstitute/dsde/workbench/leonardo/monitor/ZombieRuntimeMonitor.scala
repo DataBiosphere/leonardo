@@ -108,7 +108,8 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
     }
   }
 
-  private def isRuntimeActiveInGoogle(runtime: PotentialZombieRuntime, now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Boolean] = {
+  private def isRuntimeActiveInGoogle(runtime: PotentialZombieRuntime,
+                                      now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Boolean] = {
     val milliSecondsSinceClusterCreation: Long = now.toEpochMilli - runtime.auditInfo.createdDate.toEpochMilli
     // this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
     if (runtime.status == RuntimeStatus.Creating && milliSecondsSinceClusterCreation < config.creationHangTolerance.toMillis) {
@@ -116,15 +117,18 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
     } else {
       val runtimeStatus: F[RuntimeStatus] = runtime.cloudService match {
         case CloudService.GCE =>
-          gce.getInstance(runtime.googleProject, config.gceZoneName, InstanceName(runtime.runtimeName.asString)).map{
+          gce.getInstance(runtime.googleProject, config.gceZoneName, InstanceName(runtime.runtimeName.asString)).map {
             instance =>
-              instance.flatMap(s => RuntimeStatus.withNameInsensitiveOption(s.getStatus)).getOrElse(RuntimeStatus.Unknown)
+              instance
+                .flatMap(s => RuntimeStatus.withNameInsensitiveOption(s.getStatus))
+                .getOrElse(RuntimeStatus.Unknown)
           }
         case CloudService.Dataproc =>
           F.liftIO(IO.fromFuture(IO(gdDAO.getClusterStatus(runtime.googleProject, runtime.runtimeName))))
       }
 
-      runtimeStatus.map(RuntimeStatus.activeStatuses contains)
+      runtimeStatus
+        .map(RuntimeStatus.activeStatuses contains)
         .recoverWith {
           case e =>
             logger
@@ -144,9 +148,11 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
       _ <- dbRef.inTransaction {
         for {
           _ <- clusterQuery.completeDeletion(runtime.id, now)
-          error = RuntimeError(s"An underlying resource was removed in Google. Runtime(${runtime.runtimeName.asString}) has been marked deleted in Leo.",
-                               -1,
-                               now)
+          error = RuntimeError(
+            s"An underlying resource was removed in Google. Runtime(${runtime.runtimeName.asString}) has been marked deleted in Leo.",
+            -1,
+            now
+          )
           _ <- clusterErrorQuery.save(runtime.id, error)
         } yield ()
       }

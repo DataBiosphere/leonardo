@@ -24,4 +24,12 @@ trait RuntimeService[F[_]] {
   def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit as: ApplicativeAsk[F, RuntimeServiceContext]
   ): F[Unit]
+
+  def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[Unit]
+
+  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[Unit]
 }

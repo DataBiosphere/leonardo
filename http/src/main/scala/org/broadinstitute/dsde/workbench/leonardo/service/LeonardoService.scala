@@ -113,6 +113,12 @@ case class InvalidDataprocMachineConfigException(errorMsg: String)
 case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
     extends LeoException(s"${traceId} | Image ${image.imageUrl} not found", StatusCodes.NotFound)
 
+final case class CloudServiceNotSupportedException(cloudService: CloudService)
+    extends LeoException(
+      s"Cloud service ${cloudService.asString} is not support in /api/cluster routes. Please use /api/google/v1/runtime instead.",
+      StatusCodes.Conflict
+    )
+
 case class UpdateResult(hasUpdateSucceded: Boolean, followupAction: Option[UpdateTransition])
 
 sealed trait UpdateTransition extends Product with Serializable
@@ -623,6 +629,10 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+      _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
+      else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
+
       _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield ()
 
@@ -668,6 +678,9 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+      _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
+      else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
+
       now <- nowInstant
       _ <- CloudService.Dataproc.interpreter
         .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
@@ -686,6 +699,10 @@ class LeonardoService(
                                   cluster.internalId,
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
+
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+      _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
+      else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
 
       now <- nowInstant
       _ <- CloudService.Dataproc.interpreter.startRuntime(StartRuntimeParams(cluster, now))

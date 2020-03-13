@@ -71,6 +71,14 @@ object LeoPubsubMessage {
     val messageType = "deleteRuntime"
   }
 
+  final case class StopRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
+    val messageType = "stopRuntime"
+  }
+
+  final case class StartRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
+    val messageType = "startRuntime"
+  }
+
   final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus)
       extends Product
       with Serializable
@@ -111,6 +119,12 @@ object LeoPubsubCodec {
   implicit val deleteRuntimeDecoder: Decoder[DeleteRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(DeleteRuntimeMessage.apply)
 
+  implicit val stopRuntimeDecoder: Decoder[StopRuntimeMessage] =
+    Decoder.forProduct2("runtimeId", "traceId")(StopRuntimeMessage.apply)
+
+  implicit val startRuntimeDecoder: Decoder[StartRuntimeMessage] =
+    Decoder.forProduct2("runtimeId", "traceId")(StartRuntimeMessage.apply)
+
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
       messageType <- message.downField("messageType").as[String]
@@ -119,6 +133,8 @@ object LeoPubsubCodec {
         case "transitionFinished" => message.as[RuntimeTransitionMessage]
         case "createRuntime"      => message.as[CreateRuntimeMessage]
         case "deleteRuntime"      => message.as[DeleteRuntimeMessage]
+        case "stopRuntime"        => message.as[StopRuntimeMessage]
+        case "startRuntime"       => message.as[StartRuntimeMessage]
         case other                => Left(DecodingFailure(s"invalid message type: $other", List.empty))
       }
     } yield value
@@ -178,12 +194,20 @@ object LeoPubsubCodec {
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =
     Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
 
+  implicit val stopRuntimeMessageEncoder: Encoder[StopRuntimeMessage] =
+    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
+
+  implicit val startRuntimeMessageEncoder: Encoder[StartRuntimeMessage] =
+    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
     message match {
       case m: StopUpdateMessage        => m.asJson
       case m: RuntimeTransitionMessage => m.asJson
       case m: CreateRuntimeMessage     => m.asJson
       case m: DeleteRuntimeMessage     => m.asJson
+      case m: StopRuntimeMessage       => m.asJson
+      case m: StartRuntimeMessage      => m.asJson
     }
   }
 }
