@@ -30,6 +30,8 @@ package object http {
       .compile
       .lastOrError
 
+  // maps an ApplicativeAsk[F, A] => ApplicativeAsk[F, B]
+  // (you'd think ApplicativeAsk would have a `map` function)
   implicit def ctxConversion[F[_]: Applicative](
     implicit as: ApplicativeAsk[F, RuntimeServiceContext]
   ): ApplicativeAsk[F, TraceId] =
@@ -39,6 +41,7 @@ package object http {
       override def reader[A](f: TraceId => A): F[A] = ask.map(f)
     }
 
+  // convenience to get now as a F[Instant] using a Timer
   def nowInstant[F[_]: Timer: Functor]: F[Instant] =
     Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
 }
