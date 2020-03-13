@@ -321,7 +321,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -409,7 +409,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Creating)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Creating))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -473,7 +473,7 @@ class ClusterMonitorSpec
   // - cluster is not changed in the DB
   // - instances are populated in the DB
   // - monitor actor does not shut down
-  Seq(RuntimeStatus.Creating, RuntimeStatus.Updating, RuntimeStatus.Unknown).foreach { status =>
+  Seq(DataprocClusterStatus.Creating, DataprocClusterStatus.Updating, DataprocClusterStatus.Unknown).foreach { status =>
     it should s"monitor $status status" in isolatedDbTest {
       val savedCreatingCluster = creatingCluster.save()
       creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
@@ -482,7 +482,7 @@ class ClusterMonitorSpec
       when {
         gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                                RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-      } thenReturn Future.successful(status)
+      } thenReturn Future.successful(Some(status))
 
       when {
         gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -543,7 +543,7 @@ class ClusterMonitorSpec
     when {
       dao.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                            RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       dao.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -606,7 +606,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Error)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Error))
 
     when {
       gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.asyncRuntimeFields.map(_.operationName)))
@@ -684,7 +684,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Error)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Error))
 
     when {
       gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.asyncRuntimeFields.map(_.operationName)))
@@ -762,7 +762,7 @@ class ClusterMonitorSpec
     when {
       dao.getClusterStatus(mockitoEq(deletingCluster.googleProject),
                            RuntimeName(mockitoEq(deletingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Deleted)
+    } thenReturn Future.successful(None)
 
     when {
       dao.getClusterInstances(mockitoEq(deletingCluster.googleProject),
@@ -861,13 +861,13 @@ class ClusterMonitorSpec
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
     } thenReturn {
-      Future.successful(RuntimeStatus.Error)
+      Future.successful(Some(DataprocClusterStatus.Error))
     } thenReturn {
-      Future.successful(RuntimeStatus.Deleted)
+      Future.successful(None)
     } thenReturn {
-      Future.successful(RuntimeStatus.Creating)
+      Future.successful(Some(DataprocClusterStatus.Creating))
     } thenReturn {
-      Future.successful(RuntimeStatus.Running)
+      Future.successful(Some(DataprocClusterStatus.Running))
     }
 
     when {
@@ -1055,7 +1055,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(deletingCluster.googleProject),
                              RuntimeName(mockitoEq(deletingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(deletingCluster.googleProject),
@@ -1112,11 +1112,11 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster2.googleProject),
                              RuntimeName(mockitoEq(creatingCluster2.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -1224,7 +1224,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject),
                              RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject),
                                 RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
@@ -1279,7 +1279,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(startingCluster.googleProject),
                              RuntimeName(mockitoEq(startingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterInstances(mockitoEq(startingCluster.googleProject),
                                 RuntimeName(mockitoEq(startingCluster.runtimeName.asString)))
@@ -1378,7 +1378,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -1547,7 +1547,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject),
                              RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject),
                                 RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
