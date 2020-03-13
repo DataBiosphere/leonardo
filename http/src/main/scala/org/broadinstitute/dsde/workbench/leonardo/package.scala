@@ -30,7 +30,7 @@ package object http {
       .compile
       .lastOrError
 
-  // maps an ApplicativeAsk[F, A] => ApplicativeAsk[F, B]
+  // converts an ApplicativeAsk[F, RuntimeServiceContext] to an  ApplicativeAsk[F, TraceId]
   // (you'd think ApplicativeAsk would have a `map` function)
   implicit def ctxConversion[F[_]: Applicative](
     implicit as: ApplicativeAsk[F, RuntimeServiceContext]
