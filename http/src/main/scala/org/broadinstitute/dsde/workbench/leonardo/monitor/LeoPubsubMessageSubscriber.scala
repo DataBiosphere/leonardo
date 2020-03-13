@@ -224,11 +224,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       runtime <- runtimeOpt.fold(
         Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(Async[F].pure)
-      _ <- if (runtime.status.isDeletable) Async[F].unit
-      else
+      _ <- if (runtime.status != RuntimeStatus.Deleting)
         Async[F].raiseError[Unit](
           PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
         )
+      else Async[F].unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- runtimeConfig.cloudService.interpreter.deleteRuntime(DeleteRuntimeParams(runtime))
     } yield ()
@@ -241,11 +241,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       runtime <- runtimeOpt.fold(
         Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(Async[F].pure)
-      _ <- if (runtime.status.isStoppable) Async[F].unit
-      else
+      _ <- if (runtime.status != RuntimeStatus.Stopping)
         Async[F].raiseError[Unit](
           PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
         )
+      else Async[F].unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- runtimeConfig.cloudService.interpreter
         .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
@@ -259,11 +259,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       runtime <- runtimeOpt.fold(
         Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(Async[F].pure)
-      _ <- if (runtime.status.isStartable) Async[F].unit
-      else
+      _ <- if (runtime.status != RuntimeStatus.Starting)
         Async[F].raiseError[Unit](
           PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
         )
+      else Async[F].unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, now))
     } yield ()
