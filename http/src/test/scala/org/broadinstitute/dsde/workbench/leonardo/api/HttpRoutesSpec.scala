@@ -61,11 +61,11 @@ class HttpRoutesSpec
 
         override def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
           implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
-        ): IO[Unit] = ???
+        ): IO[Unit] = IO.unit
 
         override def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
           implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
-        ): IO[Unit] = ???
+        ): IO[Unit] = IO.unit
       },
       userInfoDirectives,
       contentSecurityPolicy
@@ -75,4 +75,6 @@ class HttpRoutesSpec
       status shouldEqual StatusCodes.Accepted
     }
   }
+
+  // TODO add tests for other routes
 }

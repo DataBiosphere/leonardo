@@ -157,6 +157,23 @@ class LeoPubsubMessageSubscriberSpec
     }
   }
 
+  // TODO
+//  it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
+//
+//  }
+//
+//  it should "handle DeleteRuntimeMessage and delete cluster" in isolatedDbTest {
+//
+//  }
+//
+//  it should "handle StopRuntimeMessage and stop cluster" in isolatedDbTest {
+//
+//  }
+//
+//  it should "handle StartRuntimeMessage and start cluster" in isolatedDbTest {
+//
+//  }
+
   "LeoPubsubMessageSubscriber messageResponder" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
 
     val queue = QueueFactory.makeSubscriberQueue()

@@ -30,7 +30,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
     implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
     pathPrefix("google" / "v1") {
-      path("runtime") {
+      pathPrefix("runtime") {
         pathPrefix(googleProjectSegment / Segment) { (googleProject, runtimeNameString) =>
           validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
             pathEndOrSingleSlash {

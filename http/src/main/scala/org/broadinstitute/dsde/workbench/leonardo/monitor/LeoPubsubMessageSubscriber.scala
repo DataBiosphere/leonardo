@@ -102,7 +102,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
               s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder, and saving a record for ${resolvedCluster.id}"
             )
             _ <- dbRef.inTransaction(
-              followupQuery.save(followupDetails, Some(message.updatedMachineConfig.machineType))
+              clusterQuery.setToStopping(message.runtimeId, now) >> followupQuery
+                .save(followupDetails, Some(message.updatedMachineConfig.machineType))
             )
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
@@ -153,7 +154,13 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                     // start cluster
                     _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(resolvedCluster, now))
                     // clean-up info from follow-up table
-                    _ <- dbRef.inTransaction { followupQuery.delete(message.runtimeFollowupDetails) }
+                    _ <- dbRef.inTransaction {
+                      followupQuery.delete(message.runtimeFollowupDetails) >> clusterQuery.updateClusterStatus(
+                        resolvedCluster.id,
+                        RuntimeStatus.Starting,
+                        now
+                      )
+                    }
                   } yield ()
                 case None => Async[F].unit //the database has no record of a follow-up being needed. This is a no-op
               }
