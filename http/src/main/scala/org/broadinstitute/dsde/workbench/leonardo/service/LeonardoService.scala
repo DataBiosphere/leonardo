@@ -29,7 +29,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, StopUpdateMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage,
+  StopUpdateMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
@@ -681,9 +686,18 @@ class LeonardoService(
       _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
       else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
 
+      // throw 409 if the cluster is not stoppable
+      _ <- if (cluster.status.isStoppable) IO.unit
+      else
+        IO.raiseError[Unit](RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
+
+      // Update the cluster status to Stopping in the DB
       now <- nowInstant
-      _ <- CloudService.Dataproc.interpreter
-        .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
+      _ <- clusterQuery.setToStopping(cluster.id, now).transaction
+
+      // stop the runtime
+      traceId <- ev.ask
+      _ <- publisherQueue.enqueue1(StopRuntimeMessage(cluster.id, Some(traceId)))
     } yield ()
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
@@ -704,8 +718,18 @@ class LeonardoService(
       _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
       else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
 
+      // throw 409 if the cluster is not startable
+      _ <- if (cluster.status.isStartable) IO.unit
+      else
+        IO.raiseError[Unit](RuntimeCannotBeStartedException(cluster.googleProject, cluster.runtimeName, cluster.status))
+
+      // Update the cluster status to Starting in the DB
       now <- nowInstant
-      _ <- CloudService.Dataproc.interpreter.startRuntime(StartRuntimeParams(cluster, now))
+      _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Starting, now).transaction
+
+      // start the runtime
+      traceId <- ev.ask
+      _ <- publisherQueue.enqueue1(StartRuntimeMessage(cluster.id, Some(traceId)))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
