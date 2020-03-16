@@ -8,7 +8,6 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   CreateRuntimeRequest,
   GetRuntimeResponse,
@@ -16,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
 import spray.json.DefaultJsonProtocol
