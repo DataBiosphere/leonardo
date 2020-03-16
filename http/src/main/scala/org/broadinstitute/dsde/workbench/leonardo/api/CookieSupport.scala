@@ -1,12 +1,12 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.model.headers.{HttpCookie, RawHeader}
 import akka.http.scaladsl.server.Directive0
 import akka.http.scaladsl.server.directives.RespondWithDirectives.respondWithHeaders
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
-trait CookieHelper {
-  protected val tokenCookieName = "LeoToken"
+object CookieSupport {
+  val tokenCookieName = "LeoToken"
 
   /**
    * Sets a token cookie in the HTTP response.
@@ -36,4 +36,5 @@ trait CookieHelper {
       value =
         s"$tokenCookieName=${userInfo.accessToken.token}; Max-Age=${userInfo.tokenExpiresIn.toString}; Path=/; Secure; SameSite=None"
     )
+
 }

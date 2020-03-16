@@ -38,9 +38,9 @@ class SwaggerRoutes(swaggerConfig: SwaggerConfig) extends LazyLogging {
   private val serveIndex: server.Route = {
     val swaggerOptions =
       s"""
-        |        validatorUrl: null,
-        |        apisSorter: "alpha",
-        |        operationsSorter: "alpha"
+         |        validatorUrl: null,
+         |        apisSorter: "alpha",
+         |        operationsSorter: "alpha"
       """.stripMargin
 
     mapResponseEntity { entityFromJar =>
@@ -49,17 +49,19 @@ class SwaggerRoutes(swaggerConfig: SwaggerConfig) extends LazyLogging {
           original.utf8String
             .replace("""url: "https://petstore.swagger.io/v2/swagger.json"""", "url: '/api-docs.yaml'")
             .replace("""layout: "StandaloneLayout"""", s"""layout: "StandaloneLayout", $swaggerOptions""")
-            .replace("window.ui = ui", s"""ui.initOAuth({
-                                         |        clientId: "${swaggerConfig.googleClientId}",
-                                         |        clientSecret: "${swaggerConfig.realm}",
-                                         |        realm: "${swaggerConfig.realm}",
-                                         |        appName: "Leonardo",
-                                         |        scopeSeparator: " ",
-                                         |        additionalQueryStringParams: {}
-                                         |      })
-                                         |      window.ui = ui
-                                         |      """.stripMargin)
-
+            .replace(
+              "window.ui = ui",
+              s"""ui.initOAuth({
+                 |        clientId: "${swaggerConfig.googleClientId}",
+                 |        clientSecret: "${swaggerConfig.realm}",
+                 |        realm: "${swaggerConfig.realm}",
+                 |        appName: "Leonardo",
+                 |        scopeSeparator: " ",
+                 |        additionalQueryStringParams: {}
+                 |      })
+                 |      window.ui = ui
+                 |      """.stripMargin
+            )
         )
       })
     } {

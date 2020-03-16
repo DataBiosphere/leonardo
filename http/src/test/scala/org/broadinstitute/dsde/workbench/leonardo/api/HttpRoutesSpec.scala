@@ -2,22 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import cats.effect.IO
-import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateRuntime2Request,
-  HttpRoutes,
-  RuntimeServiceContext,
-  TestLeoRoutes
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse, RuntimeService}
-import org.broadinstitute.dsde.workbench.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, TestLeoRoutes}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.service.MockRuntimeServiceInterp
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FlatSpec, Matchers}
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
 
 class HttpRoutesSpec
     extends FlatSpec
@@ -30,51 +24,86 @@ class HttpRoutesSpec
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
 
+  val routes = new HttpRoutes(
+    swaggerConfig,
+    statusService,
+    proxyService,
+    leonardoService,
+    MockRuntimeServiceInterp,
+    timedUserInfoDirectives,
+    contentSecurityPolicy
+  )
+
   "HttpRoutes" should "create runtime" in {
-    val routes = new HttpRoutes(
-      swaggerConfig,
-      statusService,
-      proxyService,
-      leonardoService,
-      new RuntimeService[IO] {
-        override def createRuntime(
-          userInfo: UserInfo,
-          googleProject: GoogleProject,
-          runtimeName: RuntimeName,
-          req: CreateRuntime2Request
-        )(implicit as: ApplicativeAsk[IO, RuntimeServiceContext]): IO[Unit] = IO.unit
-
-        override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
-        ): IO[GetRuntimeResponse] = ???
-
-        override def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
-        ): IO[Unit] = IO.unit
-
-        override def listRuntimes(
-          userInfo: UserInfo,
-          googleProject: Option[GoogleProject],
-          params: Map[String, String]
-        )(implicit as: ApplicativeAsk[IO, RuntimeServiceContext]): IO[Vector[ListRuntimeResponse]] =
-          IO.pure(Vector.empty)
-
-        override def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
-        ): IO[Unit] = IO.unit
-
-        override def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-          implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
-        ): IO[Unit] = IO.unit
-      },
-      userInfoDirectives,
-      contentSecurityPolicy
-    )
     Post("/api/google/v1/runtime/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  // TODO add tests for other routes
+  it should "get a runtime" in {
+    Get("/api/google/v1/runtime/googleProject/runtime1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[GetRuntimeResponse].internalId shouldBe CommonTestData.testCluster.internalId
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list runtimes with a project" in {
+    Get("/api/google/v1/runtimes/googleProject") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListRuntimeResponse]].map(_.internalId) shouldBe Vector(CommonTestData.testCluster.internalId)
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list runtimes without a project" in {
+    Get("/api/google/v1/runtimes") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListRuntimeResponse]].map(_.internalId) shouldBe Vector(CommonTestData.testCluster.internalId)
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list runtimes with parameters" in {
+    Get("/api/google/v1/runtimes?project=foo&creator=bar") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListRuntimeResponse]].map(_.internalId) shouldBe Vector(CommonTestData.testCluster.internalId)
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "delete a runtime" in {
+    Delete("/api/google/v1/runtime/googleProject1/runtime1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "stop a runtime" in {
+    Post("/api/google/v1/runtime/googleProject1/runtime1/stop") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "start a runtime" in {
+    Post("/api/google/v1/runtime/googleProject1/runtime1/start") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "not handle unrecognized routes" in {
+    Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
+      handled shouldBe false
+    }
+    Get("/api/google/v1/badruntime/googleProject1/runtime1") ~> routes.route ~> check {
+      handled shouldBe false
+    }
+    Get("/api/google/v2/runtime/googleProject1/runtime1") ~> routes.route ~> check {
+      handled shouldBe false
+    }
+  }
 }

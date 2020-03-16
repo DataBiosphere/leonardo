@@ -17,10 +17,10 @@ import com.typesafe.scalalogging.LazyLogging
 import LeoRoutesJsonCodec._
 import LeoRoutesSprayJsonCodec._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, LeonardoService}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, RequestValidationError}
-import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -38,14 +38,13 @@ class LeoRoutes(
   val materializer: Materializer,
   val executionContext: ExecutionContext,
   val cs: ContextShift[IO])
-    extends LazyLogging
-    with CookieHelper {
+    extends LazyLogging {
 
   val route: Route =
     userInfoDirectives.requireUserInfo { userInfo =>
       implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
-      setTokenCookie(userInfo, tokenCookieName) {
+      CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
         pathPrefix("cluster") {
           pathPrefix("v2" / Segment / Segment) { (googleProject, clusterNameString) =>
             validateRuntimeNameDirective(clusterNameString) { clusterName =>

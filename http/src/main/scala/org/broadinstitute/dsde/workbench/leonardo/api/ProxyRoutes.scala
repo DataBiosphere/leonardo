@@ -18,15 +18,14 @@ import akka.stream.Materializer
 import cats.effect.{ContextShift, IO}
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
-import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
   implicit materializer: Materializer,
   cs: ContextShift[IO]
-) extends CookieHelper
-    with LazyLogging {
+) extends LazyLogging {
   val route: Route =
     //note that the "notebooks" path prefix is deprecated
     pathPrefix("proxy" | "notebooks") {
@@ -45,7 +44,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                 onSuccess(
                   proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster).unsafeToFuture()
                 ) {
-                  setTokenCookie(userInfo, tokenCookieName) {
+                  CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
                     complete {
                       logger.debug(s"Successfully set cookie for user $userInfo")
                       StatusCodes.NoContent
@@ -116,7 +115,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
 
       // We don't have an Authorization header; check the cookie
       case None =>
-        optionalCookie(tokenCookieName) flatMap {
+        optionalCookie(CookieSupport.tokenCookieName) flatMap {
 
           // We have a cookie, extract the token
           case Some(cookie) => provide(cookie.value)

@@ -142,7 +142,7 @@ object CommonTestData {
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
   val defaultUserInfo =
-    UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
+    UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 3600)
   val tokenAge = 500000
   val tokenName = "LeoToken"
   val tokenValue = "accessToken"
@@ -226,10 +226,10 @@ object CommonTestData {
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
-    jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript")))),
+    jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("extension"))),
+    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
     jupyterStartUserScriptUri =
-      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript")))),
+      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
     errors = List.empty,
     dataprocInstances = Set.empty,
     userJupyterExtensionConfig = None,

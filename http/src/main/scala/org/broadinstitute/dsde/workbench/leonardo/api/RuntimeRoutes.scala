@@ -21,53 +21,57 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import LeoRoutesJsonCodec.dataprocConfigDecoder
 import LeoRoutesSprayJsonCodec._
 import JsonCodec._
+
 import scala.concurrent.duration._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 
 class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit timer: Timer[IO]
 ) {
   val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
-    implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-    pathPrefix("google" / "v1") {
-      pathPrefix("runtime") {
-        pathPrefix(googleProjectSegment / Segment) { (googleProject, runtimeNameString) =>
-          validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
-            pathEndOrSingleSlash {
-              post {
-                entity(as[CreateRuntime2Request]) { req =>
-                  complete(
-                    createRuntimeHandler(
-                      userInfo,
-                      googleProject,
-                      runtimeName,
-                      req
+    CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+      pathPrefix("google" / "v1") {
+        pathPrefix("runtime") {
+          pathPrefix(googleProjectSegment / Segment) { (googleProject, runtimeNameString) =>
+            validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
+              pathEndOrSingleSlash {
+                post {
+                  entity(as[CreateRuntime2Request]) { req =>
+                    complete(
+                      createRuntimeHandler(
+                        userInfo,
+                        googleProject,
+                        runtimeName,
+                        req
+                      )
                     )
-                  )
-                }
+                  }
+                } ~
+                  get {
+                    complete(
+                      getRuntimeHandler(
+                        userInfo,
+                        googleProject,
+                        runtimeName
+                      )
+                    )
+                  } ~
+                  patch {
+                    // TODO
+                    complete(StatusCodes.NotImplemented)
+                  } ~
+                  delete {
+                    complete(
+                      deleteRuntimeHandler(
+                        userInfo,
+                        googleProject,
+                        runtimeName
+                      )
+                    )
+                  }
               } ~
-                get {
-                  complete(
-                    getRuntimeHandler(
-                      userInfo,
-                      googleProject,
-                      runtimeName
-                    )
-                  )
-                } ~
-                patch {
-                  // TODO
-                  complete(StatusCodes.NotImplemented)
-                } ~
-                delete {
-                  complete(
-                    deleteRuntimeHandler(
-                      userInfo,
-                      googleProject,
-                      runtimeName
-                    )
-                  )
-                } ~
                 path("stop") {
                   post {
                     complete(
@@ -92,34 +96,34 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                 }
             }
           }
-        }
-      } ~
-        path("runtimes") {
-          parameterMap { params =>
-            path(googleProjectSegment) { googleProject =>
-              get {
-                complete(
-                  listRuntimesHandler(
-                    userInfo,
-                    Some(googleProject),
-                    params
-                  )
-                )
-              }
-            } ~
-              pathEndOrSingleSlash {
+        } ~
+          pathPrefix("runtimes") {
+            parameterMap { params =>
+              path(googleProjectSegment) { googleProject =>
                 get {
                   complete(
                     listRuntimesHandler(
                       userInfo,
-                      None,
+                      Some(googleProject),
                       params
                     )
                   )
                 }
-              }
+              } ~
+                pathEndOrSingleSlash {
+                  get {
+                    complete(
+                      listRuntimesHandler(
+                        userInfo,
+                        None,
+                        params
+                      )
+                    )
+                  }
+                }
+            }
           }
-        }
+      }
     }
   }
 
