@@ -83,7 +83,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                               context.now,
                                               req.toolDockerImage,
                                               req.welderDockerImage)
-            cluster <- F.fromEither(
+            runtime <- F.fromEither(
               convertToRuntime(userInfo,
                                serviceAccountInfo,
                                googleProject,
@@ -94,7 +94,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                req,
                                context.now)
             )
-            gcsObjectUrisToValidate = cluster.userJupyterExtensionConfig
+            gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
               .map(
                 config =>
                   (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values)
@@ -113,7 +113,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
               .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
               .handleErrorWith { t =>
                 log.error(t)(
-                  s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${cluster.projectNameString}"
+                  s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${runtime.projectNameString}"
                 ) >> F.raiseError(t)
               }
 
@@ -132,7 +132,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                   }
               }
 
-            saveCluster = SaveCluster(cluster = cluster, runtimeConfig = runtimeCofig, now = context.now)
+            saveCluster = SaveCluster(cluster = runtime, runtimeConfig = runtimeCofig, now = context.now)
             runtime <- clusterQuery.save(saveCluster).transaction
             _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(runtime, runtimeCofig, Some(context.traceId)))
           } yield ()
