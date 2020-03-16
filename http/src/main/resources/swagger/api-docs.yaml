@@ -12,7 +12,7 @@ tags:
   - name: cluster
     description: Clusters API
   - name: runtime
-    description: Runtime API. Support both Dataproc cluster and Gce instances.
+    description: Runtime API. Support both Google Dataproc cluster and Google Compute Engine instances.
   - name: notebooks
     description: Notebooks API
   - name: proxy
@@ -65,10 +65,10 @@ paths:
       security: []
   /api/google/v1/runtime/{googleProject}/{name}:
     post:
-      summary: Creates a new GCE compute instance in the given project with the given name.
+      summary: Creates a new GCE instance in the given project with the given name.
       description: >
         * The request is completed without waiting for the initiation of the
-        cluster's creation on the Google side.
+        runtime's creation on the Google side.
           This reduces the response time compared with the other version.
         * Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
       operationId: createRuntime
