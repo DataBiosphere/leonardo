@@ -83,8 +83,7 @@ paths:
             type: string
         - in: path
           name: name
-          description: runtime name. only lowercase alphanumeric characters, numbers and
-            dashes are allowed in cluster name
+          description: runtime name. only lowercase alphanumeric characters, numbers and dashes are allowed
           required: true
           schema:
             type: string
@@ -95,7 +94,7 @@ paths:
               $ref: "#/components/schemas/CreateRuntimeRequest"
       responses:
         "202":
-          description: Cluster creation request accepted
+          description: Runtime creation request accepted
         "400":
           description: Bad Request
           content:
