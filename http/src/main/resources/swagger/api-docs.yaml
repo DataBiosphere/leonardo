@@ -9,8 +9,8 @@ info:
     url: http://opensource.org/licenses/BSD-3-Clause
   termsOfService: https://github.com/broadinstitute/leonardo
 tags:
-  - name: runtime
-    description: Runtime API. Support both Google Dataproc cluster and Google Compute Engine instances.
+  - name: runtimes
+    description: Runtimes API. Support both Google Dataproc and Google Compute Engine.
   - name: cluster
     description: Legacy Clusters API. Supports Google Dataproc only.
   - name: proxy
@@ -66,23 +66,23 @@ paths:
 
 ## Runtime paths ##
 
-  /api/runtimes:
+  /api/google/v1/runtimes:
     get:
-      summary: List all active runtimes
-      description: List all active runtimes, optionally filtering on a set of labels
+      summary: List all runtimes that the caller has access to
+      description: List all runtimes, optionally filtering on a set of labels
       operationId: listRuntimes
       tags:
-        - runtime
+        - runtimes
       parameters:
         - in: query
           name: _labels
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
-            returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            returns all runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
             Note: this string format is a workaround because Swagger doesn't support free-form
             query string parameters. The recommended way to use this endpoint is to specify the
-            labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
+            labels as top-level query string parameters. For instance: GET /api/google/v1/runtimes?key1=val1&key2=val2.
           required: false
           schema:
             type: string
@@ -119,14 +119,14 @@ paths:
             - openid
             - email
             - profile
-  "/api/runtimes/{googleProject}":
+  /api/google/v1/runtimes/{googleProject}:
     get:
-      summary: List all active runtimes within the given Google project
-      description: List all active runtimes within the given Google project, optionally
+      summary: List all runtimes within the given Google project that the caller has access to
+      description: List all runtimes within the given Google project, optionally
         filtering on a set of labels
       operationId: listRuntimesByProject
       tags:
-        - runtime
+        - runtimes
       parameters:
         - in: path
           name: googleProject
@@ -139,16 +139,16 @@ paths:
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
-            returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            returns all runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
             Note: this string format is a workaround because Swagger doesn't support free-form
             query string parameters. The recommended way to use this endpoint is to specify the
-            labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
+            labels as top-level query string parameters. For instance: GET /api/google/v1/runtimes?key1=val1&key2=val2.
           required: false
           schema:
             type: string
         - in: query
           name: includeDeleted
-          description: Optional filter that includes any clusters with a Deleted status.
+          description: Optional filter that includes any runtimes with a Deleted status.
           required: false
           schema:
             type: boolean
@@ -179,7 +179,54 @@ paths:
             - openid
             - email
             - profile
-  /api/google/v1/runtime/{googleProject}/{name}:
+  /api/google/v1/runtimes/{googleProject}/{name}:
+    get:
+      summary: Get details of a runtime
+      description: >
+        Returns information about an existing runtime managed by Leo.
+        Poll this to find out when your cluster has finished starting up.
+      operationId: getRuntime
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Runtime found, here are the details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cluster"
+        "403":
+          description: User does not have permission to perform action on runtime
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
     post:
       summary: Creates a new Dataproc cluster or Google Compute Engine instance in the given project with the given name.
       description: >
@@ -188,7 +235,7 @@ paths:
         * Default labels runtimeName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
       operationId: createRuntime
       tags:
-        - runtime
+        - runtimes
       parameters:
         - in: path
           name: googleProject
@@ -233,59 +280,12 @@ paths:
             - openid
             - email
             - profile
-    get:
-      summary: Get details of a runtime
-      description: >
-        Returns information about an existing runtimemanaged by Leo.
-        Poll this to find out when your cluster has finished starting up.
-      operationId: getRuntime
-      tags:
-        - runtime
-      parameters:
-        - in: path
-          name: googleProject
-          description: googleProject
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          description: runtimeName
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Runtime found, here are the details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Cluster"
-        "403":
-          description: User does not have permission to perform action on runtime
-        "404":
-          description: Runtime not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-               schema:
-                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     delete:
       summary: Deletes an existing Dataproc cluster or Google Compute Engine instance in the given project
       description: deletes a runtime
       operationId: deleteRuntime
       tags:
-        - runtime
+        - runtimes
       parameters:
         - in: path
           name: googleProject
@@ -316,15 +316,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-
-  /api/google/v1/runtime/{googleProject}/{name}/stop:
+  /api/google/v1/runtimes/{googleProject}/{name}/stop:
     post:
       summary: Stops a Dataproc cluster or Google Compute Engine instance
       description: >
         Stops the running compute, but retains any data persisted on disk. The runtime may be restarted with the /start endpoint.
       operationId: stopRuntime
       tags:
-        - runtime
+        - runtimes
       parameters:
         - in: path
           name: googleProject
@@ -361,13 +360,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  /api/google/v1/runtime/{googleProject}/{name}/start:
+  /api/google/v1/runtimes/{googleProject}/{name}/start:
     post:
       summary: Starts a Dataproc cluster or Google Compute Engine instance
       description: Starts the a stopped runtime
       operationId: startRuntime
       tags:
-        - runtime
+        - runtimes
       parameters:
         - in: path
           name: googleProject
@@ -404,6 +403,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+
+## Legacy Cluster API ##
 
   /api/clusters:
     get:
@@ -526,8 +527,6 @@ paths:
             - openid
             - email
             - profile
-
-## Legacy Cluster API ##
 
   "/api/cluster/v2/{googleProject}/{clusterName}":
     put:

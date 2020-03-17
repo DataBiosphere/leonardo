@@ -35,7 +35,7 @@ class HttpRoutesSpec
   )
 
   "HttpRoutes" should "create runtime" in {
-    Post("/api/google/v1/runtime/googleProject1/runtime1")
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -43,7 +43,7 @@ class HttpRoutesSpec
   }
 
   it should "get a runtime" in {
-    Get("/api/google/v1/runtime/googleProject/runtime1") ~> routes.route ~> check {
+    Get("/api/google/v1/runtimes/googleProject/runtime1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetRuntimeResponse].internalId shouldBe CommonTestData.testCluster.internalId
       validateRawCookie(header("Set-Cookie"))
@@ -75,21 +75,21 @@ class HttpRoutesSpec
   }
 
   it should "delete a runtime" in {
-    Delete("/api/google/v1/runtime/googleProject1/runtime1") ~> routes.route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "stop a runtime" in {
-    Post("/api/google/v1/runtime/googleProject1/runtime1/stop") ~> routes.route ~> check {
+    Post("/api/google/v1/runtimes/googleProject1/runtime1/stop") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "start a runtime" in {
-    Post("/api/google/v1/runtime/googleProject1/runtime1/start") ~> routes.route ~> check {
+    Post("/api/google/v1/runtimes/googleProject1/runtime1/start") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -103,6 +103,9 @@ class HttpRoutesSpec
       handled shouldBe false
     }
     Get("/api/google/v2/runtime/googleProject1/runtime1") ~> routes.route ~> check {
+      handled shouldBe false
+    }
+    Post("/api/google/v1/runtime/googleProject1/runtime1") ~> routes.route ~> check {
       handled shouldBe false
     }
   }

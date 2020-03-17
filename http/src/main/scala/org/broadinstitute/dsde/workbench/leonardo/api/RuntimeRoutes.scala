@@ -32,74 +32,23 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
     CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
       implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-      pathPrefix("google" / "v1") {
-        pathPrefix("runtime") {
-          pathPrefix(googleProjectSegment / Segment) { (googleProject, runtimeNameString) =>
-            validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
-              pathEndOrSingleSlash {
-                post {
-                  entity(as[CreateRuntime2Request]) { req =>
-                    complete(
-                      createRuntimeHandler(
-                        userInfo,
-                        googleProject,
-                        runtimeName,
-                        req
-                      )
-                    )
-                  }
-                } ~
-                  get {
-                    complete(
-                      getRuntimeHandler(
-                        userInfo,
-                        googleProject,
-                        runtimeName
-                      )
-                    )
-                  } ~
-                  patch {
-                    // TODO
-                    complete(StatusCodes.NotImplemented)
-                  } ~
-                  delete {
-                    complete(
-                      deleteRuntimeHandler(
-                        userInfo,
-                        googleProject,
-                        runtimeName
-                      )
-                    )
-                  }
-              } ~
-                path("stop") {
-                  post {
-                    complete(
-                      stopRuntimeHandler(
-                        userInfo,
-                        googleProject,
-                        runtimeName
-                      )
-                    )
-                  }
-                } ~
-                path("start") {
-                  post {
-                    complete(
-                      startRuntimeHandler(
-                        userInfo,
-                        googleProject,
-                        runtimeName
-                      )
-                    )
-                  }
-                }
+      pathPrefix("google" / "v1" / "runtimes") {
+        pathEndOrSingleSlash {
+          parameterMap { params =>
+            get {
+              complete(
+                listRuntimesHandler(
+                  userInfo,
+                  None,
+                  params
+                )
+              )
             }
           }
         } ~
-          pathPrefix("runtimes") {
-            parameterMap { params =>
-              path(googleProjectSegment) { googleProject =>
+          pathPrefix(googleProjectSegment) { googleProject =>
+            pathEndOrSingleSlash {
+              parameterMap { params =>
                 get {
                   complete(
                     listRuntimesHandler(
@@ -109,19 +58,70 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                     )
                   )
                 }
-              } ~
-                pathEndOrSingleSlash {
-                  get {
-                    complete(
-                      listRuntimesHandler(
-                        userInfo,
-                        None,
-                        params
-                      )
-                    )
-                  }
+              }
+            } ~
+              pathPrefix(Segment) { runtimeNameString =>
+                validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
+                  pathEndOrSingleSlash {
+                    post {
+                      entity(as[CreateRuntime2Request]) { req =>
+                        complete(
+                          createRuntimeHandler(
+                            userInfo,
+                            googleProject,
+                            runtimeName,
+                            req
+                          )
+                        )
+                      }
+                    } ~
+                      get {
+                        complete(
+                          getRuntimeHandler(
+                            userInfo,
+                            googleProject,
+                            runtimeName
+                          )
+                        )
+                      } ~
+                      patch {
+                        // TODO
+                        complete(StatusCodes.NotImplemented)
+                      } ~
+                      delete {
+                        complete(
+                          deleteRuntimeHandler(
+                            userInfo,
+                            googleProject,
+                            runtimeName
+                          )
+                        )
+                      }
+                  } ~
+                    path("stop") {
+                      post {
+                        complete(
+                          stopRuntimeHandler(
+                            userInfo,
+                            googleProject,
+                            runtimeName
+                          )
+                        )
+                      }
+                    } ~
+                    path("start") {
+                      post {
+                        complete(
+                          startRuntimeHandler(
+                            userInfo,
+                            googleProject,
+                            runtimeName
+                          )
+                        )
+                      }
+                    }
                 }
-            }
+              }
           }
       }
     }
