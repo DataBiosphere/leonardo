@@ -153,9 +153,9 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                       .updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
                     // start cluster
                     _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(resolvedCluster, now))
-                    // clean-up info from follow-up table
+                    // update runtime status in database
                     _ <- dbRef.inTransaction {
-                      followupQuery.delete(message.runtimeFollowupDetails) >> clusterQuery.updateClusterStatus(
+                      clusterQuery.updateClusterStatus(
                         resolvedCluster.id,
                         RuntimeStatus.Starting,
                         now

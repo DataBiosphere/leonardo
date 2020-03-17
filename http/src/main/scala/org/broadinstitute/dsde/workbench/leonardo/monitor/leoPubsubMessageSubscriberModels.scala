@@ -1,28 +1,57 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import cats.implicits._
+import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
-import io.circe.{Decoder, DecodingFailure, Encoder}
+import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
 
+sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Product {
+  def asString: String
+  override def toString = asString
+}
+object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
+  val values = findValues
+
+  final case object StopUpdate extends LeoPubsubMessageType {
+    val asString = "stopUpdate"
+  }
+  final case object TransitionFinished extends LeoPubsubMessageType {
+    val asString = "transitionFinished"
+  }
+  final case object CreateRuntime extends LeoPubsubMessageType {
+    val asString = "createRuntime"
+  }
+  final case object DeleteRuntime extends LeoPubsubMessageType {
+    val asString = "deleteRuntime"
+  }
+  final case object StopRuntime extends LeoPubsubMessageType {
+    val asString = "stopRuntime"
+  }
+  final case object StartRuntime extends LeoPubsubMessageType {
+    val asString = "startRuntime"
+  }
+}
+
 sealed trait LeoPubsubMessage {
   def traceId: Option[TraceId]
-  def messageType: String
+  def messageType: LeoPubsubMessageType
 }
 
 object LeoPubsubMessage {
   final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, runtimeId: Long, traceId: Option[TraceId])
       extends LeoPubsubMessage {
-    val messageType = "stopUpdate"
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopUpdate
   }
 
   final case class RuntimeTransitionMessage(runtimeFollowupDetails: RuntimeFollowupDetails, traceId: Option[TraceId])
       extends LeoPubsubMessage {
-    val messageType = "transitionFinished"
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.TransitionFinished
   }
 
   final case class CreateRuntimeMessage(id: Long,
@@ -42,7 +71,7 @@ object LeoPubsubMessage {
                                         runtimeConfig: RuntimeConfig,
                                         traceId: Option[TraceId])
       extends LeoPubsubMessage {
-    val messageType = "createRuntime"
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
   }
 
   object CreateRuntimeMessage {
@@ -68,15 +97,15 @@ object LeoPubsubMessage {
   }
 
   final case class DeleteRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
-    val messageType = "deleteRuntime"
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteRuntime
   }
 
   final case class StopRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
-    val messageType = "stopRuntime"
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopRuntime
   }
 
   final case class StartRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
-    val messageType = "startRuntime"
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StartRuntime
   }
 
   final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus)
@@ -125,20 +154,25 @@ object LeoPubsubCodec {
   implicit val startRuntimeDecoder: Decoder[StartRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(StartRuntimeMessage.apply)
 
+  implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
+    Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
+  }
+
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
-      messageType <- message.downField("messageType").as[String]
+      messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       value <- messageType match {
-        case "stopUpdate"         => message.as[StopUpdateMessage]
-        case "transitionFinished" => message.as[RuntimeTransitionMessage]
-        case "createRuntime"      => message.as[CreateRuntimeMessage]
-        case "deleteRuntime"      => message.as[DeleteRuntimeMessage]
-        case "stopRuntime"        => message.as[StopRuntimeMessage]
-        case "startRuntime"       => message.as[StartRuntimeMessage]
-        case other                => Left(DecodingFailure(s"invalid message type: $other", List.empty))
+        case LeoPubsubMessageType.StopUpdate         => message.as[StopUpdateMessage]
+        case LeoPubsubMessageType.TransitionFinished => message.as[RuntimeTransitionMessage]
+        case LeoPubsubMessageType.CreateRuntime      => message.as[CreateRuntimeMessage]
+        case LeoPubsubMessageType.DeleteRuntime      => message.as[DeleteRuntimeMessage]
+        case LeoPubsubMessageType.StopRuntime        => message.as[StopRuntimeMessage]
+        case LeoPubsubMessageType.StartRuntime       => message.as[StartRuntimeMessage]
       }
     } yield value
   }
+
+  implicit val leoPubsubMessageTypeEncoder: Encoder[LeoPubsubMessageType] = Encoder.encodeString.contramap(_.asString)
 
   implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
     Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(

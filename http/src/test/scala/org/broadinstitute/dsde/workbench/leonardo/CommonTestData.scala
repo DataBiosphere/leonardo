@@ -179,6 +179,9 @@ object CommonTestData {
                                         None,
                                         None,
                                         Map.empty[String, String])
+  val gceRuntimeConfig =
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), 500)
+
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
