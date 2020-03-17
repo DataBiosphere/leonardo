@@ -8,7 +8,7 @@ import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Custom, Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ValueObject, WorkbenchEmail}
 
@@ -55,7 +55,7 @@ object Runtime {
                   labels: Map[String, String]): URL = {
     val tool = runtimeImages
       .map(_.imageType)
-      .filterNot(Set(Welder, Custom).contains)
+      .filterNot(Set(Welder, VM).contains)
       .headOption
       .orElse(labels.get("tool").flatMap(RuntimeImageType.withNameInsensitiveOption))
       .flatMap(t => RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(t))
@@ -246,7 +246,7 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Jupyter extends RuntimeImageType
   case object RStudio extends RuntimeImageType
   case object Welder extends RuntimeImageType
-  case object Custom extends RuntimeImageType
+  case object VM extends RuntimeImageType
   case object Proxy extends RuntimeImageType
 
   def stringToRuntimeImageType: Map[String, RuntimeImageType] = values.map(c => c.toString -> c).toMap

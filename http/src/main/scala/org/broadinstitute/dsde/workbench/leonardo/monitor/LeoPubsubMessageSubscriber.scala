@@ -191,8 +191,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         Some(clusterResult.asyncRuntimeFields),
         now
       )
-      // Save the custom image and async fields in the database
-      clusterImage = RuntimeImage(RuntimeImageType.Custom, clusterResult.customImage.asString, now)
+      // Save the VM image and async fields in the database
+      clusterImage = RuntimeImage(RuntimeImageType.VM, clusterResult.customImage.asString, now)
       _ <- (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
         msg.id,
         clusterImage

@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.{Event, FirewallRuleName, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Custom
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, RuntimeConfigQueries, TestComponent}
@@ -183,7 +183,7 @@ class LeoPubsubMessageSubscriberSpec
       updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
       updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
       updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "target"
-      updatedRuntime.get.runtimeImages.map(_.imageType) should contain(Custom)
+      updatedRuntime.get.runtimeImages.map(_.imageType) should contain(VM)
     }
 
     res.unsafeRunSync()
