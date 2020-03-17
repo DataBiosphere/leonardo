@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-import java.util.UUID
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.effect.{Async, Concurrent, ContextShift, Timer}
@@ -33,13 +32,17 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
     message match {
       case msg: StopUpdateMessage =>
-        implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
         handleStopUpdateMessage(msg, now)
       case msg: RuntimeTransitionMessage =>
-        implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
         handleRuntimeTransitionFinished(msg, now)
       case msg: CreateRuntimeMessage =>
         handleCreateRuntimeMessage(msg, now)
+      case msg: DeleteRuntimeMessage =>
+        handleDeleteRuntimeMessage(msg, now)
+      case msg: StopRuntimeMessage =>
+        handleStopRuntimeMessage(msg, now)
+      case msg: StartRuntimeMessage =>
+        handleStartRuntimeMessage(msg, now)
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
@@ -99,7 +102,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
               s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder, and saving a record for ${resolvedCluster.id}"
             )
             _ <- dbRef.inTransaction(
-              followupQuery.save(followupDetails, Some(message.updatedMachineConfig.machineType))
+              clusterQuery.setToStopping(message.runtimeId, now) >> followupQuery
+                .save(followupDetails, Some(message.updatedMachineConfig.machineType))
             )
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
@@ -149,8 +153,14 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
                       .updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
                     // start cluster
                     _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(resolvedCluster, now))
-                    // clean-up info from follow-up table
-                    _ <- dbRef.inTransaction { followupQuery.delete(message.runtimeFollowupDetails) }
+                    // update runtime status in database
+                    _ <- dbRef.inTransaction {
+                      clusterQuery.updateClusterStatus(
+                        resolvedCluster.id,
+                        RuntimeStatus.Starting,
+                        now
+                      )
+                    }
                   } yield ()
                 case None => Async[F].unit //the database has no record of a follow-up being needed. This is a no-op
               }
@@ -181,10 +191,12 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         Some(clusterResult.asyncRuntimeFields),
         now
       )
-      _ <- clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields).transaction[F]
-      clusterImage = RuntimeImage(RuntimeImageType.CustomDataProc, clusterResult.customDataprocImage.asString, now)
-      // Save dataproc image in the database
-      _ <- dbRef.inTransaction(clusterImageQuery.save(msg.id, clusterImage))
+      // Save the custom image and async fields in the database
+      clusterImage = RuntimeImage(RuntimeImageType.Custom, clusterResult.customImage.asString, now)
+      _ <- (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
+        msg.id,
+        clusterImage
+      )).transaction
       _ <- logger.info(
         s"Cluster ${msg.runtimeProjectAndName} was successfully created. Will monitor the creation process."
       )
@@ -205,6 +217,58 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         } yield ()
     }
   }
+
+  private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+      runtime <- runtimeOpt.fold(
+        Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      )(Async[F].pure)
+      _ <- if (runtime.status != RuntimeStatus.Deleting)
+        Async[F].raiseError[Unit](
+          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+        )
+      else Async[F].unit
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig.cloudService.interpreter.deleteRuntime(DeleteRuntimeParams(runtime))
+    } yield ()
+
+  private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+      runtime <- runtimeOpt.fold(
+        Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      )(Async[F].pure)
+      _ <- if (runtime.status != RuntimeStatus.Stopping)
+        Async[F].raiseError[Unit](
+          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+        )
+      else Async[F].unit
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig.cloudService.interpreter
+        .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
+    } yield ()
+
+  private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+      runtime <- runtimeOpt.fold(
+        Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      )(Async[F].pure)
+      _ <- if (runtime.status != RuntimeStatus.Starting)
+        Async[F].raiseError[Unit](
+          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+        )
+      else Async[F].unit
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, now))
+    } yield ()
 }
 
 sealed trait PubsubHandleMessageError extends NoStackTrace {

@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubscriberConfig,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
@@ -64,8 +65,8 @@ object Config {
       config.as[RegionName]("region"),
       config.getAs[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
-      CustomDataprocImage(config.getString("legacyCustomDataprocImage")),
-      CustomDataprocImage(config.getString("customDataprocImage")),
+      config.as[DataprocCustomImage]("legacyCustomDataprocImage"),
+      config.as[DataprocCustomImage]("customDataprocImage"),
       config.getAs[MemorySize]("dataprocReservedMemory"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults")
     )
@@ -274,6 +275,7 @@ object Config {
   implicit val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
   implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
   implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
+  implicit val dataprocCustomImageReader: ValueReader[DataprocCustomImage] = stringValueReader.map(DataprocCustomImage)
   implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
   implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
     s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
@@ -298,7 +300,6 @@ object Config {
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
-
 
   implicit val zombieClusterConfigValueReader: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
     ZombieClusterConfig(

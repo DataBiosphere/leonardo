@@ -3,6 +3,7 @@ package http
 package service
 
 import java.time.Instant
+import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
@@ -11,9 +12,14 @@ import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpret
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeConfigQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, RuntimeConfigQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, RuntimeServiceContext}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateRuntimeMessage,
+  DeleteRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -56,7 +62,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
 
   implicit val ctx: ApplicativeAsk[IO, RuntimeServiceContext] = ApplicativeAsk.const[IO, RuntimeServiceContext](
     RuntimeServiceContext(model.TraceId("traceId"), Instant.now())
-  ) //TODO: why traceId.map(tid => RuntimeServiceAPIContext(tid, Instant.now)) doesn't work
+  )
 
   "RuntimeService" should "fail with AuthorizationError if user doesn't have project level permission" in {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
@@ -220,6 +226,137 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
         )
       message shouldBe expectedMessage
     }
+    res.unsafeRunSync()
+  }
+
+  it should "get a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
+      getResponse <- runtimeService.getRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+    } yield {
+      getResponse.internalId shouldBe testRuntime.internalId
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "list runtimes" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      internalId1 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      internalId2 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      _ <- IO(makeCluster(1).copy(internalId = internalId1).save())
+      _ <- IO(makeCluster(2).copy(internalId = internalId2).save())
+      listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
+    } yield {
+      listResponse.map(_.internalId).toSet shouldBe Set(internalId1, internalId2)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "list runtimes with a project" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      internalId1 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      internalId2 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      _ <- IO(makeCluster(1).copy(internalId = internalId1).save())
+      _ <- IO(makeCluster(2).copy(internalId = internalId2).save())
+      listResponse <- runtimeService.listRuntimes(userInfo, Some(project), Map.empty)
+    } yield {
+      listResponse.map(_.internalId).toSet shouldBe Set(internalId1, internalId2)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "list runtimes with parameters" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      internalId1 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      internalId2 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      runtime1 <- IO(makeCluster(1).copy(internalId = internalId1).save())
+      _ <- IO(makeCluster(2).copy(internalId = internalId2).save())
+      _ <- labelQuery.save(runtime1.id, "foo", "bar").transaction
+      listResponse <- runtimeService.listRuntimes(userInfo, None, Map("foo" -> "bar"))
+    } yield {
+      listResponse.map(_.internalId).toSet shouldBe Set(internalId1)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "delete a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      context <- ctx.ask
+      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
+
+      _ <- runtimeService.deleteRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      dbRuntimeOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+        .transaction
+      dbRuntime = dbRuntimeOpt.get
+      message <- publisherQueue.dequeue1
+    } yield {
+      dbRuntime.status shouldBe RuntimeStatus.Deleting
+      val expectedMessage = DeleteRuntimeMessage(testRuntime.id, Some(context.traceId))
+      message shouldBe expectedMessage
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "stop a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      context <- ctx.ask
+      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
+
+      _ <- runtimeService.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      dbRuntimeOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+        .transaction
+      dbRuntime = dbRuntimeOpt.get
+      message <- publisherQueue.dequeue1
+    } yield {
+      dbRuntime.status shouldBe RuntimeStatus.Stopping
+      val expectedMessage = StopRuntimeMessage(testRuntime.id, Some(context.traceId))
+      message shouldBe expectedMessage
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "start a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      context <- ctx.ask
+      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(internalId = internalId, status = RuntimeStatus.Stopped).save())
+
+      _ <- runtimeService.startRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      dbRuntimeOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+        .transaction
+      dbRuntime = dbRuntimeOpt.get
+      message <- publisherQueue.dequeue1
+    } yield {
+      dbRuntime.status shouldBe RuntimeStatus.Starting
+      val expectedMessage = StartRuntimeMessage(testRuntime.id, Some(context.traceId))
+      message shouldBe expectedMessage
+    }
+
     res.unsafeRunSync()
   }
 }

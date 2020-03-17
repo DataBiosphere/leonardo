@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeSe
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{FakeGoogleStorageService, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
@@ -1386,7 +1386,7 @@ class LeonardoServiceSpec
     queue.dequeue1.unsafeRunSync() //discard createCluster message
     val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdateMessage]
 
-    message.messageType shouldBe "stopUpdate"
+    message.messageType shouldBe LeoPubsubMessageType.StopUpdate
     message.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
                                                                        newMachineType,
                                                                        defaultRuntimeConfig.masterDiskSize,

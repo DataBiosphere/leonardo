@@ -7,8 +7,6 @@ import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-final case class CustomDataprocImage(asString: String) extends AnyVal
-
 /** Dataproc Instance Status
  *  See: https://cloud.google.com/compute/docs/instances/checking-instance-status */
 sealed trait InstanceStatus extends EnumEntry

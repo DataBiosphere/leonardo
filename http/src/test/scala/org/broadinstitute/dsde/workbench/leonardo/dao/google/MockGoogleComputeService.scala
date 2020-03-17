@@ -19,11 +19,11 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 class MockGoogleComputeService extends GoogleComputeService[IO] {
   override def createInstance(project: GoogleProject, zone: ZoneName, instance: Instance)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").build())
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
   override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").build())
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
   override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
@@ -31,11 +31,11 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
 
   override def stopInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").build())
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
   override def startInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").build())
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
   override def addInstanceMetadata(project: GoogleProject,
                                    zone: ZoneName,

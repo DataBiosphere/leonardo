@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
@@ -30,7 +29,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, StopUpdateMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage,
+  StopUpdateMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
@@ -113,6 +117,12 @@ case class InvalidDataprocMachineConfigException(errorMsg: String)
 
 case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
     extends LeoException(s"${traceId} | Image ${image.imageUrl} not found", StatusCodes.NotFound)
+
+final case class CloudServiceNotSupportedException(cloudService: CloudService)
+    extends LeoException(
+      s"Cloud service ${cloudService.asString} is not support in /api/cluster routes. Please use /api/google/v1/runtime instead.",
+      StatusCodes.Conflict
+    )
 
 case class UpdateResult(hasUpdateSucceded: Boolean, followupAction: Option[UpdateTransition])
 
@@ -246,7 +256,7 @@ class LeonardoService(
         .asInstanceOf[Option[RuntimeConfigRequest.DataprocConfig]]
         .map(_.toRuntimeConfigDataprocConfig(dataprocConfig.runtimeConfigDefaults))
         .getOrElse(dataprocConfig.runtimeConfigDefaults)
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      now <- nowInstant
       autopauseThreshold = calculateAutopauseThreshold(request.autopause, request.autopauseThreshold, autoFreezeConfig)
       clusterScopes = if (request.scopes.isEmpty) dataprocConfig.defaultScopes else request.scopes
       initialClusterToSave = CreateRuntimeRequest.toRuntime(
@@ -354,7 +364,7 @@ class LeonardoService(
                     ) //TODO: use better exception
                   case x: RuntimeConfigRequest.DataprocConfig =>
                     for {
-                      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+                      now <- nowInstant
                       clusterResized <- maybeResizeCluster(existingCluster,
                                                            existingRuntimeConfig,
                                                            x.numberOfWorkers,
@@ -389,7 +399,7 @@ class LeonardoService(
         }
 
         // Set the cluster status to Updating if the cluster was resized
-        now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+        now <- nowInstant
         _ <- if (shouldUpdate) {
           clusterQuery.updateClusterStatus(existingCluster.id, RuntimeStatus.Updating, now).transaction.void
         } else IO.unit
@@ -462,7 +472,7 @@ class LeonardoService(
       case Some(updatedAutopauseThreshold) =>
         for {
           _ <- log.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
-          now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+          now <- nowInstant
           res <- clusterQuery
             .updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
             .transaction
@@ -502,7 +512,7 @@ class LeonardoService(
             )
 
             // Update the DB
-            now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+            now <- nowInstant
             _ <- dbRef.inTransaction {
               updatedNumWorkersAndPreemptibles.fold(
                 a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
@@ -624,6 +634,10 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+      _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
+      else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
+
       _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield ()
 
@@ -637,7 +651,7 @@ class LeonardoService(
         _ <- CloudService.Dataproc.interpreter.deleteRuntime(DeleteRuntimeParams(cluster))
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
-        now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+        now <- nowInstant
         _ <- if (hasDataprocInfo) clusterQuery.markPendingDeletion(cluster.id, now).transaction
         else clusterQuery.completeDeletion(cluster.id, now).transaction
         _ <- if (hasDataprocInfo)
@@ -669,9 +683,21 @@ class LeonardoService(
                                   throw403 = true)
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
-      _ <- CloudService.Dataproc.interpreter
-        .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
+      _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
+      else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
+
+      // throw 409 if the cluster is not stoppable
+      _ <- if (cluster.status.isStoppable) IO.unit
+      else
+        IO.raiseError[Unit](RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
+
+      // Update the cluster status to Stopping in the DB
+      now <- nowInstant
+      _ <- clusterQuery.setToStopping(cluster.id, now).transaction
+
+      // stop the runtime
+      traceId <- ev.ask
+      _ <- publisherQueue.enqueue1(StopRuntimeMessage(cluster.id, Some(traceId)))
     } yield ()
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
@@ -688,8 +714,22 @@ class LeonardoService(
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
 
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
-      _ <- CloudService.Dataproc.interpreter.startRuntime(StartRuntimeParams(cluster, now))
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+      _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
+      else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
+
+      // throw 409 if the cluster is not startable
+      _ <- if (cluster.status.isStartable) IO.unit
+      else
+        IO.raiseError[Unit](RuntimeCannotBeStartedException(cluster.googleProject, cluster.runtimeName, cluster.status))
+
+      // Update the cluster status to Starting in the DB
+      now <- nowInstant
+      _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Starting, now).transaction
+
+      // start the runtime
+      traceId <- ev.ask
+      _ <- publisherQueue.enqueue1(StartRuntimeMessage(cluster.id, Some(traceId)))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
@@ -759,16 +799,6 @@ class LeonardoService(
     }
   }
 
-  private[service] def processListClustersParameters(
-    params: LabelMap
-  ): Either[ParseLabelsException, (LabelMap, Boolean)] =
-    params.get(includeDeletedKey) match {
-      case Some(includeDeletedValue) =>
-        processLabelMap(params - includeDeletedKey).map(lm => (lm, includeDeletedValue.toBoolean))
-      case None =>
-        processLabelMap(params).map(lm => (lm, false))
-    }
-
   private[service] def getRuntimeImages(
     petToken: Option[String],
     userEmail: WorkbenchEmail,
@@ -776,7 +806,7 @@ class LeonardoService(
     clusterRequest: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[RuntimeImage]] =
     for {
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      now <- nowInstant
       traceId <- ev.ask
       // Try to autodetect the image
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
@@ -843,6 +873,16 @@ class LeonardoService(
 object LeonardoService {
   private[service] val includeDeletedKey = "includeDeleted"
   private[service] val bucketPathMaxLength = 1024
+
+  private[service] def processListClustersParameters(
+    params: LabelMap
+  ): Either[ParseLabelsException, (LabelMap, Boolean)] =
+    params.get(includeDeletedKey) match {
+      case Some(includeDeletedValue) =>
+        processLabelMap(params - includeDeletedKey).map(lm => (lm, includeDeletedValue.toBoolean))
+      case None =>
+        processLabelMap(params).map(lm => (lm, false))
+    }
 
   /**
    * There are 2 styles of passing labels to the list clusters endpoint:

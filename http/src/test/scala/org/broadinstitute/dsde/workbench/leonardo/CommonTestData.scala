@@ -11,7 +11,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, InstanceName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CustomDataProc, Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Custom, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -142,7 +142,7 @@ object CommonTestData {
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
   val defaultUserInfo =
-    UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
+    UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 3600)
   val tokenAge = 500000
   val tokenName = "LeoToken"
   val tokenValue = "accessToken"
@@ -156,7 +156,7 @@ object CommonTestData {
   val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
-  val customDataprocImage = RuntimeImage(CustomDataProc, "custom_dataproc", Instant.now)
+  val customDataprocImage = RuntimeImage(Custom, "custom_dataproc", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
 
@@ -179,6 +179,9 @@ object CommonTestData {
                                         None,
                                         None,
                                         Map.empty[String, String])
+  val gceRuntimeConfig =
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), 500)
+
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
@@ -226,10 +229,10 @@ object CommonTestData {
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
-    jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript")))),
+    jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("extension"))),
+    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
     jupyterStartUserScriptUri =
-      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucketName"), GcsObjectName("startScript")))),
+      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
     errors = List.empty,
     dataprocInstances = Set.empty,
     userJupyterExtensionConfig = None,

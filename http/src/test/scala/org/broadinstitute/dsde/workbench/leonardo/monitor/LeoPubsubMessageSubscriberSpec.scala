@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.{Event, FirewallRuleName, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Custom
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, RuntimeConfigQueries, TestComponent}
@@ -31,12 +32,14 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
   GceInterpreterConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.mockito.Mockito
 import org.scalatest.concurrent._
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.Left
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -155,6 +158,143 @@ class LeoPubsubMessageSubscriberSpec
     eventually {
       dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe RuntimeStatus.Stopping
     }
+  }
+
+  it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      runtime <- IO(
+        makeCluster(1)
+          .copy(asyncRuntimeFields = None,
+                status = RuntimeStatus.Creating,
+                serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, None))
+          .save()
+      )
+      tr <- traceId.ask
+      now <- IO(Instant.now)
+      _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfig, Some(tr)), now)
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe 'defined
+      updatedRuntime.get.asyncRuntimeFields shouldBe 'defined
+      updatedRuntime.get.asyncRuntimeFields.get.stagingBucket.value should startWith("leostaging")
+      updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
+      updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
+      updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "target"
+      updatedRuntime.get.runtimeImages.map(_.imageType) should contain(Custom)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle DeleteRuntimeMessage and delete cluster" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, Some(tr)), now)
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe 'defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Deleting
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "not handle DeleteRuntimeMessage when cluster is not in Deleting status" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+      message = DeleteRuntimeMessage(runtime.id, Some(tr))
+      attempt <- leoSubscriber.messageResponder(message, now).attempt
+    } yield {
+      attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle StopRuntimeMessage and stop cluster" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopping).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr)), now)
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe 'defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "not handle StopRuntimeMessage when cluster is not in Stopping status" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+      message = StopRuntimeMessage(runtime.id, Some(tr))
+      attempt <- leoSubscriber.messageResponder(message, now).attempt
+    } yield {
+      attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle StartRuntimeMessage and start cluster" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr)), now)
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe 'defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Starting
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "not handle StartRuntimeMessage when cluster is not in Starting status" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+      message = StartRuntimeMessage(runtime.id, Some(tr))
+      attempt <- leoSubscriber.messageResponder(message, now).attempt
+    } yield {
+      attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
+    }
+
+    res.unsafeRunSync()
   }
 
   "LeoPubsubMessageSubscriber messageResponder" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
@@ -300,9 +440,7 @@ class LeoPubsubMessageSubscriberSpec
 
     leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
 
-    //we should consume the followup data and clean up the db
-    val postStorage = dbRef.inTransaction(followupQuery.getFollowupAction(followupDetails)).unsafeRunSync()
-    postStorage shouldBe None
+    //we should consume the followup data
 
     eventually {
       dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.status shouldBe RuntimeStatus.Starting

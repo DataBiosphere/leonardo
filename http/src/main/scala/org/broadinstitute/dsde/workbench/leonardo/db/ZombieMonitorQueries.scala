@@ -26,7 +26,8 @@ object ZombieMonitorQueries {
               c._1.clusterName,
               RuntimeStatus.withName(c._1.status),
               c._1.auditInfo,
-              c._2.get.runtimeConfig.cloudService) // .get here should be okay since every cluster record in database should have a runtimeConfig
+              c._2.get.runtimeConfig.cloudService
+            ) // .get here should be okay since every cluster record in database should have a runtimeConfig
           )
         )
       }

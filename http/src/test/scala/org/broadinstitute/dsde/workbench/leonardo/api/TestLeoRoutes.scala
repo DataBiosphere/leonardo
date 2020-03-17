@@ -203,9 +203,9 @@ trait TestLeoRoutes {
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r
 
-  private[api] def validateCookie(setCookie: Option[`Set-Cookie`],
-                                  expectedCookie: HttpCookiePair = tokenCookie,
-                                  age: Long = tokenAge): Unit = {
+  protected def validateCookie(setCookie: Option[`Set-Cookie`],
+                               expectedCookie: HttpCookiePair = tokenCookie,
+                               age: Long = tokenAge): Unit = {
     setCookie shouldBe 'defined
     val cookie = setCookie.get.cookie
     cookie.name shouldBe expectedCookie.name
@@ -218,9 +218,9 @@ trait TestLeoRoutes {
 
   // TODO: remove when we upgrade to akka-http 10.2.0.
   // See comment in CookieHelper.setTokenCookie.
-  private[api] def validateRawCookie(setCookie: Option[HttpHeader],
-                                     expectedCookie: HttpCookiePair = tokenCookie,
-                                     age: Long = tokenAge): Unit = {
+  protected def validateRawCookie(setCookie: Option[HttpHeader],
+                                  expectedCookie: HttpCookiePair = tokenCookie,
+                                  age: Long = tokenAge): Unit = {
     setCookie shouldBe 'defined
     setCookie.get.name shouldBe "Set-Cookie"
 
