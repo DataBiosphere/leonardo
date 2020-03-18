@@ -10,10 +10,6 @@ If you would like to see what we are working you can visit our [active sprint](h
 
 Swagger API documentation: https://notebooks.firecloud.org/
 
-## Configurability
-
-Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo is pluggable.
-
 ### Authorization provider
 
 Leo provides two modes of authorization out of the box:
