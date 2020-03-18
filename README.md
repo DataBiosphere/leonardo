@@ -10,9 +10,6 @@ If you would like to see what we are working you can visit our [active sprint](h
 
 Swagger API documentation: https://notebooks.firecloud.org/
 
-## Project status
-This project is under active development. It is not yet ready for independent production deployment. See the [roadmap](https://github.com/DataBiosphere/leonardo/wiki#roadmap) section of the wiki for details.
-
 ## Configurability
 
 Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo is pluggable.
