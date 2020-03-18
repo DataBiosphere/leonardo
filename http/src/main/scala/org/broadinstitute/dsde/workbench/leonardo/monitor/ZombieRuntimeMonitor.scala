@@ -113,7 +113,9 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     if (runtime.status == RuntimeStatus.Creating && milliSecondsSinceClusterCreation < config.creationHangTolerance.toMillis) {
       F.pure(true)
     } else {
-      runtime.cloudService.interpreter.getRuntimeStatus(GetRuntimeStatusParams(runtime.googleProject, runtime.runtimeName, Some(config.gceZoneName))).map(_.isActive)
+      runtime.cloudService.interpreter
+        .getRuntimeStatus(GetRuntimeStatusParams(runtime.googleProject, runtime.runtimeName, Some(config.gceZoneName)))
+        .map(_.isActive)
         .recoverWith {
           case e =>
             logger

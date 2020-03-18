@@ -476,7 +476,7 @@ class ClusterMonitorActor(
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] =
     for {
-    // TODO: maybe this can be replaced with `.getRuntimeStatus` on `RuntimeAlgebra`
+      // TODO: maybe this can be replaced with `.getRuntimeStatus` on `RuntimeAlgebra`
       googleStatus <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
         case CloudService.GCE =>
           googleComputeService
@@ -490,11 +490,12 @@ class ClusterMonitorActor(
             }
         case CloudService.Dataproc =>
           IO.fromFuture(
-            IO(
-              gdDAO.getClusterStatus(runtimeAndRuntimeConfig.runtime.googleProject,
-                                     runtimeAndRuntimeConfig.runtime.runtimeName)
+              IO(
+                gdDAO.getClusterStatus(runtimeAndRuntimeConfig.runtime.googleProject,
+                                       runtimeAndRuntimeConfig.runtime.runtimeName)
+              )
             )
-          ).map(s => s.fold[RuntimeStatus](RuntimeStatus.Deleted)(RuntimeStatus.fromDataprocClusterStatus))
+            .map(s => s.fold[RuntimeStatus](RuntimeStatus.Deleted)(RuntimeStatus.fromDataprocClusterStatus))
       }
 
       dataprocInstances <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {

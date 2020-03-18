@@ -14,7 +14,13 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.dataproc.Dataproc
-import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, Operation => DataprocOperation, ClusterStatus => _, _}
+import com.google.api.services.dataproc.model.{
+  Cluster => DataprocCluster,
+  ClusterConfig => DataprocClusterConfig,
+  Operation => DataprocOperation,
+  ClusterStatus => _,
+  _
+}
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
@@ -96,7 +102,8 @@ class HttpGoogleDataprocDAO(
     }.handleGoogleException(googleProject, clusterName)
   }
 
-  override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] = {
+  override def getClusterStatus(googleProject: GoogleProject,
+                                clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       status <- OptionT.fromOption[Future](

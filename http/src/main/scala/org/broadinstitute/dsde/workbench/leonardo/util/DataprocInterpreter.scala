@@ -198,10 +198,12 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     }
   }
 
-  override def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus] =
+  override def getRuntimeStatus(
+    params: GetRuntimeStatusParams
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus] =
     Async[F].liftIO(IO.fromFuture(IO(gdDAO.getClusterStatus(params.googleProject, params.runtimeName)))).map {
       clusterStatusOpt =>
-        clusterStatusOpt.fold[RuntimeStatus](RuntimeStatus.Unknown)(RuntimeStatus.fromDataprocClusterStatus)
+        clusterStatusOpt.fold[RuntimeStatus](RuntimeStatus.Deleted)(RuntimeStatus.fromDataprocClusterStatus)
     }
 
   override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =

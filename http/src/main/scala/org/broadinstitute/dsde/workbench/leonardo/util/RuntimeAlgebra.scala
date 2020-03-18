@@ -5,7 +5,17 @@ import java.time.Instant
 
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, GceConfig, GoogleGroupsConfig, ImageConfig, MonitorConfig, ProxyConfig, WelderConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  ClusterFilesConfig,
+  ClusterResourcesConfig,
+  DataprocConfig,
+  GceConfig,
+  GoogleGroupsConfig,
+  ImageConfig,
+  MonitorConfig,
+  ProxyConfig,
+  WelderConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, ServiceAccountKey}
@@ -66,7 +76,9 @@ final case class CreateRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                        initBucket: GcsBucketName,
                                        serviceAccountKey: Option[ServiceAccountKey],
                                        customImage: CustomImage)
-final case class GetRuntimeStatusParams(googleProject: GoogleProject, runtimeName: RuntimeName, zoneName: Option[ZoneName]) // zoneName is only needed for GCE
+final case class GetRuntimeStatusParams(googleProject: GoogleProject,
+                                        runtimeName: RuntimeName,
+                                        zoneName: Option[ZoneName]) // zoneName is only needed for GCE
 final case class DeleteRuntimeParams(runtime: Runtime)
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)

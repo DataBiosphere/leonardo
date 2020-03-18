@@ -78,38 +78,36 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   case object Creating extends RuntimeStatus // dataproc
   case object Running extends RuntimeStatus // dataproc, gce
   case object Updating extends RuntimeStatus // dataproc
-  case object Error extends RuntimeStatus  // dataproc
-  case object Deleting extends RuntimeStatus  // dataproc
+  case object Error extends RuntimeStatus // dataproc
+  case object Deleting extends RuntimeStatus // dataproc
 
   case object Unknown extends RuntimeStatus //leo, dataproc
   case object Stopping extends RuntimeStatus // leo, gce
   case object Stopped extends RuntimeStatus // leo, gce
   case object Starting extends RuntimeStatus // leo
-  case object Deleted extends RuntimeStatus  // leo
+  case object Deleted extends RuntimeStatus // leo
 
-  def fromDataprocClusterStatus(dataprocClusterStatus: DataprocClusterStatus): RuntimeStatus = {
+  def fromDataprocClusterStatus(dataprocClusterStatus: DataprocClusterStatus): RuntimeStatus =
     dataprocClusterStatus match {
       case DataprocClusterStatus.Creating => Creating
       case DataprocClusterStatus.Deleting => Deleting
-      case DataprocClusterStatus.Error => Error
-      case DataprocClusterStatus.Running => Running
-      case DataprocClusterStatus.Unknown => Unknown
+      case DataprocClusterStatus.Error    => Error
+      case DataprocClusterStatus.Running  => Running
+      case DataprocClusterStatus.Unknown  => Unknown
       case DataprocClusterStatus.Updating => Updating
     }
-  }
 
-  def fromGceInstanceStatus(dataprocClusterStatus: InstanceStatus): RuntimeStatus = {
+  def fromGceInstanceStatus(dataprocClusterStatus: InstanceStatus): RuntimeStatus =
     dataprocClusterStatus match {
       case InstanceStatus.Provisioning => Creating
-      case InstanceStatus.Staging => Creating
-      case InstanceStatus.Running => Running
-      case InstanceStatus.Stopping => Stopping
-      case InstanceStatus.Stopped => Stopped
-      case InstanceStatus.Suspending => Stopping
-      case InstanceStatus.Suspended => Stopped
-      case InstanceStatus.Terminated => Stopped
+      case InstanceStatus.Staging      => Creating
+      case InstanceStatus.Running      => Running
+      case InstanceStatus.Stopping     => Stopping
+      case InstanceStatus.Stopped      => Stopped
+      case InstanceStatus.Suspending   => Stopping
+      case InstanceStatus.Suspended    => Stopped
+      case InstanceStatus.Terminated   => Stopped
     }
-  }
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[RuntimeStatus] =
     Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)

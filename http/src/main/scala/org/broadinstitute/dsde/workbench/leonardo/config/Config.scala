@@ -20,7 +20,10 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomIma
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{DataprocInterpreterConfig, GceInterpreterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -337,19 +340,19 @@ object Config {
     PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic, retryConfig)
 
   val dataprocInterpreterConfig = DataprocInterpreterConfig(dataprocConfig,
-    googleGroupsConfig,
-    welderConfig,
-    imageConfig,
-    proxyConfig,
-    clusterResourcesConfig,
-    clusterFilesConfig,
-    monitorConfig)
+                                                            googleGroupsConfig,
+                                                            welderConfig,
+                                                            imageConfig,
+                                                            proxyConfig,
+                                                            clusterResourcesConfig,
+                                                            clusterFilesConfig,
+                                                            monitorConfig)
 
   val gceInterpreterConfig = GceInterpreterConfig(gceConfig,
-    welderConfig,
-    imageConfig,
-    proxyConfig,
-    clusterResourcesConfig,
-    clusterFilesConfig,
-    monitorConfig)
+                                                  welderConfig,
+                                                  imageConfig,
+                                                  proxyConfig,
+                                                  clusterResourcesConfig,
+                                                  clusterFilesConfig,
+                                                  monitorConfig)
 }
