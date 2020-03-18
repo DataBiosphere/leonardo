@@ -6,14 +6,9 @@ Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com
 
 For more information and an overview, see the [wiki](https://github.com/broadinstitute/leonardo/wiki).
 
+We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
+
 Swagger API documentation: https://notebooks.firecloud.org/
-
-## Project status
-This project is under active development. It is not yet ready for independent production deployment. See the [roadmap](https://github.com/DataBiosphere/leonardo/wiki#roadmap) section of the wiki for details.
-
-## Configurability
-
-Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo is pluggable.
 
 ### Authorization provider
 
