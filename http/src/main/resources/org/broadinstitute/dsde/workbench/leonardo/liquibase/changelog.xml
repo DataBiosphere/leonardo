@@ -41,4 +41,5 @@
     <include file="changesets/20200123_populate_date_accessed.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200305_move_properties_to_runtime_config.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200309_change_google_id_type.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200317_fix_custom_image_type.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
