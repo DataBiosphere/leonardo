@@ -6,6 +6,8 @@ Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com
 
 For more information and an overview, see the [wiki](https://github.com/broadinstitute/leonardo/wiki).
 
+If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account, but it is open to the public.
+
 Swagger API documentation: https://notebooks.firecloud.org/
 
 ## Project status
