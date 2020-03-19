@@ -142,25 +142,33 @@ apt-get install -y -q dpkg-dev
 python_version=$(python3 --version)
 log "Using $python_version packaged in the base (Debian 9) image..."
 
-# Installing Ansible
-log "Installing Ansible ${ansible_version:?}..."
-apt-get install -y python3-pip
-pip3 install paramiko
-pip3 install "ansible==${ansible_version}"
+## Installing Ansible
+#log "Installing Ansible ${ansible_version:?}..."
+#apt-get install -y python3-pip
+#pip3 install paramiko
+#pip3 install "ansible==${ansible_version}"
+#
+## Download playbook requirements and config files
+#log "Downloading Ansible playbook files..."
+#daisy_sources_path=$(curl --silent -H "$vm_metadata_google_header" "$daisy_sources_metadata_url")
+#gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_requirements_file}" .
+#gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_config_file}" .
+#
+## Install Ansible role via Ansible Galaxy
+#apt-get install -y git
+#ansible-galaxy install -p roles -r cis_hardening_playbook_requirements.yml
+#
+## Run CIS hardening
+#log "Running Ansible CIS hardening playbook..."
+#ansible-playbook cis_hardening_playbook_config.yml
 
-# Download playbook requirements and config files
-log "Downloading Ansible playbook files..."
-daisy_sources_path=$(curl --silent -H "$vm_metadata_google_header" "$daisy_sources_metadata_url")
-gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_requirements_file}" .
-gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_config_file}" .
-
-# Install Ansible role via Ansible Galaxy
-apt-get install -y git
-ansible-galaxy install -p roles -r cis_hardening_playbook_requirements.yml
+# Specify the commit hash as playbook version for CIS-hardening the image
+cis_hardening_version="2d70c16"
 
 # Run CIS hardening
-log "Running Ansible CIS hardening playbook..."
-ansible-playbook cis_hardening_playbook_config.yml
+git clone https://github.com/broadinstitute/CIS-harden-images.git
+git -C CIS-harden-images/ checkout "${cis_hardening_version:?}"
+CIS-harden-image/harden-images.sh
 
 log 'Installing Docker...'
 
