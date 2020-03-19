@@ -1098,7 +1098,7 @@ class LeonardoServiceSpec
     // the ClusterMonitorActor is what updates instance status
     val instances = dbFutureValue { instanceQuery.getAllForCluster(getClusterId(getClusterKey)) }
     instances.size shouldBe 3
-    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+    instances.map(_.status).toSet shouldBe Set(GceInstanceStatus.Running)
 
     // Google instances should be stopped
     // TODO
@@ -1549,7 +1549,7 @@ class LeonardoServiceSpec
 
     // populate some instances for the cluster and set its status to Stopped
     val clusterInstances =
-      Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))
+      Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = GceInstanceStatus.Stopped))
     dbFutureValue { instanceQuery.saveAllForCluster(getClusterId(getClusterKey), clusterInstances) }
     dbFutureValue { clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Stopped, Instant.now) }
     // TODO
@@ -1568,7 +1568,7 @@ class LeonardoServiceSpec
       instanceQuery.getAllForCluster(getClusterId(getClusterKey))
     }
     instances.size shouldBe 3
-    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
+    instances.map(_.status).toSet shouldBe Set(GceInstanceStatus.Stopped)
 
     // Google instances should be started
     // TODO

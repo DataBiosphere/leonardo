@@ -48,10 +48,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -101,14 +97,7 @@ object Boot extends IOApp {
       val vpcHelper =
         new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
 
-      val dataprocInterp = new DataprocInterpreter(DataprocInterpreterConfig(dataprocConfig,
-                                                                             googleGroupsConfig,
-                                                                             welderConfig,
-                                                                             imageConfig,
-                                                                             proxyConfig,
-                                                                             clusterResourcesConfig,
-                                                                             clusterFilesConfig,
-                                                                             monitorConfig),
+      val dataprocInterp = new DataprocInterpreter(dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcHelper,
                                                    appDependencies.googleDataprocDAO,
@@ -119,13 +108,7 @@ object Boot extends IOApp {
                                                    appDependencies.welderDAO,
                                                    appDependencies.blocker)
 
-      val gceInterp = new GceInterpreter(GceInterpreterConfig(gceConfig,
-                                                              welderConfig,
-                                                              imageConfig,
-                                                              proxyConfig,
-                                                              clusterResourcesConfig,
-                                                              clusterFilesConfig,
-                                                              monitorConfig),
+      val gceInterp = new GceInterpreter(gceInterpreterConfig,
                                          bucketHelper,
                                          vpcHelper,
                                          appDependencies.googleComputeService,
@@ -209,10 +192,7 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
 
-      val zombieClusterMonitor = ZombieClusterMonitor[IO](zombieClusterMonitorConfig,
-                                                          appDependencies.googleDataprocDAO,
-                                                          appDependencies.googleComputeService,
-                                                          appDependencies.googleProjectDAO)
+      val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieClusterMonitorConfig, appDependencies.googleProjectDAO)
 
       val httpRoutes = new HttpRoutes(swaggerConfig,
                                       statusService,

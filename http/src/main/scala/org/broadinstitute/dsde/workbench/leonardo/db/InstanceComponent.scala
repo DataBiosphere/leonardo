@@ -93,7 +93,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
   )(implicit ec: ExecutionContext): DBIO[Option[DataprocInstance]] =
     instanceByKeyQuery(instanceKey).result.map { _.headOption.map(unmarshalInstance) }
 
-  def updateStatusAndIpForCluster(clusterId: Long, newStatus: InstanceStatus, newIp: Option[IP]) =
+  def updateStatusAndIpForCluster(clusterId: Long, newStatus: GceInstanceStatus, newIp: Option[IP]) =
     instanceQuery
       .filter { _.clusterId === clusterId }
       .map(inst => (inst.status, inst.ip))
@@ -121,7 +121,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
         InstanceName(record.name)
       ),
       record.googleId.toBigInt,
-      InstanceStatus.withName(record.status),
+      GceInstanceStatus.withName(record.status),
       record.ip map IP,
       record.dataprocRole.map(DataprocRole.withName).getOrElse(throw new Exception("dataproc role is null")),
       record.createdDate.toInstant

@@ -14,11 +14,10 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName}
-import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.config.ZombieRuntimeMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.util.{GetRuntimeStatusParams, RuntimeInstances}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
@@ -28,17 +27,16 @@ import scala.concurrent.ExecutionContext
 /**
  * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
  */
-class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
-  config: ZombieClusterConfig,
-  gdDAO: GoogleDataprocDAO,
-  gce: GoogleComputeService[F],
+class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
+  config: ZombieRuntimeMonitorConfig,
   googleProjectDAO: GoogleProjectDAO
 )(implicit F: Concurrent[F],
   metrics: NewRelicMetrics[F],
   logger: Logger[F],
   dbRef: DbReference[F],
   ec: ExecutionContext,
-  cs: ContextShift[IO]) {
+  cs: ContextShift[IO],
+  runtimes: RuntimeInstances[F]) {
 
   val process: Stream[F, Unit] =
     (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(zombieCheck)).repeat
@@ -115,20 +113,9 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
     if (runtime.status == RuntimeStatus.Creating && milliSecondsSinceClusterCreation < config.creationHangTolerance.toMillis) {
       F.pure(true)
     } else {
-      val runtimeStatus: F[RuntimeStatus] = runtime.cloudService match {
-        case CloudService.GCE =>
-          gce.getInstance(runtime.googleProject, config.gceZoneName, InstanceName(runtime.runtimeName.asString)).map {
-            instance =>
-              instance
-                .flatMap(s => RuntimeStatus.withNameInsensitiveOption(s.getStatus))
-                .getOrElse(RuntimeStatus.Unknown)
-          }
-        case CloudService.Dataproc =>
-          F.liftIO(IO.fromFuture(IO(gdDAO.getClusterStatus(runtime.googleProject, runtime.runtimeName))))
-      }
-
-      runtimeStatus
-        .map(RuntimeStatus.activeStatuses contains)
+      runtime.cloudService.interpreter
+        .getRuntimeStatus(GetRuntimeStatusParams(runtime.googleProject, runtime.runtimeName, Some(config.gceZoneName)))
+        .map(_.isActive)
         .recoverWith {
           case e =>
             logger
@@ -159,17 +146,16 @@ class ZombieClusterMonitor[F[_]: Parallel: ContextShift: Timer](
     } yield ()
 }
 
-object ZombieClusterMonitor {
+object ZombieRuntimeMonitor {
   def apply[F[_]: Parallel: ContextShift: Timer](
-    config: ZombieClusterConfig,
-    gdDAO: GoogleDataprocDAO,
-    gce: GoogleComputeService[F],
+    config: ZombieRuntimeMonitorConfig,
     googleProjectDAO: GoogleProjectDAO
   )(implicit F: Concurrent[F],
     metrics: NewRelicMetrics[F],
     logger: Logger[F],
     dbRef: DbReference[F],
     ec: ExecutionContext,
-    cs: ContextShift[IO]): ZombieClusterMonitor[F] =
-    new ZombieClusterMonitor(config, gdDAO, gce, googleProjectDAO)
+    cs: ContextShift[IO],
+    runtimes: RuntimeInstances[F]): ZombieRuntimeMonitor[F] =
+    new ZombieRuntimeMonitor(config, googleProjectDAO)
 }

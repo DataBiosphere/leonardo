@@ -82,7 +82,7 @@ object CommonTestData {
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-  val zombieClusterConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
+  val zombieClusterConfig = config.as[ZombieRuntimeMonitorConfig]("zombieClusterMonitor")
   val clusterToolConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val proxyUrlBase = proxyConfig.proxyUrlBase
@@ -267,7 +267,7 @@ object CommonTestData {
   val masterInstance = DataprocInstance(
     DataprocInstanceKey(project, ZoneName("my-zone"), InstanceName("master-instance")),
     googleId = BigInt(12345),
-    status = InstanceStatus.Running,
+    status = GceInstanceStatus.Running,
     ip = Some(IP("1.2.3.4")),
     dataprocRole = DataprocRole.Master,
     createdDate = Instant.now()
@@ -276,7 +276,7 @@ object CommonTestData {
   val workerInstance1 = DataprocInstance(
     DataprocInstanceKey(project, ZoneName("my-zone"), InstanceName("worker-instance-1")),
     googleId = BigInt(23456),
-    status = InstanceStatus.Running,
+    status = GceInstanceStatus.Running,
     ip = Some(IP("1.2.3.5")),
     dataprocRole = DataprocRole.Worker,
     createdDate = Instant.now()
@@ -285,7 +285,7 @@ object CommonTestData {
   val workerInstance2 = DataprocInstance(
     DataprocInstanceKey(project, ZoneName("my-zone"), InstanceName("worker-instance-2")),
     googleId = BigInt(34567),
-    status = InstanceStatus.Running,
+    status = GceInstanceStatus.Running,
     ip = Some(IP("1.2.3.6")),
     dataprocRole = DataprocRole.Worker,
     createdDate = Instant.now()

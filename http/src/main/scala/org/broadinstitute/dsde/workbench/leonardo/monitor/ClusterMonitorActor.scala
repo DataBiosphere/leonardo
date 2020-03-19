@@ -476,34 +476,23 @@ class ClusterMonitorActor(
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] =
     for {
-      googleStatus <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-        case CloudService.GCE =>
-          googleComputeService
-            .getInstance(runtimeAndRuntimeConfig.runtime.googleProject,
-                         gceConfig.zoneName,
-                         InstanceName(runtimeAndRuntimeConfig.runtime.runtimeName.asString))
-            .map { instanceOpt =>
-              instanceOpt.fold[RuntimeStatus](RuntimeStatus.Deleted)(
-                instance => RuntimeStatus.withNameInsensitiveOption(instance.getStatus).getOrElse(RuntimeStatus.Unknown)
-              )
-            }
-        case CloudService.Dataproc =>
-          IO.fromFuture(
-            IO(
-              gdDAO.getClusterStatus(runtimeAndRuntimeConfig.runtime.googleProject,
-                                     runtimeAndRuntimeConfig.runtime.runtimeName)
-            )
+      googleStatus <- runtimeAndRuntimeConfig.runtimeConfig.cloudService
+        .interpreter[IO]
+        .getRuntimeStatus(
+          GetRuntimeStatusParams(
+            runtimeAndRuntimeConfig.runtime.googleProject,
+            runtimeAndRuntimeConfig.runtime.runtimeName,
+            Some(gceConfig.zoneName)
           )
-      }
-
+        )
       dataprocInstances <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
         case CloudService.GCE      => IO.pure(Set.empty[DataprocInstance])
         case CloudService.Dataproc => getDataprocInstances(runtimeAndRuntimeConfig.runtime)
       }
 
-      runningInstanceCount = dataprocInstances.count(_.status == InstanceStatus.Running)
+      runningInstanceCount = dataprocInstances.count(_.status == GceInstanceStatus.Running)
       stoppedInstanceCount = dataprocInstances.count(
-        i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated
+        i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated
       )
 
       result <- googleStatus match {
@@ -667,7 +656,7 @@ class ClusterMonitorActor(
                 DataprocInstance(
                   key,
                   BigInt(instance.getId),
-                  InstanceStatus.withNameInsensitive(instance.getStatus),
+                  GceInstanceStatus.withNameInsensitive(instance.getStatus),
                   getInstanceIP(instance),
                   role,
                   parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(now)

@@ -134,7 +134,7 @@ class ClusterMonitorSpec
   implicit val monitorPat = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(2, Seconds)))
   implicit val nr = FakeNewRelicMetricsInterpreter
 
-  def stubComputeService(status: InstanceStatus): GoogleComputeService[IO] = {
+  def stubComputeService(status: GceInstanceStatus): GoogleComputeService[IO] = {
     val service = mock[GoogleComputeService[IO]]
 
     List(masterInstance,
@@ -321,7 +321,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -338,7 +338,7 @@ class ClusterMonitorSpec
                                     RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
 
-    val computeService = stubComputeService(InstanceStatus.Running)
+    val computeService = stubComputeService(GceInstanceStatus.Running)
 
     val projectDAO = mock[GoogleProjectDAO]
     when {
@@ -409,7 +409,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Creating)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Creating))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -425,7 +425,7 @@ class ClusterMonitorSpec
                           RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
     } thenReturn Future.successful(())
 
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     val projectDAO = mock[GoogleProjectDAO]
     val iamDAO = mock[GoogleIamDAO]
     val storageDAO = mock[GoogleStorageDAO]
@@ -473,7 +473,7 @@ class ClusterMonitorSpec
   // - cluster is not changed in the DB
   // - instances are populated in the DB
   // - monitor actor does not shut down
-  Seq(RuntimeStatus.Creating, RuntimeStatus.Updating, RuntimeStatus.Unknown).foreach { status =>
+  Seq(DataprocClusterStatus.Creating, DataprocClusterStatus.Updating, DataprocClusterStatus.Unknown).foreach { status =>
     it should s"monitor $status status" in isolatedDbTest {
       val savedCreatingCluster = creatingCluster.save()
       creatingCluster shouldEqual savedCreatingCluster.copy(runtimeConfigId = RuntimeConfigId(-1))
@@ -482,14 +482,14 @@ class ClusterMonitorSpec
       when {
         gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                                RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-      } thenReturn Future.successful(status)
+      } thenReturn Future.successful(Some(status))
 
       when {
         gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
                                   RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
       } thenReturn Future.successful(clusterInstances)
 
-      val computeDAO = stubComputeService(InstanceStatus.Running)
+      val computeDAO = stubComputeService(GceInstanceStatus.Running)
       val projectDAO = mock[GoogleProjectDAO]
       val iamDAO = mock[GoogleIamDAO]
       val storageDAO = mock[GoogleStorageDAO]
@@ -543,7 +543,7 @@ class ClusterMonitorSpec
     when {
       dao.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                            RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       dao.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -555,7 +555,7 @@ class ClusterMonitorSpec
                                    RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
     } thenReturn Future.successful(None)
 
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     val iamDAO = mock[GoogleIamDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val storageDAO = mock[GoogleStorageDAO]
@@ -606,7 +606,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Error)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Error))
 
     when {
       gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.asyncRuntimeFields.map(_.operationName)))
@@ -634,7 +634,7 @@ class ClusterMonitorSpec
       iamDAO.removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     } thenReturn Future.successful(())
 
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     val storageDAO = mock[GoogleStorageDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider[IO]]
@@ -684,7 +684,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Error)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Error))
 
     when {
       gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.asyncRuntimeFields.map(_.operationName)))
@@ -712,7 +712,7 @@ class ClusterMonitorSpec
       iamDAO.removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     } thenReturn Future.successful(())
 
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     val storageDAO = mock[GoogleStorageDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider[IO]]
@@ -762,7 +762,7 @@ class ClusterMonitorSpec
     when {
       dao.getClusterStatus(mockitoEq(deletingCluster.googleProject),
                            RuntimeName(mockitoEq(deletingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Deleted)
+    } thenReturn Future.successful(None)
 
     when {
       dao.getClusterInstances(mockitoEq(deletingCluster.googleProject),
@@ -856,18 +856,18 @@ class ClusterMonitorSpec
     val gdDAO = mock[GoogleDataprocDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val storageDAO = mock[GoogleStorageDAO]
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
     } thenReturn {
-      Future.successful(RuntimeStatus.Error)
+      Future.successful(Some(DataprocClusterStatus.Error))
     } thenReturn {
-      Future.successful(RuntimeStatus.Deleted)
+      Future.successful(None)
     } thenReturn {
-      Future.successful(RuntimeStatus.Creating)
+      Future.successful(Some(DataprocClusterStatus.Creating))
     } thenReturn {
-      Future.successful(RuntimeStatus.Running)
+      Future.successful(Some(DataprocClusterStatus.Running))
     }
 
     when {
@@ -1055,14 +1055,14 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(deletingCluster.googleProject),
                              RuntimeName(mockitoEq(deletingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(deletingCluster.googleProject),
                                 RuntimeName(mockitoEq(deletingCluster.runtimeName.asString)))
     } thenReturn Future.successful(clusterInstances)
 
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     val iamDAO = mock[GoogleIamDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val storageDAO = mock[GoogleStorageDAO]
@@ -1108,15 +1108,15 @@ class ClusterMonitorSpec
 
     val gdDAO = mock[GoogleDataprocDAO]
     val projectDAO = mock[GoogleProjectDAO]
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster2.googleProject),
                              RuntimeName(mockitoEq(creatingCluster2.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -1224,13 +1224,13 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject),
                              RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject),
                                 RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
     } thenReturn Future.successful(clusterInstances)
 
-    val computeDAO = stubComputeService(InstanceStatus.Stopped)
+    val computeDAO = stubComputeService(GceInstanceStatus.Stopped)
     val storageDAO = mock[GoogleStorageDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val iamDAO = mock[GoogleIamDAO]
@@ -1279,7 +1279,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(startingCluster.googleProject),
                              RuntimeName(mockitoEq(startingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterInstances(mockitoEq(startingCluster.googleProject),
                                 RuntimeName(mockitoEq(startingCluster.runtimeName.asString)))
@@ -1293,7 +1293,7 @@ class ClusterMonitorSpec
                                     RuntimeName(mockitoEq(startingCluster.runtimeName.asString)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
 
-    val computeDAO = stubComputeService(InstanceStatus.Running)
+    val computeDAO = stubComputeService(GceInstanceStatus.Running)
     val storageDAO = mock[GoogleStorageDAO]
     when {
       storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
@@ -1378,7 +1378,7 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject),
                              RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject),
@@ -1406,7 +1406,7 @@ class ClusterMonitorSpec
           Instance
             .newBuilder()
             .setId(masterInstance.googleId.toString)
-            .setStatus(InstanceStatus.Running.toString)
+            .setStatus(GceInstanceStatus.Running.toString)
             .addNetworkInterfaces(
               NetworkInterface
                 .newBuilder()
@@ -1422,7 +1422,7 @@ class ClusterMonitorSpec
           Instance
             .newBuilder()
             .setId(masterInstance.googleId.toString)
-            .setStatus(InstanceStatus.Stopped.toString)
+            .setStatus(GceInstanceStatus.Stopped.toString)
             .addNetworkInterfaces(
               NetworkInterface
                 .newBuilder()
@@ -1486,7 +1486,7 @@ class ClusterMonitorSpec
         updatedCluster.get.status shouldBe RuntimeStatus.Stopped
         updatedCluster.flatMap(_.asyncRuntimeFields.flatMap(_.hostIp)) shouldBe None
         updatedCluster.get.dataprocInstances.map(_.key) shouldBe Set(masterInstance.key)
-        updatedCluster.get.dataprocInstances.map(_.status) shouldBe Set(InstanceStatus.Stopped)
+        updatedCluster.get.dataprocInstances.map(_.status) shouldBe Set(GceInstanceStatus.Stopped)
       }
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
@@ -1547,13 +1547,13 @@ class ClusterMonitorSpec
     when {
       gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject),
                              RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
-    } thenReturn Future.successful(RuntimeStatus.Running)
+    } thenReturn Future.successful(Some(DataprocClusterStatus.Running))
     when {
       gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject),
                                 RuntimeName(mockitoEq(stoppingCluster.runtimeName.asString)))
     } thenReturn Future.successful(clusterInstances)
 
-    val computeDAO = stubComputeService(InstanceStatus.Stopped)
+    val computeDAO = stubComputeService(GceInstanceStatus.Stopped)
     val storageDAO = mock[GoogleStorageDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val iamDAO = mock[GoogleIamDAO]
