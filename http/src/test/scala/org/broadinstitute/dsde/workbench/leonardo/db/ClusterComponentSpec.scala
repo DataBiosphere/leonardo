@@ -170,9 +170,9 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val updatedCluster1 = savedCluster1.copy(
       id = savedCluster1.id,
       dataprocInstances = Set(
-        masterInstance.copy(status = InstanceStatus.Provisioning),
-        workerInstance1.copy(status = InstanceStatus.Provisioning),
-        workerInstance2.copy(status = InstanceStatus.Provisioning)
+        masterInstance.copy(status = GceInstanceStatus.Provisioning),
+        workerInstance1.copy(status = GceInstanceStatus.Provisioning),
+        workerInstance2.copy(status = GceInstanceStatus.Provisioning)
       )
     )
 
@@ -180,8 +180,8 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }.get shouldEqual updatedCluster1
 
     val updatedCluster1Again = savedCluster1.copy(
-      dataprocInstances = Set(masterInstance.copy(status = InstanceStatus.Terminated),
-                              workerInstance1.copy(status = InstanceStatus.Terminated))
+      dataprocInstances = Set(masterInstance.copy(status = GceInstanceStatus.Terminated),
+                              workerInstance1.copy(status = GceInstanceStatus.Terminated))
     )
 
     dbFutureValue { clusterQuery.mergeInstances(updatedCluster1Again) } shouldEqual updatedCluster1Again

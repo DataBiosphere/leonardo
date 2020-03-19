@@ -170,7 +170,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         .map { instance =>
           instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(
             s =>
-              InstanceStatus
+              GceInstanceStatus
                 .withNameInsensitiveOption(s.getStatus)
                 .map(RuntimeStatus.fromGceInstanceStatus)
                 .getOrElse(RuntimeStatus.Unknown)

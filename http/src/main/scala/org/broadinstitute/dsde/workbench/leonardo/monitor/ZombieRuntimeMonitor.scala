@@ -14,7 +14,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.ZombieRuntimeMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.{GetRuntimeStatusParams, RuntimeInstances}
@@ -28,7 +28,7 @@ import scala.concurrent.ExecutionContext
  * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
  */
 class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
-  config: ZombieClusterConfig,
+  config: ZombieRuntimeMonitorConfig,
   googleProjectDAO: GoogleProjectDAO
 )(implicit F: Concurrent[F],
   metrics: NewRelicMetrics[F],
@@ -148,7 +148,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
 
 object ZombieRuntimeMonitor {
   def apply[F[_]: Parallel: ContextShift: Timer](
-    config: ZombieClusterConfig,
+    config: ZombieRuntimeMonitorConfig,
     googleProjectDAO: GoogleProjectDAO
   )(implicit F: Concurrent[F],
     metrics: NewRelicMetrics[F],

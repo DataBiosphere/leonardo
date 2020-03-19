@@ -65,7 +65,8 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     Future.successful(())
   }
 
-  override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
+  override def getClusterStatus(googleProject: GoogleProject,
+                                clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
     Future.successful {
       if (clusters.contains(clusterName) && errorClusters.contains(clusterName)) Some(DataprocClusterStatus.Error)
       else if (clusters.contains(clusterName)) Some(DataprocClusterStatus.Running)

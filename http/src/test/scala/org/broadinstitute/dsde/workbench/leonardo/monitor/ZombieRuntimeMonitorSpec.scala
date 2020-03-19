@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, Instance
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocInterpreter, GceInterpreter, RuntimeInstances}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -151,7 +151,8 @@ class ZombieRuntimeMonitorSpec
 
     // stub GoogleDataprocDAO to flag cluster2 as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
+      override def getClusterStatus(googleProject: GoogleProject,
+                                    clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
         Future.successful {
           if (clusterName == savedTestCluster2.runtimeName) {
             None
@@ -182,7 +183,7 @@ class ZombieRuntimeMonitorSpec
   it should "detect zombie gce instance when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
-    // create 2 running clusters in the same project
+    // create a running clusters in the same project
     val runtimeConfig = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
       50
@@ -190,14 +191,12 @@ class ZombieRuntimeMonitorSpec
     val savedTestCluster = testCluster1.saveWithRuntimeConfig(runtimeConfig)
     savedTestCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
-    // stub GoogleDataprocDAO to flag cluster2 as deleted
+    // stub GoogleComputeService to flag runtime as deleted
     val gce = new MockGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Option[Instance]] = {
-        val instance = Instance.newBuilder().setStatus("TERMINATED").build()
-        IO.pure(Some(instance))
-      }
+      ): IO[Option[Instance]] =
+        IO.pure(None)
     }
 
     withZombieMonitor(gce = gce) { () =>
@@ -226,7 +225,8 @@ class ZombieRuntimeMonitorSpec
 
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
+      override def getClusterStatus(googleProject: GoogleProject,
+                                    clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
         Future.successful(None)
     }
 
@@ -273,7 +273,8 @@ class ZombieRuntimeMonitorSpec
     val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
+      override def getClusterStatus(googleProject: GoogleProject,
+                                    clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
         Future.successful(None)
     }
 
@@ -306,7 +307,8 @@ class ZombieRuntimeMonitorSpec
 
     // stub GoogleDataprocDAO to return an error for the bad cluster
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
+      override def getClusterStatus(googleProject: GoogleProject,
+                                    clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
         if (googleProject == clusterBadProject.googleProject && clusterName == clusterBadProject.runtimeName) {
           Future.successful(Some(DataprocClusterStatus.Running))
         } else if (googleProject == badCluster.googleProject && clusterName == badCluster.runtimeName) {
@@ -341,23 +343,11 @@ class ZombieRuntimeMonitorSpec
   private def withZombieMonitor[A](
     gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
     gce: GoogleComputeService[IO] = new MockGoogleComputeService,
-    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO)(validations: () => A): A = {
-    val dataprocInterp = new DataprocInterpreter(dataprocInterpreterConfig,
-      null,
-      null,
-      gdDAO,
-      gce,
-      null,
-      null,
-      null,
-      null,
-      blocker)
-    val gceInterp = new GceInterpreter(gceInterpreterConfig,
-      null,
-      null,
-      gce,
-      null,
-      blocker)
+    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
+  )(validations: () => A): A = {
+    val dataprocInterp =
+      new DataprocInterpreter(dataprocInterpreterConfig, null, null, gdDAO, gce, null, null, null, null, blocker)
+    val gceInterp = new GceInterpreter(gceInterpreterConfig, null, null, gce, null, blocker)
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieClusterConfig, googleProjectDAO)

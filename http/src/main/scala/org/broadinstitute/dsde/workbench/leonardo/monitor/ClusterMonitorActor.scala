@@ -503,9 +503,9 @@ class ClusterMonitorActor(
         case CloudService.Dataproc => getDataprocInstances(runtimeAndRuntimeConfig.runtime)
       }
 
-      runningInstanceCount = dataprocInstances.count(_.status == InstanceStatus.Running)
+      runningInstanceCount = dataprocInstances.count(_.status == GceInstanceStatus.Running)
       stoppedInstanceCount = dataprocInstances.count(
-        i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated
+        i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated
       )
 
       result <- googleStatus match {
@@ -669,7 +669,7 @@ class ClusterMonitorActor(
                 DataprocInstance(
                   key,
                   BigInt(instance.getId),
-                  InstanceStatus.withNameInsensitive(instance.getStatus),
+                  GceInstanceStatus.withNameInsensitive(instance.getStatus),
                   getInstanceIP(instance),
                   role,
                   parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(now)

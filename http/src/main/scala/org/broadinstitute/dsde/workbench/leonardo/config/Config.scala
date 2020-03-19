@@ -305,17 +305,18 @@ object Config {
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
 
-  implicit val zombieClusterConfigValueReader: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
-    ZombieClusterConfig(
-      config.getBoolean("enableZombieClusterMonitor"),
-      toScalaDuration(config.getDuration("pollPeriod")),
-      toScalaDuration(config.getDuration("creationHangTolerance")),
-      config.getInt("concurrency"),
-      gceConfig.zoneName
-    )
+  implicit val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
+    config =>
+      ZombieRuntimeMonitorConfig(
+        config.getBoolean("enableZombieClusterMonitor"),
+        toScalaDuration(config.getDuration("pollPeriod")),
+        toScalaDuration(config.getDuration("creationHangTolerance")),
+        config.getInt("concurrency"),
+        gceConfig.zoneName
+      )
   }
 
-  val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
+  val zombieClusterMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieClusterMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")

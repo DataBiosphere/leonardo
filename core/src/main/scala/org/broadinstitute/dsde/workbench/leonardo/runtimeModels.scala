@@ -72,20 +72,20 @@ object Runtime {
 sealed trait RuntimeStatus extends EnumEntry
 object RuntimeStatus extends Enum[RuntimeStatus] {
   val values = findValues
-  // GCE statuses: PROVISIONING, STAGING, RUNNING, STOPPING, STOPPED, SUSPENDING, SUSPENDED, and TERMINATED
+  // Leonardo defined runtime statuses.
 
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Creating extends RuntimeStatus // dataproc
-  case object Running extends RuntimeStatus // dataproc, gce
-  case object Updating extends RuntimeStatus // dataproc
-  case object Error extends RuntimeStatus // dataproc
-  case object Deleting extends RuntimeStatus // dataproc
+  case object Creating extends RuntimeStatus
+  case object Running extends RuntimeStatus
+  case object Updating extends RuntimeStatus
+  case object Error extends RuntimeStatus
+  case object Deleting extends RuntimeStatus
 
-  case object Unknown extends RuntimeStatus //leo, dataproc
-  case object Stopping extends RuntimeStatus // leo, gce
-  case object Stopped extends RuntimeStatus // leo, gce
-  case object Starting extends RuntimeStatus // leo
-  case object Deleted extends RuntimeStatus // leo
+  case object Unknown extends RuntimeStatus
+  case object Stopping extends RuntimeStatus
+  case object Stopped extends RuntimeStatus
+  case object Starting extends RuntimeStatus
+  case object Deleted extends RuntimeStatus
 
   def fromDataprocClusterStatus(dataprocClusterStatus: DataprocClusterStatus): RuntimeStatus =
     dataprocClusterStatus match {
@@ -97,16 +97,16 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
       case DataprocClusterStatus.Updating => Updating
     }
 
-  def fromGceInstanceStatus(dataprocClusterStatus: InstanceStatus): RuntimeStatus =
+  def fromGceInstanceStatus(dataprocClusterStatus: GceInstanceStatus): RuntimeStatus =
     dataprocClusterStatus match {
-      case InstanceStatus.Provisioning => Creating
-      case InstanceStatus.Staging      => Creating
-      case InstanceStatus.Running      => Running
-      case InstanceStatus.Stopping     => Stopping
-      case InstanceStatus.Stopped      => Stopped
-      case InstanceStatus.Suspending   => Stopping
-      case InstanceStatus.Suspended    => Stopped
-      case InstanceStatus.Terminated   => Stopped
+      case GceInstanceStatus.Provisioning => Creating
+      case GceInstanceStatus.Staging      => Creating
+      case GceInstanceStatus.Running      => Running
+      case GceInstanceStatus.Stopping     => Stopping
+      case GceInstanceStatus.Stopped      => Stopped
+      case GceInstanceStatus.Suspending   => Stopping
+      case GceInstanceStatus.Suspended    => Stopped
+      case GceInstanceStatus.Terminated   => Stopped
     }
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[RuntimeStatus] =
