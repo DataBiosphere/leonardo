@@ -9,10 +9,13 @@ import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.{
+  FirewallRuleName,
   GoogleTopicAdminInterpreter,
   MachineTypeName,
+  NetworkName,
   PublisherConfig,
   RegionName,
+  SubnetworkName,
   SubscriberConfig,
   ZoneName
 }
@@ -24,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
   DataprocInterpreterConfig,
   GceInterpreterConfig
 }
+import org.broadinstitute.dsde.workbench.leonardo.util.VPCInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -371,6 +375,7 @@ object Config {
                                                             welderConfig,
                                                             imageConfig,
                                                             proxyConfig,
+                                                            vpcConfig,
                                                             clusterResourcesConfig,
                                                             clusterFilesConfig,
                                                             monitorConfig)
@@ -379,6 +384,7 @@ object Config {
                                                   welderConfig,
                                                   imageConfig,
                                                   proxyConfig,
+                                                  vpcConfig,
                                                   clusterResourcesConfig,
                                                   clusterFilesConfig,
                                                   monitorConfig)

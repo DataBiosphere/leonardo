@@ -7,14 +7,21 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, InstanceName, MachineTypeName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  InstanceName,
+  MachineTypeName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -49,8 +56,12 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     // TODO clean up on error
     for {
       // Set up VPC and firewall
-      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject))
-      _ <- vpcAlg.setUpProjectFirewalls(SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network))
+      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
+      )
+      _ <- vpcAlg.setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+      )
 
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
@@ -246,10 +257,10 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     } yield RuntimeResourceConstraints(result)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
-                                     subnetwork: SubnetworkName): NetworkInterface = {
+                                     subnetwork: SubnetworkName): NetworkInterface =
     NetworkInterface
       .newBuilder()
       .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, subnetwork))
-      .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build).build
-  }
+      .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build)
+      .build
 }

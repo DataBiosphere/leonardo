@@ -85,8 +85,12 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                               params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
       val ioResult = for {
         // Set up VPC network and firewall
-        (network, subnetwork) <- vpcAlg.setUpProjectNetwork(SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject))
-        _ <- vpcAlg.setUpProjectFirewalls(SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network))
+        (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+          SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
+        )
+        _ <- vpcAlg.setUpProjectFirewalls(
+          SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+        )
 
         resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             params.runtimeConfig.machineType)

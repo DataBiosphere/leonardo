@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   ImageConfig,
   MonitorConfig,
   ProxyConfig,
+  VPCConfig,
   WelderConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage

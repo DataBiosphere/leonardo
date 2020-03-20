@@ -31,7 +31,6 @@ import org.broadinstitute.dsde.workbench.google.{
 }
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
-  FirewallRuleName,
   GoogleComputeService,
   GooglePublisher,
   GoogleStorageService,
@@ -90,7 +89,7 @@ object Boot extends IOApp {
 
       val dataprocInterp = new DataprocInterpreter(dataprocInterpreterConfig,
                                                    bucketHelper,
-        vpcInterp,
+                                                   vpcInterp,
                                                    appDependencies.googleDataprocDAO,
                                                    appDependencies.googleComputeService,
                                                    appDependencies.googleDirectoryDAO,
@@ -101,7 +100,7 @@ object Boot extends IOApp {
 
       val gceInterp = new GceInterpreter(gceInterpreterConfig,
                                          bucketHelper,
-        vpcInterp,
+                                         vpcInterp,
                                          appDependencies.googleComputeService,
                                          appDependencies.welderDAO,
                                          appDependencies.blocker)
@@ -290,7 +289,7 @@ object Boot extends IOApp {
       gdDAO = new HttpGoogleDataprocDAO(applicationConfig.applicationName,
                                         json,
                                         workbenchMetricsBaseName,
-                                        NetworkTag(proxyConfig.networkTag),
+                                        vpcConfig.networkTag,
                                         dataprocConfig.regionName,
                                         dataprocConfig.zoneName)
 

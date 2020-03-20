@@ -7,7 +7,6 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.cloud.compute.v1.Instance
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, NetworkName, RegionName, SubnetworkName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
