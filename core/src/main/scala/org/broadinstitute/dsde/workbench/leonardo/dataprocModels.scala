@@ -7,28 +7,11 @@ import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-/** Dataproc Instance Status
- *  See: https://cloud.google.com/compute/docs/instances/checking-instance-status */
-sealed trait InstanceStatus extends EnumEntry
-object InstanceStatus extends Enum[InstanceStatus] {
-  val values = findValues
-
-  // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Provisioning extends InstanceStatus
-  case object Staging extends InstanceStatus
-  case object Running extends InstanceStatus
-  case object Stopping extends InstanceStatus
-  case object Stopped extends InstanceStatus
-  case object Suspending extends InstanceStatus
-  case object Suspended extends InstanceStatus
-  case object Terminated extends InstanceStatus
-}
-
 /** An instance in a Dataproc cluster */
 case class DataprocInstanceKey(project: GoogleProject, zone: ZoneName, name: InstanceName)
 case class DataprocInstance(key: DataprocInstanceKey,
                             googleId: BigInt,
-                            status: InstanceStatus,
+                            status: GceInstanceStatus,
                             ip: Option[IP],
                             dataprocRole: DataprocRole,
                             createdDate: Instant)
@@ -111,4 +94,22 @@ object PropertyFilePrefix {
   def values: Set[PropertyFilePrefix] = sealerate.values[PropertyFilePrefix]
 
   def stringToObject: Map[String, PropertyFilePrefix] = values.map(v => v.toString -> v).toMap
+}
+
+// Dataproc statuses: https://googleapis.github.io/google-cloud-dotnet/docs/Google.Cloud.Dataproc.V1/api/Google.Cloud.Dataproc.V1.ClusterStatus.Types.State.html
+sealed trait DataprocClusterStatus extends EnumEntry
+object DataprocClusterStatus extends Enum[DataprocClusterStatus] {
+  val values = findValues
+
+  case object Creating extends DataprocClusterStatus // The cluster is being created and set up. It is not ready for use.
+
+  case object Deleting extends DataprocClusterStatus // The cluster is being deleted. It cannot be used.
+
+  case object Error extends DataprocClusterStatus // The cluster encountered an error. It is not ready for use.
+
+  case object Running extends DataprocClusterStatus // The cluster is currently running and healthy. It is ready for use.
+
+  case object Unknown extends DataprocClusterStatus // The cluster state is unknown.
+
+  case object Updating extends DataprocClusterStatus // The cluster is being updated. It continues to accept and process jobs.
 }

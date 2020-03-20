@@ -72,48 +72,61 @@ object Runtime {
 sealed trait RuntimeStatus extends EnumEntry
 object RuntimeStatus extends Enum[RuntimeStatus] {
   val values = findValues
-
-  // Dataproc statuses: https://googleapis.github.io/google-cloud-dotnet/docs/Google.Cloud.Dataproc.V1/api/Google.Cloud.Dataproc.V1.ClusterStatus.Types.State.html
-  // GCE statuses: PROVISIONING, STAGING, RUNNING, STOPPING, STOPPED, SUSPENDING, SUSPENDED, and TERMINATED
+  // Leonardo defined runtime statuses.
 
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Creating extends RuntimeStatus // dataproc
-  case object Running extends RuntimeStatus // dataproc, gce
-  case object Updating extends RuntimeStatus // dataproc
-  case object Error extends RuntimeStatus // dataproc
-  case object Deleting extends RuntimeStatus // dataproc
+  case object Creating extends RuntimeStatus
+  case object Running extends RuntimeStatus
+  case object Updating extends RuntimeStatus
+  case object Error extends RuntimeStatus
+  case object Deleting extends RuntimeStatus
 
-  case object Unknown extends RuntimeStatus //leo, dataproc
-  case object Stopping extends RuntimeStatus // leo, gce
-  case object Stopped extends RuntimeStatus // leo, gce
-  case object Starting extends RuntimeStatus // leo
-  case object Deleted extends RuntimeStatus // leo
+  case object Unknown extends RuntimeStatus
+  case object Stopping extends RuntimeStatus
+  case object Stopped extends RuntimeStatus
+  case object Starting extends RuntimeStatus
+  case object Deleted extends RuntimeStatus
 
-  case object Provisioning extends RuntimeStatus // gce
-  case object Staging extends RuntimeStatus // gce
-  case object Suspending extends RuntimeStatus // gce
-  case object Suspended extends RuntimeStatus // gce
-  case object Terminated extends RuntimeStatus // gce
+  def fromDataprocClusterStatus(dataprocClusterStatus: DataprocClusterStatus): RuntimeStatus =
+    dataprocClusterStatus match {
+      case DataprocClusterStatus.Creating => Creating
+      case DataprocClusterStatus.Deleting => Deleting
+      case DataprocClusterStatus.Error    => Error
+      case DataprocClusterStatus.Running  => Running
+      case DataprocClusterStatus.Unknown  => Unknown
+      case DataprocClusterStatus.Updating => Updating
+    }
 
+  def fromGceInstanceStatus(dataprocClusterStatus: GceInstanceStatus): RuntimeStatus =
+    dataprocClusterStatus match {
+      case GceInstanceStatus.Provisioning => Creating
+      case GceInstanceStatus.Staging      => Creating
+      case GceInstanceStatus.Running      => Running
+      case GceInstanceStatus.Stopping     => Stopping
+      case GceInstanceStatus.Stopped      => Stopped
+      case GceInstanceStatus.Suspending   => Stopping
+      case GceInstanceStatus.Suspended    => Stopped
+      case GceInstanceStatus.Terminated   => Stopped
+    }
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[RuntimeStatus] =
-    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting, Staging, Provisioning)
+    Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
 
   // Can a user delete this runtime? Contains everything except Creating, Deleting, Deleted.
   val deletableStatuses: Set[RuntimeStatus] =
-    Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting, Suspending, Terminated, Suspending)
+    Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting)
 
   // Non-terminal statuses. Requires monitoring via ClusterMonitorActor.
   val monitoredStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)
 
   // Can a user stop this runtime?
-  val stoppableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Starting, Provisioning)
+  val stoppableStatuses: Set[RuntimeStatus] = Set(Unknown, Running, Updating, Starting)
 
   // Can a user start this runtime?
-  val startableStatuses: Set[RuntimeStatus] = Set(Stopped, Stopping, Suspending, Suspended)
+  val startableStatuses: Set[RuntimeStatus] = Set(Stopped, Stopping)
 
   // Can a user update (i.e. resize) this runtime?
-  val updatableStatuses: Set[RuntimeStatus] = Set(Running, Stopped, Suspended)
+  val updatableStatuses: Set[RuntimeStatus] = Set(Running, Stopped)
 
   implicit class EnrichedRuntimeStatus(status: RuntimeStatus) {
     def isActive: Boolean = activeStatuses contains status

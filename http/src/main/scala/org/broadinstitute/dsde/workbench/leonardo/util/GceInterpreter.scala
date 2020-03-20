@@ -158,6 +158,26 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                               None)
     } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
 
+  override def getRuntimeStatus(
+    params: GetRuntimeStatusParams
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus] =
+    for {
+      zoneName <- Async[F].fromEither(
+        params.zoneName.toRight(new Exception("Missing zone name for getting GCE runtime status"))
+      )
+      status <- googleComputeService
+        .getInstance(params.googleProject, zoneName, InstanceName(params.runtimeName.asString))
+        .map { instance =>
+          instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(
+            s =>
+              GceInstanceStatus
+                .withNameInsensitiveOption(s.getStatus)
+                .map(RuntimeStatus.fromGceInstanceStatus)
+                .getOrElse(RuntimeStatus.Unknown)
+          )
+        }
+    } yield status
+
   override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =

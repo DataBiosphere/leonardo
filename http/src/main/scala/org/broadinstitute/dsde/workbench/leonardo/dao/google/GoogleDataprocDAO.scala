@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao.google
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
+package google
 
 import java.time.Instant
 import java.util.UUID
@@ -6,7 +8,6 @@ import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 
@@ -23,7 +24,7 @@ trait GoogleDataprocDAO {
 
   def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName): Future[Unit]
 
-  def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus]
+  def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocClusterStatus]]
 
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 

@@ -36,7 +36,6 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
 
 class HttpGoogleDataprocDAO(
   appName: String,
@@ -103,15 +102,16 @@ class HttpGoogleDataprocDAO(
     }.handleGoogleException(googleProject, clusterName)
   }
 
-  override def getClusterStatus(googleProject: GoogleProject, clusterName: RuntimeName): Future[RuntimeStatus] = {
+  override def getClusterStatus(googleProject: GoogleProject,
+                                clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
-      status <- OptionT.pure[Future](
-        Try(RuntimeStatus.withNameInsensitive(cluster.getStatus.getState)).toOption.getOrElse(RuntimeStatus.Unknown)
+      status <- OptionT.fromOption[Future](
+        DataprocClusterStatus.withNameInsensitiveOption(cluster.getStatus.getState)
       )
     } yield status
 
-    transformed.value.map(_.getOrElse(RuntimeStatus.Deleted)).handleGoogleException(googleProject, clusterName)
+    transformed.value.handleGoogleException(googleProject, clusterName)
   }
 
   override def listClusters(googleProject: GoogleProject): Future[List[UUID]] = {

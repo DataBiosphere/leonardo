@@ -20,6 +20,10 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomIma
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -301,17 +305,18 @@ object Config {
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
 
-  implicit val zombieClusterConfigValueReader: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
-    ZombieClusterConfig(
-      config.getBoolean("enableZombieClusterMonitor"),
-      toScalaDuration(config.getDuration("pollPeriod")),
-      toScalaDuration(config.getDuration("creationHangTolerance")),
-      config.getInt("concurrency"),
-      gceConfig.zoneName
-    )
+  implicit val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
+    config =>
+      ZombieRuntimeMonitorConfig(
+        config.getBoolean("enableZombieClusterMonitor"),
+        toScalaDuration(config.getDuration("pollPeriod")),
+        toScalaDuration(config.getDuration("creationHangTolerance")),
+        config.getInt("concurrency"),
+        gceConfig.zoneName
+      )
   }
 
-  val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
+  val zombieClusterMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieClusterMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
@@ -334,4 +339,21 @@ object Config {
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
   val publisherConfig: PublisherConfig =
     PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic, retryConfig)
+
+  val dataprocInterpreterConfig = DataprocInterpreterConfig(dataprocConfig,
+                                                            googleGroupsConfig,
+                                                            welderConfig,
+                                                            imageConfig,
+                                                            proxyConfig,
+                                                            clusterResourcesConfig,
+                                                            clusterFilesConfig,
+                                                            monitorConfig)
+
+  val gceInterpreterConfig = GceInterpreterConfig(gceConfig,
+                                                  welderConfig,
+                                                  imageConfig,
+                                                  proxyConfig,
+                                                  clusterResourcesConfig,
+                                                  clusterFilesConfig,
+                                                  monitorConfig)
 }
