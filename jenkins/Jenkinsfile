@@ -342,13 +342,19 @@ pipeline {
             }
     }
 
+    stage('Init git submodules') {
+        when { expression { !shouldAbortBuild } }
+        steps {
+            sh """
+                git submodule update --init --recursive
+            """
+        }
+    }
+
     stage('Run image generation scripts') {
         when { expression { !shouldAbortBuild } }
             // Fail the pipeline if any of the parallel branches (that build the Dataproc and GCE images) fails
             failFast true
-            sh """
-                git submodule update --init --recursive
-            """
             parallel {
                 stage('Run Dataproc image generation script') {
                     when { expression { GENERATE_DATAPROC_IMAGE == "true" } }
