@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleProjectDAO,
   MockGoogleStorageDAO
 }
-import org.broadinstitute.dsde.workbench.google2.FirewallRuleName
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -31,10 +30,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   StatusService
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
 import org.broadinstitute.dsde.workbench.leonardo.util.{
   BucketHelper,
   BucketHelperConfig,
@@ -42,8 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{
   GceInterpreter,
   QueueFactory,
   RuntimeInstances,
-  VPCHelper,
-  VPCHelperConfig
+  VPCInterpreter
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
@@ -98,20 +92,11 @@ trait TestLeoRoutes {
                          mockGoogleProjectDAO,
                          serviceAccountProvider,
                          blocker)
-  val vpcHelperConfig =
-    VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-  val vpcHelper = new VPCHelper[IO](vpcHelperConfig, mockGoogleProjectDAO, MockGoogleComputeService)
+  val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
   val dataprocInterp =
-    new DataprocInterpreter[IO](DataprocInterpreterConfig(dataprocConfig,
-                                                          googleGroupsConfig,
-                                                          welderConfig,
-                                                          imageConfig,
-                                                          proxyConfig,
-                                                          clusterResourcesConfig,
-                                                          clusterFilesConfig,
-                                                          monitorConfig),
+    new DataprocInterpreter[IO](dataprocInterpreterConfig,
                                 bucketHelper,
-                                vpcHelper,
+                                vpcInterp,
                                 mockGoogleDataprocDAO,
                                 MockGoogleComputeService,
                                 mockGoogleDirectoryDAO,
@@ -120,15 +105,9 @@ trait TestLeoRoutes {
                                 MockWelderDAO,
                                 blocker)
   val gceInterp =
-    new GceInterpreter[IO](GceInterpreterConfig(gceConfig,
-                                                welderConfig,
-                                                imageConfig,
-                                                proxyConfig,
-                                                clusterResourcesConfig,
-                                                clusterFilesConfig,
-                                                monitorConfig),
+    new GceInterpreter[IO](gceInterpreterConfig,
                            bucketHelper,
-                           vpcHelper,
+                           vpcInterp,
                            MockGoogleComputeService,
                            MockWelderDAO,
                            blocker)

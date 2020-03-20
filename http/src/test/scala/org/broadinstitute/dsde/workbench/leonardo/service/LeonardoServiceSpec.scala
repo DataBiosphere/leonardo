@@ -15,7 +15,7 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.GCR
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
@@ -27,10 +27,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{FakeGoogleStorageService, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
@@ -103,21 +99,10 @@ class LeonardoServiceSpec
                            projectDAO,
                            serviceAccountProvider,
                            blocker)
-    val vpcHelperConfig =
-      VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, MockGoogleComputeService)
-    dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
-                                                   dataprocConfig,
-                                                   googleGroupsConfig,
-                                                   welderConfig,
-                                                   imageConfig,
-                                                   proxyConfig,
-                                                   clusterResourcesConfig,
-                                                   clusterFilesConfig,
-                                                   monitorConfig
-                                                 ),
+    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
+    dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
                                                  bucketHelper,
-                                                 vpcHelper,
+                                                 vpcInterp,
                                                  gdDAO,
                                                  MockGoogleComputeService,
                                                  directoryDAO,
@@ -125,17 +110,9 @@ class LeonardoServiceSpec
                                                  projectDAO,
                                                  MockWelderDAO,
                                                  blocker)
-    gceInterp = new GceInterpreter[IO](GceInterpreterConfig(
-                                         gceConfig,
-                                         welderConfig,
-                                         imageConfig,
-                                         proxyConfig,
-                                         clusterResourcesConfig,
-                                         clusterFilesConfig,
-                                         monitorConfig
-                                       ),
+    gceInterp = new GceInterpreter[IO](gceInterpreterConfig,
                                        bucketHelper,
-                                       vpcHelper,
+                                       vpcInterp,
                                        MockGoogleComputeService,
                                        MockWelderDAO,
                                        blocker)

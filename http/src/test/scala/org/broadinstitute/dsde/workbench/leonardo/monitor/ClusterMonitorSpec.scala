@@ -36,10 +36,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfi
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
@@ -204,21 +200,10 @@ class ClusterMonitorSpec
                            projectDAO,
                            serviceAccountProvider,
                            blocker)
-    val vpcHelperConfig =
-      VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-    val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, computeService)
-    val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
-                                                       dataprocConfig,
-                                                       googleGroupsConfig,
-                                                       welderConfig,
-                                                       imageConfig,
-                                                       proxyConfig,
-                                                       clusterResourcesConfig,
-                                                       clusterFilesConfig,
-                                                       monitorConfig
-                                                     ),
+    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, computeService)
+    val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
                                                      bucketHelper,
-                                                     vpcHelper,
+                                                     vpcInterp,
                                                      gdDAO,
                                                      computeService,
                                                      directoryDAO,
@@ -226,20 +211,8 @@ class ClusterMonitorSpec
                                                      projectDAO,
                                                      MockWelderDAO,
                                                      blocker)
-    val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(
-                                             gceConfig,
-                                             welderConfig,
-                                             imageConfig,
-                                             proxyConfig,
-                                             clusterResourcesConfig,
-                                             clusterFilesConfig,
-                                             monitorConfig
-                                           ),
-                                           bucketHelper,
-                                           vpcHelper,
-                                           computeService,
-                                           MockWelderDAO,
-                                           blocker)
+    val gceInterp =
+      new GceInterpreter[IO](gceInterpreterConfig, bucketHelper, vpcInterp, computeService, MockWelderDAO, blocker)
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     system.actorOf(
       TestClusterSupervisorActor.props(

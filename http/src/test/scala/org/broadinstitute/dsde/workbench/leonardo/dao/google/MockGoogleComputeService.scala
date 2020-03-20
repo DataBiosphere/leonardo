@@ -9,7 +9,9 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   InstanceName,
   MachineTypeName,
+  NetworkName,
   RegionName,
+  SubnetworkName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -68,6 +70,26 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
   override def getZones(project: GoogleProject, regionName: RegionName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[Zone]] = IO.pure(List(Zone.newBuilder.setName("us-central1-a").build))
+
+  override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] = IO.unit
+
+  override def getNetwork(project: GoogleProject, networkName: NetworkName)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Option[Network]] = IO(None)
+
+  override def createNetwork(project: GoogleProject, network: Network)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+
+  override def getSubnetwork(project: GoogleProject, region: RegionName, subnetwork: SubnetworkName)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Option[Subnetwork]] = IO(None)
+
+  override def createSubnetwork(project: GoogleProject, region: RegionName, subnetwork: Subnetwork)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 }
 
 object MockGoogleComputeService extends MockGoogleComputeService
