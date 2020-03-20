@@ -346,11 +346,7 @@ pipeline {
         when { expression { !shouldAbortBuild } }
         steps {
             sh """
-                cat .git/config
-                cat .gitmodules
                 git submodule update --init --recursive
-                cat .git/config
-                cat .gitmodules
             """
         }
     }

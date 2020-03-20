@@ -32,7 +32,7 @@ DAISY_IMAGE_TAG="latest"
 SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 
 # Set this to "true" if you want to validate the workflow without actually executing it
-VALIDATE_WORKFLOW="false"
+VALIDATE_WORKFLOW="true"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH
