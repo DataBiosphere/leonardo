@@ -52,7 +52,7 @@ final case class ClusterResourceConstaintsException(clusterProjectAndName: Runti
 class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   config: DataprocInterpreterConfig,
   bucketHelper: BucketHelper[F],
-  vpcHelper: VPCHelper[F],
+  vpcAlg: VPCAlgebra[F],
   gdDAO: GoogleDataprocDAO,
   googleComputeService: GoogleComputeService[F],
   googleDirectoryDAO: GoogleDirectoryDAO,
@@ -85,8 +85,8 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                               params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
       val ioResult = for {
         // Set up VPC network and firewall
-        vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
-        _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject)
+        (network, subnetwork) <- vpcAlg.setUpProjectNetwork(SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject))
+        _ <- vpcAlg.setUpProjectFirewalls(SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network))
 
         resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             params.runtimeConfig.machineType)
@@ -152,7 +152,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
               credentialsFileName,
               stagingBucketName,
               params.scopes,
-              Some(vpcSettings),
+              subnetwork,
               dataprocImage,
               config.monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
             )

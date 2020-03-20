@@ -87,6 +87,31 @@ object Config {
     )
   }
 
+  implicit val fireallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
+    FirewallRuleConfig(
+      config.as[FirewallRuleName]("name"),
+      config.as[NetworkName]("network"),
+      config.as[List[IpRange]]("ipRange"),
+      config.as[String]("protocol"),
+      config.as[Int]("port")
+    )
+  }
+
+  implicit val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
+    VPCConfig(
+      config.getString("highSecurityProjectNetworkLabel"),
+      config.getString("highSecurityProjectSubnetworkLabel"),
+      config.as[NetworkName]("networkName"),
+      config.as[SubnetworkName]("subnetworkName"),
+      config.as[RegionName]("subnetworkRegion"),
+      config.as[IpRange]("subnetworkIpRange"),
+      config.as[NetworkTag]("networkTag"),
+      config.as[FirewallRuleConfig]("httpsFirewallRule"),
+      config.as[FirewallRuleConfig]("sshFirewallRule"),
+      config.as[List[FirewallRuleName]]("firewallsToRemove")
+    )
+  }
+
   implicit val googleGroupConfigReader: ValueReader[GoogleGroupsConfig] = ValueReader.relative { config =>
     GoogleGroupsConfig(
       config.as[WorkbenchEmail]("subEmail"),
@@ -170,11 +195,6 @@ object Config {
       config.getString("proxyDomain"),
       config.getString("proxyUrlBase"),
       config.getInt("proxyPort"),
-      config.getString("proxyProtocol"),
-      config.getString("firewallRuleName"),
-      config.getString("networkTag"),
-      config.getString("projectVPCNetworkLabel"),
-      config.getString("projectVPCSubnetLabel"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
       config.getInt("tokenCacheMaxSize"),
@@ -287,6 +307,11 @@ object Config {
   implicit val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
+  implicit val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
+  implicit val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
+  implicit val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
+  implicit val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
+  implicit val firewallRuleNameValueReader: ValueReader[FirewallRuleName] = stringValueReader.map(FirewallRuleName)
 
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
@@ -330,6 +355,7 @@ object Config {
   val dbConcurrency = config.as[Long]("mysql.concurrency")
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
+  val vpcConfig = config.as[VPCConfig]("vpc")
 
   val topicName = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
   val subscriberConfig: SubscriberConfig =
@@ -356,4 +382,5 @@ object Config {
                                                   clusterResourcesConfig,
                                                   clusterFilesConfig,
                                                   monitorConfig)
+  val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 }

@@ -377,20 +377,11 @@ final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName
 }
 final case class RuntimeAndRuntimeConfig(runtime: Runtime, runtimeConfig: RuntimeConfig)
 final case class IP(value: String) extends ValueObject
+final case class IpRange(value: String) extends AnyVal
 final case class NetworkTag(value: String) extends ValueObject
 final case class OperationName(value: String) extends ValueObject
 final case class Operation(name: OperationName, id: GoogleId)
 final case class GoogleId(value: String) extends AnyVal
-
-sealed trait VPCConfig extends Product with Serializable {
-  def value: String
-}
-object VPCConfig {
-  final case class VPCNetwork(value: String) extends VPCConfig
-  final case class VPCSubnet(value: String) extends VPCConfig
-
-  final val defaultNetwork = VPCNetwork("default")
-}
 
 sealed trait RuntimeOperation extends Product with Serializable {
   def asString: String

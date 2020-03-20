@@ -7,22 +7,14 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  GoogleComputeService,
-  InstanceName,
-  MachineTypeName,
-  ZoneName
-}
-import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, InstanceName, MachineTypeName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.proxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
-import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -40,7 +32,7 @@ final case class MissingServiceAccountException(projectAndName: RuntimeProjectAn
 class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   config: GceInterpreterConfig,
   bucketHelper: BucketHelper[F],
-  vpcHelper: VPCHelper[F],
+  vpcAlg: VPCAlgebra[F],
   googleComputeService: GoogleComputeService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
@@ -56,9 +48,9 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateRuntimeResponse] =
     // TODO clean up on error
     for {
-      // Set up VPC network and firewall
-      vpcSettings <- vpcHelper.getOrCreateVPCSettings(params.runtimeProjectAndName.googleProject)
-      _ <- vpcHelper.getOrCreateFirewallRule(params.runtimeProjectAndName.googleProject)
+      // Set up VPC and firewall
+      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject))
+      _ <- vpcAlg.setUpProjectFirewalls(SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network))
 
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
@@ -107,9 +99,9 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)
         .setDescription("Leonardo VM")
-        .setTags(Tags.newBuilder().addItems(proxyConfig.networkTag).build())
+        .setTags(Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build())
         .setMachineType(buildMachineTypeUri(config.gceConfig.zoneName, params.runtimeConfig.machineType))
-        .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, vpcSettings))
+        .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork))
         .addDisks(
           AttachedDisk.newBuilder
           //.setDeviceName()   // this may become important when we support attaching PDs
@@ -151,7 +143,6 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                                        config.gceConfig.zoneName,
                                                        instance)
 
-      // TODO not sure if this id is a UUID
       asyncRuntimeFields = AsyncRuntimeFields(GoogleId(operation.getTargetId),
                                               OperationName(operation.getName),
                                               stagingBucketName,
@@ -255,15 +246,10 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     } yield RuntimeResourceConstraints(result)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
-                                     vpcConfig: VPCConfig): NetworkInterface = {
-    val bldr = vpcConfig match {
-      case v @ VPCNetwork(_) =>
-        NetworkInterface.newBuilder().setNetwork(buildNetworkUri(runtimeProjectAndName.googleProject, v))
-      case v @ VPCSubnet(_) =>
-        NetworkInterface
-          .newBuilder()
-          .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, v))
-    }
-    bldr.addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build).build
+                                     subnetwork: SubnetworkName): NetworkInterface = {
+    NetworkInterface
+      .newBuilder()
+      .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, subnetwork))
+      .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build).build
   }
 }

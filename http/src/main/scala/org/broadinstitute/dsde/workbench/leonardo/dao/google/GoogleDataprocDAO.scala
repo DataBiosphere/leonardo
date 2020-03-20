@@ -6,6 +6,7 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
+import org.broadinstitute.dsde.workbench.google2.SubnetworkName
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google._
@@ -47,13 +48,13 @@ trait GoogleDataprocDAO {
 }
 
 final case class CreateClusterConfig(
-  machineConfig: RuntimeConfig.DataprocConfig,
-  initScripts: List[GcsPath],
-  clusterServiceAccount: Option[WorkbenchEmail],
-  credentialsFileName: Option[String],
-  stagingBucket: GcsBucketName,
-  clusterScopes: Set[String],
-  clusterVPCSettings: Option[VPCConfig],
-  dataprocCustomImage: DataprocCustomImage,
-  creationTimeout: FiniteDuration
+                                      machineConfig: RuntimeConfig.DataprocConfig,
+                                      initScripts: List[GcsPath],
+                                      clusterServiceAccount: Option[WorkbenchEmail],
+                                      credentialsFileName: Option[String],
+                                      stagingBucket: GcsBucketName,
+                                      clusterScopes: Set[String],
+                                      subnetwork: SubnetworkName,
+                                      dataprocCustomImage: DataprocCustomImage,
+                                      creationTimeout: FiniteDuration
 )

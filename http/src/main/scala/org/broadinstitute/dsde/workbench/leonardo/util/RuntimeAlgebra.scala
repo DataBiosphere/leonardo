@@ -102,6 +102,7 @@ object RuntimeInterpreterConfig {
                                              welderConfig: WelderConfig,
                                              imageConfig: ImageConfig,
                                              proxyConfig: ProxyConfig,
+                                             vpcConfig: VPCConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: ClusterFilesConfig,
                                              monitorConfig: MonitorConfig)
@@ -111,6 +112,7 @@ object RuntimeInterpreterConfig {
                                         welderConfig: WelderConfig,
                                         imageConfig: ImageConfig,
                                         proxyConfig: ProxyConfig,
+                                        vpcConfig: VPCConfig,
                                         clusterResourcesConfig: ClusterResourcesConfig,
                                         clusterFilesConfig: ClusterFilesConfig,
                                         monitorConfig: MonitorConfig)
