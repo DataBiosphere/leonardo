@@ -401,7 +401,7 @@ pipeline {
                                         -default_timeout 45m \
                                         -var:base_image $GCE_BASE_IMAGE \
                                         -var:output_image "${customGceImageBaseName}-${imageID}" \
-                                        -var:gce-custom-images-dir /gce-custom-images \
+                                        -var:gce_custom_images_dir /gce-custom-images \
                                         -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
                                         -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
                                         -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \

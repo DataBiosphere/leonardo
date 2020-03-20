@@ -30,7 +30,7 @@ DAISY_IMAGE_TAG="latest"
 SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 
 # Set this to "true" if you want to validate the workflow without actually executing it
-VALIDATE_WORKFLOW="false"
+VALIDATE_WORKFLOW="true"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH
@@ -50,7 +50,7 @@ docker run -it --rm -v "$SOURCE_DIR":/gce-custom-images \
   -oauth /gce-custom-images/application_default_credentials.json \
   -var:base_image projects/debian-cloud/global/images/debian-9-stretch-v20200210 \
   -var:output_image "$OUTPUT_IMAGE_NAME" \
-  -var:gce-custom-images-dir /gce-custom-images \
+  -var:gce_custom_images_dir /gce-custom-images \
   -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
   -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
   -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \
