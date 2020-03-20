@@ -3,4 +3,4 @@
 	url = https://github.com/GoogleCloudPlatform/dataproc-custom-images.git
 [submodule "jenkins/gce-custom-images/cis-harden-images"]
 	path = jenkins/gce-custom-images/cis-harden-images
-	url = https://github.com/broadinstitute/CIS-harden-images.git
+	url = git@github.com:broadinstitute/CIS-harden-images.git

@@ -140,7 +140,7 @@ pipeline {
             description: "The path for the bucket where the custom GCE images will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
             description: "A custom image will be build for each of these dataproc versions")
-        string(name: "IMAGE_HARDENING_LIB_VERSION", defaultValue: "2d70c16",
+        string(name: "IMAGE_HARDENING_LIB_VERSION", defaultValue: "8277c6e",
             description: "The hash of the 'broadinstitute/CIS-harden-images' repo branch that contains libraries for CIS-hardening GCE images")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")
@@ -345,9 +345,9 @@ pipeline {
     stage('Init git submodules') {
         when { expression { !shouldAbortBuild } }
         steps {
-            sh """
-                git submodule update --init --recursive
-            """
+            pwd
+            cat .git/config
+            git submodule update --init --recursive
         }
     }
 
