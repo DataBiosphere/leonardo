@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.collection.JavaConverters._
 
 final case class InvalidVPCSetupException(project: GoogleProject)
-    extends LeoException(s"Invalid VPC configration in project ${project.value}")
+    extends LeoException(s"Invalid VPC configuration in project ${project.value}")
 
 final case class NetworkNotReadyException(project: GoogleProject, network: NetworkName)
     extends LeoException(s"Network ${network.value} in project ${project.value} not ready within the specified time")
