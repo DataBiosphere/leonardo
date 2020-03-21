@@ -27,12 +27,14 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger: NewRelicMetri
             Request[F](
               method = Method.POST,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/proxy/$googleProject/$runtimeName/welder/cache/flush"
+                s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
               )
             )
           )
         case _ =>
-          Logger[F].error(s"fail to get target host name for welder for ${googleProject}/${runtimeName}").as(false)
+          Logger[F]
+            .error(s"fail to get target host name for welder for ${googleProject.value}/${runtimeName.asString}")
+            .as(false)
       }
       _ <- if (res)
         metrics.incrementCounter("welder/flushcache/success")
@@ -48,12 +50,15 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger: NewRelicMetri
           client.successful(
             Request[F](
               method = Method.GET,
-              uri =
-                Uri.unsafeFromString(s"https://${targetHost.toString}/proxy/$googleProject/$runtimeName/welder/status")
+              uri = Uri.unsafeFromString(
+                s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
+              )
             )
           )
         case _ =>
-          Logger[F].error(s"fail to get target host name for welder for ${googleProject}/${runtimeName}").as(false)
+          Logger[F]
+            .error(s"fail to get target host name for welder for ${googleProject.value}/${runtimeName.asString}")
+            .as(false)
       }
       _ <- if (res)
         metrics.incrementCounter("welder/status/success")

@@ -17,6 +17,8 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import scala.concurrent.duration.FiniteDuration
+
 // TODO move to wb-libs
 class MockGoogleComputeService extends GoogleComputeService[IO] {
   override def createInstance(project: GoogleProject, zone: ZoneName, instance: Instance)(
@@ -47,7 +49,7 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
 
   override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Unit] = IO.unit
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
   override def getFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
@@ -90,6 +92,15 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
   override def createSubnetwork(project: GoogleProject, region: RegionName, subnetwork: Subnetwork)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+
+  override def getOperation(project: GoogleProject, operation: Operation)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+
+  override def pollOperation(project: GoogleProject, operation: Operation, delay: FiniteDuration, maxAttempts: Int)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): fs2.Stream[IO, Operation] =
+    fs2.Stream.emit(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 }
 
 object MockGoogleComputeService extends MockGoogleComputeService

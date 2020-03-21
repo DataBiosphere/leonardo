@@ -106,13 +106,16 @@ object Config {
       config.getString("highSecurityProjectNetworkLabel"),
       config.getString("highSecurityProjectSubnetworkLabel"),
       config.as[NetworkName]("networkName"),
+      config.as[NetworkTag]("networkTag"),
+      config.as[Boolean]("autoCreateSubnetworks"),
       config.as[SubnetworkName]("subnetworkName"),
       config.as[RegionName]("subnetworkRegion"),
       config.as[IpRange]("subnetworkIpRange"),
-      config.as[NetworkTag]("networkTag"),
       config.as[FirewallRuleConfig]("httpsFirewallRule"),
       config.as[FirewallRuleConfig]("sshFirewallRule"),
-      config.as[List[FirewallRuleName]]("firewallsToRemove")
+      config.as[List[FirewallRuleName]]("firewallsToRemove"),
+      config.as[FiniteDuration]("pollPeriod"),
+      config.as[Int]("maxAttempts")
     )
   }
 
