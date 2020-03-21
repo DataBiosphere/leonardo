@@ -100,7 +100,9 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
   override def pollOperation(project: GoogleProject, operation: Operation, delay: FiniteDuration, maxAttempts: Int)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): fs2.Stream[IO, Operation] =
-    fs2.Stream.emit(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+    fs2.Stream.emit(
+      Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("DONE").build()
+    )
 }
 
 object MockGoogleComputeService extends MockGoogleComputeService
