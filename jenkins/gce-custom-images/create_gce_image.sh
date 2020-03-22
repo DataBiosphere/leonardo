@@ -8,7 +8,7 @@ set -e -x
 # gsutil must have been installed.
 # A Daisy image must have been pulled; e.g. via `docker pull gcr.io/compute-image-tools/daisy:latest`
 # Also make sure that you have the right version of the hardening repo via:
-# `git -C jenkins/gce-custom-images/cis-harden-images checkout <desired version hash>`
+# `git -C jenkins/gce-custom-images/dsp-appsec-base-image-hardening checkout <desired version hash>`
 
 # The date-time suffix is in the format yymmdd-hh-mm but it could be anything.
 OUTPUT_IMAGE_NAME="leo-custom-gce-image-200320-10-30"
@@ -32,7 +32,7 @@ DAISY_IMAGE_TAG="latest"
 SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 
 # Set this to "true" if you want to validate the workflow without actually executing it
-VALIDATE_WORKFLOW="true"
+VALIDATE_WORKFLOW="false"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH
