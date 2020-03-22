@@ -114,7 +114,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
           config.clusterFilesConfig.jupyterRootCaPem
         )
       )
-      bytes <- Stream.eval(TemplateHelper.fileStream[F](f, blocker).compile.to[Array])
+      bytes <- Stream.eval(TemplateHelper.fileStream[F](f, blocker).compile.to(Array))
       _ <- storeObject(initBucketName, GcsBlobName(f.getName), bytes, "text/plain")
     } yield ()
 
@@ -133,7 +133,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
           config.clusterResourcesConfig.jupyterNotebookConfigUri
         )
       )
-      bytes <- Stream.eval(TemplateHelper.resourceStream[F](r, blocker).compile.to[Array])
+      bytes <- Stream.eval(TemplateHelper.resourceStream[F](r, blocker).compile.to(Array))
       _ <- storeObject(initBucketName, GcsBlobName(r.asString), bytes, "text/plain")
     } yield ()
 
@@ -145,7 +145,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
           config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
         )
       )
-      bytes <- Stream.eval(TemplateHelper.templateResource[F](replacements, r, blocker).compile.to[Array])
+      bytes <- Stream.eval(TemplateHelper.templateResource[F](replacements, r, blocker).compile.to(Array))
       _ <- storeObject(initBucketName, GcsBlobName(r.asString), bytes, "text/plain")
     } yield ()
 

@@ -127,7 +127,7 @@ class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
             .pollOperation(project, initialOp, config.vpcConfig.pollPeriod, config.vpcConfig.maxAttempts)
             .compile
             .lastOrError
-          _ <- if (lastOp.getStatus == "DONE") Async[F].unit else Async[F].raiseError[Unit](fail)
+          _ <- if (lastOp.isDone) Async[F].unit else Async[F].raiseError[Unit](fail)
         } yield ()
       } else Async[F].unit
     } yield ()
