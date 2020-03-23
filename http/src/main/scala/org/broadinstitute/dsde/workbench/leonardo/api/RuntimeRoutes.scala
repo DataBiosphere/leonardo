@@ -5,7 +5,6 @@ package api
 import _root_.java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
@@ -13,14 +12,18 @@ import akka.http.scaladsl.server.Directives._
 import cats.effect.{IO, Timer}
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.Decoder
+import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes.validateRuntimeNameDirective
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
-import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesSprayJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{RuntimeConfigRequest, RuntimeService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  GetRuntimeResponse,
+  ListRuntimeResponse,
+  RuntimeConfigRequest,
+  RuntimeService
+}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -250,6 +253,89 @@ object RuntimeRoutes {
       c.getOrElse(Map.empty)
     )
   }
+
+  //TODO: add `dataprocInstances` when it's added to `RuntimeConfig` https://broadworkbench.atlassian.net/browse/IA-1778
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct20(
+    "id",
+    "runtimeName",
+    "googleProject",
+    "serviceAccount",
+    "asyncRuntimeFields",
+    "auditInfo",
+    "runtimeConfig",
+    "proxyUrl",
+    "status",
+    "labels",
+    "jupyterExtensionUri",
+    "jupyterUserScriptUri",
+    "jupyterStartUserScriptUri",
+    "errors",
+    "userJupyterExtensionConfig",
+    "autopauseThreshold",
+    "defaultClientId",
+    "runtimeImages",
+    "scopes",
+    "customEnvironmentVariables"
+  )(
+    x =>
+      (
+        x.id,
+        x.clusterName,
+        x.googleProject,
+        x.serviceAccountInfo.clusterServiceAccount.get,
+        x.asyncRuntimeFields,
+        x.auditInfo,
+        x.runtimeConfig,
+        x.clusterUrl,
+        x.status,
+        x.labels,
+        x.jupyterExtensionUri,
+        x.jupyterUserScriptUri,
+        x.jupyterStartUserScriptUri,
+        x.errors,
+        x.userJupyterExtensionConfig,
+        x.autopauseThreshold,
+        x.defaultClientId,
+        x.clusterImages,
+        x.scopes,
+        x.customClusterEnvironmentVariables
+      )
+  )
+
+  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse] = Encoder.forProduct14(
+    "id",
+    "runtimeName",
+    "googleProject",
+    "serviceAccount",
+    "asyncRuntimeFields",
+    "auditInfo",
+    "runtimeConfig",
+    "proxyUrl",
+    "status",
+    "labels",
+    "jupyterExtensionUri",
+    "jupyterUserScriptUri",
+    "autopauseThreshold",
+    "defaultClientId"
+  )(
+    x =>
+      (
+        x.id,
+        x.clusterName,
+        x.googleProject,
+        x.serviceAccountInfo.clusterServiceAccount.get,
+        x.asyncRuntimeFields,
+        x.auditInfo,
+        x.machineConfig,
+        x.clusterUrl,
+        x.status,
+        x.labels,
+        x.jupyterExtensionUri,
+        x.jupyterUserScriptUri,
+        x.autopauseThreshold,
+        x.defaultClientId
+      )
+  )
 }
 
 final case class RuntimeServiceContext(traceId: TraceId, now: Instant)

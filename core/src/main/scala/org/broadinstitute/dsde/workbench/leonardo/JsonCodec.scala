@@ -37,6 +37,7 @@ object JsonCodec {
   implicit val machineTypeEncoder: Encoder[MachineTypeName] = Encoder.encodeString.contramap(_.value)
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
+  implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
     "numberOfWorkers",
     "masterMachineType",
@@ -107,11 +108,15 @@ object JsonCodec {
   )(x => DefaultLabels.unapply(x).get)
   implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
     Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
-
   implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
     "googleProject",
     "clusterName"
   )(x => RuntimeProjectAndName.unapply(x).get)
+  implicit val runtimeErrorEncoder: Encoder[RuntimeError] = Encoder.forProduct3(
+    "errorMessage",
+    "errorCode",
+    "timestamp"
+  )(x => RuntimeError.unapply(x).get)
 
   // Decoders
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)

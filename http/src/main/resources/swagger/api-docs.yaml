@@ -161,7 +161,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ListClusterResponse"
+                  $ref: "#/components/schemas/ListRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -207,7 +207,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Cluster"
+                $ref: "#/components/schemas/GetRuntimeResponse"
         "403":
           description: User does not have permission to perform action on runtime
         "404":
@@ -1528,6 +1528,61 @@ components:
         customClusterEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
+    GetRuntimeResponse:
+      description: ""
+      required:
+        - id
+        - runtimeName
+        - googleProject
+        - serviceAccount
+        - runtimeConfig
+        - status
+        - labels
+        - autopauseThreshold
+        - defaultClientId
+        - scopes
+      properties:
+        id:
+          type: string
+          description: The internally-referenced ID of the cluster
+        runtimeName:
+          type: string
+          description: The user-supplied name for the cluster
+        googleProject:
+          type: string
+          description: The Google Project used to create the cluster
+        serviceAccount:
+          type: string
+          description: The Google Service Account used to create the cluster
+        runtimeConfig:
+          $ref: "#/components/schemas/MachineConfig"
+        status:
+          $ref: "#/components/schemas/ClusterStatus"
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+        errors:
+          type: array
+          description: The list of errors that were encountered on cluster create. Each
+            error consists of the error message, code and timestamp
+          items:
+            $ref: "#/components/schemas/ClusterError"
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. A value of 0 is equivalent to autopause being turned
+            off.
+        defaultClientId:
+          type: string
+          description: The default Google Client ID.
+        scopes:
+          type: array
+          items:
+            type: string
+          description: The scopes for the cluster.
+        customEnvironmentVariables:
+          type: object
+          description: Optional environment variables to be set on the cluster.
     ListClusterResponse:
       description: ""
       required:
@@ -1587,6 +1642,50 @@ components:
             The date and time the cluster was last accessed, in ISO-8601 format.
 
             Date accessed is defined as the last time the cluster was created, modified, or accessed via the proxy.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. A value of 0 is equivalent to autopause being turned
+            off.
+        jupyterUserScriptUri:
+          type: string
+        defaultClientId:
+          type: string
+          description: The default Google Client ID.
+    ListRuntimeResponse:
+      description: ""
+      required:
+        - runtimeName
+        - googleProject
+        - serviceAccount
+        - machineConfig
+        - status
+        - labels
+        - autopauseThreshold
+        - defaultClientId
+      properties:
+        internalId:
+          type: string
+          description: Internal resource ID of the cluster
+        runtimeName:
+          type: string
+          description: The user-supplied name for the cluster
+        googleId:
+          type: string
+          description: Google's UUID for the cluster
+        googleProject:
+          type: string
+          description: The Google Project used to create the cluster
+        serviceAccount:
+          type: string
+          description: The Google Service Account used to create the cluster
+        runtimeConfig:
+          $ref: "#/components/schemas/MachineConfig"
+        status:
+          $ref: "#/components/schemas/ClusterStatus"
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
         autopauseThreshold:
           type: integer
           description: The number of minutes of idle time to elapse before the cluster is
