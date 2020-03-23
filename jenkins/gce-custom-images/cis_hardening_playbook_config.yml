@@ -1,6 +1,0 @@
-- name: Harden Server
-  hosts: localhost
-  become: yes
-
-  roles:
-    - Debian9-CIS

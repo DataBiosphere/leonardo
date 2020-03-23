@@ -38,9 +38,12 @@ anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconducto
 # the entry must match the var name above, which must correspond to a valid docker URI
 docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_base anvil_rstudio_bioconductor"
 
-# Re: downloading Ansible playbook files for hardening
-cis_hardening_playbook_requirements_file="cis_hardening_playbook_requirements.yml"
-cis_hardening_playbook_config_file="cis_hardening_playbook_config.yml"
+# Variables for downloading the Ansible playbook files for hardening
+cis_hardening_dir="cis-harden-images/debian9"
+cis_hardening_playbook_requirements_file="${cis_hardening_dir}/requirements.yml"
+cis_hardening_playbook_config_file="${cis_hardening_dir}/deb9-cis-playbook.yml"
+image_hardening_script_file_name="harden-images.sh"
+image_hardening_script_file="${cis_hardening_dir}/${image_hardening_script_file_name}"
 daisy_sources_metadata_url="http://metadata.google.internal/computeMetadata/v1/instance/attributes/daisy-sources-path"
 vm_metadata_google_header="Metadata-Flavor: Google"
 
@@ -142,25 +145,15 @@ apt-get install -y -q dpkg-dev
 python_version=$(python3 --version)
 log "Using $python_version packaged in the base (Debian 9) image..."
 
-# Installing Ansible
-log "Installing Ansible ${ansible_version:?}..."
-apt-get install -y python3-pip
-pip3 install paramiko
-pip3 install "ansible==${ansible_version}"
-
-# Download playbook requirements and config files
-log "Downloading Ansible playbook files..."
+log "Downloading Ansible playbook files and the image hardening script..."
 daisy_sources_path=$(curl --silent -H "$vm_metadata_google_header" "$daisy_sources_metadata_url")
 gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_requirements_file}" .
 gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_config_file}" .
-
-# Install Ansible role via Ansible Galaxy
-apt-get install -y git
-ansible-galaxy install -p roles -r cis_hardening_playbook_requirements.yml
+gsutil cp "${daisy_sources_path}/${image_hardening_script_file}" .
 
 # Run CIS hardening
-log "Running Ansible CIS hardening playbook..."
-ansible-playbook cis_hardening_playbook_config.yml
+chmod u+x $image_hardening_script_file_name
+./$image_hardening_script_file_name
 
 log 'Installing Docker...'
 

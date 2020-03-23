@@ -140,6 +140,8 @@ pipeline {
             description: "The path for the bucket where the custom GCE images will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
             description: "A custom image will be build for each of these dataproc versions")
+        string(name: "IMAGE_HARDENING_LIB_VERSION", defaultValue: "f45a1a2",
+            description: "The hash of the 'broadinstitute/dsp-appsec-base-image-hardening' repo branch that contains libraries for CIS-hardening GCE images")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")
         string(name: "terra_jupyter_base", defaultValue: "0.0.9")
@@ -193,7 +195,7 @@ pipeline {
 
     stage('Pull Leonardo') {
         steps {
-            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'rt-add-algebra-2'  // TODO revert me
+            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
 
             script {
                 configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
@@ -340,6 +342,15 @@ pipeline {
             }
     }
 
+    stage('Init git submodules') {
+        when { expression { !shouldAbortBuild } }
+        steps {
+            sh """               
+                git submodule update --init --recursive                
+            """
+        }
+    }
+
     stage('Run image generation scripts') {
         when { expression { !shouldAbortBuild } }
             // Fail the pipeline if any of the parallel branches (that build the Dataproc and GCE images) fails
@@ -348,10 +359,6 @@ pipeline {
                 stage('Run Dataproc image generation script') {
                     when { expression { GENERATE_DATAPROC_IMAGE == "true" } }
                         steps {
-                            sh """
-                               git submodule init && git submodule update
-                            """
-
                             script {
                                 for (String dp_version : DATAPROC_VERSIONS.trim().split(' ')) {
                                     def dp_version_formatted = dp_version.replace(".", "-")
@@ -385,24 +392,28 @@ pipeline {
                             script {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
                                 sh """
+                                    cd jenkins/gce-custom-images/cis-harden-images
+                                    git checkout $IMAGE_HARDENING_LIB_VERSION 
+
                                     # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
                                     gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
 
                                     docker pull $daisyImage
-                                    docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/daisy_source_files \
+                                    docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/gce-custom-images \
                                         $daisyImage \
                                         -project $GOOGLE_PROJECT \
                                         -zone $ZONE \
-                                        -oauth /daisy_source_files/$GOOGLE_CREDENTIAL_FILE_NAME \
+                                        -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
                                         -gcs_path $GCE_IMAGE_BUCKET \
                                         -default_timeout 45m \
                                         -var:base_image $GCE_BASE_IMAGE \
                                         -var:output_image "${customGceImageBaseName}-${imageID}" \
-                                        -var:installation_script_dir /daisy_source_files \
+                                        -var:gce_custom_images_dir /gce-custom-images \
                                         -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
-                                        -var:cis_hardening_playbook_config cis_hardening_playbook_config.yml \
-                                        -var:cis_hardening_playbook_requirements cis_hardening_playbook_requirements.yml \
-                                        /daisy_source_files/leo_custom_gce_image.wf.json
+                                        -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
+                                        -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \
+                                        -var:cis_hardening_playbook_requirements cis-harden-images/debian9/requirements.yml \
+                                        /gce-custom-images/leo_custom_gce_image.wf.json
                                     docker stop daisy || true
                                     docker rm -f daisy || true
 
