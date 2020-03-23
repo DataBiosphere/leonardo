@@ -345,18 +345,8 @@ pipeline {
     stage('Init git submodules') {
         when { expression { !shouldAbortBuild } }
         steps {
-            sh """
-                cat .gitmodules
-                cat .git/config
-                ls jenkins/gce-custom-images 
-                git submodule update --init --recursive
-                cat .gitmodules
-                cat .git/config
-                ls jenkins/gce-custom-images
-                git submodule init && git submodule update
-                cat .gitmodules
-                cat .git/config
-                ls jenkins/gce-custom-images
+            sh """               
+                git submodule update --init --recursive                
             """
         }
     }
