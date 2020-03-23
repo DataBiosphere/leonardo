@@ -134,7 +134,7 @@ class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       .newBuilder()
       .setName(config.vpcConfig.subnetworkName.value)
       .setRegion(config.vpcConfig.subnetworkRegion.value)
-      .setNetwork(config.vpcConfig.networkName.value)
+      .setNetwork(buildNetworkUri(project, config.vpcConfig.networkName))
       .setIpCidrRange(config.vpcConfig.subnetworkIpRange.value)
       .build
 
