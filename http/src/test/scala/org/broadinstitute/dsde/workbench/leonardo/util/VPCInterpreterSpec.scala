@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -20,10 +21,10 @@ import scala.concurrent.Future
 class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
 
   "VPCInterpreter" should "get a subnet from a project label" in {
-    val test = new VPCInterpreter(vpcInterpreterConfig,
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubProjectDAO(
-                                    Map(vpcConfig.highSecurityProjectNetworkLabel -> "my_network",
-                                        vpcConfig.highSecurityProjectSubnetworkLabel -> "my_subnet")
+                                    Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
+                                        vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                   ),
                                   MockGoogleComputeService)
 
@@ -33,9 +34,9 @@ class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
   }
 
   it should "fail if both labels are not present" in {
-    val test = new VPCInterpreter(vpcInterpreterConfig,
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubProjectDAO(
-                                    Map(vpcConfig.highSecurityProjectSubnetworkLabel -> "my_network")
+                                    Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_network")
                                   ),
                                   MockGoogleComputeService)
 
@@ -43,9 +44,9 @@ class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
       InvalidVPCSetupException(project)
     )
 
-    val test2 = new VPCInterpreter(vpcInterpreterConfig,
+    val test2 = new VPCInterpreter(Config.vpcInterpreterConfig,
                                    stubProjectDAO(
-                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel -> "my_subnet")
+                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                    ),
                                    MockGoogleComputeService)
 
@@ -55,7 +56,7 @@ class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
   }
 
   it should "create a new subnet if there are no project labels" in {
-    val test = new VPCInterpreter(vpcInterpreterConfig, stubProjectDAO(Map.empty), MockGoogleComputeService)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubProjectDAO(Map.empty), MockGoogleComputeService)
 
     test
       .setUpProjectNetwork(SetUpProjectNetworkParams(project))
@@ -64,7 +65,7 @@ class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
 
   it should "create firewall rules in the project network" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
-    val test = new VPCInterpreter(vpcInterpreterConfig, stubProjectDAO(Map.empty), computeService)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubProjectDAO(Map.empty), computeService)
 
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
     computeService.firewallMap.size shouldBe 3
@@ -85,7 +86,7 @@ class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
     vpcConfig.firewallsToRemove.foreach { fw =>
       computeService.firewallMap.put(fw, Firewall.newBuilder().setName(fw.value).build)
     }
-    val test = new VPCInterpreter(vpcInterpreterConfig, stubProjectDAO(Map.empty), computeService)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubProjectDAO(Map.empty), computeService)
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
   }

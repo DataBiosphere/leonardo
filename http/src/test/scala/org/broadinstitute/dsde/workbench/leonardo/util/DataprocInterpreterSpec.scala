@@ -61,9 +61,9 @@ class DataprocInterpreterSpec
                          mockGoogleProjectDAO,
                          serviceAccountProvider,
                          blocker)
-  val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
+  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
 
-  val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+  val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
                                                    mockGoogleDataprocDAO,
@@ -162,7 +162,7 @@ class DataprocInterpreterSpec
 
   it should "clean up Google resources on error" in isolatedDbTest {
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO
-    val erroredDataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                             bucketHelper,
                                                             vpcInterp,
                                                             erroredDataprocDAO,
@@ -196,7 +196,7 @@ class DataprocInterpreterSpec
   it should "retry zone capacity issues" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO(429)
-    val erroredDataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                             bucketHelper,
                                                             vpcInterp,
                                                             erroredDataprocDAO,
@@ -279,7 +279,7 @@ class DataprocInterpreterSpec
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
-    val erroredDataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                             bucketHelper,
                                                             vpcInterp,
                                                             mockGoogleDataprocDAO,

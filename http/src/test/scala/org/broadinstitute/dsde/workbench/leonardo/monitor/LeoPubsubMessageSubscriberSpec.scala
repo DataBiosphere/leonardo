@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, Machi
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, RuntimeConfigQueries, TestComponent}
@@ -70,9 +71,9 @@ class LeoPubsubMessageSubscriberSpec
                          serviceAccountProvider,
                          blocker)
 
-  val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
+  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
 
-  val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+  val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
                                                    gdDAO,
@@ -82,7 +83,7 @@ class LeoPubsubMessageSubscriberSpec
                                                    projectDAO,
                                                    mockWelderDAO,
                                                    blocker)
-  val gceInterp = new GceInterpreter[IO](gceInterpreterConfig,
+  val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                          bucketHelper,
                                          vpcInterp,
                                          MockGoogleComputeService,

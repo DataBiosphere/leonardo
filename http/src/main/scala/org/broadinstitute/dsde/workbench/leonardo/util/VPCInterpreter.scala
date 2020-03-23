@@ -29,7 +29,7 @@ final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork:
 final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName)
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time")
 
-class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
+final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   config: VPCInterpreterConfig,
   googleProjectDAO: GoogleProjectDAO,
   googleComputeService: GoogleComputeService[F]
@@ -45,8 +45,8 @@ class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       // For high-security projects, the network and subnetwork are pre-created and specified by project label.
       // See https://github.com/broadinstitute/gcp-dm-templates/blob/44b13216e5284d1ce46f58514fe51404cdf8f393/firecloud_project.py#L355-L359
       projectLabels <- Async[F].liftIO(IO.fromFuture(IO(googleProjectDAO.getLabels(params.project.value))))
-      networkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectNetworkLabel)
-      subnetworkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectSubnetworkLabel)
+      networkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectNetworkLabel.value)
+      subnetworkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectSubnetworkLabel.value)
       (network, subnetwork) <- (networkFromLabel, subnetworkFromLabel) match {
         // If we found project labels, we're done
         case (Some(network), Some(subnet)) =>

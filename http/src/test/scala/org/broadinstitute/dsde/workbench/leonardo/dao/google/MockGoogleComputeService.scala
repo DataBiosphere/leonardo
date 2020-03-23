@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   InstanceName,
   MachineTypeName,
   NetworkName,
+  OperationName,
   PollOperation,
   RegionName,
   SubnetworkName,
@@ -94,7 +95,15 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
-  override def getOperation(project: GoogleProject, operation: Operation)(
+  override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+
+  override def getRegionOperation(project: GoogleProject, regionName: RegionName, operationName: OperationName)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+
+  override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
@@ -102,7 +111,7 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): fs2.Stream[IO, PollOperation] =
     fs2.Stream.emit(
-      PollOperation.fromOperation(
+      PollOperation(
         Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("DONE").build()
       )
     )

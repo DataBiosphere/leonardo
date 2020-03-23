@@ -18,11 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
-import org.broadinstitute.dsde.workbench.leonardo.util.VPCInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -93,26 +88,6 @@ object CommonTestData {
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
-  val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
-  val dataprocInterpreterConfig = DataprocInterpreterConfig(dataprocConfig,
-                                                            googleGroupsConfig,
-                                                            welderConfig,
-                                                            imageConfig,
-                                                            proxyConfig,
-                                                            vpcConfig,
-                                                            clusterResourcesConfig,
-                                                            clusterFilesConfig,
-                                                            monitorConfig)
-  val gceInterpreterConfig = GceInterpreterConfig(
-    gceConfig,
-    welderConfig,
-    imageConfig,
-    proxyConfig,
-    vpcConfig,
-    clusterResourcesConfig,
-    clusterFilesConfig,
-    monitorConfig
-  )
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults

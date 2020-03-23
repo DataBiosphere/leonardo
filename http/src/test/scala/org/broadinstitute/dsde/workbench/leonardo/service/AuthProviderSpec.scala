@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -86,9 +86,9 @@ class AuthProviderSpec
                          mockGoogleProjectDAO,
                          serviceAccountProvider,
                          blocker)
-  val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
+  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
   val dataprocInterp =
-    new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
                                 vpcInterp,
                                 mockGoogleDataprocDAO,
@@ -99,7 +99,7 @@ class AuthProviderSpec
                                 mockWelderDAO,
                                 blocker)
   val gceInterp =
-    new GceInterpreter[IO](gceInterpreterConfig,
+    new GceInterpreter[IO](Config.gceInterpreterConfig,
                            bucketHelper,
                            vpcInterp,
                            MockGoogleComputeService,

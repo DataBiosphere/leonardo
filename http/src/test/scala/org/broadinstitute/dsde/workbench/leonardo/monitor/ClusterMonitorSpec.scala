@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, Worker}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
@@ -200,8 +201,8 @@ class ClusterMonitorSpec
                            projectDAO,
                            serviceAccountProvider,
                            blocker)
-    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, computeService)
-    val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, computeService)
+    val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                      bucketHelper,
                                                      vpcInterp,
                                                      gdDAO,
@@ -212,7 +213,12 @@ class ClusterMonitorSpec
                                                      MockWelderDAO,
                                                      blocker)
     val gceInterp =
-      new GceInterpreter[IO](gceInterpreterConfig, bucketHelper, vpcInterp, computeService, MockWelderDAO, blocker)
+      new GceInterpreter[IO](Config.gceInterpreterConfig,
+                             bucketHelper,
+                             vpcInterp,
+                             computeService,
+                             MockWelderDAO,
+                             blocker)
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     system.actorOf(
       TestClusterSupervisorActor.props(

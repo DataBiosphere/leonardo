@@ -109,8 +109,8 @@ object Config {
 
   implicit val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
     VPCConfig(
-      config.getString("highSecurityProjectNetworkLabel"),
-      config.getString("highSecurityProjectSubnetworkLabel"),
+      config.as[NetworkLabel]("highSecurityProjectNetworkLabel"),
+      config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
       config.as[NetworkName]("networkName"),
       config.as[NetworkTag]("networkTag"),
       config.as[Boolean]("autoCreateSubnetworks"),
@@ -324,6 +324,8 @@ object Config {
   implicit val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
   implicit val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
   implicit val firewallRuleNameValueReader: ValueReader[FirewallRuleName] = stringValueReader.map(FirewallRuleName)
+  implicit val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
+  implicit val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
 
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")

@@ -5,8 +5,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{IpRange, NetworkTag}
 
 import scala.concurrent.duration.FiniteDuration
 
-final case class VPCConfig(highSecurityProjectNetworkLabel: String,
-                           highSecurityProjectSubnetworkLabel: String,
+final case class VPCConfig(highSecurityProjectNetworkLabel: NetworkLabel,
+                           highSecurityProjectSubnetworkLabel: SubnetworkLabel,
                            networkName: NetworkName,
                            networkTag: NetworkTag,
                            autoCreateSubnetworks: Boolean,
@@ -24,3 +24,6 @@ final case class FirewallRuleConfig(name: FirewallRuleName,
                                     allowed: List[Allowed])
 
 final case class Allowed(protocol: String, port: Option[String])
+
+final case class NetworkLabel(value: String) extends AnyVal
+final case class SubnetworkLabel(value: String) extends AnyVal

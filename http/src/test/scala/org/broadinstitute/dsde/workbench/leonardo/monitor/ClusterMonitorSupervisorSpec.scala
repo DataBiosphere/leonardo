@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
@@ -71,9 +72,9 @@ class ClusterMonitorSupervisorSpec
                            serviceAccountProvider,
                            blocker)
 
-    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, computeService)
+    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, computeService)
 
-    val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                      bucketHelper,
                                                      vpcInterp,
                                                      gdDAO,
@@ -84,7 +85,12 @@ class ClusterMonitorSupervisorSpec
                                                      MockWelderDAO,
                                                      blocker)
     val gceInterp =
-      new GceInterpreter[IO](gceInterpreterConfig, bucketHelper, vpcInterp, computeService, MockWelderDAO, blocker)
+      new GceInterpreter[IO](Config.gceInterpreterConfig,
+                             bucketHelper,
+                             vpcInterp,
+                             computeService,
+                             MockWelderDAO,
+                             blocker)
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(MockJupyterDAO, MockWelderDAO, MockRStudioDAO)
@@ -151,9 +157,9 @@ class ClusterMonitorSupervisorSpec
                            serviceAccountProvider,
                            blocker)
 
-    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, computeService)
+    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, computeService)
 
-    val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                      bucketHelper,
                                                      vpcInterp,
                                                      gdDAO,
@@ -164,7 +170,12 @@ class ClusterMonitorSupervisorSpec
                                                      MockWelderDAO,
                                                      blocker)
     val gceInterp =
-      new GceInterpreter[IO](gceInterpreterConfig, bucketHelper, vpcInterp, computeService, MockWelderDAO, blocker)
+      new GceInterpreter[IO](Config.gceInterpreterConfig,
+                             bucketHelper,
+                             vpcInterp,
+                             computeService,
+                             MockWelderDAO,
+                             blocker)
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -226,9 +237,9 @@ class ClusterMonitorSupervisorSpec
                            serviceAccountProvider,
                            blocker)
 
-    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, computeService)
+    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, computeService)
 
-    val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                      bucketHelper,
                                                      vpcInterp,
                                                      gdDAO,
@@ -239,7 +250,12 @@ class ClusterMonitorSupervisorSpec
                                                      MockWelderDAO,
                                                      blocker)
     val gceInterp =
-      new GceInterpreter[IO](gceInterpreterConfig, bucketHelper, vpcInterp, computeService, MockWelderDAO, blocker)
+      new GceInterpreter[IO](Config.gceInterpreterConfig,
+                             bucketHelper,
+                             vpcInterp,
+                             computeService,
+                             MockWelderDAO,
+                             blocker)
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)
@@ -303,9 +319,9 @@ class ClusterMonitorSupervisorSpec
                            serviceAccountProvider,
                            blocker)
 
-    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, computeService)
+    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, computeService)
 
-    val dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                      bucketHelper,
                                                      vpcInterp,
                                                      gdDAO,
@@ -316,7 +332,12 @@ class ClusterMonitorSupervisorSpec
                                                      MockWelderDAO,
                                                      blocker)
     val gceInterp =
-      new GceInterpreter[IO](gceInterpreterConfig, bucketHelper, vpcInterp, computeService, MockWelderDAO, blocker)
+      new GceInterpreter[IO](Config.gceInterpreterConfig,
+                             bucketHelper,
+                             vpcInterp,
+                             computeService,
+                             MockWelderDAO,
+                             blocker)
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterProxyDAO, MockWelderDAO, MockRStudioDAO)

@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.GCR
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -99,8 +100,8 @@ class LeonardoServiceSpec
                            projectDAO,
                            serviceAccountProvider,
                            blocker)
-    val vpcInterp = new VPCInterpreter[IO](vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
-    dataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
+    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
+    dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                  bucketHelper,
                                                  vpcInterp,
                                                  gdDAO,
@@ -110,7 +111,7 @@ class LeonardoServiceSpec
                                                  projectDAO,
                                                  MockWelderDAO,
                                                  blocker)
-    gceInterp = new GceInterpreter[IO](gceInterpreterConfig,
+    gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                        bucketHelper,
                                        vpcInterp,
                                        MockGoogleComputeService,
