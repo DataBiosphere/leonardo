@@ -11,7 +11,7 @@ set -e -x
 # `git -C jenkins/gce-custom-images/dsp-appsec-base-image-hardening checkout <desired version hash>`
 
 # The date-time suffix is in the format yymmdd-hh-mm but it could be anything.
-OUTPUT_IMAGE_NAME="leo-custom-gce-image-200320-10-30"
+OUTPUT_IMAGE_NAME="leo-custom-gce-image-200323-12-14"
 
 # The bucket that Daisy uses as scratch area to store source and log files.
 # It must exist or Daisy errors out.
