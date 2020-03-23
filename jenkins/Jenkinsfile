@@ -346,6 +346,8 @@ pipeline {
         when { expression { !shouldAbortBuild } }
         steps {
             sh """
+                pwd
+                ls
                 cat .gitmodule
                 cat .git/config
                 ls jenkins/gce-custom-images 
