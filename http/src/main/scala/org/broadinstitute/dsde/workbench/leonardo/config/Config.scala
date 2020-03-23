@@ -91,13 +91,19 @@ object Config {
     )
   }
 
-  implicit val fireallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
+  implicit val allowedConfigReader: ValueReader[Allowed] = ValueReader.relative { config =>
+    Allowed(
+      config.as[String]("protocol"),
+      config.as[Option[String]]("port")
+    )
+  }
+
+  implicit val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
     FirewallRuleConfig(
       config.as[FirewallRuleName]("name"),
       config.as[NetworkName]("network"),
-      config.as[List[IpRange]]("ipRange"),
-      config.as[String]("protocol"),
-      config.as[Int]("port")
+      config.as[List[IpRange]]("sourceRanges"),
+      config.as[List[Allowed]]("allowed")
     )
   }
 
@@ -111,8 +117,7 @@ object Config {
       config.as[SubnetworkName]("subnetworkName"),
       config.as[RegionName]("subnetworkRegion"),
       config.as[IpRange]("subnetworkIpRange"),
-      config.as[FirewallRuleConfig]("httpsFirewallRule"),
-      config.as[FirewallRuleConfig]("sshFirewallRule"),
+      config.as[List[FirewallRuleConfig]]("firewallsToAdd"),
       config.as[List[FirewallRuleName]]("firewallsToRemove"),
       config.as[FiniteDuration]("pollPeriod"),
       config.as[Int]("maxAttempts")

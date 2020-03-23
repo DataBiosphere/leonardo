@@ -36,7 +36,7 @@ class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 )(implicit cs: ContextShift[IO])
     extends VPCAlgebra[F] {
 
-  val defaultNetwork = NetworkName("default")
+  val defaultNetworkName = NetworkName("default")
 
   override def setUpProjectNetwork(
     params: SetUpProjectNetworkParams
@@ -88,30 +88,20 @@ class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     params: SetUpProjectFirewallsParams
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
-      // create the https firewall rule
-      _ <- createIfAbsent(
-        params.project,
-        googleComputeService.getFirewallRule(params.project, config.vpcConfig.httpsFirewallRule.name),
-        googleComputeService.addFirewallRule(params.project,
-                                             buildFirewall(params.project, config.vpcConfig.httpsFirewallRule)),
-        FirewallNotReadyException(params.project, config.vpcConfig.httpsFirewallRule.name)
-      )
-      // if the default network exists, do some maintenance there
-      defaultNetwork <- googleComputeService.getNetwork(params.project, defaultNetwork)
+      // create firewalls in the Leonardo network
+      _ <- config.vpcConfig.firewallsToAdd.parTraverse_ { fw =>
+        createIfAbsent(
+          params.project,
+          googleComputeService.getFirewallRule(params.project, fw.name),
+          googleComputeService.addFirewallRule(params.project, buildFirewall(params.project, fw)),
+          FirewallNotReadyException(params.project, fw.name)
+        )
+      }
+      // if the default network exists, remove configured firewalls
+      defaultNetwork <- googleComputeService.getNetwork(params.project, defaultNetworkName)
       _ <- if (defaultNetwork.isDefined) {
-        for {
-          // create the internal ssh firewall rule in the default network
-          _ <- createIfAbsent(
-            params.project,
-            googleComputeService.getFirewallRule(params.project, config.vpcConfig.sshFirewallRule.name),
-            googleComputeService.addFirewallRule(params.project,
-                                                 buildFirewall(params.project, config.vpcConfig.sshFirewallRule)),
-            FirewallNotReadyException(params.project, config.vpcConfig.httpsFirewallRule.name)
-          )
-          // clean up some firewall rules like allow-ssh rule
-          _ <- config.vpcConfig.firewallsToRemove
-            .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
-        } yield ()
+        config.vpcConfig.firewallsToRemove
+          .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
       } else Async[F].unit
     } yield ()
 
@@ -155,12 +145,17 @@ class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       .setNetwork(buildNetworkUri(googleProject, fwConfig.network))
       .addAllSourceRanges(fwConfig.sourceRanges.map(_.value).asJava)
       .addTargetTags(config.vpcConfig.networkTag.value)
-      .addAllowed(
-        Allowed
-          .newBuilder()
-          .setIPProtocol(fwConfig.protocol)
-          .addPorts(fwConfig.port.toString)
-          .build
+      .addAllAllowed(
+        fwConfig.allowed
+          .map(
+            a =>
+              Allowed
+                .newBuilder()
+                .setIPProtocol(a.protocol)
+                .addAllPorts(a.port.toList.asJava)
+                .build()
+          )
+          .asJava
       )
       .build
 }

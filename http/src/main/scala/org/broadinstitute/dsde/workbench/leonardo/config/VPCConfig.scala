@@ -13,8 +13,7 @@ final case class VPCConfig(highSecurityProjectNetworkLabel: String,
                            subnetworkName: SubnetworkName,
                            subnetworkRegion: RegionName,
                            subnetworkIpRange: IpRange,
-                           httpsFirewallRule: FirewallRuleConfig,
-                           sshFirewallRule: FirewallRuleConfig,
+                           firewallsToAdd: List[FirewallRuleConfig],
                            firewallsToRemove: List[FirewallRuleName],
                            pollPeriod: FiniteDuration,
                            maxAttempts: Int)
@@ -22,5 +21,6 @@ final case class VPCConfig(highSecurityProjectNetworkLabel: String,
 final case class FirewallRuleConfig(name: FirewallRuleName,
                                     network: NetworkName,
                                     sourceRanges: List[IpRange],
-                                    protocol: String,
-                                    port: Int)
+                                    allowed: List[Allowed])
+
+final case class Allowed(protocol: String, port: Option[String])
