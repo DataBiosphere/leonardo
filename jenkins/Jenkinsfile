@@ -346,17 +346,15 @@ pipeline {
         when { expression { !shouldAbortBuild } }
         steps {
             sh """
-                pwd
-                ls
-                cat .gitmodule
+                cat .gitmodules
                 cat .git/config
                 ls jenkins/gce-custom-images 
                 git submodule update --init --recursive
-                cat .gitmodule
+                cat .gitmodules
                 cat .git/config
                 ls jenkins/gce-custom-images
                 git submodule init && git submodule update
-                cat .gitmodule
+                cat .gitmodules
                 cat .git/config
                 ls jenkins/gce-custom-images
             """
