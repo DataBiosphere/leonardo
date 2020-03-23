@@ -84,7 +84,7 @@ class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
   it should "remove firewall rules in the default network" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
     vpcConfig.firewallsToRemove.foreach { fw =>
-      computeService.firewallMap.put(fw, Firewall.newBuilder().setName(fw.value).build)
+      computeService.firewallMap.putIfAbsent(fw, Firewall.newBuilder().setName(fw.value).build)
     }
     val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubProjectDAO(Map.empty), computeService)
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
@@ -97,12 +97,13 @@ class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
     }
 
   class MockGoogleComputeServiceWithFirewalls extends MockGoogleComputeService {
-    val firewallMap = scala.collection.mutable.Map.empty[FirewallRuleName, Firewall]
+    val firewallMap = scala.collection.concurrent.TrieMap.empty[FirewallRuleName, Firewall]
 
     override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
       implicit ev: ApplicativeAsk[IO, TraceId]
     ): IO[Operation] =
-      IO(firewallMap.put(FirewallRuleName(firewall.getName), firewall)) >> super.addFirewallRule(project, firewall)(ev)
+      IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall)) >> super.addFirewallRule(project,
+                                                                                                         firewall)(ev)
 
     override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
       implicit ev: ApplicativeAsk[IO, TraceId]
