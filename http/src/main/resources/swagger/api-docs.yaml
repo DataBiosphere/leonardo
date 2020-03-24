@@ -1544,32 +1544,32 @@ components:
       properties:
         id:
           type: string
-          description: The internally-referenced ID of the cluster
+          description: The internally-referenced ID of the runtime
         runtimeName:
           type: string
-          description: The user-supplied name for the cluster
+          description: The user-supplied name for the runtime
         googleProject:
           type: string
-          description: The Google Project used to create the cluster
+          description: The Google Project used to create the runtime
         serviceAccount:
           type: string
-          description: The Google Service Account used to create the cluster
+          description: The Google Service Account used to create the runtime
         runtimeConfig:
           $ref: "#/components/schemas/MachineConfig"
         status:
           $ref: "#/components/schemas/ClusterStatus"
         labels:
           type: object
-          description: The labels to be placed on the cluster. Of type Map[String,String]
+          description: The labels to be placed on the runtime. Of type Map[String,String]
         errors:
           type: array
-          description: The list of errors that were encountered on cluster create. Each
+          description: The list of errors that were encountered on runtime create. Each
             error consists of the error message, code and timestamp
           items:
             $ref: "#/components/schemas/ClusterError"
         autopauseThreshold:
           type: integer
-          description: The number of minutes of idle time to elapse before the cluster is
+          description: The number of minutes of idle time to elapse before the runtime is
             autopaused. A value of 0 is equivalent to autopause being turned
             off.
         defaultClientId:
@@ -1579,10 +1579,10 @@ components:
           type: array
           items:
             type: string
-          description: The scopes for the cluster.
+          description: The scopes for the runtime.
         customEnvironmentVariables:
           type: object
-          description: Optional environment variables to be set on the cluster.
+          description: Optional environment variables to be set on the runtime.
     ListClusterResponse:
       description: ""
       required:
@@ -1666,29 +1666,29 @@ components:
       properties:
         internalId:
           type: string
-          description: Internal resource ID of the cluster
+          description: Internal resource ID of the runtime
         runtimeName:
           type: string
-          description: The user-supplied name for the cluster
+          description: The user-supplied name for the runtime
         googleId:
           type: string
           description: Google's UUID for the cluster
         googleProject:
           type: string
-          description: The Google Project used to create the cluster
+          description: The Google Project used to create the runtime
         serviceAccount:
           type: string
-          description: The Google Service Account used to create the cluster
+          description: The Google Service Account used to create the runtime
         runtimeConfig:
           $ref: "#/components/schemas/MachineConfig"
         status:
           $ref: "#/components/schemas/ClusterStatus"
         labels:
           type: object
-          description: The labels to be placed on the cluster. Of type Map[String,String]
+          description: The labels to be placed on the runtime. Of type Map[String,String]
         autopauseThreshold:
           type: integer
-          description: The number of minutes of idle time to elapse before the cluster is
+          description: The number of minutes of idle time to elapse before the runtime is
             autopaused. A value of 0 is equivalent to autopause being turned
             off.
         jupyterUserScriptUri:
