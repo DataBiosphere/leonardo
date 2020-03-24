@@ -93,7 +93,7 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         createIfAbsent(
           params.project,
           googleComputeService.getFirewallRule(params.project, fw.name),
-          googleComputeService.addFirewallRule(params.project, buildFirewall(params.project, fw)),
+          googleComputeService.addFirewallRule(params.project, buildFirewall(params.project, params.networkName, fw)),
           FirewallNotReadyException(params.project, fw.name)
         )
       }
@@ -138,11 +138,13 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       .setIpCidrRange(config.vpcConfig.subnetworkIpRange.value)
       .build
 
-  private[util] def buildFirewall(googleProject: GoogleProject, fwConfig: FirewallRuleConfig): Firewall =
+  private[util] def buildFirewall(googleProject: GoogleProject,
+                                  networkName: NetworkName,
+                                  fwConfig: FirewallRuleConfig): Firewall =
     Firewall
       .newBuilder()
       .setName(fwConfig.name.value)
-      .setNetwork(buildNetworkUri(googleProject, fwConfig.network))
+      .setNetwork(buildNetworkUri(googleProject, networkName))
       .addAllSourceRanges(fwConfig.sourceRanges.map(_.value).asJava)
       .addTargetTags(config.vpcConfig.networkTag.value)
       .addAllAllowed(
