@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   ImageConfig,
   MonitorConfig,
   ProxyConfig,
+  VPCConfig,
   WelderConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
@@ -102,6 +103,7 @@ object RuntimeInterpreterConfig {
                                              welderConfig: WelderConfig,
                                              imageConfig: ImageConfig,
                                              proxyConfig: ProxyConfig,
+                                             vpcConfig: VPCConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: ClusterFilesConfig,
                                              monitorConfig: MonitorConfig)
@@ -111,6 +113,7 @@ object RuntimeInterpreterConfig {
                                         welderConfig: WelderConfig,
                                         imageConfig: ImageConfig,
                                         proxyConfig: ProxyConfig,
+                                        vpcConfig: VPCConfig,
                                         clusterResourcesConfig: ClusterResourcesConfig,
                                         clusterFilesConfig: ClusterFilesConfig,
                                         monitorConfig: MonitorConfig)

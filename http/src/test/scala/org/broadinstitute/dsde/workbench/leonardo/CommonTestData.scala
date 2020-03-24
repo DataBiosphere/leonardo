@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.leonardo.util.VPCHelperConfig
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -75,6 +74,7 @@ object CommonTestData {
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val gceConfig = config.as[GceConfig]("gce")
+  val vpcConfig = config.as[VPCConfig]("vpc")
   val imageConfig = config.as[ImageConfig]("image")
   val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
@@ -88,14 +88,6 @@ object CommonTestData {
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
-  val vpcHelperConfig = VPCHelperConfig(
-    proxyConfig.projectVPCNetworkLabel,
-    proxyConfig.projectVPCSubnetLabel,
-    FirewallRuleName(proxyConfig.firewallRuleName),
-    proxyConfig.proxyProtocol,
-    proxyConfig.proxyPort,
-    List(NetworkTag(proxyConfig.networkTag))
-  )
   val contentSecurityPolicy =
     config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults

@@ -13,10 +13,11 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.{Event, FirewallRuleName, GoogleSubscriber, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, RuntimeConfigQueries, TestComponent}
@@ -26,10 +27,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   ClusterInvalidState,
   ClusterNotStopped
-}
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -74,22 +71,11 @@ class LeoPubsubMessageSubscriberSpec
                          serviceAccountProvider,
                          blocker)
 
-  val vpcHelperConfig =
-    VPCHelperConfig("lbl1", "lbl2", FirewallRuleName("test-firewall-rule"), firewallRuleTargetTags = List.empty)
-  val vpcHelper = new VPCHelper[IO](vpcHelperConfig, projectDAO, MockGoogleComputeService)
+  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
 
-  val dataprocInterp = new DataprocInterpreter[IO](DataprocInterpreterConfig(
-                                                     dataprocConfig,
-                                                     googleGroupsConfig,
-                                                     welderConfig,
-                                                     imageConfig,
-                                                     proxyConfig,
-                                                     clusterResourcesConfig,
-                                                     clusterFilesConfig,
-                                                     monitorConfig
-                                                   ),
+  val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
-                                                   vpcHelper,
+                                                   vpcInterp,
                                                    gdDAO,
                                                    MockGoogleComputeService,
                                                    mockGoogleDirectoryDAO,
@@ -97,17 +83,9 @@ class LeoPubsubMessageSubscriberSpec
                                                    projectDAO,
                                                    mockWelderDAO,
                                                    blocker)
-  val gceInterp = new GceInterpreter[IO](GceInterpreterConfig(
-                                           gceConfig,
-                                           welderConfig,
-                                           imageConfig,
-                                           proxyConfig,
-                                           clusterResourcesConfig,
-                                           clusterFilesConfig,
-                                           monitorConfig
-                                         ),
+  val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                          bucketHelper,
-                                         vpcHelper,
+                                         vpcInterp,
                                          MockGoogleComputeService,
                                          mockWelderDAO,
                                          blocker)

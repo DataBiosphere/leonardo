@@ -31,7 +31,6 @@ import org.broadinstitute.dsde.workbench.google.{
 }
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
-  FirewallRuleName,
   GoogleComputeService,
   GooglePublisher,
   GoogleStorageService,
@@ -85,21 +84,12 @@ object Boot extends IOApp {
                                           appDependencies.googleProjectDAO,
                                           appDependencies.serviceAccountProvider,
                                           appDependencies.blocker)
-
-      val vpcHelperConfig = VPCHelperConfig(
-        proxyConfig.projectVPCNetworkLabel,
-        proxyConfig.projectVPCSubnetLabel,
-        FirewallRuleName(proxyConfig.firewallRuleName),
-        proxyConfig.proxyProtocol,
-        proxyConfig.proxyPort,
-        List(NetworkTag(proxyConfig.networkTag))
-      )
-      val vpcHelper =
-        new VPCHelper(vpcHelperConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
+      val vpcInterp =
+        new VPCInterpreter(vpcInterpreterConfig, appDependencies.googleProjectDAO, appDependencies.googleComputeService)
 
       val dataprocInterp = new DataprocInterpreter(dataprocInterpreterConfig,
                                                    bucketHelper,
-                                                   vpcHelper,
+                                                   vpcInterp,
                                                    appDependencies.googleDataprocDAO,
                                                    appDependencies.googleComputeService,
                                                    appDependencies.googleDirectoryDAO,
@@ -110,7 +100,7 @@ object Boot extends IOApp {
 
       val gceInterp = new GceInterpreter(gceInterpreterConfig,
                                          bucketHelper,
-                                         vpcHelper,
+                                         vpcInterp,
                                          appDependencies.googleComputeService,
                                          appDependencies.welderDAO,
                                          appDependencies.blocker)
@@ -299,7 +289,7 @@ object Boot extends IOApp {
       gdDAO = new HttpGoogleDataprocDAO(applicationConfig.applicationName,
                                         json,
                                         workbenchMetricsBaseName,
-                                        NetworkTag(proxyConfig.networkTag),
+                                        vpcConfig.networkTag,
                                         dataprocConfig.regionName,
                                         dataprocConfig.zoneName)
 

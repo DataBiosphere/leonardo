@@ -26,7 +26,6 @@ import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.google2.{InstanceName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, SecondaryWorker, Worker}
-import org.broadinstitute.dsde.workbench.leonardo.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
@@ -247,19 +246,9 @@ class HttpGoogleDataprocDAO(
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
     // Set the network tag, network, and subnet. This allows the created GCE instances to be exposed by Leo's firewall rule.
-    val gceClusterConfig = {
-      val baseConfig = new GceClusterConfig()
-        .setTags(List(networkTag.value).asJava)
-
-      config.clusterVPCSettings match {
-        case Some(VPCSubnet(value)) =>
-          baseConfig.setSubnetworkUri(value)
-        case Some(VPCNetwork(value)) =>
-          baseConfig.setNetworkUri(value)
-        case _ =>
-          baseConfig
-      }
-    }
+    val gceClusterConfig = new GceClusterConfig()
+      .setTags(List(networkTag.value).asJava)
+      .setSubnetworkUri(config.subnetwork.value)
 
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.

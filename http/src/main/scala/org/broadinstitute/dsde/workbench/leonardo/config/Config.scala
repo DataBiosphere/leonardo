@@ -9,10 +9,13 @@ import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.{
+  FirewallRuleName,
   GoogleTopicAdminInterpreter,
   MachineTypeName,
+  NetworkName,
   PublisherConfig,
   RegionName,
+  SubnetworkName,
   SubscriberConfig,
   ZoneName
 }
@@ -24,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
   DataprocInterpreterConfig,
   GceInterpreterConfig
 }
+import org.broadinstitute.dsde.workbench.leonardo.util.VPCInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -84,6 +88,39 @@ object Config {
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
+    )
+  }
+
+  implicit val allowedConfigReader: ValueReader[Allowed] = ValueReader.relative { config =>
+    Allowed(
+      config.as[String]("protocol"),
+      config.as[Option[String]]("port")
+    )
+  }
+
+  implicit val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
+    FirewallRuleConfig(
+      config.as[FirewallRuleName]("name"),
+      config.as[NetworkName]("network"),
+      config.as[List[IpRange]]("sourceRanges"),
+      config.as[List[Allowed]]("allowed")
+    )
+  }
+
+  implicit val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
+    VPCConfig(
+      config.as[NetworkLabel]("highSecurityProjectNetworkLabel"),
+      config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
+      config.as[NetworkName]("networkName"),
+      config.as[NetworkTag]("networkTag"),
+      config.as[Boolean]("autoCreateSubnetworks"),
+      config.as[SubnetworkName]("subnetworkName"),
+      config.as[RegionName]("subnetworkRegion"),
+      config.as[IpRange]("subnetworkIpRange"),
+      config.as[List[FirewallRuleConfig]]("firewallsToAdd"),
+      config.as[List[FirewallRuleName]]("firewallsToRemove"),
+      config.as[FiniteDuration]("pollPeriod"),
+      config.as[Int]("maxAttempts")
     )
   }
 
@@ -170,11 +207,6 @@ object Config {
       config.getString("proxyDomain"),
       config.getString("proxyUrlBase"),
       config.getInt("proxyPort"),
-      config.getString("proxyProtocol"),
-      config.getString("firewallRuleName"),
-      config.getString("networkTag"),
-      config.getString("projectVPCNetworkLabel"),
-      config.getString("projectVPCSubnetLabel"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
       config.getInt("tokenCacheMaxSize"),
@@ -287,6 +319,13 @@ object Config {
   implicit val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
+  implicit val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
+  implicit val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
+  implicit val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
+  implicit val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
+  implicit val firewallRuleNameValueReader: ValueReader[FirewallRuleName] = stringValueReader.map(FirewallRuleName)
+  implicit val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
+  implicit val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
 
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
@@ -330,6 +369,7 @@ object Config {
   val dbConcurrency = config.as[Long]("mysql.concurrency")
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
+  val vpcConfig = config.as[VPCConfig]("vpc")
 
   val topicName = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
   val subscriberConfig: SubscriberConfig =
@@ -345,6 +385,7 @@ object Config {
                                                             welderConfig,
                                                             imageConfig,
                                                             proxyConfig,
+                                                            vpcConfig,
                                                             clusterResourcesConfig,
                                                             clusterFilesConfig,
                                                             monitorConfig)
@@ -353,7 +394,9 @@ object Config {
                                                   welderConfig,
                                                   imageConfig,
                                                   proxyConfig,
+                                                  vpcConfig,
                                                   clusterResourcesConfig,
                                                   clusterFilesConfig,
                                                   monitorConfig)
+  val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 }
