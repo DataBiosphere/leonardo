@@ -254,7 +254,8 @@ object RuntimeRoutes {
     )
   }
 
-  //TODO: add `dataprocInstances` when it's added to `RuntimeConfig` https://broadworkbench.atlassian.net/browse/IA-1778
+  // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
+  // API does
   implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct20(
     "id",
     "runtimeName",
@@ -302,6 +303,8 @@ object RuntimeRoutes {
       )
   )
 
+  // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
+  // API does
   implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse] = Encoder.forProduct14(
     "id",
     "runtimeName",
