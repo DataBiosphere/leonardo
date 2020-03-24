@@ -101,7 +101,6 @@ object Config {
   implicit val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
     FirewallRuleConfig(
       config.as[FirewallRuleName]("name"),
-      config.as[NetworkName]("network"),
       config.as[List[IpRange]]("sourceRanges"),
       config.as[List[Allowed]]("allowed")
     )
