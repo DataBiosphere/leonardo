@@ -140,7 +140,7 @@ pipeline {
             description: "The path for the bucket where the custom GCE images will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
             description: "A custom image will be build for each of these dataproc versions")
-        string(name: "IMAGE_HARDENING_LIB_VERSION", defaultValue: "f45a1a2",
+        string(name: "IMAGE_HARDENING_LIB_VERSION", defaultValue: "fb388c5",
             description: "The hash of the 'broadinstitute/dsp-appsec-base-image-hardening' repo branch that contains libraries for CIS-hardening GCE images")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")
@@ -195,7 +195,7 @@ pipeline {
 
     stage('Pull Leonardo') {
         steps {
-            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
+            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'ky_custom_image_hardening_hash_fix' // TODO: Revert me
 
             script {
                 configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
@@ -393,7 +393,7 @@ pipeline {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
                                 sh """
                                     cd jenkins/gce-custom-images/cis-harden-images
-                                    git checkout $IMAGE_HARDENING_LIB_VERSION 
+                                    git fetch && git checkout $IMAGE_HARDENING_LIB_VERSION 
 
                                     # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
                                     gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
