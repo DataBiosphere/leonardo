@@ -3,9 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-
-import org.broadinstitute.dsde.workbench.leonardo.{GPAllocBeforeAndAfterAll, GPAllocFixtureSpec, LeonardoConfig, RuntimeConfig, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.{GPAllocBeforeAndAfterAll, GPAllocFixtureSpec, LeonardoConfig, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -16,9 +14,9 @@ import scala.concurrent.duration._
  * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
  */
 //@DoNotDiscover
-final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils with GPAllocBeforeAndAfterAll{
+final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils with GPAllocBeforeAndAfterAll{
 
-  "NotebookCustomizationSpec" - {
+  "NotebookGCECustomizationSpec" - {
 
     "should run a user script" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
@@ -42,8 +40,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                                                   GcsRoles.Owner)
 
           // Create a new cluster using the URI of the user script
-          val clusterRequestWithUserScript = defaultClusterRequest.copy(Map(), None, Option(userScriptUri))
-          withNewCluster(billingProject, request = clusterRequestWithUserScript) { cluster =>
+          val clusterRequestWithUserScript = defaultRuntimeRequest.copy(Map(), None, Option(userScriptUri))
+          withNewRuntime(billingProject, request = clusterRequestWithUserScript) { cluster =>
             Thread.sleep(10000)
             withWebDriver { implicit driver =>
               // Create a notebook that will check if the user script ran
@@ -68,8 +66,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
           val extensionConfig = multiExtensionClusterRequest.copy(
             nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
           )
-          withNewCluster(billingProject,
-                         request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {
+          withNewRuntime(billingProject,
+                         request = defaultRuntimeRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {
             cluster =>
               withWebDriver { implicit driver =>
                 withNewNotebook(cluster, Python3) { notebookPage =>
@@ -95,21 +93,25 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       }
     }
 
+    //MAKE SURE SCOPES ARE BEING USED PROPERLY IN THE CLUSTERCOPY
     "should give cluster user-specified scopes" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
-      withNewCluster(
+      withNewRuntime(
         billingProject,
-        request = defaultClusterRequest.copy(
+        request = defaultRuntimeRequest.copy(
           scopes = Set(
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/userinfo.profile",
             "https://www.googleapis.com/auth/source.read_only"
           )
         )
+
       ) { cluster =>
         withWebDriver { implicit driver =>
+            //With Scopes
           withNewNotebook(cluster) { notebookPage =>
+
             val query =
               """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
@@ -124,16 +126,20 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       }
     }
 
+    //SEE IF THE CUSTOMCLUSTERENVIRONMENTVARIABLES are being assigned properly
     "should populate user-specified environment variables" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Note: the R image includes R and python 3 kernels
-      val clusterRequest = defaultClusterRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))
+      val clusterRequest = defaultRuntimeRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))
 
-      withNewCluster(billingProject, request = clusterRequest) { cluster =>
+      withNewRuntime(billingProject, request = clusterRequest) { cluster =>
         withWebDriver { implicit driver =>
+          //errors where when creating notebook. Is this a GCE issue with customClusterEnvironmentVariables
           withNewNotebook(cluster, Python3) { notebookPage =>
+            logger.info(s"PRINT CLUSTER: ${cluster}")
             notebookPage.executeCell("import os")
+            //os.getenv('KEY') isn't returning anything
             val envVar = notebookPage.executeCell("os.getenv('KEY')")
             envVar shouldBe Some("'value'")
           }
@@ -164,8 +170,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                                                   EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
                                                   GcsRoles.Owner)
 
-          withNewCluster(billingProject,
-                         request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
+          withNewRuntime(billingProject,
+                         request = defaultRuntimeRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
             cluster =>
               withWebDriver { implicit driver =>
                 withNewNotebook(cluster, Python3) { notebookPage =>
@@ -173,10 +179,10 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                 }
 
                 // Stop the cluster
-                stopAndMonitor(cluster.googleProject, cluster.clusterName)
+                stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
                 // Start the cluster
-                startAndMonitor(cluster.googleProject, cluster.clusterName)
+                startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
                 withNewNotebook(cluster, Python3) { notebookPage =>
                   notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"

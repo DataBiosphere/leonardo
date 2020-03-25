@@ -68,10 +68,11 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       implicit val ronToken: AuthToken = ronAuthToken
 
       val initialMachineConfig =
-        RuntimeConfig.DataprocConfig(
-          numberOfWorkers = 2,
-          masterMachineType = MachineTypeName("n1-standard-2"),
-          masterDiskSize = DiskSize(50),
+
+        RuntimeConfigRequest.DataprocConfig(
+          numberOfWorkers = Some(2),
+          masterMachineType = Some("n1-standard-2"),
+          masterDiskSize = Some(50),
           workerMachineType = None,
           workerDiskSize = None,
           numberOfWorkerLocalSSDs = None,
@@ -81,14 +82,14 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
       withNewCluster(billingProject,
                      request = defaultClusterRequest
-                       .copy(machineConfig = Some(DataprocConfigCopy.fromDataprocConfig(initialMachineConfig)))) {
+                       .copy(machineConfig = Some(initialMachineConfig))) {
         cluster =>
           // update the cluster to add another worker node and increase the master disk
           val newMachineConfig =
-            RuntimeConfig.DataprocConfig(
-              numberOfWorkers = 3,
-              masterDiskSize = DiskSize(100),
-              masterMachineType = MachineTypeName("n1-standard-2"),
+            RuntimeConfigRequest.DataprocConfig(
+              numberOfWorkers = Some(3),
+              masterDiskSize = Some(100),
+              masterMachineType = Some("n1-standard-2"),
               workerMachineType = None,
               workerDiskSize = None,
               numberOfWorkerLocalSSDs = None,
@@ -98,7 +99,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           Leonardo.cluster.update(
             billingProject,
             cluster.clusterName,
-            ClusterRequest(machineConfig = Some(DataprocConfigCopy.fromDataprocConfig(newMachineConfig)))
+            ClusterRequest(machineConfig = Some(newMachineConfig))
           )
 
           eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
@@ -109,9 +110,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           val timeToAddWorker = time {
             eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
               val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-              clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
-              clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
-              clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
+              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
+              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterMachineType shouldBe initialMachineConfig.masterMachineType
+              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterDiskSize shouldBe newMachineConfig.masterDiskSize
               clusterResponse.status shouldBe ClusterStatus.Running
             }
           }
@@ -122,13 +123,13 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
           // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
           val twoWorkersConfig =
-            newMachineConfig.copy(numberOfWorkers = 2,
-                                  masterDiskSize = DiskSize(500),
-                                  masterMachineType = MachineTypeName("n1-standard-2"))
+            newMachineConfig.copy(numberOfWorkers = Some(2),
+                                  masterDiskSize = Some(500),
+                                  masterMachineType = Some("n1-standard-2"))
           Leonardo.cluster.update(
             billingProject,
             cluster.clusterName,
-            ClusterRequest(machineConfig = Some(DataprocConfigCopy.fromDataprocConfig(twoWorkersConfig)))
+            ClusterRequest(machineConfig = Some(twoWorkersConfig))
           )
 
           eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
@@ -139,9 +140,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           val timeToRemoveWorker = time {
             eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
               val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-              clusterResponse.machineConfig.numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
-              clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
-              clusterResponse.machineConfig.masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
+              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
+              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterMachineType shouldBe initialMachineConfig.masterMachineType
+              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
               clusterResponse.status shouldBe ClusterStatus.Running
             }
           }
@@ -153,14 +154,14 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           // finally, change the master machine type
           // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
           val newMachineTypeConfig =
-            twoWorkersConfig.copy(masterMachineType = MachineTypeName("n1-standard-4"),
-                                  masterDiskSize = DiskSize(500),
-                                  numberOfWorkers = 2)
+            twoWorkersConfig.copy(masterMachineType = Some("n1-standard-4"),
+                                  masterDiskSize = Some(500),
+                                  numberOfWorkers = Some(2))
           withRestartCluster(cluster) { cluster =>
             Leonardo.cluster.update(
               billingProject,
               cluster.clusterName,
-              ClusterRequest(machineConfig = Some(DataprocConfigCopy.fromDataprocConfig(newMachineTypeConfig)))
+              ClusterRequest(machineConfig = Some(newMachineTypeConfig))
             )
             // cluster status should still be Stopped
             val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
@@ -168,9 +169,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           }
 
           val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-          clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
-          clusterResponse.machineConfig.masterMachineType shouldBe newMachineTypeConfig.masterMachineType
-          clusterResponse.machineConfig.masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
+          clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
+          clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterMachineType shouldBe newMachineTypeConfig.masterMachineType
+          clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
           clusterResponse.status shouldBe ClusterStatus.Running
       }
     }
@@ -197,19 +198,13 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
         val request = defaultClusterRequest.copy(
           machineConfig = Some(
-            DataprocConfigCopy.fromDataprocConfig(
-              RuntimeConfig.DataprocConfig(
+
+              RuntimeConfigRequest.GceConfig(
                 // need at least 2 regular workers to enable preemptibles
-                numberOfWorkers = 2,
-                masterDiskSize = DiskSize(500),
-                masterMachineType = MachineTypeName("n1-standard-4"),
-                numberOfPreemptibleWorkers = Some(10),
-                workerMachineType = None,
-                workerDiskSize = None,
-                numberOfWorkerLocalSSDs = None,
-                properties = Map.empty
+                machineType = Some("n1-standard-4"),
+                diskSize = Some(500)
               )
-            )
+
           ),
           toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl)
         )

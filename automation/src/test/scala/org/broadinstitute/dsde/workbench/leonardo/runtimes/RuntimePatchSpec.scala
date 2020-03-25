@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
-package cluster
+package runtimes
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.DoNotDiscover
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
-@DoNotDiscover
-class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
+//@DoNotDiscover
+class RuntimePatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
 
   //this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start tranition" taggedAs Tags.SmokeTest in { clusterFixture =>
@@ -41,7 +41,6 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
       val getCluster: ClusterCopy =
         Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       getCluster.status shouldBe ClusterStatus.Stopping
-      getCluster.patchInProgress shouldBe true
     }
 
     eventually(timeout(Span(10, Minutes)), interval(Span(30, Seconds))) {
@@ -49,7 +48,6 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
         Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       getCluster.status shouldBe ClusterStatus.Running
       getCluster.machineConfig shouldBe originalMachineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].copy(masterMachineType = MachineTypeName(newMasterMachineType))
-
     }
   }
 

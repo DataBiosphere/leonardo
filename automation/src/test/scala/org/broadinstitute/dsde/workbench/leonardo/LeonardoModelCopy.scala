@@ -1,8 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.net.URL
 import java.time.Instant
 
+import enumeratum.{Enum, EnumEntry}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.findValues
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
@@ -11,10 +15,10 @@ import scala.language.implicitConversions
 sealed trait StringValueClass extends Any
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 
-case class ClusterCopy(clusterName: RuntimeName,
+case class  ClusterCopy(clusterName: RuntimeName,
                        googleProject: GoogleProject,
                        serviceAccountInfo: ServiceAccountInfo,
-                       machineConfig: RuntimeConfig.DataprocConfig,
+                       machineConfig: RuntimeConfig,
                        status: ClusterStatus,
                        creator: WorkbenchEmail,
                        labels: LabelMap,
@@ -29,7 +33,7 @@ case class ClusterCopy(clusterName: RuntimeName,
 
 // Same as DataprocConfig but uses String instead of MachineConfig because of jackson serialization problems
 // https://github.com/FasterXML/jackson-module-scala/issues/209
-final case class DataprocConfigCopy(numberOfWorkers: Int,
+/*final case class DataprocConfigCopy(numberOfWorkers: Int,
                                     masterMachineType: String,
                                     masterDiskSize: Int, //min 10
                                     // worker settings are None when numberOfWorkers is 0
@@ -37,7 +41,10 @@ final case class DataprocConfigCopy(numberOfWorkers: Int,
                                     workerDiskSize: Option[Int] = None, //min 10
                                     numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                     numberOfPreemptibleWorkers: Option[Int] = None)
+
+
 object DataprocConfigCopy {
+
   def fromDataprocConfig(dataprocConfig: RuntimeConfig.DataprocConfig): DataprocConfigCopy =
     DataprocConfigCopy(
       dataprocConfig.numberOfWorkers,
@@ -48,13 +55,45 @@ object DataprocConfigCopy {
       dataprocConfig.numberOfWorkerLocalSSDs,
       dataprocConfig.numberOfPreemptibleWorkers
     )
+}*/
+
+sealed trait RuntimeConfigRequest extends Product with Serializable {
+  def typedCloudService: CloudService
+}
+object RuntimeConfigRequest {
+  final case class GceConfig(
+                              cloudService: String = "GCE",
+                              machineType: Option[String],
+                              diskSize: Option[Int]
+                            ) extends RuntimeConfigRequest {
+    val typedCloudService: CloudService = CloudService.GCE
+
+  }
+
+
+
+
+  final case class DataprocConfig(numberOfWorkers: Option[Int],
+                                  masterMachineType: Option[String],
+                                  masterDiskSize: Option[Int], //min 10
+                                  // worker settings are None when numberOfWorkers is 0
+                                  workerMachineType: Option[String] = None,
+                                  workerDiskSize: Option[Int] = None, //min 10
+                                  numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                                  numberOfPreemptibleWorkers: Option[Int] = None,
+                                  properties: Map[String, String])
+    extends RuntimeConfigRequest {
+    val typedCloudService: CloudService = CloudService.Dataproc
+
+  }
 }
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           jupyterStartUserScriptUri: Option[String] = None,
-                          machineConfig: Option[DataprocConfigCopy] = None,
+                          machineConfig: Option[RuntimeConfigRequest] = None,
+                          //machineConfig: Option[DataprocConfigCopy] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
@@ -65,6 +104,23 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           welderDockerImage: Option[String] = None,
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None,
+                          customClusterEnvironmentVariables: Map[String, String] = Map.empty,
+                          allowStop: Boolean = false)
+//ceck swagger page to clean up parameters
+case class RuntimeRequest(labels: LabelMap = Map(),
+                          jupyterExtensionUri: Option[String] = None,
+                          jupyterUserScriptUri: Option[String] = None,
+                          jupyterStartUserScriptUri: Option[String] = None,
+                          runtimeConfig: Option[RuntimeConfigRequest] = None,
+                          properties: Map[String, String] = Map(),
+                          stopAfterCreation: Option[Boolean] = None,
+                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+                          autopause: Option[Boolean] = None,
+                          autopauseThreshold: Option[Int] = None,
+                          defaultClientId: Option[String] = None,
+                          toolDockerImage: Option[String] = None,
+                          welderDockerImage: Option[String] = None,
+                          scopes: Set[String] = Set.empty,
                           customClusterEnvironmentVariables: Map[String, String] = Map.empty,
                           allowStop: Boolean = false)
 
@@ -111,6 +167,7 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
   }
 }
 
+//TODO Rename to RuntimeStatus once everything is running. Avoiding for now for compile issues
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
@@ -132,3 +189,39 @@ object ClusterStatus extends Enumeration {
       .find(_.toString.equalsIgnoreCase(str))
       .getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
 }
+
+
+
+final case class GetRuntimeResponseCopy(
+                                    runtimeName: RuntimeName,
+                                    googleProject: GoogleProject,
+                                    serviceAccount: WorkbenchEmail,
+                                    auditInfo: AuditInfo,
+                                    asyncRuntimeFields: Option[AsyncRuntimeFields],
+                                    runtimeConfig: RuntimeConfig,
+                                    clusterUrl: URL,
+                                    status: ClusterStatus,
+                                    labels: LabelMap,
+                                    jupyterExtensionUri: Option[GcsPath],
+                                    jupyterUserScriptUri: Option[UserScriptPath],
+                                    jupyterStartUserScriptUri: Option[UserScriptPath],
+                                    errors: List[RuntimeError],
+                                    //dataprocInstances: Set[DataprocInstance],
+                                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                    autopauseThreshold: Int)
+
+final case class ListRuntimeResponseCopy(id: Long,
+                                         runtimeName: RuntimeName,
+                                         googleProject: GoogleProject,
+                                         serviceAccount: WorkbenchEmail,
+                                         asyncRuntimeFields: Option[AsyncRuntimeFields],
+                                         auditInfo: AuditInfo,
+                                         runtimeConfig: RuntimeConfig,
+                                         proxyUrl: URL,
+                                         status: ClusterStatus,
+                                         labels: LabelMap,
+                                         jupyterExtensionUri: Option[GcsPath],
+                                         jupyterUserScriptUri: Option[UserScriptPath],
+                                         autopauseThreshold: Int,
+                                         defaultClientId: Option[String]
+                                        )

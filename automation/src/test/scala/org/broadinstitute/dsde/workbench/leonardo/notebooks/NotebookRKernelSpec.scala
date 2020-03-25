@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
-
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._
@@ -9,8 +8,8 @@ import scala.concurrent.duration._
 /**
  * This spec verifies notebook functionality specifically around the R kernel.
  */
-@DoNotDiscover
-class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
+//@DoNotDiscover
+class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
   "NotebookRKernelSpec" - {
 

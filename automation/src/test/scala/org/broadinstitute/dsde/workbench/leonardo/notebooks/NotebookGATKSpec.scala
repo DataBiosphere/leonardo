@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
 
 /**
  * This spec verifies expected functionality of the Terra GATK+Samtools image.
  */
-@DoNotDiscover
-class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
+//@DoNotDiscover
+class NotebookGATKSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.gatkImageUrl)
   "NotebookGATKSpec" - {

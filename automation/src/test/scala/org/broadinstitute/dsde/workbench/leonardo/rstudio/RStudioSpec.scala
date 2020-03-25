@@ -6,8 +6,8 @@ import org.scalatest.DoNotDiscover
 
 import scala.util.Try
 
-@DoNotDiscover
-class RStudioSpec extends ClusterFixtureSpec with NotebookTestUtils {
+//@DoNotDiscover
+class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl)
 

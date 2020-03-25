@@ -1,8 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo, LeonardoConfig, RuntimeFixtureSpec}
 import org.broadinstitute.dsde.workbench.service.Orchestration
-
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration.DurationLong
@@ -10,8 +9,8 @@ import scala.concurrent.duration.DurationLong
 /**
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
  */
-@DoNotDiscover
-class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
+//@DoNotDiscover
+class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
 
@@ -201,10 +200,11 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     "should use pet credentials" in { clusterFixture =>
       val petEmail = getAndVerifyPet(clusterFixture.cluster.googleProject)
-
       // cluster should have been created with the pet service account
+
       clusterFixture.cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
-      clusterFixture.cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+      //clusterFixture.cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+
 
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
