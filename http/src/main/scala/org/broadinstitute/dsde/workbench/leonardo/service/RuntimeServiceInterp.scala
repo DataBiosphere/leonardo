@@ -311,22 +311,22 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                                                  runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no ModifyCluster permission
-      hasStartPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
-                                                                      userInfo,
-                                                                      NotebookClusterActions.ModifyCluster,
-                                                                      googleProject,
-                                                                      runtimeName)
-      _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      hasModifyPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                       userInfo,
+                                                                       NotebookClusterActions.ModifyCluster,
+                                                                       googleProject,
+                                                                       runtimeName)
+      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       ctx <- as.ask
-
+      // Updating autopause is just a DB update, so we can do it here instead of sending a PubSub message
       updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled,
                                                               req.updateAutopauseThreshold.map(_.toMinutes.toInt),
                                                               config.autoFreezeConfig)
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold)
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
-
+      // Updating the runtime config will potentially generate a PubSub message
       _ <- req.updatedRuntimeConfig.traverse_(
         update =>
           processUpdateRuntimeConfigRequest(update, req.allowStop.getOrElse(true), runtime, runtimeConfig, ctx.traceId)
@@ -407,6 +407,11 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     }
   }
 
+  /**
+   * This method validates an UpdateRuntimeConfigRequest against the current state of the runtime,
+   * and potentially sends a PubSub message (or throws an error). The PubSub receiver does not
+   * do validation; it is assumed all validation happens here.
+   */
   private[service] def processUpdateRuntimeConfigRequest(req: UpdateRuntimeConfigRequest,
                                                          allowStop: Boolean,
                                                          runtime: Runtime,
@@ -416,6 +421,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       case (RuntimeConfig.GceConfig(existingMachineType, existingDiskSize),
             UpdateRuntimeConfigRequest.GceConfig(reqMachineType, reqDiskSize)) =>
         for {
+          // should machine type be updated?
           updatedMachineType <- reqMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
             if (mt != existingMachineType)
               if (runtime.status == RuntimeStatus.Stopped)
@@ -425,6 +431,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
               else Async[F].pure(Some((mt, true)))
             else Async[F].pure(None)
           }
+          // should disk size be updated?
           updatedDiskSize <- reqDiskSize.flatTraverse[F, Int] {
             case d if d < existingDiskSize =>
               Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
@@ -433,7 +440,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
             case _ =>
               Async[F].pure(None)
           }
-          // if either is defined, send the message
+          // if either of the above is defined, send a PubSub message
           _ <- (updatedMachineType orElse updatedDiskSize).traverse_ { _ =>
             val message = UpdateRuntimeMessage(runtime.id,
                                                updatedMachineType.map(_._1),
@@ -459,15 +466,17 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                                       reqNumOfWorkers,
                                                       reqNumPreemptibles)) =>
         for {
+          // should num workers be updated?
           updatedNumWorkers <- reqNumOfWorkers.flatTraverse[F, Int] {
             case nw if nw != existingNumWorkers => Async[F].pure(Some(nw))
             case _                              => Async[F].pure(None)
           }
+          // should num preemptibles be updated?
           updatedNumPreemptibles <- reqNumPreemptibles.flatTraverse[F, Int] {
             case pw if pw != existingNumPreemptibles.getOrElse(0) => Async[F].pure(Some(pw))
             case _                                                => Async[F].pure(None)
           }
-
+          // should master machine type be updated?
           updatedMasterMachineType <- reqMasterMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
             if (mt != existingMasterMachineType)
               if (updatedNumWorkers.isDefined || updatedNumPreemptibles.isDefined)
@@ -485,7 +494,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
               else Async[F].pure(Some((mt, true)))
             else Async[F].pure(None)
           }
-
+          // should master disk size be updated?
           updatedMasterDiskSize <- reqMasterDiskSize.flatTraverse[F, Int] {
             case d if d < existingMasterDiskSize =>
               Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
@@ -494,7 +503,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
             case _ =>
               Async[F].pure(None)
           }
-
+          // if any of the above is defined, send a PubSub message
           _ <- (updatedNumWorkers orElse updatedNumPreemptibles orElse updatedMasterMachineType orElse updatedMasterDiskSize)
             .traverse_ { _ =>
               val message = UpdateRuntimeMessage(
@@ -513,7 +522,6 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       case _ =>
         Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, req.cloudService))
     }
-
 }
 
 object RuntimeServiceInterp {

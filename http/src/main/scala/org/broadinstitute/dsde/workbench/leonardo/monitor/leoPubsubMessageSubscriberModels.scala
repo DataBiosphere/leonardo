@@ -19,7 +19,7 @@ sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Produ
 object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   val values = findValues
 
-  // TODO: remove when LeonardoService is removed
+  // TODO: remove when LeonardoService is removed. UpdateRuntime is used instead.
   final case object StopUpdate extends LeoPubsubMessageType {
     val asString = "stopUpdate"
   }
@@ -49,7 +49,7 @@ sealed trait LeoPubsubMessage {
 }
 
 object LeoPubsubMessage {
-  // TODO: remove when LeonardoService is removed
+  // TODO: remove when LeonardoService is removed. UpdateRuntimeMessage is used instead.
   final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, runtimeId: Long, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopUpdate
