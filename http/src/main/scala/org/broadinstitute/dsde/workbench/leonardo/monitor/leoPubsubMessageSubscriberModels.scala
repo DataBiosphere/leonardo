@@ -1,14 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import cats.data.Ior
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
 
 sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Product {
@@ -18,9 +20,12 @@ sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Produ
 object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   val values = findValues
 
+  // TODO maybe remove
   final case object StopUpdate extends LeoPubsubMessageType {
     val asString = "stopUpdate"
   }
+
+
   final case object TransitionFinished extends LeoPubsubMessageType {
     val asString = "transitionFinished"
   }
@@ -36,6 +41,9 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object StartRuntime extends LeoPubsubMessageType {
     val asString = "startRuntime"
   }
+  final case object UpdateRuntime extends LeoPubsubMessageType {
+    val asString = "updateRuntime"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -44,6 +52,7 @@ sealed trait LeoPubsubMessage {
 }
 
 object LeoPubsubMessage {
+  // TODO maybe remove
   final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, runtimeId: Long, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopUpdate
@@ -108,12 +117,16 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StartRuntime
   }
 
-  final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus)
-      extends Product
-      with Serializable
+  final case class UpdateRuntimeMessage(runtimeId: Long, updateRuntimeConfig: RuntimeConfig,  traceId: Option[TraceId]) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateRuntime
+  }
 }
 
-final case class PubsubException(message: String) extends Exception
+final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus)
+  extends Product
+    with Serializable
+
+final case class PubsubException(message: String) extends WorkbenchException(message)
 
 object LeoPubsubCodec {
   implicit val stopUpdateMessageDecoder: Decoder[StopUpdateMessage] =

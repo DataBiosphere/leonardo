@@ -13,17 +13,13 @@ import cats.effect.{IO, Timer}
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes.validateRuntimeNameDirective
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  GetRuntimeResponse,
-  ListRuntimeResponse,
-  RuntimeConfigRequest,
-  RuntimeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse, RuntimeConfigRequest, RuntimeService}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -201,6 +197,18 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
       )
       _ <- runtimeService.startRuntime(userInfo, googleProject, runtimeName)
     } yield StatusCodes.Accepted
+
+  private[api] def updateRuntimeHandler(userInfo: UserInfo,
+                                        googleProject: GoogleProject,
+                                        runtimeName: RuntimeName,
+                                        req: UpdateRuntimeRequest): IO[ToResponseMarshallable] =
+    for {
+      context <- RuntimeServiceContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        context
+      )
+      _ <- runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
+    } yield StatusCodes.Accepted
 }
 
 object RuntimeRoutes {
@@ -363,3 +371,20 @@ final case class CreateRuntime2Request(labels: LabelMap,
                                        welderDockerImage: Option[ContainerImage],
                                        scopes: Set[String],
                                        customEnvironmentVariables: Map[String, String])
+
+sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
+  def cloudService: CloudService
+}
+object UpdateRuntimeConfigRequest {
+  final case class GceConfig(updatedMachineType: Option[MachineTypeName], updatedDiskSize: Option[Int]) extends UpdateRuntimeConfigRequest {
+    val cloudService: CloudService = CloudService.GCE
+  }
+  final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName], updatedMasterDiskSize: Option[Int], updatedNumberOfWorkers: Option[Int], updatedNumberOfPreemptibleWorkers: Option[Int]) extends UpdateRuntimeConfigRequest {
+    val cloudService: CloudService = CloudService.Dataproc
+  }
+}
+
+final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequest],
+                                      allowStop: Option[Boolean],
+                                      updateAutopauseEnabled: Option[Boolean],
+                                      updateAutopauseThreshold: Option[FiniteDuration])
