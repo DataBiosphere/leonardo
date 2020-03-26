@@ -43,6 +43,8 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         handleStopRuntimeMessage(msg, now)
       case msg: StartRuntimeMessage =>
         handleStartRuntimeMessage(msg, now)
+      case msg: UpdateRuntimeMessage =>
+        handleUpdateRuntimeMessage(msg, now)
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
@@ -268,6 +270,13 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       else Async[F].unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, now))
+    } yield ()
+
+  private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      t <- traceId.ask
     } yield ()
 }
 

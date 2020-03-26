@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import cats.data.Ior
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
@@ -24,7 +23,6 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object StopUpdate extends LeoPubsubMessageType {
     val asString = "stopUpdate"
   }
-
 
   final case object TransitionFinished extends LeoPubsubMessageType {
     val asString = "transitionFinished"
@@ -117,14 +115,18 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StartRuntime
   }
 
-  final case class UpdateRuntimeMessage(runtimeId: Long, updateRuntimeConfig: RuntimeConfig,  traceId: Option[TraceId]) extends LeoPubsubMessage {
+  final case class UpdateRuntimeMessage(runtimeId: Long,
+                                        newMachineType: Option[MachineTypeName],
+                                        newDiskSize: Option[Int],
+                                        newNumWorkers: Option[Int],
+                                        newNumPreemptibles: Option[Int],
+                                        traceId: Option[TraceId])
+      extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateRuntime
   }
 }
 
-final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus)
-  extends Product
-    with Serializable
+final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus) extends Product with Serializable
 
 final case class PubsubException(message: String) extends WorkbenchException(message)
 
@@ -167,6 +169,11 @@ object LeoPubsubCodec {
   implicit val startRuntimeDecoder: Decoder[StartRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(StartRuntimeMessage.apply)
 
+  implicit val updateRuntimeDecoder: Decoder[UpdateRuntimeMessage] =
+    Decoder.forProduct6("runtimeId", "newMachineType", "newDiskSize", "newNumWorkers", "newNumPreemptibles", "traceId")(
+      UpdateRuntimeMessage.apply
+    )
+
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
@@ -181,6 +188,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.DeleteRuntime      => message.as[DeleteRuntimeMessage]
         case LeoPubsubMessageType.StopRuntime        => message.as[StopRuntimeMessage]
         case LeoPubsubMessageType.StartRuntime       => message.as[StartRuntimeMessage]
+        case LeoPubsubMessageType.UpdateRuntime      => message.as[UpdateRuntimeMessage]
       }
     } yield value
   }
@@ -247,6 +255,18 @@ object LeoPubsubCodec {
   implicit val startRuntimeMessageEncoder: Encoder[StartRuntimeMessage] =
     Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
 
+  implicit val updateRuntimeMessageEncoder: Encoder[UpdateRuntimeMessage] =
+    Encoder.forProduct7("messageType",
+                        "runtimeId",
+                        "newMachineType",
+                        "newDiskSize",
+                        "newNumWorkers",
+                        "newNumPreemptibles",
+                        "traceId")(
+      x =>
+        (x.messageType, x.runtimeId, x.newMachineType, x.newDiskSize, x.newNumWorkers, x.newNumPreemptibles, x.traceId)
+    )
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
     message match {
       case m: StopUpdateMessage        => m.asJson
@@ -255,6 +275,7 @@ object LeoPubsubCodec {
       case m: DeleteRuntimeMessage     => m.asJson
       case m: StopRuntimeMessage       => m.asJson
       case m: StartRuntimeMessage      => m.asJson
+      case m: UpdateRuntimeMessage     => m.asJson
     }
   }
 }

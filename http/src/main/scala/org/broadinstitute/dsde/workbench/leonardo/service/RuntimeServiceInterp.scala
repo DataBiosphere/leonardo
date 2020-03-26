@@ -15,19 +15,36 @@ import com.google.auth.oauth2.AccessToken
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, LeonardoServiceDbQueries, RuntimeConfigQueries, SaveCluster, clusterQuery}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, RuntimeServiceContext, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  DbReference,
+  LeonardoServiceDbQueries,
+  RuntimeConfigQueries,
+  SaveCluster
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateRuntime2Request,
+  RuntimeServiceContext,
+  UpdateRuntimeConfigRequest,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, DeleteRuntimeMessage, StartRuntimeMessage, StopRuntimeMessage, UpdateRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateRuntimeMessage,
+  DeleteRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage,
+  UpdateRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
+import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
 
@@ -276,41 +293,45 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       _ <- publisherQueue.enqueue1(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
     } yield ()
 
-  override def updateRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, req: UpdateRuntimeRequest)(implicit as: ApplicativeAsk[F, RuntimeServiceContext]): F[Unit] = {
+  override def updateRuntime(
+    userInfo: UserInfo,
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName,
+    req: UpdateRuntimeRequest
+  )(implicit as: ApplicativeAsk[F, RuntimeServiceContext]): F[Unit] =
     for {
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
-        userInfo,
-        NotebookClusterActions.GetClusterStatus,
-        googleProject,
-        runtimeName)
+                                                                 userInfo,
+                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 googleProject,
+                                                                 runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no ModifyCluster permission
       hasStartPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
-        userInfo,
-        NotebookClusterActions.ModifyCluster,
-        googleProject,
-        runtimeName)
+                                                                      userInfo,
+                                                                      NotebookClusterActions.ModifyCluster,
+                                                                      googleProject,
+                                                                      runtimeName)
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       ctx <- as.ask
 
-      updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled, req.updateAutopauseThreshold.map(_.toMinutes.toInt), config.autoFreezeConfig)
+      updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled,
+                                                              req.updateAutopauseThreshold.map(_.toMinutes.toInt),
+                                                              config.autoFreezeConfig)
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold)
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
 
-      merged <- req.updatedRuntimeConfig.flatTraverse { updatedConfig =>
-        mergeUpdateRuntimeConfig(updatedConfig, runtimeConfig)
-      }
-      _ <- merged.traverse { r =>
-        publisherQueue.enqueue1(UpdateRuntimeMessage(runtime.id, r, Some(ctx.traceId)))
-      }
+      _ <- req.updatedRuntimeConfig.traverse_(
+        update =>
+          processUpdateRuntimeConfigRequest(update, req.allowStop.getOrElse(true), runtime, runtimeConfig, ctx.traceId)
+      )
     } yield ()
-  }
 
   private[service] def getRuntimeImages(
     petToken: Option[String],
@@ -386,58 +407,99 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     }
   }
 
-  private[service] def mergeUpdateRuntimeConfig(req: UpdateRuntimeConfigRequest, runtimeConfig: RuntimeConfig): F[Option[RuntimeConfig]] = {
-    Async[F].pure(None)
+  private[service] def processUpdateRuntimeConfigRequest(req: UpdateRuntimeConfigRequest,
+                                                         allowStop: Boolean,
+                                                         runtime: Runtime,
+                                                         runtimeConfig: RuntimeConfig,
+                                                         traceId: TraceId): F[Unit] =
+    (runtimeConfig, req) match {
+      case (RuntimeConfig.GceConfig(existingMachineType, existingDiskSize),
+            UpdateRuntimeConfigRequest.GceConfig(updatedMachineType, updatedDiskSize)) =>
+        for {
+          mergedMachineType <- updatedMachineType.flatTraverse[F, MachineTypeName] { mt =>
+            if (mt != existingMachineType)
+              if (runtime.status == RuntimeStatus.Stopped && !allowStop)
+                Async[F].raiseError(RuntimeMachineTypeCannotBeChangedException(runtime))
+              else Async[F].pure(Some(mt))
+            else Async[F].pure(None)
+          }
+          mergedDiskSize <- updatedDiskSize.flatTraverse[F, Int] {
+            case d if d < existingDiskSize =>
+              Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
+            case d if d > runtimeConfig.diskSize =>
+              Async[F].pure(Some(d))
+            case _ =>
+              Async[F].pure(None)
+          }
+          // if either is defined, send the message
+          _ <- (mergedMachineType orElse mergedDiskSize).traverse_ { _ =>
+            val message = UpdateRuntimeMessage(runtime.id, mergedMachineType, mergedDiskSize, None, None, Some(traceId))
+            publisherQueue.enqueue1(message)
+          }
+        } yield ()
 
-    //    _ <- req.updatedRuntimeConfig.traverse_ {
-    //      case UpdateRuntimeConfigRequest.GceConfig(updatedMachineType, updatedDiskSize) =>
-    //        for {
-    //          _ <- if (runtimeConfig.cloudService != CloudService.GCE) Async[F].raiseError[Unit](WrongCloudServiceException(runtimeConfig.cloudService, CloudService.GCE)) else Async[F].unit
-    //
-    //          _ <- updatedMachineType.traverse_ {
-    //            case mt if mt != runtimeConfig.machineType =>
-    //              if (runtime.status == RuntimeStatus.Stopped || req.allowStop.getOrElse(true))
-    //                publisherQueue.enqueue1(UpdateMachineTypeMessage(runtime.id, mt, Some(ctx.traceId)))
-    //              else
-    //                Async[F].raiseError[Unit](RuntimeMachineTypeCannotBeChangedException(runtime))
-    //            case _ => Async[F].unit
-    //          }
-    //          _ <- updatedDiskSize.traverse_ {
-    //            case d if d < runtimeConfig.diskSize =>
-    //              Async[F].raiseError[Unit](RuntimeDiskSizeCannotBeDecreasedException(runtime))
-    //            case d if d > runtimeConfig.diskSize =>
-    //              publisherQueue.enqueue1(UpdateDiskSizeMessage(runtime.id, d, Some(ctx.traceId)))
-    //            case _ => Async[F].unit
-    //          }
-    //        } yield ()
-    //
-    //      case UpdateRuntimeConfigRequest.DataprocConfig(updatedMasterMachineType, updatedMasterDiskSize, updatedNumberOfWorkers, updatedNumberOfPreemptibleWorkers) =>
-    //        for {
-    //          _ <- if (runtimeConfig.cloudService != CloudService.Dataproc) Async[F].raiseError[Unit](WrongCloudServiceException(runtimeConfig.cloudService, CloudService.Dataproc)) else Async[F].unit
-    //          dataprocConfig = runtimeConfig.asInstanceOf[RuntimeConfig.DataprocConfig]
-    //          _ <- Ior.fromOptions(updatedNumberOfWorkers, updatedNumberOfPreemptibleWorkers).traverse_ { x =>
-    //            if (runtime.status == RuntimeStatus.Stopped)
-    //              Async[F].raiseError[Unit](RuntimeCannotBeUpdatedException(
-    //                runtime.projectNameString,
-    //                runtime.status,
-    //                "You cannot update the number of workers in a stopped runtime. Please start your runtime to perform this action."
-    //              ))
-    //            else
-    //              x match {
-    //                case Ior.Left(w) if w != dataprocConfig.numberOfWorkers =>
-    //                  publisherQueue.enqueue1(UpdateDataprocWorkersMessage(runtime.id, Some(w), None, Some(ctx.traceId)))
-    //                case Ior.Right(p) if p != dataprocConfig.numberOfPreemptibleWorkers.getOrElse(0) =>
-    //                  publisherQueue.enqueue1(UpdateDataprocWorkersMessage(runtime.id, None, Some(p), Some(ctx.traceId)))
-    //                case Ior.Both(w, p) if w != dataprocConfig.numberOfWorkers && p != dataprocConfig.numberOfPreemptibleWorkers.getOrElse(0) =>
-    //                  publisherQueue.enqueue1(UpdateDataprocWorkersMessage(runtime.id, Some(w), Some(p), Some(ctx.traceId)))
-    //                case Ior.Both(w, p) if w != dataprocConfig.numberOfWorkers =>
-    //
-    //              }
-    //          }
-    //        } yield ()
-    //
-    //    }
-  }
+      case (RuntimeConfig.DataprocConfig(existingNumberOfWorkers,
+                                         existingMachineType,
+                                         existingMasterDiskSize,
+                                         _,
+                                         _,
+                                         _,
+                                         existingNumberOfPreemptibleWorkers,
+                                         _),
+            UpdateRuntimeConfigRequest.DataprocConfig(updatedMasterMachineType,
+                                                      updatedMasterDiskSize,
+                                                      updatedNumberOfWorkers,
+                                                      updatedNumberOfPreemptibleWorkers)) =>
+        for {
+          mergedNumberOfWorkers <- updatedNumberOfWorkers.flatTraverse[F, Int] {
+            case nw if nw != existingNumberOfWorkers => Async[F].pure(Some(nw))
+            case _                                   => Async[F].pure(None)
+          }
+          mergedNumberOfPreemptibleWorkers <- updatedNumberOfPreemptibleWorkers.flatTraverse[F, Int] {
+            case pw if pw != existingNumberOfPreemptibleWorkers.getOrElse(0) => Async[F].pure(Some(pw))
+            case _                                                           => Async[F].pure(None)
+          }
+
+          mergedMasterMachineType <- updatedMasterMachineType.flatTraverse[F, MachineTypeName] { mt =>
+            if (mt != existingMachineType)
+              if (mergedNumberOfWorkers.isDefined || mergedNumberOfPreemptibleWorkers.isDefined)
+                Async[F].raiseError(
+                  RuntimeCannotBeUpdatedException(
+                    runtime.projectNameString,
+                    runtime.status,
+                    "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time. The number of workers will be updated."
+                  )
+                )
+              else if (runtime.status == RuntimeStatus.Stopped && !allowStop)
+                Async[F].raiseError(RuntimeMachineTypeCannotBeChangedException(runtime))
+              else Async[F].pure(Some(mt))
+            else Async[F].pure(None)
+          }
+
+          mergedMasterDiskSize <- updatedMasterDiskSize.flatTraverse[F, Int] {
+            case d if d < existingMasterDiskSize =>
+              Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
+            case d if d > runtimeConfig.diskSize =>
+              Async[F].pure(Some(d))
+            case _ =>
+              Async[F].pure(None)
+          }
+
+          _ <- (mergedNumberOfWorkers orElse mergedNumberOfPreemptibleWorkers orElse mergedMasterMachineType orElse mergedMasterDiskSize)
+            .traverse_ { _ =>
+              val message = UpdateRuntimeMessage(runtime.id,
+                                                 mergedMasterMachineType,
+                                                 mergedMasterDiskSize,
+                                                 mergedNumberOfWorkers,
+                                                 mergedNumberOfPreemptibleWorkers,
+                                                 Some(traceId))
+              publisherQueue.enqueue1(message)
+            }
+        } yield ()
+
+      case _ =>
+        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, req.cloudService))
+    }
 
 }
 
@@ -526,5 +588,8 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig)
 
-//final case class WrongCloudServiceException(runtimeCloudService: CloudService, updateCloudService: CloudService)
-//  extends LeoException(s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}", StatusCodes.409)
+final case class WrongCloudServiceException(runtimeCloudService: CloudService, updateCloudService: CloudService)
+    extends LeoException(
+      s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
+      StatusCodes.Conflict
+    )

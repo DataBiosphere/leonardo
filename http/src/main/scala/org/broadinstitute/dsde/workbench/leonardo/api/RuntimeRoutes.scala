@@ -19,7 +19,12 @@ import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes.validateRuntimeNameDirective
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse, RuntimeConfigRequest, RuntimeService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  GetRuntimeResponse,
+  ListRuntimeResponse,
+  RuntimeConfigRequest,
+  RuntimeService
+}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -376,10 +381,15 @@ sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
   def cloudService: CloudService
 }
 object UpdateRuntimeConfigRequest {
-  final case class GceConfig(updatedMachineType: Option[MachineTypeName], updatedDiskSize: Option[Int]) extends UpdateRuntimeConfigRequest {
+  final case class GceConfig(updatedMachineType: Option[MachineTypeName], updatedDiskSize: Option[Int])
+      extends UpdateRuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
-  final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName], updatedMasterDiskSize: Option[Int], updatedNumberOfWorkers: Option[Int], updatedNumberOfPreemptibleWorkers: Option[Int]) extends UpdateRuntimeConfigRequest {
+  final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName],
+                                  updatedMasterDiskSize: Option[Int],
+                                  updatedNumberOfWorkers: Option[Int],
+                                  updatedNumberOfPreemptibleWorkers: Option[Int])
+      extends UpdateRuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }
 }
