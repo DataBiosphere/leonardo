@@ -101,6 +101,8 @@ class HttpRoutesSpec
     }
   }
 
+  // TODO add patch spec
+
   it should "not handle unrecognized routes" in {
     Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
       handled shouldBe false
@@ -118,6 +120,8 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
+  // TODO add encoders for CreateRuntime2Request and UpdateRuntimeRequest
+
   implicit val getClusterResponseDecoder: Decoder[GetRuntimeResponse] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]

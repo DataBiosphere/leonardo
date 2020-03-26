@@ -275,6 +275,8 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
+  // TODO add spec for UpdateRuntimeMessage
+
   "LeoPubsubMessageSubscriber messageResponder" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
 
     val queue = QueueFactory.makeSubscriberQueue()
