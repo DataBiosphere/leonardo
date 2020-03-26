@@ -89,8 +89,16 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                         )
                       } ~
                       patch {
-                        // TODO
-                        complete(StatusCodes.NotImplemented)
+                        entity(as[UpdateRuntimeRequest]) { req =>
+                          complete(
+                            updateRuntimeHandler(
+                              userInfo,
+                              googleProject,
+                              runtimeName,
+                              req
+                            )
+                          )
+                        }
                       } ~
                       delete {
                         complete(
@@ -217,6 +225,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 }
 
 object RuntimeRoutes {
+  // TODO add some validation
   implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.forProduct2(
     "machineType",
     "diskSize"
@@ -265,6 +274,41 @@ object RuntimeRoutes {
       s.getOrElse(Set.empty),
       c.getOrElse(Map.empty)
     )
+  }
+
+  // TODO add some validation
+  implicit val updateGceConfigDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.forProduct2(
+    "updatedMachineType",
+    "updatedDiskSize"
+  )(UpdateRuntimeConfigRequest.GceConfig.apply)
+
+  // TODO add some validation
+  implicit val udpateDataprocConfigDecoder: Decoder[UpdateRuntimeConfigRequest.DataprocConfig] = Decoder.forProduct4(
+    "updatedMachineType",
+    "updatedDiskSize",
+    "updatedNumberOfWorkers",
+    "updatedNumberOfPreemptibleWorkers"
+  )(UpdateRuntimeConfigRequest.DataprocConfig.apply)
+
+  implicit val updateRuntimeConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest] = Decoder.instance { x =>
+    for {
+      cloudService <- x.downField("cloudService").as[CloudService]
+      r <- cloudService match {
+        case CloudService.Dataproc =>
+          x.as[UpdateRuntimeConfigRequest.DataprocConfig]
+        case CloudService.GCE =>
+          x.as[UpdateRuntimeConfigRequest.GceConfig]
+      }
+    } yield r
+  }
+
+  implicit val updateRuntimeRequestDecoder: Decoder[UpdateRuntimeRequest] = Decoder.instance { x =>
+    for {
+      rc <- x.downField("updatedRuntimeConfig").as[Option[UpdateRuntimeConfigRequest]]
+      as <- x.downField("allowStop").as[Option[Boolean]]
+      ap <- x.downField("updatedAutopause").as[Option[Boolean]]
+      at <- x.downField("updatedAutopauseThreshdole").as[Option[Int]]
+    } yield UpdateRuntimeRequest(rc, as, ap, at.map(_.minutes))
   }
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
