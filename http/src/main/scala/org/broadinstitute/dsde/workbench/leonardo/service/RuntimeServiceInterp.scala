@@ -414,16 +414,18 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                                          traceId: TraceId): F[Unit] =
     (runtimeConfig, req) match {
       case (RuntimeConfig.GceConfig(existingMachineType, existingDiskSize),
-            UpdateRuntimeConfigRequest.GceConfig(updatedMachineType, updatedDiskSize)) =>
+            UpdateRuntimeConfigRequest.GceConfig(reqMachineType, reqDiskSize)) =>
         for {
-          mergedMachineType <- updatedMachineType.flatTraverse[F, MachineTypeName] { mt =>
+          updatedMachineType <- reqMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
             if (mt != existingMachineType)
-              if (runtime.status == RuntimeStatus.Stopped && !allowStop)
+              if (runtime.status == RuntimeStatus.Stopped)
+                Async[F].pure(Some((mt, false)))
+              else if (!allowStop)
                 Async[F].raiseError(RuntimeMachineTypeCannotBeChangedException(runtime))
-              else Async[F].pure(Some(mt))
+              else Async[F].pure(Some((mt, true)))
             else Async[F].pure(None)
           }
-          mergedDiskSize <- updatedDiskSize.flatTraverse[F, Int] {
+          updatedDiskSize <- reqDiskSize.flatTraverse[F, Int] {
             case d if d < existingDiskSize =>
               Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
             case d if d > runtimeConfig.diskSize =>
@@ -432,37 +434,43 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
               Async[F].pure(None)
           }
           // if either is defined, send the message
-          _ <- (mergedMachineType orElse mergedDiskSize).traverse_ { _ =>
-            val message = UpdateRuntimeMessage(runtime.id, mergedMachineType, mergedDiskSize, None, None, Some(traceId))
+          _ <- (updatedMachineType orElse updatedDiskSize).traverse_ { _ =>
+            val message = UpdateRuntimeMessage(runtime.id,
+                                               updatedMachineType.map(_._1),
+                                               updatedMachineType.map(_._2).getOrElse(false),
+                                               updatedDiskSize,
+                                               None,
+                                               None,
+                                               Some(traceId))
             publisherQueue.enqueue1(message)
           }
         } yield ()
 
-      case (RuntimeConfig.DataprocConfig(existingNumberOfWorkers,
-                                         existingMachineType,
+      case (RuntimeConfig.DataprocConfig(existingNumWorkers,
+                                         existingMasterMachineType,
                                          existingMasterDiskSize,
                                          _,
                                          _,
                                          _,
-                                         existingNumberOfPreemptibleWorkers,
+                                         existingNumPreemptibles,
                                          _),
-            UpdateRuntimeConfigRequest.DataprocConfig(updatedMasterMachineType,
-                                                      updatedMasterDiskSize,
-                                                      updatedNumberOfWorkers,
-                                                      updatedNumberOfPreemptibleWorkers)) =>
+            UpdateRuntimeConfigRequest.DataprocConfig(reqMasterMachineType,
+                                                      reqMasterDiskSize,
+                                                      reqNumOfWorkers,
+                                                      reqNumPreemptibles)) =>
         for {
-          mergedNumberOfWorkers <- updatedNumberOfWorkers.flatTraverse[F, Int] {
-            case nw if nw != existingNumberOfWorkers => Async[F].pure(Some(nw))
-            case _                                   => Async[F].pure(None)
+          updatedNumWorkers <- reqNumOfWorkers.flatTraverse[F, Int] {
+            case nw if nw != existingNumWorkers => Async[F].pure(Some(nw))
+            case _                              => Async[F].pure(None)
           }
-          mergedNumberOfPreemptibleWorkers <- updatedNumberOfPreemptibleWorkers.flatTraverse[F, Int] {
-            case pw if pw != existingNumberOfPreemptibleWorkers.getOrElse(0) => Async[F].pure(Some(pw))
-            case _                                                           => Async[F].pure(None)
+          updatedNumPreemptibles <- reqNumPreemptibles.flatTraverse[F, Int] {
+            case pw if pw != existingNumPreemptibles.getOrElse(0) => Async[F].pure(Some(pw))
+            case _                                                => Async[F].pure(None)
           }
 
-          mergedMasterMachineType <- updatedMasterMachineType.flatTraverse[F, MachineTypeName] { mt =>
-            if (mt != existingMachineType)
-              if (mergedNumberOfWorkers.isDefined || mergedNumberOfPreemptibleWorkers.isDefined)
+          updatedMasterMachineType <- reqMasterMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
+            if (mt != existingMasterMachineType)
+              if (updatedNumWorkers.isDefined || updatedNumPreemptibles.isDefined)
                 Async[F].raiseError(
                   RuntimeCannotBeUpdatedException(
                     runtime.projectNameString,
@@ -470,13 +478,15 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                     "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time. The number of workers will be updated."
                   )
                 )
-              else if (runtime.status == RuntimeStatus.Stopped && !allowStop)
+              else if (runtime.status == RuntimeStatus.Stopped)
+                Async[F].pure(Some((mt, false)))
+              else if (!allowStop)
                 Async[F].raiseError(RuntimeMachineTypeCannotBeChangedException(runtime))
-              else Async[F].pure(Some(mt))
+              else Async[F].pure(Some((mt, true)))
             else Async[F].pure(None)
           }
 
-          mergedMasterDiskSize <- updatedMasterDiskSize.flatTraverse[F, Int] {
+          updatedMasterDiskSize <- reqMasterDiskSize.flatTraverse[F, Int] {
             case d if d < existingMasterDiskSize =>
               Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
             case d if d > runtimeConfig.diskSize =>
@@ -485,14 +495,17 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
               Async[F].pure(None)
           }
 
-          _ <- (mergedNumberOfWorkers orElse mergedNumberOfPreemptibleWorkers orElse mergedMasterMachineType orElse mergedMasterDiskSize)
+          _ <- (updatedNumWorkers orElse updatedNumPreemptibles orElse updatedMasterMachineType orElse updatedMasterDiskSize)
             .traverse_ { _ =>
-              val message = UpdateRuntimeMessage(runtime.id,
-                                                 mergedMasterMachineType,
-                                                 mergedMasterDiskSize,
-                                                 mergedNumberOfWorkers,
-                                                 mergedNumberOfPreemptibleWorkers,
-                                                 Some(traceId))
+              val message = UpdateRuntimeMessage(
+                runtime.id,
+                updatedMasterMachineType.map(_._1),
+                updatedMasterMachineType.map(_._2).getOrElse(false),
+                updatedMasterDiskSize,
+                updatedNumWorkers,
+                updatedNumPreemptibles,
+                Some(traceId)
+              )
               publisherQueue.enqueue1(message)
             }
         } yield ()

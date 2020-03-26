@@ -19,11 +19,10 @@ sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Produ
 object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   val values = findValues
 
-  // TODO maybe remove
+  // TODO: remove when LeonardoService is removed
   final case object StopUpdate extends LeoPubsubMessageType {
     val asString = "stopUpdate"
   }
-
   final case object TransitionFinished extends LeoPubsubMessageType {
     val asString = "transitionFinished"
   }
@@ -50,7 +49,7 @@ sealed trait LeoPubsubMessage {
 }
 
 object LeoPubsubMessage {
-  // TODO maybe remove
+  // TODO: remove when LeonardoService is removed
   final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, runtimeId: Long, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopUpdate
@@ -117,6 +116,7 @@ object LeoPubsubMessage {
 
   final case class UpdateRuntimeMessage(runtimeId: Long,
                                         newMachineType: Option[MachineTypeName],
+                                        stopUpdateMachineType: Boolean,
                                         newDiskSize: Option[Int],
                                         newNumWorkers: Option[Int],
                                         newNumPreemptibles: Option[Int],
@@ -170,7 +170,13 @@ object LeoPubsubCodec {
     Decoder.forProduct2("runtimeId", "traceId")(StartRuntimeMessage.apply)
 
   implicit val updateRuntimeDecoder: Decoder[UpdateRuntimeMessage] =
-    Decoder.forProduct6("runtimeId", "newMachineType", "newDiskSize", "newNumWorkers", "newNumPreemptibles", "traceId")(
+    Decoder.forProduct7("runtimeId",
+                        "newMachineType",
+                        "stopUpdateMachineType",
+                        "newDiskSize",
+                        "newNumWorkers",
+                        "newNumPreemptibles",
+                        "traceId")(
       UpdateRuntimeMessage.apply
     )
 
@@ -256,15 +262,23 @@ object LeoPubsubCodec {
     Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
 
   implicit val updateRuntimeMessageEncoder: Encoder[UpdateRuntimeMessage] =
-    Encoder.forProduct7("messageType",
+    Encoder.forProduct8("messageType",
                         "runtimeId",
                         "newMachineType",
+                        "stopUpdateMachineType",
                         "newDiskSize",
                         "newNumWorkers",
                         "newNumPreemptibles",
                         "traceId")(
       x =>
-        (x.messageType, x.runtimeId, x.newMachineType, x.newDiskSize, x.newNumWorkers, x.newNumPreemptibles, x.traceId)
+        (x.messageType,
+         x.runtimeId,
+         x.newMachineType,
+         x.stopUpdateMachineType,
+         x.newDiskSize,
+         x.newNumWorkers,
+         x.newNumPreemptibles,
+         x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>

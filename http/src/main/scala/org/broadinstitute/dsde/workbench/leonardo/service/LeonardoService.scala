@@ -453,6 +453,14 @@ class LeonardoService(
       case DeleteCreateTransition(_) => IO.raiseError(new NotImplementedError())
     }
 
+  private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] =
+    (existing, updated) match {
+      case (None, Some(0)) =>
+        None //An updated value of 0 is considered the same as None to prevent google APIs from complaining
+      case (_, Some(x)) if updated != existing => Some(x)
+      case _                                   => None
+    }
+
   def maybeUpdateAutopauseThreshold(existingCluster: Runtime,
                                     autopause: Option[Boolean],
                                     autopauseThreshold: Option[Int]): IO[UpdateResult] = {
@@ -982,12 +990,4 @@ object LeonardoService {
       request
         .copy(labels = allLabels)
   }
-
-  private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] =
-    (existing, updated) match {
-      case (None, Some(0)) =>
-        None //An updated value of 0 is considered the same as None to prevent google APIs from complaining
-      case (_, Some(x)) if updated != existing => Some(x)
-      case _                                   => None
-    }
 }

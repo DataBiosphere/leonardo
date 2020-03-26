@@ -276,7 +276,37 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
     implicit traceId: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
-      t <- traceId.ask
+      runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+      runtime <- runtimeOpt.fold(
+        Async[F].raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      )(Async[F].pure)
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+
+      //Assume all validation happened already
+      _ <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined)
+        runtimeConfig.cloudService.interpreter
+          .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
+      else Async[F].unit
+
+      _ <- msg.newDiskSize.traverse_ { d =>
+        runtimeConfig.cloudService.interpreter.updateDiskSize(UpdateDiskSizeParams(runtime, d))
+      }
+
+      _ <- msg.newMachineType.traverse_ { m =>
+        if (msg.stopUpdateMachineType) {
+          val followupDetails = RuntimeFollowupDetails(msg.runtimeId, RuntimeStatus.Stopped)
+          for {
+            _ <- dbRef.inTransaction(
+              clusterQuery.setToStopping(msg.runtimeId, now) >> followupQuery
+                .save(followupDetails, Some(m))
+            )
+            _ <- runtimeConfig.cloudService.interpreter
+              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
+          } yield ()
+        } else {
+          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
+        }
+      }
     } yield ()
 }
 
