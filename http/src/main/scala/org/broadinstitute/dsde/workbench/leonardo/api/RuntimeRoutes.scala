@@ -225,11 +225,15 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 }
 
 object RuntimeRoutes {
-  // TODO add some validation
-  implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.forProduct2(
-    "machineType",
-    "diskSize"
-  )((mt, ds) => RuntimeConfigRequest.GceConfig(mt, ds))
+  implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
+    for {
+      machineType <- x.downField("machineType").as[Option[MachineTypeName]]
+      diskSize <- x
+        .downField("diskSize")
+        .as[Option[Int]]
+        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize)
+  }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfigRequest] = Decoder.instance { x =>
     //For newer version of requests, we use `cloudService` field to distinguish whether user is
@@ -276,19 +280,34 @@ object RuntimeRoutes {
     )
   }
 
-  // TODO add some validation
-  implicit val updateGceConfigDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.forProduct2(
-    "updatedMachineType",
-    "updatedDiskSize"
-  )(UpdateRuntimeConfigRequest.GceConfig.apply)
+  implicit val updateGceConfigDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
+    for {
+      machineType <- x.downField("updatedMachineType").as[Option[MachineTypeName]]
+      diskSize <- x
+        .downField("updatedDiskSize")
+        .as[Option[Int]]
+        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+    } yield UpdateRuntimeConfigRequest.GceConfig(machineType, diskSize)
+  }
 
-  // TODO add some validation
-  implicit val udpateDataprocConfigDecoder: Decoder[UpdateRuntimeConfigRequest.DataprocConfig] = Decoder.forProduct4(
-    "updatedMachineType",
-    "updatedDiskSize",
-    "updatedNumberOfWorkers",
-    "updatedNumberOfPreemptibleWorkers"
-  )(UpdateRuntimeConfigRequest.DataprocConfig.apply)
+  implicit val updateDataprocConfigDecoder: Decoder[UpdateRuntimeConfigRequest.DataprocConfig] = Decoder.instance { x =>
+    for {
+      masterMachineType <- x.downField("updatedMasterMachineType").as[Option[MachineTypeName]]
+      diskSize <- x
+        .downField("updatedMasterDiskSize")
+        .as[Option[Int]]
+        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+      numWorkers <- x.downField("updatedNumberOfWorkers").as[Option[Int]].flatMap {
+        case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
+        case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
+        case x                 => Right(x)
+      }
+      numPreemptibles <- x.downField("updatedNumberOfPreemptibleWorkers").as[Option[Int]].flatMap {
+        case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
+        case x                => Right(x)
+      }
+    } yield UpdateRuntimeConfigRequest.DataprocConfig(masterMachineType, diskSize, numWorkers, numPreemptibles)
+  }
 
   implicit val updateRuntimeConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest] = Decoder.instance { x =>
     for {
@@ -307,7 +326,7 @@ object RuntimeRoutes {
       rc <- x.downField("updatedRuntimeConfig").as[Option[UpdateRuntimeConfigRequest]]
       as <- x.downField("allowStop").as[Option[Boolean]]
       ap <- x.downField("updatedAutopause").as[Option[Boolean]]
-      at <- x.downField("updatedAutopauseThreshdole").as[Option[Int]]
+      at <- x.downField("updatedAutopauseThreshold").as[Option[Int]]
     } yield UpdateRuntimeRequest(rc, as, ap, at.map(_.minutes))
   }
 
