@@ -12,7 +12,7 @@ object Dependencies {
   val scalaLoggingV = "3.9.0"
   val scalaTestV = "3.0.8"
   val slickV = "3.3.2"
-  val http4sVersion = "0.21.0-M6" //remove http4s related dependencies once workbench-libs are upgraded
+  val http4sVersion = "0.21.0" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
 
@@ -22,6 +22,7 @@ object Dependencies {
   val workbenchGoogle2V = "0.7-f3b5a5a"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchNewRelicV = "0.3-8bae8e8"
+  val workbenchOpenTelemetryV = "0.1-f840363-SNAP"
 
   val excludeAkkaActor = ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
@@ -71,7 +72,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.24.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.28.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
   val googleOAuth2: ModuleID =              "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1" excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleSourceRepositories: ModuleID =  "com.google.apis" % "google-api-services-sourcerepo"  % s"v1-rev21-$googleV" excludeAll (excludeGuavaJDK5)
 
@@ -89,11 +90,13 @@ object Dependencies {
   val workbenchMetrics: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-metrics"  % workbenchMetricsV excludeAll (excludeWorkbenchUtil, excludeSlf4j, excludeGuava)
   val workbenchNewRelic: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV excludeAll (excludeGuava)
   val workbenchNewRelicTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV % "test" classifier "tests" excludeAll (excludeGuava)
+  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-openTelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
+  val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-openTelemetry" % workbenchOpenTelemetryV % "test" classifier "tests" excludeAll (excludeGuava)
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.18"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.8.5"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.8.8"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.5"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % "test" // brought in for FakeStorageInterpreter
 
@@ -111,6 +114,8 @@ object Dependencies {
     workbenchGoogle2Test,
     workbenchNewRelic,
     workbenchNewRelicTest,
+    workbenchOpenTelemetry,
+    workbenchOpenTelemetryTest,
     "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
     sealerate,
     enumeratum

@@ -4,36 +4,21 @@ package monitor
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, Props}
 import akka.http.scaladsl.model.StatusCodes
 import akka.pattern.pipe
 import cats.data.OptionT
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.{
-  GcsBlobName,
-  GetMetadataResponse,
-  GoogleComputeService,
-  GoogleStorageService,
-  InstanceName
-}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{
-  Creating,
-  Deleted,
-  Deleting,
-  Error,
-  Running,
-  Starting,
-  Stopping,
-  Unknown,
-  Updating
-}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleComputeService, GoogleStorageService, InstanceName}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Creating, Deleted, Deleting, Error, Running, Starting, Stopping, Unknown, Updating}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
@@ -48,8 +33,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Runti
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -78,9 +63,10 @@ object ClusterMonitorActor {
     dbRef: DbReference[IO],
     authProvider: LeoAuthProvider[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
-  )(implicit metrics: NewRelicMetrics[IO],
+  )(implicit openTelemetryMetrics: OpenTelemetryMetrics[IO],
     runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
     cs: ContextShift[IO],
+    timer: Timer[IO],
     runtimeInstances: RuntimeInstances[IO]): Props =
     Props(
       new ClusterMonitorActor(clusterId,
@@ -147,9 +133,10 @@ class ClusterMonitorActor(
   val authProvider: LeoAuthProvider[IO],
   val publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
-)(implicit metrics: NewRelicMetrics[IO],
+)(implicit openTelemetryMetrics: OpenTelemetryMetrics[IO],
   runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
   cs: ContextShift[IO],
+  timer: Timer[IO],
   runtimeInstances: RuntimeInstances[IO])
     extends Actor
     with LazyLogging
@@ -291,10 +278,13 @@ class ClusterMonitorActor(
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(runtimeAndRuntimeConfig.runtime),
                                          runtimeAndRuntimeConfig.runtime.status,
-                                         RuntimeStatus.Running)
+                                         RuntimeStatus.Running,
+        runtimeAndRuntimeConfig.runtimeConfig.cloudService)
       _ <- if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Creating)
         recordClusterCreationMetrics(runtimeAndRuntimeConfig.runtime.auditInfo.createdDate,
-                                     runtimeAndRuntimeConfig.runtime.runtimeImages)
+                                     runtimeAndRuntimeConfig.runtime.runtimeImages,
+                                     runtimeAndRuntimeConfig.runtimeConfig.cloudService
+        )
       else IO.unit
       // Finally pipe a shutdown message to this actor
       _ <- IO(logger.info(s"Cluster ${runtimeAndRuntimeConfig.runtime.projectNameString} is ready for use!"))
@@ -326,7 +316,8 @@ class ClusterMonitorActor(
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(runtimeAndRuntimeConfig.runtime),
                                          runtimeAndRuntimeConfig.runtime.status,
-                                         RuntimeStatus.Error)
+                                         RuntimeStatus.Error,
+        runtimeAndRuntimeConfig.runtimeConfig.cloudService)
 
       now <- IO(Instant.now)
 
@@ -356,7 +347,8 @@ class ClusterMonitorActor(
           _ <- dbRef.inTransaction {
             clusterQuery.updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, now)
           }
-          _ <- metrics.incrementCounter(s"AsyncClusterCreationFailure/${errorDetails.code}")
+          tags = Map("cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString)
+          _ <- openTelemetryMetrics.incrementCounter(s"runtimeCreationFailure/${errorDetails.code}", 1, tags)
 
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
@@ -413,7 +405,8 @@ class ClusterMonitorActor(
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(runtimeAndRuntimeConfig.runtime),
                                          runtimeAndRuntimeConfig.runtime.status,
-                                         RuntimeStatus.Deleted)
+                                         RuntimeStatus.Deleted,
+        runtimeAndRuntimeConfig.runtimeConfig.cloudService)
 
     } yield ShutdownActor(RemoveFromList(runtimeAndRuntimeConfig.runtime))
   }
@@ -445,7 +438,7 @@ class ClusterMonitorActor(
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(getRuntimeUI(runtimeAndRuntimeConfig.runtime),
                                          runtimeAndRuntimeConfig.runtime.status,
-                                         RuntimeStatus.Stopped)
+                                         RuntimeStatus.Stopped, runtimeAndRuntimeConfig.runtimeConfig.cloudService)
     } yield ShutdownActor(RemoveFromList(runtimeAndRuntimeConfig.runtime))
   }
 
@@ -757,17 +750,18 @@ class ClusterMonitorActor(
       runtimeConfig <- dbRef.inTransaction { RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId) }
     } yield RuntimeAndRuntimeConfig(cluster, runtimeConfig)
 
-  private def recordStatusTransitionMetrics(clusterUI: RuntimeUI,
+  private def recordStatusTransitionMetrics(runtimeUI: RuntimeUI,
                                             origStatus: RuntimeStatus,
-                                            finalStatus: RuntimeStatus): IO[Unit] =
+                                            finalStatus: RuntimeStatus,
+                                            cloudService: CloudService): IO[Unit] =
     for {
       endTime <- IO(System.currentTimeMillis)
-      baseName = s"ClusterMonitor/${clusterUI.asString}/${origStatus}->${finalStatus}"
-      counterName = s"${baseName}/count"
-      timerName = s"${baseName}/timer"
+      metricsName = s"monitor/${runtimeUI.asString}/transition/${origStatus}_to_${finalStatus}"
       duration = (endTime - startTime).millis
-      _ <- metrics.incrementCounter(counterName).runAsync(_ => IO.unit).toIO
-      _ <- metrics.recordResponseTime(timerName, duration).runAsync(_ => IO.unit).toIO
+      tags = Map("cloudService" -> cloudService.asString, "ui_client" -> runtimeUI.asString)
+      _ <- openTelemetryMetrics.incrementCounter(metricsName, 1, tags)
+      histoBuckets = List(30000.0, 40000.0, 50000.0, 60000.0, 72000.0, 90000.0, 120000.0, 150000.0, 180000.0, 210000.0, 240000.0, 270000) //histogram buckets from 1 min to 6 min
+      _ <- openTelemetryMetrics.recordDuration(metricsName, duration, histoBuckets, tags)
     } yield ()
 
   private def findToolImageInfo(images: Set[RuntimeImage]): String = {
@@ -786,19 +780,17 @@ class ClusterMonitorActor(
     }
   }
 
-  private def recordClusterCreationMetrics(createdDate: Instant, images: Set[RuntimeImage]): IO[Unit] = {
-    val res = for {
-      endTime <- IO(Instant.now())
+  private def recordClusterCreationMetrics(createdDate: Instant, images: Set[RuntimeImage], cloudService: CloudService): IO[Unit] = {
+    for {
+      endTime <- timer.clock.realTime(TimeUnit.MILLISECONDS)
       toolImageInfo = findToolImageInfo(images)
-      baseName = s"ClusterMonitor/ClusterCreation/${toolImageInfo}"
-      counterName = s"${baseName}/count"
-      timerName = s"${baseName}/timer"
-      duration = Duration(ChronoUnit.MILLIS.between(createdDate, endTime), MILLISECONDS)
-      _ <- metrics.incrementCounter(counterName)
-      _ <- metrics.recordResponseTime(timerName, duration)
+      metricsName = s"monitor/runtimeCreation"
+      duration = (endTime - createdDate.toEpochMilli).milliseconds
+      tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
+      _ <- openTelemetryMetrics.incrementCounter(metricsName, 1, tags)
+      histoBuckets = List(60000.0, 72000.0, 90000.0, 120000.0, 150000.0, 180000.0, 210000.0, 240000.0, 270000, 300000, 330000, 360000) //histogram buckets from 1 min to 6 min
+      _ <- openTelemetryMetrics.recordDuration(metricsName, duration, histoBuckets, tags)
     } yield ()
-
-    res.runAsync(_ => IO.unit).toIO
   }
 
   def getRuntimeUI(runtime: Runtime): RuntimeUI =
