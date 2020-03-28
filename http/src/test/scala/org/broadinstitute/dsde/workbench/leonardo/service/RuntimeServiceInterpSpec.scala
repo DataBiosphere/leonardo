@@ -368,7 +368,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val res = for {
       internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
-      req = UpdateRuntimeRequest(None, None, Some(true), Some(120.minutes))
+      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
 
       _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
       dbRuntimeOpt <- clusterQuery
@@ -456,19 +456,25 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
   }
 
   it should "increase the disk on a GCE runtime" in {
-    val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(1024))
+    val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
       traceId <- traceId.ask
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, gceRuntimeConfig, traceId)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id, None, false, Some(1024), None, None, Some(traceId))
+      message shouldBe UpdateRuntimeMessage(testCluster.id,
+                                            None,
+                                            false,
+                                            Some(DiskSize(1024)),
+                                            None,
+                                            None,
+                                            Some(traceId))
     }
     res.unsafeRunSync()
   }
 
   it should "fail to decrease the disk on a GCE runtime" in {
-    val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(50))
+    val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(50)))
     val res = for {
       traceId <- traceId.ask
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, gceRuntimeConfig, traceId)
@@ -578,19 +584,25 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
   }
 
   it should "increase the disk on a Dataproc runtime" in {
-    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(1024), None, None)
+    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(1024)), None, None)
     val res = for {
       traceId <- traceId.ask
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, defaultRuntimeConfig, traceId)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id, None, false, Some(1024), None, None, Some(traceId))
+      message shouldBe UpdateRuntimeMessage(testCluster.id,
+                                            None,
+                                            false,
+                                            Some(DiskSize(1024)),
+                                            None,
+                                            None,
+                                            Some(traceId))
     }
     res.unsafeRunSync()
   }
 
   it should "fail to decrease the disk on a Dataproc runtime" in {
-    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(50), None, None)
+    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(50)), None, None)
     val res = for {
       traceId <- traceId.ask
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, defaultRuntimeConfig, traceId)
@@ -599,7 +611,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
   }
 
   it should "fail to update the wrong cloud service type" in {
-    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(100), None, None)
+    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(100)), None, None)
     val res = for {
       traceId <- traceId.ask
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, gceRuntimeConfig, traceId)

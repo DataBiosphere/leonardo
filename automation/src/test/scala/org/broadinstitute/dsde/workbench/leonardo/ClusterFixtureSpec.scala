@@ -40,7 +40,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       RuntimeConfig.DataprocConfig(
         numberOfWorkers = 0,
         masterMachineType = MachineTypeName("n1-standard-4"),
-        masterDiskSize = 5,
+        masterDiskSize = DiskSize(5),
         workerMachineType = None,
         workerDiskSize = None,
         numberOfWorkerLocalSSDs = None,
@@ -104,7 +104,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     val machineConfig =
       RuntimeConfig.DataprocConfig(
         numberOfWorkers = 0,
-        masterDiskSize = 500,
+        masterDiskSize = DiskSize(500),
         masterMachineType = MachineTypeName("n1-standard-8"),
         workerMachineType = Some(MachineTypeName("n1-standard-8")),
         workerDiskSize = None,

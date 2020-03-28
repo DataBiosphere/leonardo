@@ -269,7 +269,7 @@ class HttpGoogleDataprocDAO(
     // Create a config for the master node, if properties are not specified in request, use defaults
     val masterConfig = new InstanceGroupConfig()
       .setMachineTypeUri(config.machineConfig.masterMachineType.value)
-      .setDiskConfig(new DiskConfig().setBootDiskSizeGb(config.machineConfig.masterDiskSize))
+      .setDiskConfig(new DiskConfig().setBootDiskSizeGb(config.machineConfig.masterDiskSize.gb))
 
     // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
     // This overrides the imageVersion set in SoftwareConfig.
@@ -362,7 +362,7 @@ class HttpGoogleDataprocDAO(
 
   private def getPrimaryWorkerConfig(createClusterConfig: CreateClusterConfig): InstanceGroupConfig = {
     val workerDiskConfig = new DiskConfig()
-      .setBootDiskSizeGb(createClusterConfig.machineConfig.workerDiskSize.get)
+      .setBootDiskSizeGb(createClusterConfig.machineConfig.workerDiskSize.get.gb)
       .setNumLocalSsds(createClusterConfig.machineConfig.numberOfWorkerLocalSSDs.get)
 
     val workerConfig = new InstanceGroupConfig()

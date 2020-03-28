@@ -20,16 +20,16 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       case x: RuntimeConfig.GceConfig =>
         Map(
           "machineType" -> x.machineType.value.toJson,
-          "diskSize" -> x.diskSize.toJson,
+          "diskSize" -> x.diskSize.gb.toJson,
           "cloudService" -> x.cloudService.asString.toJson
         )
       case x: RuntimeConfig.DataprocConfig =>
         Map(
           "numberOfWorkers" -> x.numberOfWorkers.toJson,
           "masterMachineType" -> x.masterMachineType.value.toJson,
-          "masterDiskSize" -> x.masterDiskSize.toJson,
+          "masterDiskSize" -> x.masterDiskSize.gb.toJson,
           "workerMachineType" -> x.workerMachineType.map(_.value).toJson,
-          "workerDiskSize" -> x.workerDiskSize.map(_.toJson).getOrElse(JsNull),
+          "workerDiskSize" -> x.workerDiskSize.map(_.gb.toJson).getOrElse(JsNull),
           "cloudService" -> x.cloudService.asString.toJson,
           "numberOfWorkerLocalSSDs" -> x.numberOfWorkerLocalSSDs.map(_.toJson).getOrElse(JsNull),
           "numberOfPreemptibleWorkers" -> x.numberOfPreemptibleWorkers.map(_.toJson).getOrElse(JsNull)

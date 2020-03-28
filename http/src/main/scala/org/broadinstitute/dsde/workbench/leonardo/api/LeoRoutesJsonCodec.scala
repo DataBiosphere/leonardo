@@ -25,13 +25,11 @@ object LeoRoutesJsonCodec {
       _ <- if (isValid) Right(()) else Left(invalidPropertiesError)
       masterDiskSize <- c
         .downField("masterDiskSize")
-        .as[Option[Int]]
-        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+        .as[Option[DiskSize]]
       workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
       workerDiskSize <- c
         .downField("workerDiskSize")
-        .as[Option[Int]]
-        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+        .as[Option[DiskSize]]
       numberOfWorkerLocalSSDs <- c
         .downField("numberOfWorkerLocalSSDs")
         .as[Option[Int]]

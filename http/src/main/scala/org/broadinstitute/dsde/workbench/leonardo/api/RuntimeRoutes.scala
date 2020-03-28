@@ -230,8 +230,7 @@ object RuntimeRoutes {
       machineType <- x.downField("machineType").as[Option[MachineTypeName]]
       diskSize <- x
         .downField("diskSize")
-        .as[Option[Int]]
-        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+        .as[Option[DiskSize]]
     } yield RuntimeConfigRequest.GceConfig(machineType, diskSize)
   }
 
@@ -285,8 +284,7 @@ object RuntimeRoutes {
       machineType <- x.downField("updatedMachineType").as[Option[MachineTypeName]]
       diskSize <- x
         .downField("updatedDiskSize")
-        .as[Option[Int]]
-        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+        .as[Option[DiskSize]]
     } yield UpdateRuntimeConfigRequest.GceConfig(machineType, diskSize)
   }
 
@@ -295,8 +293,7 @@ object RuntimeRoutes {
       masterMachineType <- x.downField("updatedMasterMachineType").as[Option[MachineTypeName]]
       diskSize <- x
         .downField("updatedMasterDiskSize")
-        .as[Option[Int]]
-        .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+        .as[Option[DiskSize]]
       numWorkers <- x.downField("updatedNumberOfWorkers").as[Option[Int]].flatMap {
         case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
         case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
@@ -327,7 +324,7 @@ object RuntimeRoutes {
       as <- x.downField("allowStop").as[Option[Boolean]]
       ap <- x.downField("updatedAutopause").as[Option[Boolean]]
       at <- x.downField("updatedAutopauseThreshold").as[Option[Int]]
-    } yield UpdateRuntimeRequest(rc, as, ap, at.map(_.minutes))
+    } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes))
   }
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
@@ -444,12 +441,12 @@ sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
   def cloudService: CloudService
 }
 object UpdateRuntimeConfigRequest {
-  final case class GceConfig(updatedMachineType: Option[MachineTypeName], updatedDiskSize: Option[Int])
+  final case class GceConfig(updatedMachineType: Option[MachineTypeName], updatedDiskSize: Option[DiskSize])
       extends UpdateRuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
   final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName],
-                                  updatedMasterDiskSize: Option[Int],
+                                  updatedMasterDiskSize: Option[DiskSize],
                                   updatedNumberOfWorkers: Option[Int],
                                   updatedNumberOfPreemptibleWorkers: Option[Int])
       extends UpdateRuntimeConfigRequest {
@@ -458,6 +455,6 @@ object UpdateRuntimeConfigRequest {
 }
 
 final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequest],
-                                      allowStop: Option[Boolean],
+                                      allowStop: Boolean,
                                       updateAutopauseEnabled: Option[Boolean],
                                       updateAutopauseThreshold: Option[FiniteDuration])

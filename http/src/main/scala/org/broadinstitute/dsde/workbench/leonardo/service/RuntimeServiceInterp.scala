@@ -198,6 +198,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
+      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
+      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
                                                                  NotebookClusterActions.GetClusterStatus,
@@ -239,6 +241,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
+      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
+      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
                                                                  NotebookClusterActions.GetClusterStatus,
@@ -270,6 +274,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
+      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
+      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
                                                                  NotebookClusterActions.GetClusterStatus,
@@ -304,6 +310,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
+      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
+      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
                                                                  NotebookClusterActions.GetClusterStatus,
@@ -328,8 +336,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       else Async[F].unit
       // Updating the runtime config will potentially generate a PubSub message
       _ <- req.updatedRuntimeConfig.traverse_(
-        update =>
-          processUpdateRuntimeConfigRequest(update, req.allowStop.getOrElse(true), runtime, runtimeConfig, ctx.traceId)
+        update => processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
       )
     } yield ()
 
@@ -422,7 +429,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
             UpdateRuntimeConfigRequest.GceConfig(reqMachineType, reqDiskSize)) =>
         for {
           // should machine type be updated?
-          updatedMachineType <- reqMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
+          targetMachineType <- reqMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
             if (mt != existingMachineType)
               if (runtime.status == RuntimeStatus.Stopped)
                 Async[F].pure(Some((mt, false)))
@@ -432,20 +439,20 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
             else Async[F].pure(None)
           }
           // should disk size be updated?
-          updatedDiskSize <- reqDiskSize.flatTraverse[F, Int] {
-            case d if d < existingDiskSize =>
+          targetDiskSize <- reqDiskSize.flatTraverse[F, DiskSize] {
+            case d if d.gb < existingDiskSize.gb =>
               Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
-            case d if d > runtimeConfig.diskSize =>
+            case d if d.gb > runtimeConfig.diskSize.gb =>
               Async[F].pure(Some(d))
             case _ =>
               Async[F].pure(None)
           }
           // if either of the above is defined, send a PubSub message
-          _ <- (updatedMachineType orElse updatedDiskSize).traverse_ { _ =>
+          _ <- (targetMachineType orElse targetDiskSize).traverse_ { _ =>
             val message = UpdateRuntimeMessage(runtime.id,
-                                               updatedMachineType.map(_._1),
-                                               updatedMachineType.map(_._2).getOrElse(false),
-                                               updatedDiskSize,
+                                               targetMachineType.map(_._1),
+                                               targetMachineType.map(_._2).getOrElse(false),
+                                               targetDiskSize,
                                                None,
                                                None,
                                                Some(traceId))
@@ -467,19 +474,19 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                                       reqNumPreemptibles)) =>
         for {
           // should num workers be updated?
-          updatedNumWorkers <- reqNumOfWorkers.flatTraverse[F, Int] {
+          targetNumWorkers <- reqNumOfWorkers.flatTraverse[F, Int] {
             case nw if nw != existingNumWorkers => Async[F].pure(Some(nw))
             case _                              => Async[F].pure(None)
           }
           // should num preemptibles be updated?
-          updatedNumPreemptibles <- reqNumPreemptibles.flatTraverse[F, Int] {
+          targetNumPreemptibles <- reqNumPreemptibles.flatTraverse[F, Int] {
             case pw if pw != existingNumPreemptibles.getOrElse(0) => Async[F].pure(Some(pw))
             case _                                                => Async[F].pure(None)
           }
           // should master machine type be updated?
-          updatedMasterMachineType <- reqMasterMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
+          targetMasterMachineType <- reqMasterMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
             if (mt != existingMasterMachineType)
-              if (updatedNumWorkers.isDefined || updatedNumPreemptibles.isDefined)
+              if (targetNumWorkers.isDefined || targetNumPreemptibles.isDefined)
                 Async[F].raiseError(
                   RuntimeCannotBeUpdatedException(
                     runtime.projectNameString,
@@ -495,24 +502,24 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
             else Async[F].pure(None)
           }
           // should master disk size be updated?
-          updatedMasterDiskSize <- reqMasterDiskSize.flatTraverse[F, Int] {
-            case d if d < existingMasterDiskSize =>
+          targetMasterDiskSize <- reqMasterDiskSize.flatTraverse[F, DiskSize] {
+            case d if d.gb < existingMasterDiskSize.gb =>
               Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
-            case d if d > runtimeConfig.diskSize =>
+            case d if d.gb > runtimeConfig.diskSize.gb =>
               Async[F].pure(Some(d))
             case _ =>
               Async[F].pure(None)
           }
           // if any of the above is defined, send a PubSub message
-          _ <- (updatedNumWorkers orElse updatedNumPreemptibles orElse updatedMasterMachineType orElse updatedMasterDiskSize)
+          _ <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
             .traverse_ { _ =>
               val message = UpdateRuntimeMessage(
                 runtime.id,
-                updatedMasterMachineType.map(_._1),
-                updatedMasterMachineType.map(_._2).getOrElse(false),
-                updatedMasterDiskSize,
-                updatedNumWorkers,
-                updatedNumPreemptibles,
+                targetMasterMachineType.map(_._1),
+                targetMasterMachineType.map(_._2).getOrElse(false),
+                targetMasterDiskSize,
+                targetNumWorkers,
+                targetNumPreemptibles,
                 Some(traceId)
               )
               publisherQueue.enqueue1(message)

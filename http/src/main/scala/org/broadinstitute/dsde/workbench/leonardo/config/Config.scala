@@ -52,9 +52,9 @@ object Config {
     RuntimeConfig.DataprocConfig(
       config.getInt("numberOfWorkers"),
       config.as[MachineTypeName]("masterMachineType"),
-      config.getInt("masterDiskSize"),
+      config.as[DiskSize]("masterDiskSize"),
       config.getAs[String]("workerMachineType").map(MachineTypeName),
-      config.getAs[Int]("workerDiskSize"),
+      config.getAs[DiskSize]("workerDiskSize"),
       config.getAs[Int]("numberOfWorkerLocalSSDs"),
       config.getAs[Int]("numberOfPreemptibleWorkers"),
       Map.empty
@@ -64,7 +64,7 @@ object Config {
   implicit val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
     RuntimeConfig.GceConfig(
       config.as[MachineTypeName]("machineType"),
-      config.getInt("diskSize")
+      config.as[DiskSize]("diskSize")
     )
   }
 
@@ -325,6 +325,7 @@ object Config {
   implicit val firewallRuleNameValueReader: ValueReader[FirewallRuleName] = stringValueReader.map(FirewallRuleName)
   implicit val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
   implicit val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
+  implicit val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
 
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")

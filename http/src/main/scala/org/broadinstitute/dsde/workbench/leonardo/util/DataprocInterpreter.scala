@@ -370,7 +370,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
           googleComputeService.resizeDisk(instance.key.project,
                                           instance.key.zone,
                                           DiskName(instance.key.name.value),
-                                          params.diskSize)
+                                          params.diskSize.gb)
         case _ => Async[F].unit
       }
     }

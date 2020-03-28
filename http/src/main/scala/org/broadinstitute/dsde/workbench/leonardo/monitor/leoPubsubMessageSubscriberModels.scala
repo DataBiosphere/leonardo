@@ -116,8 +116,9 @@ object LeoPubsubMessage {
 
   final case class UpdateRuntimeMessage(runtimeId: Long,
                                         newMachineType: Option[MachineTypeName],
+                                        // if true, the runtime will be stopped and undergo a followup transition
                                         stopUpdateMachineType: Boolean,
-                                        newDiskSize: Option[Int],
+                                        newDiskSize: Option[DiskSize],
                                         newNumWorkers: Option[Int],
                                         newNumPreemptibles: Option[Int],
                                         traceId: Option[TraceId])

@@ -17,23 +17,23 @@ sealed trait RuntimeConfigRequest extends Product with Serializable {
 object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
-    diskSize: Option[Int]
+    diskSize: Option[DiskSize]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
 
     def toRuntimeConfigGceConfig(default: RuntimeConfig.GceConfig): RuntimeConfig.GceConfig = {
       val minimumDiskSize = 10
-      val diskSizeFinal = math.max(minimumDiskSize, diskSize.getOrElse(default.diskSize))
-      RuntimeConfig.GceConfig(machineType.getOrElse(default.machineType), diskSizeFinal)
+      val diskSizeFinal = math.max(minimumDiskSize, diskSize.getOrElse(default.diskSize).gb)
+      RuntimeConfig.GceConfig(machineType.getOrElse(default.machineType), DiskSize(diskSizeFinal))
     }
   }
 
   final case class DataprocConfig(numberOfWorkers: Option[Int],
                                   masterMachineType: Option[MachineTypeName],
-                                  masterDiskSize: Option[Int], //min 10
+                                  masterDiskSize: Option[DiskSize], //min 10
                                   // worker settings are None when numberOfWorkers is 0
                                   workerMachineType: Option[MachineTypeName] = None,
-                                  workerDiskSize: Option[Int] = None, //min 10
+                                  workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String])
@@ -42,13 +42,13 @@ object RuntimeConfigRequest {
 
     def toRuntimeConfigDataprocConfig(default: RuntimeConfig.DataprocConfig): RuntimeConfig.DataprocConfig = {
       val minimumDiskSize = 10
-      val masterDiskSizeFinal = math.max(minimumDiskSize, masterDiskSize.getOrElse(default.masterDiskSize))
+      val masterDiskSizeFinal = math.max(minimumDiskSize, masterDiskSize.getOrElse(default.masterDiskSize).gb)
       numberOfWorkers match {
         case None | Some(0) =>
           RuntimeConfig.DataprocConfig(
             0,
             masterMachineType.getOrElse(default.masterMachineType),
-            masterDiskSizeFinal,
+            DiskSize(masterDiskSizeFinal),
             None,
             None,
             None,
@@ -60,9 +60,9 @@ object RuntimeConfigRequest {
           RuntimeConfig.DataprocConfig(
             numWorkers,
             masterMachineType.getOrElse(default.masterMachineType),
-            masterDiskSizeFinal,
+            DiskSize(masterDiskSizeFinal),
             workerMachineType.orElse(default.workerMachineType),
-            wds.map(s => math.max(minimumDiskSize, s)),
+            wds.map(s => DiskSize(math.max(minimumDiskSize, s.gb))),
             numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
             numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
             properties

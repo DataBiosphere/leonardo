@@ -351,7 +351,7 @@ class LeonardoServiceSpec
     val singleNodeDefinedMachineConfigReq =
       RuntimeConfigRequest.DataprocConfig(Some(0),
                                           Some(MachineTypeName("test-master-machine-type2")),
-                                          Some(200),
+                                          Some(DiskSize(200)),
                                           None,
                                           None,
                                           None,
@@ -361,7 +361,7 @@ class LeonardoServiceSpec
     val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
       numberOfWorkers = 0,
       masterMachineType = MachineTypeName("test-master-machine-type2"),
-      masterDiskSize = 200,
+      masterDiskSize = DiskSize(200),
       workerMachineType = None,
       workerDiskSize = None,
       numberOfWorkerLocalSSDs = None,
@@ -383,9 +383,9 @@ class LeonardoServiceSpec
       RuntimeConfigRequest.DataprocConfig(
         Some(0),
         Some(MachineTypeName("test-master-machine-type3")),
-        Some(200),
+        Some(DiskSize(200)),
         Some(MachineTypeName("test-worker-machine-type")),
-        Some(10),
+        Some(DiskSize(10)),
         Some(3),
         Some(4),
         Map.empty
@@ -398,7 +398,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.runtimeConfig shouldEqual RuntimeConfig.DataprocConfig(
       0,
       MachineTypeName("test-master-machine-type3"),
-      200,
+      DiskSize(200),
       None,
       None,
       None,
@@ -442,9 +442,9 @@ class LeonardoServiceSpec
     val machineConfig = RuntimeConfigRequest.DataprocConfig(
       Some(10),
       Some(MachineTypeName("test-master-machine-type")),
-      Some(200),
+      Some(DiskSize(200)),
       Some(MachineTypeName("test-worker-machine-type")),
-      Some(300),
+      Some(DiskSize(300)),
       Some(3),
       Some(4),
       Map.empty
@@ -452,9 +452,9 @@ class LeonardoServiceSpec
     val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
       numberOfWorkers = 10,
       masterMachineType = MachineTypeName("test-master-machine-type"),
-      masterDiskSize = 200,
+      masterDiskSize = DiskSize(200),
       workerMachineType = Some(MachineTypeName("test-worker-machine-type")),
-      workerDiskSize = Some(300),
+      workerDiskSize = Some(DiskSize(300)),
       numberOfWorkerLocalSSDs = Some(3),
       numberOfPreemptibleWorkers = Some(4),
       properties = Map.empty
@@ -467,23 +467,27 @@ class LeonardoServiceSpec
   }
 
   it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
-    val machineConfig = RuntimeConfigRequest.DataprocConfig(Some(2),
-                                                            Some(MachineTypeName("test-master-machine-type")),
-                                                            Some(5),
-                                                            Some(MachineTypeName("test-worker-machine-type")),
-                                                            Some(5),
-                                                            Some(3),
-                                                            Some(4),
-                                                            Map.empty)
+    val machineConfig = RuntimeConfigRequest.DataprocConfig(
+      Some(2),
+      Some(MachineTypeName("test-master-machine-type")),
+      Some(DiskSize(5)),
+      Some(MachineTypeName("test-worker-machine-type")),
+      Some(DiskSize(5)),
+      Some(3),
+      Some(4),
+      Map.empty
+    )
     val clusterRequestWithMachineConfig = testClusterRequest.copy(runtimeConfig = Some(machineConfig))
-    val expectedMachineConfig = RuntimeConfig.DataprocConfig(2,
-                                                             MachineTypeName("test-master-machine-type"),
-                                                             10,
-                                                             Some(MachineTypeName("test-worker-machine-type")),
-                                                             Some(10),
-                                                             Some(3),
-                                                             Some(4),
-                                                             Map.empty)
+    val expectedMachineConfig = RuntimeConfig.DataprocConfig(
+      2,
+      MachineTypeName("test-master-machine-type"),
+      DiskSize(10),
+      Some(MachineTypeName("test-worker-machine-type")),
+      Some(DiskSize(10)),
+      Some(3),
+      Some(4),
+      Map.empty
+    )
 
     val clusterCreateResponse =
       leo.createCluster(userInfo, project, name0, clusterRequestWithMachineConfig).unsafeToFuture.futureValue
@@ -1223,7 +1227,7 @@ class LeonardoServiceSpec
             RuntimeConfigRequest.DataprocConfig(
               masterMachineType = Some(newMachineType),
               numberOfWorkers = Some(0),
-              masterDiskSize = Some(500),
+              masterDiskSize = Some(DiskSize(500)),
               workerMachineType = None,
               workerDiskSize = None,
               numberOfWorkerLocalSSDs = None,
@@ -1267,7 +1271,7 @@ class LeonardoServiceSpec
           runtimeConfig = Some(
             RuntimeConfigRequest.DataprocConfig(
               masterMachineType = Some(newMachineType),
-              masterDiskSize = Some(500),
+              masterDiskSize = Some(DiskSize(500)),
               numberOfWorkers = Some(0),
               workerMachineType = None,
               workerDiskSize = None,
@@ -1388,7 +1392,7 @@ class LeonardoServiceSpec
     // set the cluster to Running
     dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
-    val newDiskSize = 1000
+    val newDiskSize = DiskSize(1000)
     leo
       .updateCluster(
         userInfo,
@@ -1433,7 +1437,7 @@ class LeonardoServiceSpec
     // set the cluster to Running
     dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
-    val newDiskSize = 10
+    val newDiskSize = DiskSize(10)
     val failure = leo
       .updateCluster(
         userInfo,
@@ -1595,7 +1599,7 @@ class LeonardoServiceSpec
 
     dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
 
-    val newDiskSize = 1000
+    val newDiskSize = DiskSize(1000)
     leo
       .updateCluster(
         userInfo,

@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, LeonardoTestSuite, RuntimeConfig}
 import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -16,7 +16,7 @@ class RuntimeConfigQueriesSpec extends FlatSpecLike with TestComponent with Leon
       numberOfWorkers = 0,
       masterMachineType = MachineTypeName("n1-standard-4"),
       workerMachineType = None,
-      masterDiskSize = 500,
+      masterDiskSize = DiskSize(500),
       workerDiskSize = None,
       numberOfPreemptibleWorkers = Some(0),
       numberOfWorkerLocalSSDs = None,

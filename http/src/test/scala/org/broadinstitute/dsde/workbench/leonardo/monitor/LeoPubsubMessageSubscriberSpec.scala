@@ -20,12 +20,15 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{RuntimeConfigQueries, TestComponent, clusterQuery, followupQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, RuntimeConfigQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{ClusterInvalidState, ClusterNotStopped}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  ClusterInvalidState,
+  ClusterNotStopped
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.mockito.Mockito
 import org.scalatest.concurrent._
@@ -281,7 +284,14 @@ class LeoPubsubMessageSubscriberSpec
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
 
-      _ <- leoSubscriber.messageResponder(UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, Some(1024), None, None, Some(tr)), now)
+      _ <- leoSubscriber.messageResponder(UpdateRuntimeMessage(runtime.id,
+                                                               Some(MachineTypeName("n1-highmem-64")),
+                                                               true,
+                                                               Some(DiskSize(1024)),
+                                                               None,
+                                                               None,
+                                                               Some(tr)),
+                                          now)
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
       updatedRuntime shouldBe 'defined

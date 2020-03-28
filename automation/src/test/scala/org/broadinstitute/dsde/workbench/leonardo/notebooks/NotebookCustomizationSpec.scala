@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
   DataprocConfigCopy,
+  DiskSize,
   GPAllocFixtureSpec,
   LeonardoConfig,
   RuntimeConfig
@@ -205,7 +206,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             DataprocConfigCopy.fromDataprocConfig(
               RuntimeConfig.DataprocConfig(numberOfWorkers = 0,
                                            masterMachineType = MachineTypeName("n1-standard-2"),
-                                           masterDiskSize = 500,
+                                           masterDiskSize = DiskSize(500),
                                            None,
                                            None,
                                            None,

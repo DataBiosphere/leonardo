@@ -85,7 +85,7 @@ final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)
 final case class StartRuntimeParams(runtime: Runtime, now: Instant)
 final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName, now: Instant)
-final case class UpdateDiskSizeParams(runtime: Runtime, diskSize: Int)
+final case class UpdateDiskSizeParams(runtime: Runtime, diskSize: DiskSize)
 final case class ResizeClusterParams(runtime: Runtime, numWorkers: Option[Int], numPreemptibles: Option[Int])
 
 // Configurations

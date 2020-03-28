@@ -38,6 +38,7 @@ object JsonCodec {
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
+  implicit val diskSizeEncoder: Encoder[DiskSize] = Encoder.encodeInt.contramap(_.gb)
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
     "numberOfWorkers",
     "masterMachineType",
@@ -139,6 +140,8 @@ object JsonCodec {
   implicit val googleProjectDecoder: Decoder[GoogleProject] = Decoder.decodeString.map(GoogleProject)
   implicit val urlDecoder: Decoder[URL] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
+  implicit val diskSizeDecoder: Decoder[DiskSize] =
+    Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(DiskSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(
     s => RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
@@ -159,9 +162,9 @@ object JsonCodec {
     for {
       numberOfWorkers <- c.downField("numberOfWorkers").as[Int]
       masterMachineType <- c.downField("masterMachineType").as[MachineTypeName]
-      masterDiskSize <- c.downField("masterDiskSize").as[Int]
+      masterDiskSize <- c.downField("masterDiskSize").as[DiskSize]
       workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
-      workerDiskSize <- c.downField("workerDiskSize").as[Option[Int]]
+      workerDiskSize <- c.downField("workerDiskSize").as[Option[DiskSize]]
       numberOfWorkerLocalSSDs <- c.downField("numberOfWorkerLocalSSDs").as[Option[Int]]
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]

@@ -61,7 +61,7 @@ class HttpRoutesSpec
       None,
       Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
       None,
-      Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(100))),
+      Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)))),
       None,
       Some(true),
       Some(30.minutes),
@@ -141,8 +141,8 @@ class HttpRoutesSpec
 
   it should "update a runtime" in {
     val request = UpdateRuntimeRequest(
-      Some(UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), Some(20))),
-      Some(true),
+      Some(UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), Some(DiskSize(20)))),
+      true,
       Some(true),
       Some(5.minutes)
     )
@@ -162,13 +162,17 @@ class HttpRoutesSpec
   }
 
   it should "not handle patch with invalid runtime config" in {
-    val negative = UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.GceConfig(None, Some(-100))), None, None, None)
+    val negative =
+      UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(-100)))), false, None, None)
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
       handled shouldBe false
     }
     val oneWorker =
-      UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(1), None)), None, None, None)
+      UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(1), None)),
+                           false,
+                           None,
+                           None)
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
       handled shouldBe false

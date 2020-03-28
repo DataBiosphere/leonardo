@@ -307,7 +307,7 @@ class DataprocInterpreterSpec
   it should "calculate cluster resource constraints" in isolatedDbTest {
     val runtimeConfig = RuntimeConfig.DataprocConfig(0,
                                                      MachineTypeName("n1-standard-4"),
-                                                     500,
+                                                     DiskSize(500),
                                                      None,
                                                      None,
                                                      None,
