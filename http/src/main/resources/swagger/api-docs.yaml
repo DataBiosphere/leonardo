@@ -316,6 +316,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+    patch:
+      summary: Updates the configuration of a runtime
+      description: updates a runtime
+      operationId: updateRuntime
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: runtimeName. only lowercase alphanumeric characters, numbers and dashes are allowed
+          required: true
+          schema:
+            type: string
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateRuntimeRequest"
+        responses:
+          "202":
+            description: Runtime update request accepted
+          "400":
+            description: Bad Request
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/ErrorReport"
+          "409":
+            description: Conflict
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/ErrorReport"
+          "500":
+            description: Internal Error
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/ErrorReport"
+        security:
+          - googleoauth:
+              - openid
+              - email
+              - profile
+
   /api/google/v1/runtimes/{googleProject}/{name}/stop:
     post:
       summary: Stops a Dataproc cluster or Google Compute Engine instance
@@ -1849,6 +1900,74 @@ components:
         customClusterEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
+    UpdateRuntimeConfig:
+      type: object
+      required:
+        - cloudService
+      properties:
+        cloudService:
+          type: string
+          enum: [gce, dataproc]
+      discriminator:
+        propertyName: cloudService
+        mapping:
+          gce: UpdateGceConfig
+          dataproc: UpdateDataprocConfig
+    UpdateGceConfig:
+      description: Configuration for Google Compute Engine instances.
+      properties:
+        updatedMachineType:
+          type: string
+          description: >
+            Optional, the machine type determines the number of CPUs and memory
+            for the instance. For example "n1-standard-16" or "n1-highmem-64".
+            To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+        updatedDiskSize:
+          type: int
+          description: >
+            Optional, disk size in gigabytes
+    UpdateDataprocConfig:
+      description: Configuration for Google Dataproc clusters.
+      properties:
+        updateMasterdMachineType:
+          type: string
+          description: >
+            Optional, the machine type determines the number of CPUs and memory
+            for the cluster master node. For example "n1-standard-16" or "n1-highmem-64".
+            To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+        updatedDiskSize:
+          type: int
+          description: >
+            Optional, disk size of the master node in gigabytes
+        updatedNumberOfWorkers:
+          type: int
+          description: >
+            Optional, number of workers in the cluster
+        updatedNumberOfPreemptibleWorkers:
+          type: int
+          description: >
+            Optional, number of preemptible workers in the cluster
+    UpdateRuntimeRequest:
+      description: ""
+      type: object
+      properties:
+        updatedRuntimeConfig:
+          $ref: "#/components/schemas/UpdateRuntimeConfig"
+        allowStop:
+          type: boolean
+          description: Whether leo should stop the cluster if it is necessary for the
+            update. If false, an exception will be thrown in cases where a stop
+            was required. This cluster will undergo the follow transition.
+            Running -> Stopping -> Stopped -> Update (the cluster will not have
+            the Updating status though) -> Starting -> Running
+        updatedAutopause:
+          type: boolean
+          description: Whether autopause feature is enabled for this specific cluster.
+        updatedAutopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. If autopause is set to false, this value is disregarded.
+            A value of 0 is equivalent to autopause being turned off.
     CreateRuntimeRequest:
       description: ""
       type: object
