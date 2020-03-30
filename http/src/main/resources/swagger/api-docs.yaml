@@ -114,11 +114,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
   /api/google/v1/runtimes/{googleProject}:
     get:
       summary: List all runtimes within the given Google project that the caller has access to
@@ -174,17 +169,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
   /api/google/v1/runtimes/{googleProject}/{name}:
     get:
       summary: Get details of a runtime
       description: >
         Returns information about an existing runtime managed by Leo.
-        Poll this to find out when your cluster has finished starting up.
+        Poll this to find out when your runtime has finished starting up.
       operationId: getRuntime
       tags:
         - runtimes
@@ -222,17 +212,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     post:
       summary: Creates a new Dataproc cluster or Google Compute Engine instance in the given project with the given name.
       description: >
-        * The request is completed without waiting for the initiation of the
-        runtime's creation on the Google side. The runtime status can be polled using the getRuntime API.
-        * Default labels runtimeName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
+        The request is completed without waiting for the runtime to be created in Google. The runtime status can be polled using the
+        getRuntime API. Default labels runtimeName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
       operationId: createRuntime
       tags:
         - runtimes
@@ -250,10 +234,7 @@ paths:
           schema:
             type: string
       requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateRuntimeRequest"
+        $ref: "#/components/requestBodies/CreateRuntimeRequest"
       responses:
         "202":
           description: Runtime creation request accepted
@@ -275,11 +256,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     delete:
       summary: Deletes an existing Dataproc cluster or Google Compute Engine instance in the given project
       description: deletes a runtime
@@ -331,42 +307,33 @@ paths:
             type: string
         - in: path
           name: name
-          description: runtimeName. only lowercase alphanumeric characters, numbers and dashes are allowed
+          description: runtimeName
           required: true
           schema:
             type: string
-        requestBody:
+      requestBody:
+        $ref: "#/components/requestBodies/UpdateRuntimeRequest"
+      responses:
+        "202":
+          description: Runtime update request accepted
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UpdateRuntimeRequest"
-        responses:
-          "202":
-            description: Runtime update request accepted
-          "400":
-            description: Bad Request
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/ErrorReport"
-          "409":
-            description: Conflict
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/ErrorReport"
-          "500":
-            description: Internal Error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/ErrorReport"
-        security:
-          - googleoauth:
-              - openid
-              - email
-              - profile
-
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
   /api/google/v1/runtimes/{googleProject}/{name}/stop:
     post:
       summary: Stops a Dataproc cluster or Google Compute Engine instance
@@ -1401,6 +1368,28 @@ paths:
 
 components:
   requestBodies:
+    CreateRuntimeRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateRuntimeRequest"
+          example:
+            runtimeConfig:
+              cloudService: gce
+              machineType: n1-standard-4
+              diskSize: 100
+    UpdateRuntimeRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateRuntimeRequest"
+          example:
+            allowStop: true
+            updatedRuntimeConfig:
+              cloudService: gce
+              updatedMachineType: n1-highmem-16
+              updatedDiskSize: 500
+    # legacy
     ClusterRequest:
       content:
         application/json:
@@ -1900,76 +1889,8 @@ components:
         customClusterEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
-    UpdateRuntimeConfig:
-      type: object
-      required:
-        - cloudService
-      properties:
-        cloudService:
-          type: string
-          enum: [gce, dataproc]
-      discriminator:
-        propertyName: cloudService
-        mapping:
-          gce: UpdateGceConfig
-          dataproc: UpdateDataprocConfig
-    UpdateGceConfig:
-      description: Configuration for Google Compute Engine instances.
-      properties:
-        updatedMachineType:
-          type: string
-          description: >
-            Optional, the machine type determines the number of CPUs and memory
-            for the instance. For example "n1-standard-16" or "n1-highmem-64".
-            To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
-        updatedDiskSize:
-          type: int
-          description: >
-            Optional, disk size in gigabytes
-    UpdateDataprocConfig:
-      description: Configuration for Google Dataproc clusters.
-      properties:
-        updateMasterdMachineType:
-          type: string
-          description: >
-            Optional, the machine type determines the number of CPUs and memory
-            for the cluster master node. For example "n1-standard-16" or "n1-highmem-64".
-            To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
-        updatedDiskSize:
-          type: int
-          description: >
-            Optional, disk size of the master node in gigabytes
-        updatedNumberOfWorkers:
-          type: int
-          description: >
-            Optional, number of workers in the cluster
-        updatedNumberOfPreemptibleWorkers:
-          type: int
-          description: >
-            Optional, number of preemptible workers in the cluster
-    UpdateRuntimeRequest:
-      description: ""
-      type: object
-      properties:
-        updatedRuntimeConfig:
-          $ref: "#/components/schemas/UpdateRuntimeConfig"
-        allowStop:
-          type: boolean
-          description: Whether leo should stop the cluster if it is necessary for the
-            update. If false, an exception will be thrown in cases where a stop
-            was required. This cluster will undergo the follow transition.
-            Running -> Stopping -> Stopped -> Update (the cluster will not have
-            the Updating status though) -> Starting -> Running
-        updatedAutopause:
-          type: boolean
-          description: Whether autopause feature is enabled for this specific cluster.
-        updatedAutopauseThreshold:
-          type: integer
-          description: The number of minutes of idle time to elapse before the cluster is
-            autopaused. If autopause is set to false, this value is disregarded.
-            A value of 0 is equivalent to autopause being turned off.
     CreateRuntimeRequest:
-      description: ""
+      description: "Creates a new runtime"
       type: object
       properties:
         labels:
@@ -1999,7 +1920,11 @@ components:
             script at this URI do not affect the cluster. Timestamped logs for this script can be
             found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
         runtimeConfig:
-          $ref: "#/components/schemas/RuntimeConfig"
+          oneOf:
+            - $ref: "#/components/schemas/GceConfig"
+            - $ref: "#/components/schemas/MachineConfig"
+          discriminator:
+            propertyName: cloudService
         autopause:
           type: boolean
           description: Whether autopause feature is enabled for this specific cluster. If
@@ -2045,6 +1970,78 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
+    UpdateGceConfig:
+      description: Configuration for Google Compute Engine instances.
+      allOf:
+        - $ref: '#/components/schemas/UpdateRuntimeConfig'
+        - type: object
+          properties:
+            updatedMachineType:
+              type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the instance. For example "n1-standard-16" or "n1-highmem-64".
+                To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+            updatedDiskSize:
+              type: integer
+              description: >
+                Optional, disk size in gigabytes
+    UpdateDataprocConfig:
+      description: Configuration for Google Dataproc clusters.
+      allOf:
+        - $ref: '#/components/schemas/UpdateRuntimeConfig'
+        - type: object
+          properties:
+            updatedMasterMachineType:
+              type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the cluster master node. For example "n1-standard-16" or "n1-highmem-64".
+                To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+            updatedDiskSize:
+              type: integer
+              description: >
+                Optional, disk size of the master node in gigabytes
+            updatedNumberOfWorkers:
+              type: integer
+              description: >
+                Optional, number of workers in the cluster
+            updatedNumberOfPreemptibleWorkers:
+              type: integer
+              description: >
+                Optional, number of preemptible workers in the cluster
+    UpdateRuntimeConfig:
+      description: Updates a runtime configuration
+      type: object
+      required:
+        - cloudService
+      properties:
+        cloudService:
+          type: string
+          enum: [gce, dataproc]
+    UpdateRuntimeRequest:
+      description: Updates a runtime
+      type: object
+      properties:
+        updatedRuntimeConfig:
+          oneOf:
+            - $ref: "#/components/schemas/UpdateGceConfig"
+            - $ref: "#/components/schemas/UpdateDataprocConfig"
+          discriminator:
+            propertyName: cloudService
+        allowStop:
+          type: boolean
+          description: Whether leo should stop the runtime if it is necessary for the
+            update. If false, an exception will be thrown in cases where a stop
+            was required. Defaults to false.
+        updatedAutopause:
+          type: boolean
+          description: Whether autopause feature is enabled for this specific cluster.
+        updatedAutopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. If autopause is set to false, this value is disregarded.
+            A value of 0 is equivalent to autopause being turned off.
     ClusterError:
       description: Errors encountered on cluster create
       properties:
@@ -2070,11 +2067,6 @@ components:
         cloudService:
           type: string
           enum: [gce, dataproc]
-      discriminator:
-        propertyName: cloudService
-        mapping:
-          gce: GceConfig
-          dataproc: MachineConfig
     GceConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:

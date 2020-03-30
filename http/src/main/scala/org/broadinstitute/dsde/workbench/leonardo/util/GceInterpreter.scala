@@ -122,7 +122,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                 .newBuilder()
                 .setDescription("Leonardo Persistent Disk")
                 .setSourceImage(config.gceConfig.customGceImage.asString)
-                .setDiskSizeGb(params.runtimeConfig.diskSize.toString)
+                .setDiskSizeGb(params.runtimeConfig.diskSize.gb.toString)
                 .putAllLabels(Map("leonardo" -> "true").asJava)
                 .build()
             )
