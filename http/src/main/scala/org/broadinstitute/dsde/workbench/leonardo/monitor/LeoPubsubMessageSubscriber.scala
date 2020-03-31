@@ -283,20 +283,34 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
 
       // We assume all validation has already happened in RuntimeServiceInterp
+
       // Resize the cluster
-      _ <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined)
-        runtimeConfig.cloudService.interpreter
-          .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
-      else Async[F].unit
+      _ <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
+        for {
+          _ <- runtimeConfig.cloudService.interpreter
+            .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
+          _ <- msg.newNumWorkers.traverse_(
+            a => RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, now).transaction
+          )
+          _ <- msg.newNumPreemptibles.traverse_(
+            a =>
+              RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), now).transaction
+          )
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, now).transaction.void
+        } yield ()
+      } else Async[F].unit
 
       // Update the disk size
       _ <- msg.newDiskSize.traverse_ { d =>
-        runtimeConfig.cloudService.interpreter.updateDiskSize(UpdateDiskSizeParams(runtime, d))
+        for {
+          _ <- runtimeConfig.cloudService.interpreter.updateDiskSize(UpdateDiskSizeParams(runtime, d))
+          _ <- RuntimeConfigQueries.updateDiskSize(runtime.runtimeConfigId, d, now).transaction
+        } yield ()
       }
       // Update the machine type
       // If it's a stop-update transition, persist a followup record and transition the runtime to Stopping
       _ <- msg.newMachineType.traverse_ { m =>
-        if (msg.stopUpdateMachineType) {
+        if (msg.stopToUpdateMachineType) {
           val followupDetails = RuntimeFollowupDetails(msg.runtimeId, RuntimeStatus.Stopped)
           for {
             _ <- dbRef.inTransaction(
@@ -307,7 +321,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
               .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
           } yield ()
         } else {
-          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
+          for {
+            _ <- runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
+            _ <- RuntimeConfigQueries.updateMachineType(runtime.runtimeConfigId, m, now).transaction
+          } yield ()
         }
       }
     } yield ()

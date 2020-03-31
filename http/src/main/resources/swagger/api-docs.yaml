@@ -294,7 +294,7 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
     patch:
       summary: Updates the configuration of a runtime
-      description: updates a runtime
+      description: In order to update the configuration of a runtime, it must first be running or paused
       operationId: updateRuntime
       tags:
         - runtimes
@@ -606,8 +606,7 @@ paths:
   "/api/cluster/{googleProject}/{clusterName}":
     patch:
       summary: Updates the configuration of a cluster.
-      description: In order to update the configuration of a cluster, it must first be
-        running
+      description: In order to update the configuration of a cluster, it must first be running or paused
       operationId: updateCluster
       tags:
         - cluster

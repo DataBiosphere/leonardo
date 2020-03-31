@@ -325,6 +325,10 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                                                        googleProject,
                                                                        runtimeName)
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      // throw 409 if the cluster is not updatable
+      _ <- if (runtime.status.isUpdatable) F.unit
+      else
+        F.raiseError[Unit](RuntimeCannotBeUpdatedException(runtime.projectNameString, runtime.status))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       ctx <- as.ask
       // Updating autopause is just a DB update, so we can do it here instead of sending a PubSub message
@@ -419,116 +423,108 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
    * and potentially sends a PubSub message (or throws an error). The PubSub receiver does not
    * do validation; it is assumed all validation happens here.
    */
-  private[service] def processUpdateRuntimeConfigRequest(req: UpdateRuntimeConfigRequest,
+  private[service] def processUpdateRuntimeConfigRequest(request: UpdateRuntimeConfigRequest,
                                                          allowStop: Boolean,
                                                          runtime: Runtime,
                                                          runtimeConfig: RuntimeConfig,
                                                          traceId: TraceId): F[Unit] =
-    (runtimeConfig, req) match {
-      case (RuntimeConfig.GceConfig(existingMachineType, existingDiskSize),
-            UpdateRuntimeConfigRequest.GceConfig(reqMachineType, reqDiskSize)) =>
-        for {
-          // should machine type be updated?
-          targetMachineType <- reqMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
-            if (mt != existingMachineType)
-              if (runtime.status == RuntimeStatus.Stopped)
-                Async[F].pure(Some((mt, false)))
-              else if (!allowStop)
-                Async[F].raiseError(RuntimeMachineTypeCannotBeChangedException(runtime))
-              else Async[F].pure(Some((mt, true)))
-            else Async[F].pure(None)
-          }
-          // should disk size be updated?
-          targetDiskSize <- reqDiskSize.flatTraverse[F, DiskSize] {
-            case d if d.gb < existingDiskSize.gb =>
-              Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
-            case d if d.gb > runtimeConfig.diskSize.gb =>
-              Async[F].pure(Some(d))
-            case _ =>
-              Async[F].pure(None)
-          }
-          // if either of the above is defined, send a PubSub message
-          _ <- (targetMachineType orElse targetDiskSize).traverse_ { _ =>
-            val message = UpdateRuntimeMessage(runtime.id,
-                                               targetMachineType.map(_._1),
-                                               targetMachineType.map(_._2).getOrElse(false),
-                                               targetDiskSize,
-                                               None,
-                                               None,
-                                               Some(traceId))
-            publisherQueue.enqueue1(message)
-          }
-        } yield ()
+    (runtimeConfig, request) match {
+      case (gceConfig @ RuntimeConfig.GceConfig(_, _), req @ UpdateRuntimeConfigRequest.GceConfig(_, _)) =>
+        processUpdateGceConfigRequest(req, allowStop, runtime, gceConfig, traceId)
 
-      case (RuntimeConfig.DataprocConfig(existingNumWorkers,
-                                         existingMasterMachineType,
-                                         existingMasterDiskSize,
-                                         _,
-                                         _,
-                                         _,
-                                         existingNumPreemptibles,
-                                         _),
-            UpdateRuntimeConfigRequest.DataprocConfig(reqMasterMachineType,
-                                                      reqMasterDiskSize,
-                                                      reqNumOfWorkers,
-                                                      reqNumPreemptibles)) =>
-        for {
-          // should num workers be updated?
-          targetNumWorkers <- reqNumOfWorkers.flatTraverse[F, Int] {
-            case nw if nw != existingNumWorkers => Async[F].pure(Some(nw))
-            case _                              => Async[F].pure(None)
-          }
-          // should num preemptibles be updated?
-          targetNumPreemptibles <- reqNumPreemptibles.flatTraverse[F, Int] {
-            case pw if pw != existingNumPreemptibles.getOrElse(0) => Async[F].pure(Some(pw))
-            case _                                                => Async[F].pure(None)
-          }
-          // should master machine type be updated?
-          targetMasterMachineType <- reqMasterMachineType.flatTraverse[F, (MachineTypeName, Boolean)] { mt =>
-            if (mt != existingMasterMachineType)
-              if (targetNumWorkers.isDefined || targetNumPreemptibles.isDefined)
-                Async[F].raiseError(
-                  RuntimeCannotBeUpdatedException(
-                    runtime.projectNameString,
-                    runtime.status,
-                    "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time. The number of workers will be updated."
-                  )
-                )
-              else if (runtime.status == RuntimeStatus.Stopped)
-                Async[F].pure(Some((mt, false)))
-              else if (!allowStop)
-                Async[F].raiseError(RuntimeMachineTypeCannotBeChangedException(runtime))
-              else Async[F].pure(Some((mt, true)))
-            else Async[F].pure(None)
-          }
-          // should master disk size be updated?
-          targetMasterDiskSize <- reqMasterDiskSize.flatTraverse[F, DiskSize] {
-            case d if d.gb < existingMasterDiskSize.gb =>
-              Async[F].raiseError(RuntimeDiskSizeCannotBeDecreasedException(runtime))
-            case d if d.gb > runtimeConfig.diskSize.gb =>
-              Async[F].pure(Some(d))
-            case _ =>
-              Async[F].pure(None)
-          }
-          // if any of the above is defined, send a PubSub message
-          _ <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
-            .traverse_ { _ =>
-              val message = UpdateRuntimeMessage(
-                runtime.id,
-                targetMasterMachineType.map(_._1),
-                targetMasterMachineType.map(_._2).getOrElse(false),
-                targetMasterDiskSize,
-                targetNumWorkers,
-                targetNumPreemptibles,
-                Some(traceId)
-              )
-              publisherQueue.enqueue1(message)
-            }
-        } yield ()
+      case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _),
+            req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>
+        processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig, traceId)
 
       case _ =>
-        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, req.cloudService))
+        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService))
     }
+
+  private[service] def processUpdateGceConfigRequest(req: UpdateRuntimeConfigRequest.GceConfig,
+                                                     allowStop: Boolean,
+                                                     runtime: Runtime,
+                                                     gceConfig: RuntimeConfig.GceConfig,
+                                                     traceId: TraceId): F[Unit] =
+    for {
+      // should machine type be updated?
+      targetMachineType <- traverseIfChanged(req.updatedMachineType, gceConfig.machineType) { mt =>
+        if (runtime.status == RuntimeStatus.Stopped)
+          Async[F].pure((mt, false))
+        else if (!allowStop)
+          Async[F].raiseError[(MachineTypeName, Boolean)](RuntimeMachineTypeCannotBeChangedException(runtime))
+        else Async[F].pure((mt, true))
+      }
+      // should disk size be updated?
+      targetDiskSize <- traverseIfChanged(req.updatedDiskSize, gceConfig.diskSize) { d =>
+        if (d.gb < gceConfig.diskSize.gb)
+          Async[F].raiseError[DiskSize](RuntimeDiskSizeCannotBeDecreasedException(runtime))
+        else
+          Async[F].pure(d)
+      }
+      // if either of the above is defined, send a PubSub message
+      _ <- (targetMachineType orElse targetDiskSize).traverse_ { _ =>
+        val message = UpdateRuntimeMessage(runtime.id,
+                                           targetMachineType.map(_._1),
+                                           targetMachineType.map(_._2).getOrElse(false),
+                                           targetDiskSize,
+                                           None,
+                                           None,
+                                           Some(traceId))
+        publisherQueue.enqueue1(message)
+      }
+    } yield ()
+
+  private[service] def processUpdateDataprocConfigRequest(req: UpdateRuntimeConfigRequest.DataprocConfig,
+                                                          allowStop: Boolean,
+                                                          runtime: Runtime,
+                                                          dataprocConfig: RuntimeConfig.DataprocConfig,
+                                                          traceId: TraceId): F[Unit] =
+    for {
+      // should num workers be updated?
+      targetNumWorkers <- traverseIfChanged(req.updatedNumberOfWorkers, dataprocConfig.numberOfWorkers)(Async[F].pure)
+      // should num preemptibles be updated?
+      targetNumPreemptibles <- traverseIfChanged(req.updatedNumberOfPreemptibleWorkers,
+                                                 dataprocConfig.numberOfPreemptibleWorkers.getOrElse(0))(Async[F].pure)
+      // should master machine type be updated?
+      targetMasterMachineType <- traverseIfChanged(req.updatedMasterMachineType, dataprocConfig.masterMachineType) {
+        mt =>
+          if (targetNumWorkers.isDefined || targetNumPreemptibles.isDefined)
+            Async[F].raiseError[(MachineTypeName, Boolean)](
+              RuntimeCannotBeUpdatedException(
+                runtime.projectNameString,
+                runtime.status,
+                "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time. The number of workers will be updated."
+              )
+            )
+          else if (runtime.status == RuntimeStatus.Stopped)
+            Async[F].pure((mt, false))
+          else if (!allowStop)
+            Async[F].raiseError[(MachineTypeName, Boolean)](RuntimeMachineTypeCannotBeChangedException(runtime))
+          else Async[F].pure((mt, true))
+      }
+      // should master disk size be updated?
+      targetMasterDiskSize <- traverseIfChanged(req.updatedMasterDiskSize, dataprocConfig.masterDiskSize) { d =>
+        if (d.gb < dataprocConfig.masterDiskSize.gb)
+          Async[F].raiseError[DiskSize](RuntimeDiskSizeCannotBeDecreasedException(runtime))
+        else
+          Async[F].pure(d)
+      }
+      // if any of the above is defined, send a PubSub message
+      _ <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
+        .traverse_ { _ =>
+          val message = UpdateRuntimeMessage(
+            runtime.id,
+            targetMasterMachineType.map(_._1),
+            targetMasterMachineType.map(_._2).getOrElse(false),
+            targetMasterDiskSize,
+            targetNumWorkers,
+            targetNumPreemptibles,
+            Some(traceId)
+          )
+          publisherQueue.enqueue1(message)
+        }
+    } yield ()
+
 }
 
 object RuntimeServiceInterp {
@@ -608,6 +604,14 @@ object RuntimeServiceInterp {
       stopAfterCreation = false
     )
   }
+
+  def traverseIfChanged[F[_]: Async, A, B](testVal: Option[A], existingVal: A)(fn: A => F[B]): F[Option[B]] =
+    testVal.flatTraverse { x =>
+      if (x != existingVal)
+        fn(x).map(_.some)
+      else
+        Async[F].pure(none[B])
+    }
 }
 
 final case class RuntimeServiceConfig(proxyUrlBase: String,
