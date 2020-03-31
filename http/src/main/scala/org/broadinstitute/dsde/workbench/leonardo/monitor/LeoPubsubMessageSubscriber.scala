@@ -174,14 +174,13 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
           }
         } yield result
 
-      case Starting => ???
-//        for {
-//
-//          _ <- dbRef.inTransaction {
-//            clusterQuery.patchInProgress(message.runtimePatchDetails.runtimeId, false)
-//          }
-//          // TODO: should eventually check if the resulting machine config is what the user requested to see if the patch worked correctly
-//        } yield ()
+      case Starting =>
+        for {
+          _ <- dbRef.inTransaction {
+            patchQuery.updatePatchAsComplete(message.runtimePatchDetails.runtimeId)
+          }
+          // TODO: should eventually check if the resulting machine config is what the user requested to see if the patch worked correctly
+        } yield ()
 
       //No actions for other statuses yet. There is some logic that will be needed for all other cases (i.e. the 'None' case where no cluster is found in the db and possibly the case that checks for the data in the DB)
       // TODO: Refactor once there is more than one case
