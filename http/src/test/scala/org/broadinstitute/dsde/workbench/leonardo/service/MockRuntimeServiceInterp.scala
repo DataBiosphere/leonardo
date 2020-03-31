@@ -2,7 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, RuntimeServiceContext}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateRuntime2Request,
+  RuntimeServiceContext,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse, RuntimeService}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -41,4 +45,11 @@ object MockRuntimeServiceInterp extends RuntimeService[IO] {
     implicit as: ApplicativeAsk[IO, RuntimeServiceContext]
   ): IO[Unit] =
     IO.unit
+
+  override def updateRuntime(
+    userInfo: UserInfo,
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName,
+    req: UpdateRuntimeRequest
+  )(implicit as: ApplicativeAsk[IO, RuntimeServiceContext]): IO[Unit] = IO.unit
 }

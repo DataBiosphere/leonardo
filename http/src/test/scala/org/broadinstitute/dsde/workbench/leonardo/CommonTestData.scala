@@ -161,18 +161,18 @@ object CommonTestData {
     )
 
   val defaultRuntimeConfig =
-    RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), 500, None, None, None, None, Map.empty)
+    RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty)
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0),
                                         Some(MachineTypeName("n1-standard-4")),
-                                        Some(500),
+                                        Some(DiskSize(500)),
                                         None,
                                         None,
                                         None,
                                         None,
                                         Map.empty[String, String])
   val gceRuntimeConfig =
-    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), 500)
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500))
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)

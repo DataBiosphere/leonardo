@@ -16,7 +16,7 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
       RuntimeConfig.DataprocConfig(
         0,
         masterMachineType = newMasterMachineType,
-        500,
+        DiskSize(500),
         workerMachineType = None,
         workerDiskSize = None,
         numberOfWorkerLocalSSDs = None,

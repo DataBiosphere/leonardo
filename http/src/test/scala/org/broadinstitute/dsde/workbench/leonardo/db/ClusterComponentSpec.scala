@@ -52,14 +52,16 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     savedCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster2
 
     val savedCluster3 = cluster3.saveWithRuntimeConfig(
-      RuntimeConfig.DataprocConfig(3,
-                                   MachineTypeName("test-master-machine-type"),
-                                   500,
-                                   Some(MachineTypeName("test-worker-machine-type")),
-                                   Some(200),
-                                   Some(2),
-                                   Some(1),
-                                   Map.empty)
+      RuntimeConfig.DataprocConfig(
+        3,
+        MachineTypeName("test-master-machine-type"),
+        DiskSize(500),
+        Some(MachineTypeName("test-worker-machine-type")),
+        Some(DiskSize(200)),
+        Some(2),
+        Some(1),
+        Map.empty
+      )
     )
     savedCluster3.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster3
 
@@ -230,14 +232,16 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
   it should "update master machine type" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
       .saveWithRuntimeConfig(
-        RuntimeConfig.DataprocConfig(3,
-                                     MachineTypeName("test-master-machine-type"),
-                                     500,
-                                     Some(MachineTypeName("test-worker-machine-type")),
-                                     Some(200),
-                                     Some(2),
-                                     Some(1),
-                                     Map.empty)
+        RuntimeConfig.DataprocConfig(
+          3,
+          MachineTypeName("test-master-machine-type"),
+          DiskSize(500),
+          Some(MachineTypeName("test-worker-machine-type")),
+          Some(DiskSize(200)),
+          Some(2),
+          Some(1),
+          Map.empty
+        )
       )
 
     val newMachineType = MachineTypeName("this-is-a-new-machine-type")
@@ -249,17 +253,19 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
 
   it should "update master disk size" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).saveWithRuntimeConfig(
-      RuntimeConfig.DataprocConfig(3,
-                                   MachineTypeName("test-master-machine-type"),
-                                   500,
-                                   Some(MachineTypeName("test-worker-machine-type")),
-                                   Some(200),
-                                   Some(2),
-                                   Some(1),
-                                   Map.empty)
+      RuntimeConfig.DataprocConfig(
+        3,
+        MachineTypeName("test-master-machine-type"),
+        DiskSize(500),
+        Some(MachineTypeName("test-worker-machine-type")),
+        Some(DiskSize(200)),
+        Some(2),
+        Some(1),
+        Map.empty
+      )
     )
 
-    val newDiskSize = 1000
+    val newDiskSize = DiskSize(1000)
     dbFutureValue { RuntimeConfigQueries.updateDiskSize(savedCluster1.runtimeConfigId, newDiskSize, Instant.now) }
 
     dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(savedCluster1.runtimeConfigId) }.diskSize shouldBe
@@ -290,14 +296,16 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
   }
 
   it should "persist runtimeConfig properly" in isolatedDbTest {
-    val runtimeConfig = RuntimeConfig.DataprocConfig(3,
-                                                     MachineTypeName("test-master-machine-type"),
-                                                     500,
-                                                     Some(MachineTypeName("test-worker-machine-type")),
-                                                     Some(200),
-                                                     Some(2),
-                                                     Some(1),
-                                                     Map.empty)
+    val runtimeConfig = RuntimeConfig.DataprocConfig(
+      3,
+      MachineTypeName("test-master-machine-type"),
+      DiskSize(500),
+      Some(MachineTypeName("test-worker-machine-type")),
+      Some(DiskSize(200)),
+      Some(2),
+      Some(1),
+      Map.empty
+    )
 
     val savedCluster = makeCluster(1)
       .saveWithRuntimeConfig(runtimeConfig)

@@ -135,7 +135,8 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     )
   }
 
-  implicit val dataprocConfigEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct7(
+  implicit val dataprocConfigEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct8(
+    "cloudService",
     "numberOfWorkers",
     "masterMachineType",
     "masterDiskSize",
@@ -146,7 +147,8 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     "numberOfPreemptibleWorkers"
   )(
     x =>
-      (x.numberOfWorkers,
+      (x.cloudService,
+       x.numberOfWorkers,
        x.masterMachineType,
        x.masterDiskSize,
        x.workerMachineType,
@@ -154,10 +156,11 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
        x.numberOfWorkerLocalSSDs,
        x.numberOfPreemptibleWorkers)
   )
-  implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct2(
+  implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
+    "cloudService",
     "machineType",
     "diskSize"
-  )(x => (x.machineType, x.diskSize))
+  )(x => (x.cloudService, x.machineType, x.diskSize))
 
   implicit val runtimeConfigRequestEncoder: Encoder[RuntimeConfigRequest] = Encoder.instance { x =>
     x match {

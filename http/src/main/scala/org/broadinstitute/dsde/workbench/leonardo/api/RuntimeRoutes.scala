@@ -13,6 +13,7 @@ import cats.effect.{IO, Timer}
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes.validateRuntimeNameDirective
@@ -88,8 +89,16 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                         )
                       } ~
                       patch {
-                        // TODO
-                        complete(StatusCodes.NotImplemented)
+                        entity(as[UpdateRuntimeRequest]) { req =>
+                          complete(
+                            updateRuntimeHandler(
+                              userInfo,
+                              googleProject,
+                              runtimeName,
+                              req
+                            )
+                          )
+                        }
                       } ~
                       delete {
                         complete(
@@ -201,13 +210,29 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
       )
       _ <- runtimeService.startRuntime(userInfo, googleProject, runtimeName)
     } yield StatusCodes.Accepted
+
+  private[api] def updateRuntimeHandler(userInfo: UserInfo,
+                                        googleProject: GoogleProject,
+                                        runtimeName: RuntimeName,
+                                        req: UpdateRuntimeRequest): IO[ToResponseMarshallable] =
+    for {
+      context <- RuntimeServiceContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+        context
+      )
+      _ <- runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
+    } yield StatusCodes.Accepted
 }
 
 object RuntimeRoutes {
-  implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.forProduct2(
-    "machineType",
-    "diskSize"
-  )((mt, ds) => RuntimeConfigRequest.GceConfig(mt, ds))
+  implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
+    for {
+      machineType <- x.downField("machineType").as[Option[MachineTypeName]]
+      diskSize <- x
+        .downField("diskSize")
+        .as[Option[DiskSize]]
+    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize)
+  }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfigRequest] = Decoder.instance { x =>
     //For newer version of requests, we use `cloudService` field to distinguish whether user is
@@ -252,6 +277,54 @@ object RuntimeRoutes {
       s.getOrElse(Set.empty),
       c.getOrElse(Map.empty)
     )
+  }
+
+  implicit val updateGceConfigDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
+    for {
+      machineType <- x.downField("updatedMachineType").as[Option[MachineTypeName]]
+      diskSize <- x
+        .downField("updatedDiskSize")
+        .as[Option[DiskSize]]
+    } yield UpdateRuntimeConfigRequest.GceConfig(machineType, diskSize)
+  }
+
+  implicit val updateDataprocConfigDecoder: Decoder[UpdateRuntimeConfigRequest.DataprocConfig] = Decoder.instance { x =>
+    for {
+      masterMachineType <- x.downField("updatedMasterMachineType").as[Option[MachineTypeName]]
+      diskSize <- x
+        .downField("updatedMasterDiskSize")
+        .as[Option[DiskSize]]
+      numWorkers <- x.downField("updatedNumberOfWorkers").as[Option[Int]].flatMap {
+        case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
+        case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
+        case x                 => Right(x)
+      }
+      numPreemptibles <- x.downField("updatedNumberOfPreemptibleWorkers").as[Option[Int]].flatMap {
+        case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
+        case x                => Right(x)
+      }
+    } yield UpdateRuntimeConfigRequest.DataprocConfig(masterMachineType, diskSize, numWorkers, numPreemptibles)
+  }
+
+  implicit val updateRuntimeConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest] = Decoder.instance { x =>
+    for {
+      cloudService <- x.downField("cloudService").as[CloudService]
+      r <- cloudService match {
+        case CloudService.Dataproc =>
+          x.as[UpdateRuntimeConfigRequest.DataprocConfig]
+        case CloudService.GCE =>
+          x.as[UpdateRuntimeConfigRequest.GceConfig]
+      }
+    } yield r
+  }
+
+  implicit val updateRuntimeRequestDecoder: Decoder[UpdateRuntimeRequest] = Decoder.instance { x =>
+    for {
+      rc <- x.downField("updatedRuntimeConfig").as[Option[UpdateRuntimeConfigRequest]]
+      as <- x.downField("allowStop").as[Option[Boolean]]
+      ap <- x.downField("updatedAutopause").as[Option[Boolean]]
+      at <- x.downField("updatedAutopauseThreshold").as[Option[Int]]
+    } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes))
   }
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
@@ -363,3 +436,25 @@ final case class CreateRuntime2Request(labels: LabelMap,
                                        welderDockerImage: Option[ContainerImage],
                                        scopes: Set[String],
                                        customEnvironmentVariables: Map[String, String])
+
+sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
+  def cloudService: CloudService
+}
+object UpdateRuntimeConfigRequest {
+  final case class GceConfig(updatedMachineType: Option[MachineTypeName], updatedDiskSize: Option[DiskSize])
+      extends UpdateRuntimeConfigRequest {
+    val cloudService: CloudService = CloudService.GCE
+  }
+  final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName],
+                                  updatedMasterDiskSize: Option[DiskSize],
+                                  updatedNumberOfWorkers: Option[Int],
+                                  updatedNumberOfPreemptibleWorkers: Option[Int])
+      extends UpdateRuntimeConfigRequest {
+    val cloudService: CloudService = CloudService.Dataproc
+  }
+}
+
+final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequest],
+                                      allowStop: Boolean,
+                                      updateAutopauseEnabled: Option[Boolean],
+                                      updateAutopauseThreshold: Option[FiniteDuration])

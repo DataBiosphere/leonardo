@@ -63,7 +63,7 @@ object RuntimeConfigQueries {
       .map(c => (c.machineType, c.dateAccessed))
       .update((machineType, dateAccessed))
 
-  def updateDiskSize(id: RuntimeConfigId, newSizeGb: Int, dateAccessed: Instant): DBIO[Int] =
+  def updateDiskSize(id: RuntimeConfigId, newSizeGb: DiskSize, dateAccessed: Instant): DBIO[Int] =
     runtimeConfigs
       .filter(x => x.id === id)
       .map(c => (c.diskSize, c.dateAccessed))

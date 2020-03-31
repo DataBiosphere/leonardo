@@ -181,29 +181,29 @@ final case class RuntimeConfigId(id: Long) extends AnyVal
 sealed trait RuntimeConfig extends Product with Serializable {
   def cloudService: CloudService
   def machineType: MachineTypeName
-  def diskSize: Int
+  def diskSize: DiskSize
 }
 object RuntimeConfig {
   final case class GceConfig(
     machineType: MachineTypeName,
-    diskSize: Int
+    diskSize: DiskSize
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
 
   final case class DataprocConfig(numberOfWorkers: Int,
                                   masterMachineType: MachineTypeName,
-                                  masterDiskSize: Int, //min 10
+                                  masterDiskSize: DiskSize, //min 10
                                   // worker settings are None when numberOfWorkers is 0
                                   workerMachineType: Option[MachineTypeName] = None,
-                                  workerDiskSize: Option[Int] = None, //min 10
+                                  workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String])
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
-    val diskSize: Int = masterDiskSize
+    val diskSize: DiskSize = masterDiskSize
   }
 }
 

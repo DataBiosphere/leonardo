@@ -122,7 +122,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                 .newBuilder()
                 .setDescription("Leonardo Persistent Disk")
                 .setSourceImage(config.gceConfig.customGceImage.asString)
-                .setDiskSizeGb(params.runtimeConfig.diskSize.toString)
+                .setDiskSizeGb(params.runtimeConfig.diskSize.gb.toString)
                 .putAllLabels(Map("leonardo" -> "true").asJava)
                 .build()
             )
@@ -234,7 +234,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     googleComputeService.resizeDisk(params.runtime.googleProject,
                                     config.gceConfig.zoneName,
                                     DiskName(params.runtime.runtimeName.asString),
-                                    params.diskSize)
+                                    params.diskSize.gb)
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     Async[F].unit

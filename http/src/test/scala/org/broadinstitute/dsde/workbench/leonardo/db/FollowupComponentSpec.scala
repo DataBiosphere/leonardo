@@ -5,7 +5,7 @@ package db
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{followupQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimeFollowupDetails
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeFollowupDetails
 import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global

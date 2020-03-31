@@ -5,19 +5,34 @@ import java.net.URL
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.Decoder
+import io.circe.syntax._
+import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, TestLeoRoutes}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport.runtimeConfigRequestEncoder
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateRuntime2Request,
+  HttpRoutes,
+  TestLeoRoutes,
+  UpdateRuntimeConfigRequest,
+  UpdateRuntimeRequest
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  GetRuntimeResponse,
+  ListRuntimeResponse,
+  RuntimeConfigRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.service.MockRuntimeServiceInterp
-import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FlatSpec, Matchers}
+
+import scala.concurrent.duration._
 
 class HttpRoutesSpec
     extends FlatSpec
@@ -41,6 +56,29 @@ class HttpRoutesSpec
   )
 
   "HttpRoutes" should "create runtime" in {
+    val request = CreateRuntime2Request(
+      Map("lbl1" -> "true"),
+      None,
+      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
+      None,
+      Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)))),
+      None,
+      Some(true),
+      Some(30.minutes),
+      None,
+      Some(ContainerImage.DockerHub("myrepo/myimage")),
+      Some(ContainerImage.DockerHub("broadinstitute/welder")),
+      Set.empty,
+      Map.empty
+    )
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, request.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "create a runtime with default parameters" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -101,6 +139,46 @@ class HttpRoutesSpec
     }
   }
 
+  it should "update a runtime" in {
+    val request = UpdateRuntimeRequest(
+      Some(UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), Some(DiskSize(20)))),
+      true,
+      Some(true),
+      Some(5.minutes)
+    )
+    Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, request.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "update a runtime with default parameters" in {
+    Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "not handle patch with invalid runtime config" in {
+    val negative =
+      UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(-100)))), false, None, None)
+    Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
+      handled shouldBe false
+    }
+    val oneWorker =
+      UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(1), None)),
+                           false,
+                           None,
+                           None)
+    Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
+      handled shouldBe false
+    }
+  }
+
   it should "not handle unrecognized routes" in {
     Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
       handled shouldBe false
@@ -118,6 +196,83 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
+  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct13(
+    "labels",
+    "jupyterExtensionUri",
+    "jupyterUserScriptUri",
+    "jupyterStartUserScriptUri",
+    "runtimeConfig",
+    "userJupyterExtensionConfig",
+    "autopause",
+    "autopauseThreshold",
+    "defaultClientId",
+    "toolDockerImage",
+    "welderDockerImage",
+    "scopes",
+    "customEnvironmentVariables"
+  )(
+    x =>
+      (
+        x.labels,
+        x.jupyterExtensionUri,
+        x.jupyterUserScriptUri,
+        x.jupyterStartUserScriptUri,
+        x.runtimeConfig,
+        x.userJupyterExtensionConfig,
+        x.autopause,
+        x.autopauseThreshold.map(_.toMinutes),
+        x.defaultClientId,
+        x.toolDockerImage,
+        x.welderDockerImage,
+        x.scopes,
+        x.customEnvironmentVariables
+      )
+  )
+
+  implicit val updateGceConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
+    "cloudService",
+    "updatedMachineType",
+    "updatedDiskSize"
+  )(x => (x.cloudService, x.updatedMachineType, x.updatedDiskSize))
+
+  implicit val updateDataprocConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.DataprocConfig] =
+    Encoder.forProduct5(
+      "cloudService",
+      "updatedMasterMachineType",
+      "updatedMasterDiskSize",
+      "updatedNumberOfWorkers",
+      "updatedNumberOfPreemptibleWorkers"
+    )(
+      x =>
+        (x.cloudService,
+         x.updatedMasterMachineType,
+         x.updatedMasterDiskSize,
+         x.updatedNumberOfWorkers,
+         x.updatedNumberOfPreemptibleWorkers)
+    )
+
+  implicit val updateRuntimeConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest] = Encoder.instance { x =>
+    x match {
+      case x: UpdateRuntimeConfigRequest.DataprocConfig => x.asJson
+      case x: UpdateRuntimeConfigRequest.GceConfig      => x.asJson
+    }
+  }
+
+  implicit val updateRuntimeRequestEncoder: Encoder[UpdateRuntimeRequest] = Encoder.forProduct4(
+    "updatedRuntimeConfig",
+    "allowStop",
+    "updatedAutopause",
+    "updatedAutopauseThreshold"
+  )(
+    x =>
+      (
+        x.updatedRuntimeConfig,
+        x.allowStop,
+        x.updateAutopauseEnabled,
+        x.updateAutopauseThreshold.map(_.toMinutes)
+      )
+  )
+
   implicit val getClusterResponseDecoder: Decoder[GetRuntimeResponse] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]

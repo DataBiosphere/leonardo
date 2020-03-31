@@ -5,7 +5,7 @@ import scala.concurrent.ExecutionContext
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimeFollowupDetails
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeFollowupDetails
 
 case class FollowupRecord(clusterId: Long, status: RuntimeStatus, masterMachineType: Option[MachineTypeName])
 

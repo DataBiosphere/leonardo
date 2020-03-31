@@ -41,9 +41,9 @@ object DataprocConfigCopy {
     DataprocConfigCopy(
       dataprocConfig.numberOfWorkers,
       dataprocConfig.machineType.value,
-      dataprocConfig.masterDiskSize,
+      dataprocConfig.masterDiskSize.gb,
       dataprocConfig.workerMachineType.map(_.value),
-      dataprocConfig.workerDiskSize,
+      dataprocConfig.workerDiskSize.map(_.gb),
       dataprocConfig.numberOfWorkerLocalSSDs,
       dataprocConfig.numberOfPreemptibleWorkers
     )

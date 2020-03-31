@@ -186,7 +186,7 @@ class ZombieRuntimeMonitorSpec
     // create a running clusters in the same project
     val runtimeConfig = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
-      50
+      DiskSize(50)
     )
     val savedTestCluster = testCluster1.saveWithRuntimeConfig(runtimeConfig)
     savedTestCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1

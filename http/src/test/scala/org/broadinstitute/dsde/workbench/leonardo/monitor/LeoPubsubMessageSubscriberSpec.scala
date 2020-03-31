@@ -6,6 +6,7 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
+import cats.implicits._
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.concurrent.InspectableQueue
@@ -21,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, followupQuery, RuntimeConfigQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -29,7 +31,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   ClusterNotStopped
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.mockito.Mockito
 import org.scalatest.concurrent._
 import org.scalatest.{FlatSpecLike, Matchers}
@@ -270,6 +271,60 @@ class LeoPubsubMessageSubscriberSpec
       attempt <- leoSubscriber.messageResponder(message, now).attempt
     } yield {
       attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle UpdateRuntimeMessage and stop the cluster when there's a machine type change" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(
+        UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, None, None, None, Some(tr)),
+        now
+      )
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe 'defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle UpdateRuntimeMessage and update the runtime config in the database" in isolatedDbTest {
+    val queue = QueueFactory.makeSubscriberQueue()
+    val leoSubscriber = makeLeoSubscriber(queue)
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopped).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(UpdateRuntimeMessage(runtime.id,
+                                                               Some(MachineTypeName("n1-highmem-64")),
+                                                               false,
+                                                               Some(DiskSize(1024)),
+                                                               None,
+                                                               None,
+                                                               Some(tr)),
+                                          now)
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      updatedRuntimeConfig <- updatedRuntime.traverse(
+        r => RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+      )
+    } yield {
+      updatedRuntime shouldBe 'defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Stopped
+      updatedRuntimeConfig shouldBe 'defined
+      updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
+      updatedRuntimeConfig.get.diskSize shouldBe DiskSize(1024)
     }
 
     res.unsafeRunSync()

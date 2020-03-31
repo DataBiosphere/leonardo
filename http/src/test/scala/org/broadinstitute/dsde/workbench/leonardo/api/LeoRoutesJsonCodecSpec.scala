@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package api
 
+import cats.implicits._
 import io.circe.CursorOp.DownField
 import io.circe.DecodingFailure
 import io.circe.parser.decode
@@ -66,7 +67,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       json <- io.circe.parser.parse(inputString)
       r <- json.as[RuntimeConfigRequest.DataprocConfig]
     } yield r
-    decodeResult shouldBe Left(negativeNumberDecodingFailure)
+    decodeResult.leftMap(_.getMessage) shouldBe Left("Negative number is not allowed: DownField(masterDiskSize)")
   }
 
   it should "fail with oneWorkerSpecifiedDecodingFailure when numberOfPreemptibleWorkers is negative" in {
@@ -140,7 +141,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       Some(MachineTypeName("test-master-machine-type")),
       None,
       Some(MachineTypeName("test-worker-machine-type")),
-      Some(100),
+      Some(DiskSize(100)),
       Some(0),
       Some(0),
       Map.empty
@@ -205,7 +206,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
         RuntimeConfigRequest.DataprocConfig(
           Some(0),
           Some(MachineTypeName("machineType")),
-          Some(500),
+          Some(DiskSize(500)),
           None,
           None,
           None,
