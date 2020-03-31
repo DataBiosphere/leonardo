@@ -201,15 +201,14 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   ): F[Unit] =
     for {
       metadata <- getStartupScript(runtime, welderAction, blocker)
-      _ <- googleComputeService.addInstanceMetadata(runtime.googleProject,
-                                                    config.gceConfig.zoneName,
-                                                    InstanceName(runtime.runtimeName.asString),
-                                                    metadata)
       // remove the startup-script-url metadata entry if present which is only used at creation time
-      _ <- googleComputeService.removeInstanceMetadata(runtime.googleProject,
-                                                       config.gceConfig.zoneName,
-                                                       InstanceName(runtime.runtimeName.asString),
-                                                       Set("startup-script-url"))
+      _ <- googleComputeService.modifyInstanceMetadata(
+        runtime.googleProject,
+        config.gceConfig.zoneName,
+        InstanceName(runtime.runtimeName.asString),
+        metadataToAdd = metadata,
+        metadataToRemove = Set("startup-script-url")
+      )
       _ <- googleComputeService.startInstance(runtime.googleProject,
                                               config.gceConfig.zoneName,
                                               InstanceName(runtime.runtimeName.asString))

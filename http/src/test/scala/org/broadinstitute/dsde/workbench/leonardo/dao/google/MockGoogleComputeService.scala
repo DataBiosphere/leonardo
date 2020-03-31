@@ -43,18 +43,11 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
-  override def addInstanceMetadata(
+  override def modifyInstanceMetadata(
     project: GoogleProject,
     zone: ZoneName,
     instanceName: InstanceName,
-    metadataToAdd: Map[String, String]
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO.unit
-
-  override def removeInstanceMetadata(
-    project: GoogleProject,
-    zone: ZoneName,
-    instanceName: InstanceName,
+    metadataToAdd: Map[String, String],
     metadataToRemove: Set[String]
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
