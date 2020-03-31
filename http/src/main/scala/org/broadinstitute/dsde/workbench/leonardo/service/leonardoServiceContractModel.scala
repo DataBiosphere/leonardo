@@ -129,7 +129,8 @@ object CreateRuntimeRequest {
       scopes = scopes,
       welderEnabled = request.enableWelder.getOrElse(false),
       customEnvironmentVariables = request.customClusterEnvironmentVariables,
-      runtimeConfigId = RuntimeConfigId(-1)
+      runtimeConfigId = RuntimeConfigId(-1),
+      patchInProgress = false
     )
 }
 
@@ -158,6 +159,7 @@ final case class CreateRuntimeResponse(id: Long,
                                        clusterImages: Set[RuntimeImage],
                                        scopes: Set[String],
                                        welderEnabled: Boolean,
+                                       patchInProgress: Boolean,
                                        customClusterEnvironmentVariables: Map[String, String])
 
 object CreateRuntimeResponse {
@@ -185,6 +187,7 @@ object CreateRuntimeResponse {
     runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
+    runtime.patchInProgress,
     runtime.customEnvironmentVariables
   )
 }
@@ -206,7 +209,8 @@ final case class ListRuntimeResponse(id: Long,
                                      autopauseThreshold: Int,
                                      defaultClientId: Option[String],
                                      stopAfterCreation: Boolean,
-                                     welderEnabled: Boolean)
+                                     welderEnabled: Boolean,
+                                     patchInProgress: Boolean)
 
 object ListRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig): ListRuntimeResponse =
@@ -228,7 +232,8 @@ object ListRuntimeResponse {
       runtime.autopauseThreshold,
       runtime.defaultClientId,
       runtime.stopAfterCreation,
-      runtime.welderEnabled
+      runtime.welderEnabled,
+      runtime.patchInProgress
     )
 }
 
@@ -255,6 +260,7 @@ final case class GetRuntimeResponse(id: Long,
                                     clusterImages: Set[RuntimeImage],
                                     scopes: Set[String],
                                     welderEnabled: Boolean,
+                                    patchInProgress: Boolean,
                                     customClusterEnvironmentVariables: Map[String, String])
 
 object GetRuntimeResponse {
@@ -282,6 +288,7 @@ object GetRuntimeResponse {
     runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
+    runtime.patchInProgress,
     runtime.customEnvironmentVariables
   )
 }
@@ -311,6 +318,7 @@ final case class UpdateRuntimeResponse(id: Long,
                                        clusterImages: Set[RuntimeImage],
                                        scopes: Set[String],
                                        welderEnabled: Boolean,
+                                       patchInProgress: Boolean,
                                        customClusterEnvironmentVariables: Map[String, String])
 
 object UpdateRuntimeResponse {
@@ -338,6 +346,7 @@ object UpdateRuntimeResponse {
     runtime.runtimeImages,
     runtime.scopes,
     runtime.welderEnabled,
+    runtime.patchInProgress,
     runtime.customEnvironmentVariables
   )
 }

@@ -318,6 +318,7 @@ object HttpRoutesSpec {
       clusterImages,
       scopes,
       true,
+      false,
       Map.empty
     )
   }
@@ -355,7 +356,8 @@ object HttpRoutesSpec {
       autopauseThreshold,
       None,
       false,
-      true
+      true,
+      false
     )
   }
 }

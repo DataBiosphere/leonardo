@@ -41,6 +41,7 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
       val getCluster: ClusterCopy =
         Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       getCluster.status shouldBe ClusterStatus.Stopping
+      getCluster.patchInProgress shouldBe true
     }
 
     eventually(timeout(Span(10, Minutes)), interval(Span(30, Seconds))) {
@@ -48,6 +49,7 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
         Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       getCluster.status shouldBe ClusterStatus.Running
       getCluster.machineConfig shouldBe originalMachineConfig.copy(masterMachineType = newMasterMachineType)
+      getCluster.patchInProgress shouldBe false
     }
   }
 

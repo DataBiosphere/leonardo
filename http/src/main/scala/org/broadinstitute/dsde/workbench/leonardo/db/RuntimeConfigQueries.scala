@@ -11,19 +11,21 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeonardoServiceDbQueries.Cl
 import scala.concurrent.ExecutionContext
 
 object RuntimeConfigQueries {
-  type ClusterJoinLabelJoinRuntimeConfig =
-    Query[((ClusterTable, Rep[Option[LabelTable]]), Rep[Option[RuntimeConfigTable]]),
-          ((ClusterRecord, Option[LabelRecord]), Option[RuntimeConfigRecord]),
+  type ClusterJoinLabelJoinRuntimeConfigJoinPatch =
+    Query[(((ClusterTable, Rep[Option[LabelTable]]), Rep[Option[RuntimeConfigTable]]), Rep[Option[PatchTable]]),
+          (((ClusterRecord, Option[LabelRecord]), Option[RuntimeConfigRecord]), Option[PatchRecord]),
           Seq]
 
   val runtimeConfigs = TableQuery[RuntimeConfigTable]
 
-  def clusterLabelRuntimeConfigQuery(baseQuery: ClusterJoinLabel): ClusterJoinLabelJoinRuntimeConfig =
+  def clusterLabelRuntimeConfigQuery(baseQuery: ClusterJoinLabel): ClusterJoinLabelJoinRuntimeConfigJoinPatch =
     for {
-      ((cluster, label), runTimeConfig) <- baseQuery
+      (((cluster, label), runTimeConfig), patch) <- baseQuery
         .joinLeft(runtimeConfigs)
         .on(_._1.runtimeConfigId === _.id)
-    } yield ((cluster, label), runTimeConfig)
+        .joinLeft(patchQuery)
+        .on(_._1._1.id === _.clusterId)
+    } yield (((cluster, label), runTimeConfig), patch)
 
   /**
    * return DB generated id

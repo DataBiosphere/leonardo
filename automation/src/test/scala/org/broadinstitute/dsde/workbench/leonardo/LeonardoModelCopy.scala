@@ -22,7 +22,8 @@ case class ClusterCopy(clusterName: RuntimeName,
                        errors: List[RuntimeError],
                        dateAccessed: Instant,
                        stopAfterCreation: Boolean,
-                       autopauseThreshold: Int) {
+                       autopauseThreshold: Int,
+                       patchInProgress: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 

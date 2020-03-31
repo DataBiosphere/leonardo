@@ -29,12 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage,
-  StopUpdateMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, RuntimePatchDetails, StartRuntimeMessage, StopRuntimeMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
@@ -446,6 +441,8 @@ class LeonardoService(
           traceId <- ev.ask
           _ <- metrics.incrementCounter(s"pubsub/LeonardoService/StopStartTransition")
           //sends a message with the config to google pub/sub queue for processing by back leo
+          patchDetails = RuntimePatchDetails(existingCluster.id, RuntimeStatus.Stopped)
+          _ <- patchQuery.save(patchDetails, Some(machineConfig.machineType)).transaction
           _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id, Some(traceId)))
         } yield ()
 

@@ -50,6 +50,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       defaultClientId <- x.downField("defaultClientId").as[Option[String]]
       stopAfterCreation <- x.downField("stopAfterCreation").as[Boolean]
       welderEnabled <- x.downField("welderEnabled").as[Boolean]
+      patchInProgress <- x.downField("patchInProgress").as[Boolean]
     } yield ListRuntimeResponse(
       id,
       internalId,
@@ -68,7 +69,8 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       autopauseThreshold,
       defaultClientId,
       stopAfterCreation,
-      welderEnabled
+      welderEnabled,
+      patchInProgress
     )
   }
 
@@ -107,6 +109,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       clusterImages <- x.downField("clusterImages").as[Set[RuntimeImage]]
       scopes <- x.downField("scopes").as[Set[String]]
       welderEnabled <- x.downField("welderEnabled").as[Boolean]
+      patchInProgress <- x.downField("patchInProgress").as[Boolean]
     } yield GetRuntimeResponse(
       id,
       internalId,
@@ -131,6 +134,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       clusterImages,
       scopes,
       welderEnabled,
+      patchInProgress,
       Map.empty // custom cluster env vars
     )
   }

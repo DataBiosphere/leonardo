@@ -75,17 +75,17 @@ object LeonardoServiceDbQueries {
       }
     }
 
-    val clusterQueryFilteredByLabelAndJoinedWithRuntime = clusterLabelRuntimeConfigQuery(clusterQueryFilteredByLabel)
+    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = clusterLabelRuntimeConfigQuery(clusterQueryFilteredByLabel)
 
-    clusterQueryFilteredByLabelAndJoinedWithRuntime.result.map { x =>
-      val clusterLabelMap: Map[(ClusterRecord, Option[RuntimeConfig]), Map[String, Chain[String]]] = x.toList.foldMap {
-        case ((clusterRec, labelRecOpt), runTimeConfigRecOpt) =>
+    clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
+      val clusterLabelMap: Map[(ClusterRecord, Option[RuntimeConfig], Option[PatchRecord]), Map[String, Chain[String]]] = x.toList.foldMap {
+        case (((clusterRec, labelRecOpt), runTimeConfigRecOpt), patchRecOpt) =>
           val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-          Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig)) -> labelMap)
+          Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig), patchRecOpt) -> labelMap)
       }
 
       clusterLabelMap.map {
-        case ((clusterRec, runTimeConfigRecOpt), labelMap) =>
+        case ((clusterRec, runTimeConfigRecOpt, patchRecOpt), labelMap) =>
           val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
           val dataprocInfo = (clusterRec.googleId, clusterRec.operationName, clusterRec.stagingBucket).mapN {
             (googleId, operationName, stagingBucket) =>
@@ -99,6 +99,10 @@ object LeonardoServiceDbQueries {
             clusterRec.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
             clusterRec.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
           )
+          val patchInProgress = patchRecOpt match {
+            case Some(patchRec) => patchRec.inProgress
+            case None => false
+          }
           ListRuntimeResponse(
             clusterRec.id,
             RuntimeInternalId(clusterRec.internalId),
@@ -122,7 +126,8 @@ object LeonardoServiceDbQueries {
             clusterRec.autopauseThreshold,
             clusterRec.defaultClientId,
             clusterRec.stopAfterCreation,
-            clusterRec.welderEnabled
+            clusterRec.welderEnabled,
+            patchInProgress
           )
       }.toList
     }

@@ -109,6 +109,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "defaultClientId" -> obj.defaultClientId.toJson,
       "stopAfterCreation" -> obj.stopAfterCreation.toJson,
       "welderEnabled" -> obj.welderEnabled.toJson,
+      "patchInProgress" -> obj.patchInProgress.toJson,
       "scopes" -> List
         .empty[String]
         .toJson //TODO: stubbing this out temporarily until AOU move to new swagger generated client
@@ -186,7 +187,8 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "stopAfterCreation" -> obj.stopAfterCreation.toJson,
       "clusterImages" -> obj.clusterImages.toJson,
       "scopes" -> obj.scopes.toJson,
-      "welderEnabled" -> obj.welderEnabled.toJson
+      "welderEnabled" -> obj.welderEnabled.toJson,
+      "patchInProgress" -> obj.patchInProgress.toJson
     )
 
     val presentFields = allFields.filter(_._2 != JsNull)
@@ -226,7 +228,8 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
         "stopAfterCreation" -> obj.stopAfterCreation.toJson,
         "clusterImages" -> obj.clusterImages.toJson,
         "scopes" -> obj.scopes.toJson,
-        "welderEnabled" -> obj.welderEnabled.toJson
+        "welderEnabled" -> obj.welderEnabled.toJson,
+        "patchInProgress" -> obj.patchInProgress.toJson
       )
 
       val presentFields = allFields.filter(_._2 != JsNull)
@@ -266,7 +269,8 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "stopAfterCreation" -> obj.stopAfterCreation.toJson,
       "clusterImages" -> obj.clusterImages.toJson,
       "scopes" -> obj.scopes.toJson,
-      "welderEnabled" -> obj.welderEnabled.toJson
+      "welderEnabled" -> obj.welderEnabled.toJson,
+      "patchInProgress" -> obj.patchInProgress.toJson
     )
 
     val presentFields = allFields.filter(_._2 != JsNull)

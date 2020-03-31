@@ -601,7 +601,8 @@ object RuntimeServiceInterp {
       customEnvironmentVariables = req.customEnvironmentVariables,
       allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
-      stopAfterCreation = false
+      stopAfterCreation = false,
+      patchInProgress = false
     )
   }
 

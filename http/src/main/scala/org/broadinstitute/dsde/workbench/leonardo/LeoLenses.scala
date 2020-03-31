@@ -44,7 +44,8 @@ object LeoLenses {
         x.autopauseThreshold,
         x.defaultClientId,
         x.stopAfterCreation,
-        x.welderEnabled
+        x.welderEnabled,
+        x.patchInProgress
       )
   )(
     x =>
@@ -66,7 +67,8 @@ object LeoLenses {
           autopauseThreshold = x.autopauseThreshold,
           defaultClientId = x.defaultClientId,
           stopAfterCreation = x.stopAfterCreation,
-          welderEnabled = x.welderEnabled
+          welderEnabled = x.welderEnabled,
+          patchInProgress = x.patchInProgress
         )
   )
 }

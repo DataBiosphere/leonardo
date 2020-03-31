@@ -201,7 +201,8 @@ object CommonTestData {
       scopes = defaultScopes,
       welderEnabled = false,
       customEnvironmentVariables = Map.empty,
-      runtimeConfigId = RuntimeConfigId(-1)
+      runtimeConfigId = RuntimeConfigId(-1),
+      patchInProgress = false
     )
   }
 
@@ -236,7 +237,8 @@ object CommonTestData {
     scopes = defaultScopes,
     welderEnabled = false,
     customEnvironmentVariables = Map.empty,
-    runtimeConfigId = RuntimeConfigId(-1)
+    runtimeConfigId = RuntimeConfigId(-1),
+    patchInProgress = false
   )
 
   // TODO look into parameterized tests so both provider impls can be tested
