@@ -44,10 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor.Cl
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterSupervisorMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterSupervisorMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  RuntimePatchDetails,
-  RuntimeTransitionMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimeTransitionMessage
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}

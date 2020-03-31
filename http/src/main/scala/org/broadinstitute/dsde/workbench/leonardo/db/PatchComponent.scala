@@ -5,7 +5,7 @@ import scala.concurrent.ExecutionContext
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimePatchDetails
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 
 case class PatchRecord(clusterId: Long, status: RuntimeStatus, masterMachineType: Option[MachineTypeName], inProgress: Boolean)
 

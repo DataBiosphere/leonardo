@@ -316,15 +316,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         } yield ()
       }
       // Update the machine type
-      // If it's a stop-update transition, persist a followup record and transition the runtime to Stopping
+      // If it's a stop-update transition, transition the runtime to Stopping
       _ <- msg.newMachineType.traverse_ { m =>
         if (msg.stopToUpdateMachineType) {
-          val followupDetails = RuntimeFollowupDetails(msg.runtimeId, RuntimeStatus.Stopped)
           for {
-            _ <- dbRef.inTransaction(
-              clusterQuery.setToStopping(msg.runtimeId, now) >> followupQuery
-                .save(followupDetails, Some(m))
-            )
+            _ <- dbRef.inTransaction(clusterQuery.setToStopping(msg.runtimeId, now))
             _ <- runtimeConfig.cloudService.interpreter
               .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
           } yield ()
