@@ -139,8 +139,8 @@ object AutomationTestJsonCodec {
     "stopAfterCreation",
     "autopauseThreshold",
     "patchInProgress"
-  ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc, at, iu) =>
-    ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at, iu)
+  ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc, at, ip) =>
+    ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at, ip)
   }
 }
 
