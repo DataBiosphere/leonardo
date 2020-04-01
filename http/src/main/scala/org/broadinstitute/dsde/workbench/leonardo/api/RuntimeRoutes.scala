@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import _root_.java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
@@ -144,8 +143,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         runtimeName: RuntimeName,
                                         req: CreateRuntime2Request): IO[ToResponseMarshallable] =
     for {
-      context <- RuntimeServiceContext.generate
-      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+      context <- AppContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
       _ <- runtimeService.createRuntime(
@@ -160,8 +159,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                      googleProject: GoogleProject,
                                      runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- RuntimeServiceContext.generate
-      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+      context <- AppContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
       resp <- runtimeService.getRuntime(userInfo, googleProject, runtimeName)
@@ -171,8 +170,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                        googleProject: Option[GoogleProject],
                                        params: Map[String, String]): IO[ToResponseMarshallable] =
     for {
-      context <- RuntimeServiceContext.generate
-      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+      context <- AppContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
       resp <- runtimeService.listRuntimes(userInfo, googleProject, params)
@@ -182,8 +181,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- RuntimeServiceContext.generate
-      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+      context <- AppContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
       _ <- runtimeService.deleteRuntime(userInfo, googleProject, runtimeName)
@@ -193,8 +192,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                       googleProject: GoogleProject,
                                       runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- RuntimeServiceContext.generate
-      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+      context <- AppContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
       _ <- runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
@@ -204,8 +203,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                        googleProject: GoogleProject,
                                        runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- RuntimeServiceContext.generate
-      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+      context <- AppContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
       _ <- runtimeService.startRuntime(userInfo, googleProject, runtimeName)
@@ -216,8 +215,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         runtimeName: RuntimeName,
                                         req: UpdateRuntimeRequest): IO[ToResponseMarshallable] =
     for {
-      context <- RuntimeServiceContext.generate
-      implicit0(ctx: ApplicativeAsk[IO, RuntimeServiceContext]) = ApplicativeAsk.const[IO, RuntimeServiceContext](
+      context <- AppContext.generate
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
       _ <- runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
@@ -412,15 +411,6 @@ object RuntimeRoutes {
         x.defaultClientId
       )
   )
-}
-
-final case class RuntimeServiceContext(traceId: TraceId, now: Instant)
-object RuntimeServiceContext {
-  def generate(implicit timer: Timer[IO]): IO[RuntimeServiceContext] =
-    for {
-      traceId <- IO(UUID.randomUUID())
-      now <- nowInstant[IO]
-    } yield RuntimeServiceContext(TraceId(traceId), now)
 }
 
 final case class CreateRuntime2Request(labels: LabelMap,

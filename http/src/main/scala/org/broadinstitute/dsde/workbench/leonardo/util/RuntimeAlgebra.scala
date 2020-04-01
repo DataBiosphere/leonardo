@@ -26,12 +26,12 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, G
  * Currently has interpreters for Dataproc and GCE.
  */
 trait RuntimeAlgebra[F[_]] {
-  def createRuntime(params: CreateRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateRuntimeResponse]
+  def createRuntime(params: CreateRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse]
   def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus]
   def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-  def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]

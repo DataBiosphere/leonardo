@@ -17,24 +17,8 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.{
-  GcsBlobName,
-  GetMetadataResponse,
-  GoogleComputeService,
-  GoogleStorageService,
-  InstanceName
-}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{
-  Creating,
-  Deleted,
-  Deleting,
-  Error,
-  Running,
-  Starting,
-  Stopping,
-  Unknown,
-  Updating
-}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleComputeService, GoogleStorageService, InstanceName}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Creating, Deleted, Deleting, Error, Running, Starting, Stopping, Unknown, Updating}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
@@ -48,11 +32,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimeTransitionMessage
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
-
+import GceInterpreter.instanceStatusToRuntimeStatus
 import scala.collection.immutable.Set
 import scala.concurrent.duration._
 
@@ -480,7 +464,7 @@ class ClusterMonitorActor(
       runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig
       next <- runtimeAndRuntimeConfig.runtime.status match {
         case status if status.isMonitored =>
-          checkClusterInGoogle(runtimeAndRuntimeConfig)
+          checkRuntimeInGoogle(runtimeAndRuntimeConfig)
         case status =>
           IO(
             logger.info(
@@ -495,76 +479,119 @@ class ClusterMonitorActor(
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  private def checkClusterInGoogle(
+  private def checkRuntimeInGoogle(
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] =
-    for {
-      googleStatus <- runtimeAndRuntimeConfig.runtimeConfig.cloudService
-        .interpreter[IO]
-        .getRuntimeStatus(
-          GetRuntimeStatusParams(
-            runtimeAndRuntimeConfig.runtime.googleProject,
-            runtimeAndRuntimeConfig.runtime.runtimeName,
-            Some(gceConfig.zoneName)
-          )
-        )
-      dataprocInstances <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-        case CloudService.GCE      => IO.pure(Set.empty[DataprocInstance])
-        case CloudService.Dataproc => getDataprocInstances(runtimeAndRuntimeConfig.runtime)
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] = runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
+        case CloudService.GCE =>
+          for {
+            instanceOpt <- googleComputeService.getInstance(
+              runtimeAndRuntimeConfig.runtime.googleProject,
+              gceConfig.zoneName,
+              InstanceName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+            )
+            runtimeStatus = instanceStatusToRuntimeStatus(instanceOpt)
+            userScript = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.stagingBucket).map(b => RuntimeTemplateValues.jupyterUserScriptOutputUriPath(b))
+            userStartupScript = instanceOpt.flatMap(x => Option(x.getMetadata.getFieldValue(userScriptStartupOutputUriMetadataKey)))
+              .flatMap(s => org.broadinstitute.dsde.workbench.model.google.parseGcsPath(s.toString).toOption)
+
+            userScriptSuccess <- checkUserScripts(userScript)
+            startUpScriptSuccess <- checkUserScripts(userStartupScript)
+            r <- (userScriptSuccess, startUpScriptSuccess) match {
+              case (true, true) => continueCheckRuntimeInGoogle(runtimeAndRuntimeConfig, runtimeStatus)
+              case (false, true) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some("user script failed")), Set.empty): ClusterMonitorMessage)
+              case (true, false) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some("user start up script failed")), Set.empty): ClusterMonitorMessage)
+              case (false, false) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some("both user script and startUp script failed")), Set.empty): ClusterMonitorMessage)
+            }
+          } yield r
+        case CloudService.Dataproc =>
+          for {
+            runtimeStatus <- runtimeInstances.interpreter(CloudService.Dataproc).getRuntimeStatus(
+              GetRuntimeStatusParams(
+              runtimeAndRuntimeConfig.runtime.googleProject,
+              runtimeAndRuntimeConfig.runtime.runtimeName,
+              None,
+            ))
+            r <- continueCheckRuntimeInGoogle(runtimeAndRuntimeConfig, runtimeStatus)
+          } yield r
       }
 
-      runningInstanceCount = dataprocInstances.count(_.status == GceInstanceStatus.Running)
-      stoppedInstanceCount = dataprocInstances.count(
-        i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated
-      )
+  private def continueCheckRuntimeInGoogle(
+                                            runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                            runtimeStatus: RuntimeStatus
+                                          )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage]  = for {
+    dataprocInstances <- runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
+      case CloudService.GCE      => IO.pure(Set.empty[DataprocInstance])
+      case CloudService.Dataproc => getDataprocInstances(runtimeAndRuntimeConfig.runtime)
+    }
 
-      result <- googleStatus match {
-        case Unknown | Creating | Updating | Stopping | Starting =>
-          IO.pure(NotReadyCluster(runtimeAndRuntimeConfig, googleStatus, dataprocInstances))
-        // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Running
-            if runtimeAndRuntimeConfig.runtime.status != Deleting && runtimeAndRuntimeConfig.runtime.status != Stopping && runningInstanceCount == dataprocInstances.size =>
-          getMasterIp(runtimeAndRuntimeConfig).flatMap {
-            case Some(ip) => checkClusterTools(runtimeAndRuntimeConfig, ip, dataprocInstances)
-            case None =>
-              IO.pure(
-                NotReadyCluster(runtimeAndRuntimeConfig,
-                                RuntimeStatus.Running,
-                                dataprocInstances,
-                                Some("Could not retrieve master IP"))
+    runningInstanceCount = dataprocInstances.count(_.status == GceInstanceStatus.Running)
+    stoppedInstanceCount = dataprocInstances.count(
+      i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated
+    )
+
+    result <- runtimeStatus match {
+      case Unknown | Creating | Updating | Stopping | Starting =>
+        IO.pure(NotReadyCluster(runtimeAndRuntimeConfig, runtimeStatus, dataprocInstances))
+      // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
+      case Running
+        if runtimeAndRuntimeConfig.runtime.status != Deleting && runtimeAndRuntimeConfig.runtime.status != Stopping && runningInstanceCount == dataprocInstances.size =>
+        getMasterIp(runtimeAndRuntimeConfig).flatMap {
+          case Some(ip) => checkClusterTools(runtimeAndRuntimeConfig, ip, dataprocInstances)
+          case None =>
+            IO.pure(
+              NotReadyCluster(runtimeAndRuntimeConfig,
+                RuntimeStatus.Running,
+                dataprocInstances,
+                Some("Could not retrieve master IP"))
+            )
+        }
+      // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
+      case Error
+        if runtimeAndRuntimeConfig.runtime.status != Deleting && runtimeAndRuntimeConfig.runtime.status != Stopping =>
+        runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
+          // TODO implement getErrorDetails in wb-libs
+          case CloudService.GCE =>
+            IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, None), dataprocInstances))
+          case CloudService.Dataproc =>
+            IO.fromFuture(
+              IO(
+                gdDAO
+                  .getClusterErrorDetails(runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.operationName))
               )
-          }
-        // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Error
-            if runtimeAndRuntimeConfig.runtime.status != Deleting && runtimeAndRuntimeConfig.runtime.status != Stopping =>
-          runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-            // TODO implement getErrorDetails in wb-libs
-            case CloudService.GCE =>
-              IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, None), dataprocInstances))
-            case CloudService.Dataproc =>
-              IO.fromFuture(
-                  IO(
-                    gdDAO
-                      .getClusterErrorDetails(runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.operationName))
-                  )
-                )
-                .map {
-                  case Some(errorDetails) => FailedCluster(runtimeAndRuntimeConfig, errorDetails, dataprocInstances)
-                  case None =>
-                    FailedCluster(runtimeAndRuntimeConfig,
-                                  RuntimeErrorDetails(Code.INTERNAL.value, Some(internalError)),
-                                  dataprocInstances)
-                }
-          }
-        case Deleted =>
-          IO.pure(DeletedCluster(runtimeAndRuntimeConfig))
-        // if the cluster only contains stopped instances, it's a stopped cluster
-        case _
-            if runtimeAndRuntimeConfig.runtime.status != Starting && runtimeAndRuntimeConfig.runtime.status != Deleting && stoppedInstanceCount == dataprocInstances.size =>
-          IO.pure(StoppedCluster(runtimeAndRuntimeConfig, dataprocInstances))
-        case _ => IO.pure(NotReadyCluster(runtimeAndRuntimeConfig, googleStatus, dataprocInstances))
-      }
-    } yield result
+            )
+              .map {
+                case Some(errorDetails) => FailedCluster(runtimeAndRuntimeConfig, errorDetails, dataprocInstances)
+                case None =>
+                  FailedCluster(runtimeAndRuntimeConfig,
+                    RuntimeErrorDetails(Code.INTERNAL.value, Some(internalError)),
+                    dataprocInstances)
+              }
+        }
+      case Deleted =>
+        IO.pure(DeletedCluster(runtimeAndRuntimeConfig))
+      // if the cluster only contains stopped instances, it's a stopped cluster
+      case _
+        if runtimeAndRuntimeConfig.runtime.status != Starting && runtimeAndRuntimeConfig.runtime.status != Deleting && stoppedInstanceCount == dataprocInstances.size =>
+        IO.pure(StoppedCluster(runtimeAndRuntimeConfig, dataprocInstances))
+      case _ => IO.pure(NotReadyCluster(runtimeAndRuntimeConfig, runtimeStatus, dataprocInstances))
+    }
+  } yield result
+
+  // In gce init script, we set a metadata "passed" to "true" or "false" depending on whether init script passed
+  // if metadata shows `false`, then runtime creation has failed; otherwise, we don't mark runtime creation as failure
+  private def checkUserScripts(gcsPath: Option[GcsPath]): IO[Boolean] = gcsPath.flatTraverse {
+    path =>
+      for {
+        startScriptPassedOutput <-  google2StorageDAO
+              .getBlob(path.bucketName, GcsBlobName(path.objectName.value))
+              .compile
+              .last
+              .map {
+                x =>
+                  x.flatMap(blob => Option(blob.getMetadata.get("passed")))
+              }
+      } yield startScriptPassedOutput
+  }.map(output => !output.exists(_ == "false"))
 
   private def checkClusterTools(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                 ip: IP,

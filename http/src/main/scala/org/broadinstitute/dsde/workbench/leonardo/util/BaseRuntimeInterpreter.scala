@@ -11,9 +11,9 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfig, RuntimeImage, RuntimeOperation, WelderAction}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, Runtime, RuntimeConfig, RuntimeImage, RuntimeOperation, WelderAction}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -31,7 +31,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   ): F[Unit]
 
   protected def startGoogleRuntime(runtime: Runtime, welderAction: Option[WelderAction], runtimeConfig: RuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit]
 
   protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
@@ -57,7 +57,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       _ <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
     } yield ()
 
-  final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+  final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
     val welderAction = getWelderAction(params.runtime)
     for {
       // Check if welder should be deployed or updated
@@ -135,6 +135,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   // Startup script to run after the runtime is resumed
   protected def getStartupScript(runtime: Runtime,
                                  welderAction: Option[WelderAction],
+                                 now: Instant,
                                  blocker: Blocker): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 

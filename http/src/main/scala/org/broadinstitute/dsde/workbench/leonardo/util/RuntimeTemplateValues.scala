@@ -1,5 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import java.time.{Instant, ZoneId}
+import java.time.format.{DateTimeFormatter, FormatStyle}
+
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction.{DeployWelder, DisableDelocalization, UpdateWelder}
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -29,7 +32,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           jupyterUserScriptUri: String,
                                           jupyterUserScriptOutputUri: String,
                                           jupyterStartUserScriptUri: String,
-                                          jupyterStartUserScriptOutputBaseUri: String,
+                                          jupyterStartUserScriptOutputUri: String,
                                           jupyterServiceAccountCredentials: String,
                                           loginHint: String,
                                           jupyterServerExtensions: String,
@@ -145,7 +148,7 @@ object RuntimeTemplateValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
   val customEnvVarFilename = "custom_env_vars.env"
 
-  def apply(config: RuntimeTemplateValuesConfig): RuntimeTemplateValues =
+  def apply(config: RuntimeTemplateValuesConfig, now: Option[Instant] = None): RuntimeTemplateValues =
     RuntimeTemplateValues(
       config.runtimeProjectAndName.googleProject.value,
       config.runtimeProjectAndName.runtimeName.asString,
@@ -186,9 +189,9 @@ object RuntimeTemplateValues {
       config.imageConfig.welderContainerName,
       config.imageConfig.proxyContainerName,
       config.jupyterUserScriptUri.map(_.asString).getOrElse(""),
-      config.stagingBucketName.map(n => GcsPath(n, GcsObjectName("userscript_output.txt")).toUri).getOrElse(""),
+      config.stagingBucketName.map(n => jupyterUserScriptOutputUriPath(n).toUri).getOrElse(""),
       config.jupyterStartUserScriptUri.map(_.asString).getOrElse(""),
-      config.stagingBucketName.map(n => GcsPath(n, GcsObjectName("startscript_output.txt")).toUri).getOrElse(""),
+      config.stagingBucketName.map(n => jupyterUserStartScriptOutputUriPath(n, now.getOrElse(Instant.now)).toUri).getOrElse(""), //TODO: remove this complication
       (for {
         _ <- config.serviceAccountKey
         n <- config.initBucketName
@@ -219,4 +222,12 @@ object RuntimeTemplateValues {
       (config.welderAction == Some(UpdateWelder)).toString,
       (config.welderAction == Some(DisableDelocalization)).toString
     )
+
+  def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath = GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt"))
+  private def jupyterUserStartScriptOutputUriPath(stagingBucketName: GcsBucketName, now: Instant): GcsPath = {
+    val formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.SHORT )
+        .withZone( ZoneId.systemDefault() )
+    val formatedNow = formatter.format(now)
+    GcsPath(stagingBucketName, GcsObjectName(s"startscript_output_${formatedNow}.txt"))
+  }
 }

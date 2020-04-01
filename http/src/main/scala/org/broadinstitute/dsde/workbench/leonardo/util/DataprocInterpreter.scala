@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -74,7 +75,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   override def createRuntime(
     params: CreateRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateRuntimeResponse] = {
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse] = {
     val initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
     val stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
 
@@ -84,6 +85,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     generateServiceAccountKey(params.runtimeProjectAndName.googleProject,
                               params.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
       val ioResult = for {
+        ctx <- ev.ask
         // Set up VPC network and firewall
         (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
           SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
@@ -129,8 +131,9 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
           config.clusterResourcesConfig,
           Some(resourceConstraints)
         )
+        templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
         _ <- bucketHelper
-          .initializeBucketObjects(initBucketName, templateParams, params.customEnvironmentVariables)
+          .initializeBucketObjects(initBucketName, templateParams.serviceAccountKey, templateValues, params.customEnvironmentVariables)
           .compile
           .drain
 
@@ -275,10 +278,11 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   override protected def startGoogleRuntime(runtime: Runtime,
                                             welderAction: Option[WelderAction],
                                             runtimeConfig: RuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
-      metadata <- getStartupScript(runtime, welderAction, blocker)
+      ctx <- ev.ask
+      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker)
 
       // Add back the preemptible instances, if any
       _ <- runtimeConfig match {

@@ -14,12 +14,7 @@ import akka.http.scaladsl.server.{Directive0, ExceptionHandler, Route}
 import akka.stream.scaladsl.Sink
 import cats.effect.{ContextShift, IO, Timer}
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  LeonardoService,
-  ProxyService,
-  RuntimeService,
-  StatusService
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, ProxyService, RuntimeService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException, WorkbenchExceptionWithErrorReport}

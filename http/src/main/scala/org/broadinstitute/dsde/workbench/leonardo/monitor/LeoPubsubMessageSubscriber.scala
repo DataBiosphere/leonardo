@@ -29,7 +29,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F]) {
   private[monitor] def messageResponder(message: LeoPubsubMessage,
-                                        now: Instant)(implicit traceId: ApplicativeAsk[F, TraceId]): F[Unit] =
+                                        now: Instant)(implicit traceId: ApplicativeAsk[F, AppContext]): F[Unit] =
     message match {
       case msg: StopUpdateMessage =>
         handleStopUpdateMessage(msg, now)
@@ -49,9 +49,10 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
     in.evalMap { event =>
-      implicit val traceId = ApplicativeAsk.const[F, TraceId](event.traceId.getOrElse(TraceId("None")))
+      val traceId = event.traceId.getOrElse(TraceId("None"))
 
       val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
+      implicit val appContext = ApplicativeAsk.const[F, AppContext](AppContext(traceId, now))
       val res = for {
         res <- messageResponder(event.msg, now).attempt
         _ <- res match {
@@ -123,7 +124,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   private def handleRuntimeTransitionFinished(
     message: RuntimeTransitionMessage,
     now: Instant
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     message.runtimePatchDetails.runtimeStatus match {
       case Stopped =>
         for {
@@ -188,7 +189,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
     }
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage, now: Instant)(
-    implicit traceId: ApplicativeAsk[F, TraceId]
+    implicit traceId: ApplicativeAsk[F, AppContext]
   ): F[Unit] = {
     val createCluster = for {
       _ <- logger.info(s"Attempting to create cluster ${msg.runtimeProjectAndName} in Google...")
@@ -264,7 +265,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage, now: Instant)(
-    implicit traceId: ApplicativeAsk[F, TraceId]
+    implicit traceId: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction

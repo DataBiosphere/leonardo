@@ -10,7 +10,6 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
-import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeServiceContext
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import slick.dbio.DBIO
@@ -33,7 +32,7 @@ package object http {
   // converts an ApplicativeAsk[F, RuntimeServiceContext] to an  ApplicativeAsk[F, TraceId]
   // (you'd think ApplicativeAsk would have a `map` function)
   implicit def ctxConversion[F[_]: Applicative](
-    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+    implicit as: ApplicativeAsk[F, AppContext]
   ): ApplicativeAsk[F, TraceId] =
     new ApplicativeAsk[F, TraceId] {
       override val applicative: Applicative[F] = Applicative[F]
@@ -44,4 +43,6 @@ package object http {
   // convenience to get now as a F[Instant] using a Timer
   def nowInstant[F[_]: Timer: Functor]: F[Instant] =
     Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+
+  val userScriptStartupOutputUriMetadataKey = "user-startup-script-output-url"
 }

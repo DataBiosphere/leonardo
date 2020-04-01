@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, RuntimeConfigQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   CreateRuntime2Request,
-  RuntimeServiceContext,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
@@ -62,8 +61,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     Map.empty
   )
 
-  implicit val ctx: ApplicativeAsk[IO, RuntimeServiceContext] = ApplicativeAsk.const[IO, RuntimeServiceContext](
-    RuntimeServiceContext(model.TraceId("traceId"), Instant.now())
+  implicit val ctx: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const[IO, AppContext](
+    AppContext(model.TraceId("traceId"), Instant.now())
   )
 
   "RuntimeService" should "fail with AuthorizationError if user doesn't have project level permission" in {
