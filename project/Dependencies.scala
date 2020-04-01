@@ -22,7 +22,7 @@ object Dependencies {
   val workbenchGoogle2V = "0.7-f3b5a5a"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchNewRelicV = "0.3-8bae8e8"
-  val workbenchOpenTelemetryV = "0.1-f840363-SNAP"
+  val workbenchOpenTelemetryV = "0.1-73d6a64"
 
   val excludeAkkaActor = ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
@@ -90,8 +90,8 @@ object Dependencies {
   val workbenchMetrics: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-metrics"  % workbenchMetricsV excludeAll (excludeWorkbenchUtil, excludeSlf4j, excludeGuava)
   val workbenchNewRelic: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV excludeAll (excludeGuava)
   val workbenchNewRelicTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV % "test" classifier "tests" excludeAll (excludeGuava)
-  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-openTelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
-  val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-openTelemetry" % workbenchOpenTelemetryV % "test" classifier "tests" excludeAll (excludeGuava)
+  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
+  val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % "test" classifier "tests" excludeAll (excludeGuava)
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)

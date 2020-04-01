@@ -786,8 +786,15 @@ class ClusterMonitorActor(
       duration = (endTime - startTime).millis
       tags = Map("cloudService" -> cloudService.asString, "ui_client" -> runtimeUI.asString)
       _ <- openTelemetryMetrics.incrementCounter(metricsName, 1, tags)
-      distributionBucket = List(30000.0, 40000.0, 50000.0, 60000.0, 72000.0, 90000.0, 120000.0, 150000.0, 180000.0, 210000.0,
-        240000.0, 270000) //buckets in milli seconds. Distribution buckets from 0.5 min to 4.5 min
+      distributionBucket = List(0.5 minutes,
+                                1 minutes,
+                                1.5 minutes,
+                                2 minutes,
+                                2.5 minutes,
+                                3 minutes,
+                                3.5 minutes,
+                                4 minutes,
+                                4.5 minutes) //Distribution buckets from 0.5 min to 4.5 min
       _ <- openTelemetryMetrics.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
@@ -817,8 +824,17 @@ class ClusterMonitorActor(
       duration = (endTime - createdDate.toEpochMilli).milliseconds
       tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
       _ <- openTelemetryMetrics.incrementCounter(metricsName, 1, tags)
-      distributionBucket = List(60000.0, 72000.0, 90000.0, 120000.0, 150000.0, 180000.0, 210000.0, 240000.0, 270000, 300000,
-        330000, 360000) //buckets in milli seconds. Distribution buckets from 1 min to 6 min
+      distributionBucket = List(1 minutes,
+                                1.5 minutes,
+                                2 minutes,
+                                2.5 minutes,
+                                3 minutes,
+                                3.5 minutes,
+                                4 minutes,
+                                4.5 minutes,
+                                5 minutes,
+                                5.5 minutes,
+                                6 minutes) //Distribution buckets from 1 min to 6 min
       _ <- openTelemetryMetrics.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
