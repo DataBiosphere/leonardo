@@ -49,6 +49,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
@@ -68,6 +69,7 @@ object Boot extends IOApp {
 
     createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
       implicit val metrics = appDependencies.metrics
+      implicit val openTelemetry = appDependencies.openTelemetryMetrics
       implicit val dbRef = appDependencies.dbReference
 
       val bucketHelperConfig = BucketHelperConfig(
@@ -303,6 +305,11 @@ object Boot extends IOApp {
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
       googleComputeService <- GoogleComputeService.resource(pathToCredentialJson, blocker, semaphore)
+      // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
+      // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
+      // As best practice, we should have all related metrics under same prefix separated by `/`
+      openTelemetry <- OpenTelemetryMetrics
+        .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName, blocker)
     } yield AppDependencies(
       storage,
       dbRef,
@@ -322,6 +329,7 @@ object Boot extends IOApp {
       serviceAccountProvider,
       authProvider,
       metrics,
+      openTelemetry,
       blocker,
       semaphore,
       publisherStream,
@@ -365,6 +373,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        serviceAccountProvider: ServiceAccountProvider[F],
                                        authProvider: LeoAuthProvider[F],
                                        metrics: NewRelicMetrics[F],
+                                       openTelemetryMetrics: OpenTelemetryMetrics[F],
                                        blocker: Blocker,
                                        semaphore: Semaphore[F],
                                        publisherStream: Stream[F, Unit],

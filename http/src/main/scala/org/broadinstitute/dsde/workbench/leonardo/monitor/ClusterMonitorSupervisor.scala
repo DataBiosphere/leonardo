@@ -6,7 +6,7 @@ import java.util.UUID
 
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeInstances, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 
@@ -44,7 +44,8 @@ object ClusterMonitorSupervisor {
     rstudioProxyDAO: RStudioDAO[IO],
     welderDAO: WelderDAO[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
-  )(implicit metrics: NewRelicMetrics[IO],
+  )(implicit openTelemetryMetrics: OpenTelemetryMetrics[IO],
+    timer: Timer[IO],
     dbRef: DbReference[IO],
     ec: ExecutionContext,
     clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
@@ -122,11 +123,12 @@ class ClusterMonitorSupervisor(
   rstudioProxyDAO: RStudioDAO[IO],
   welderProxyDAO: WelderDAO[IO],
   publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
-)(implicit metrics: NewRelicMetrics[IO],
+)(implicit openTelemetryMetrics: OpenTelemetryMetrics[IO],
   ec: ExecutionContext,
   dbRef: DbReference[IO],
   clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
   cs: ContextShift[IO],
+  timer: Timer[IO],
   runtimeInstances: RuntimeInstances[IO])
     extends Actor
     with Timers
@@ -284,13 +286,13 @@ class ClusterMonitorSupervisor(
               }
 
               maxKernelActiveTimeExceeded.ifM(
-                metrics.incrementCounter("autoPause/maxKernelActiveTimeExceeded") >>
+                openTelemetryMetrics.incrementCounter("autoPause/maxKernelActiveTimeExceeded") >>
                   IO(
                     logger.info(
                       s"Auto pausing ${cluster.googleProject}/${cluster.runtimeName} due to exceeded max kernel active time"
                     )
                   ).as(true),
-                metrics.incrementCounter("autoPause/activeKernelClusters") >> IO(
+                openTelemetryMetrics.incrementCounter("autoPause/activeKernelClusters") >> IO(
                   logger.info(
                     s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.runtimeName} due to active kernels"
                   )
@@ -299,7 +301,7 @@ class ClusterMonitorSupervisor(
             } else IO.pure(isIdle)
         }
       }
-      _ <- metrics.gauge("autoPause/numOfCusters", pauseableClusters.length)
+      _ <- openTelemetryMetrics.gauge("autoPause/numOfCusters", pauseableClusters.length)
       _ <- pauseableClusters.traverse_ { cl =>
         IO(logger.info(s"Auto freezing cluster ${cl.runtimeName} in project ${cl.googleProject}")) >>
           stopCluster(cl, now).attempt.map { e =>

@@ -16,9 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeName, RuntimeStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, LeonardoTestSuite, RuntimeName, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
@@ -33,10 +32,10 @@ class ClusterMonitorSupervisorSpec
     with MockitoSugar
     with BeforeAndAfterAll
     with TestComponent
-    with GcsPathUtils { testKit =>
+    with GcsPathUtils
+    with LeonardoTestSuite { testKit =>
 
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
-  implicit val nr = FakeNewRelicMetricsInterpreter
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
