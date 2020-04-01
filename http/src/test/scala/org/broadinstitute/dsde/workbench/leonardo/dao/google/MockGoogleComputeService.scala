@@ -43,10 +43,13 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
-  override def addInstanceMetadata(project: GoogleProject,
-                                   zone: ZoneName,
-                                   instanceName: InstanceName,
-                                   metadata: Map[String, String])(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def modifyInstanceMetadata(
+    project: GoogleProject,
+    zone: ZoneName,
+    instanceName: InstanceName,
+    metadataToAdd: Map[String, String],
+    metadataToRemove: Set[String]
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
 
   override def addFirewallRule(project: GoogleProject, firewall: Firewall)(

@@ -151,14 +151,14 @@ function make_jar()
     GIT_HASH=$(git log -n 1 --pretty=format:%h)
 
     # Make jar & cache sbt dependencies.
-    JAR_CMD="$(docker run --rm --link $DB_CONTAINER:mysql \
+    EXIT_CODE=0
+    docker run --rm --link $DB_CONTAINER:mysql \
                           -e GIT_HASH=$GIT_HASH \
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
                           broadinstitute/scala-baseimage \
-                          /working/docker/install.sh /working)"
-    EXIT_CODE=$?
+                          /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db
     bash ./docker/run-mysql.sh stop ${TARGET} ${DB_CONTAINER}
