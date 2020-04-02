@@ -188,6 +188,8 @@ object Leonardo extends RestClient with LazyLogging {
       logger.info(s"Update cluster: PATCH /$path")
       handleClusterResponse(patchRequest(url + path, clusterRequest))
     }
+
+
   }
 }
 
