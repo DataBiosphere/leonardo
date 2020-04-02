@@ -39,6 +39,7 @@ import slick.dbio.DBIOAction
 import GceInterpreter.instanceStatusToRuntimeStatus
 import scala.collection.immutable.Set
 import scala.concurrent.duration._
+import ClusterMonitor._
 
 case class ProxyDAONotFound(clusterName: RuntimeName, googleProject: GoogleProject, clusterTool: RuntimeImageType)
     extends LeoException(s"Cluster ${clusterName}/${googleProject} was initialized with invalid tool: ${clusterTool}",
@@ -494,8 +495,8 @@ class ClusterMonitorActor(
             userStartupScript = instanceOpt.flatMap(x => Option(x.getMetadata.getFieldValue(userScriptStartupOutputUriMetadataKey)))
               .flatMap(s => org.broadinstitute.dsde.workbench.model.google.parseGcsPath(s.toString).toOption)
 
-            userScriptSuccess <- checkUserScripts(userScript)
-            startUpScriptSuccess <- checkUserScripts(userStartupScript)
+            userScriptSuccess <- checkUserScripts(userScript, google2StorageDAO)
+            startUpScriptSuccess <- checkUserScripts(userStartupScript, google2StorageDAO)
             r <- (userScriptSuccess, startUpScriptSuccess) match {
               case (true, true) => continueCheckRuntimeInGoogle(runtimeAndRuntimeConfig, runtimeStatus)
               case (false, true) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some("user script failed")), Set.empty): ClusterMonitorMessage)
@@ -576,22 +577,6 @@ class ClusterMonitorActor(
       case _ => IO.pure(NotReadyCluster(runtimeAndRuntimeConfig, runtimeStatus, dataprocInstances))
     }
   } yield result
-
-  // In gce init script, we set a metadata "passed" to "true" or "false" depending on whether init script passed
-  // if metadata shows `false`, then runtime creation has failed; otherwise, we don't mark runtime creation as failure
-  private def checkUserScripts(gcsPath: Option[GcsPath]): IO[Boolean] = gcsPath.flatTraverse {
-    path =>
-      for {
-        startScriptPassedOutput <-  google2StorageDAO
-              .getBlob(path.bucketName, GcsBlobName(path.objectName.value))
-              .compile
-              .last
-              .map {
-                x =>
-                  x.flatMap(blob => Option(blob.getMetadata.get("passed")))
-              }
-      } yield startScriptPassedOutput
-  }.map(output => !output.exists(_ == "false"))
 
   private def checkClusterTools(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                 ip: IP,
@@ -876,4 +861,22 @@ class ClusterMonitorActor(
     if (runtime.labels.contains(Config.uiConfig.terraLabel)) RuntimeUI.Terra
     else if (runtime.labels.contains(Config.uiConfig.allOfUsLabel)) RuntimeUI.AoU
     else RuntimeUI.Other
+}
+
+object ClusterMonitor {
+  // In gce init script, we set a metadata "passed" to "true" or "false" depending on whether init script passed
+  // if metadata shows `false`, then runtime creation has failed; otherwise, we don't mark runtime creation as failure
+  private[monitor] def checkUserScripts(gcsPath: Option[GcsPath], googleStorageService: GoogleStorageService[IO]): IO[Boolean] = gcsPath.flatTraverse {
+    path =>
+      for {
+        startScriptPassedOutput <-  googleStorageService
+          .getBlob(path.bucketName, GcsBlobName(path.objectName.value))
+          .compile
+          .last
+          .map {
+            x =>
+              x.flatMap(blob => Option(blob).flatMap(b => Option(b.getMetadata.get("passed"))))
+          }
+      } yield startScriptPassedOutput
+  }.map(output => !output.exists(_ == "false"))
 }
