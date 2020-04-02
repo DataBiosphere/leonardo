@@ -40,7 +40,7 @@ abstract class RuntimeFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
       RuntimeConfig.DataprocConfig(
         numberOfWorkers = 0,
         masterMachineType = MachineTypeName("n1-standard-4"),
-        masterDiskSize = 5,
+        masterDiskSize = DiskSize(5),
         workerMachineType = None,
         workerDiskSize = None,
         numberOfWorkerLocalSSDs = None,
@@ -54,7 +54,9 @@ abstract class RuntimeFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
       List(),
       Instant.now(),
       false,
-      0
+      0,
+      //TODO MAKE SURE TO CHANGE THIS AS NEEDED. NEW FLAG SHOULD BE IN THE RUNTIMEREQUESTCOPY
+      false
     )
 
   /**

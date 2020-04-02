@@ -739,7 +739,10 @@ trait LeonardoTestUtils
                 null,
                 null,
                 false,
-                15)
+                15,
+                //TODO Make sure that this field is handled correctly. Look at the GetRuntimeResponseCopy for new patchInProgress
+                false
+                )
   }
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {
