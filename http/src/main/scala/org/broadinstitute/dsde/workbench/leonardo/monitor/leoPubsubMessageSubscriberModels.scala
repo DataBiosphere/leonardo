@@ -55,7 +55,7 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopUpdate
   }
 
-  final case class RuntimeTransitionMessage(runtimeFollowupDetails: RuntimeFollowupDetails, traceId: Option[TraceId])
+  final case class RuntimeTransitionMessage(runtimePatchDetails: RuntimePatchDetails, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.TransitionFinished
   }
@@ -127,7 +127,7 @@ object LeoPubsubMessage {
   }
 }
 
-final case class RuntimeFollowupDetails(runtimeId: Long, runtimeStatus: RuntimeStatus) extends Product with Serializable
+final case class RuntimePatchDetails(runtimeId: Long, runtimeStatus: RuntimeStatus) extends Product with Serializable
 
 final case class PubsubException(message: String) extends WorkbenchException(message)
 
@@ -135,11 +135,11 @@ object LeoPubsubCodec {
   implicit val stopUpdateMessageDecoder: Decoder[StopUpdateMessage] =
     Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdateMessage.apply)
 
-  implicit val runtimeFollowupDetailsDecoder: Decoder[RuntimeFollowupDetails] =
-    Decoder.forProduct2("clusterId", "clusterStatus")(RuntimeFollowupDetails.apply)
+  implicit val runtimePatchDetailsDecoder: Decoder[RuntimePatchDetails] =
+    Decoder.forProduct2("clusterId", "clusterStatus")(RuntimePatchDetails.apply)
 
   implicit val clusterTransitionFinishedDecoder: Decoder[RuntimeTransitionMessage] =
-    Decoder.forProduct2("clusterFollowupDetails", "traceId")(RuntimeTransitionMessage.apply)
+    Decoder.forProduct2("clusterPatchDetails", "traceId")(RuntimeTransitionMessage.apply)
 
   implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
     Decoder.forProduct16(
@@ -207,11 +207,11 @@ object LeoPubsubCodec {
       x => (x.messageType, x.updatedMachineConfig, x.runtimeId)
     )
 
-  implicit val runtimeFollowupDetailsEncoder: Encoder[RuntimeFollowupDetails] =
+  implicit val runtimePatchDetailsEncoder: Encoder[RuntimePatchDetails] =
     Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.runtimeId, x.runtimeStatus))
 
   implicit val runtimeTransitionFinishedEncoder: Encoder[RuntimeTransitionMessage] =
-    Encoder.forProduct2("messageType", "clusterFollowupDetails")(x => (x.messageType, x.runtimeFollowupDetails))
+    Encoder.forProduct2("messageType", "clusterPatchDetails")(x => (x.messageType, x.runtimePatchDetails))
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
     Encoder.forProduct17(

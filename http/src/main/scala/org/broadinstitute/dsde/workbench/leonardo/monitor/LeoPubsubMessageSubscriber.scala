@@ -9,7 +9,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import fs2.{Pipe, Stream}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Stopped, Starting}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.subscriberConfig
@@ -97,15 +97,13 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       .inTransaction { clusterQuery.getClusterById(message.runtimeId) }
       .flatMap {
         case Some(resolvedCluster) if RuntimeStatus.stoppableStatuses.contains(resolvedCluster.status) =>
-          val followupDetails = RuntimeFollowupDetails(message.runtimeId, RuntimeStatus.Stopped)
 
           for {
             _ <- logger.info(
-              s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder, and saving a record for ${resolvedCluster.id}"
+              s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder"
             )
             _ <- dbRef.inTransaction(
-              clusterQuery.setToStopping(message.runtimeId, now) >> followupQuery
-                .save(followupDetails, Some(message.updatedMachineConfig.machineType))
+              clusterQuery.setToStopping(message.runtimeId, now)
             )
             runtimeConfig <- dbRef.inTransaction(
               RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
@@ -126,22 +124,24 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
     message: RuntimeTransitionMessage,
     now: Instant
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    message.runtimeFollowupDetails.runtimeStatus match {
+    message.runtimePatchDetails.runtimeStatus match {
       case Stopped =>
         for {
-          clusterOpt <- dbRef.inTransaction { clusterQuery.getClusterById(message.runtimeFollowupDetails.runtimeId) }
+          clusterOpt <- dbRef.inTransaction {
+            clusterQuery.getClusterById(message.runtimePatchDetails.runtimeId)
+          }
           savedMasterMachineType <- dbRef.inTransaction {
-            followupQuery.getFollowupAction(message.runtimeFollowupDetails)
+            patchQuery.getPatchAction(message.runtimePatchDetails)
           }
 
           result <- clusterOpt match {
             case Some(resolvedCluster)
-                if resolvedCluster.status != RuntimeStatus.Stopped && savedMasterMachineType.isDefined =>
+              if resolvedCluster.status != RuntimeStatus.Stopped && savedMasterMachineType.isDefined =>
               Async[F].raiseError[Unit](
                 PubsubHandleMessageError.ClusterNotStopped(resolvedCluster.id,
-                                                           resolvedCluster.projectNameString,
-                                                           resolvedCluster.status,
-                                                           message)
+                  resolvedCluster.projectNameString,
+                  resolvedCluster.status,
+                  message)
               )
             case Some(resolvedCluster) =>
               savedMasterMachineType match {
@@ -169,10 +169,18 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
 
             case None =>
               Async[F].raiseError[Unit](
-                PubsubHandleMessageError.ClusterNotFound(message.runtimeFollowupDetails.runtimeId, message)
+                PubsubHandleMessageError.ClusterNotFound(message.runtimePatchDetails.runtimeId, message)
               )
           }
         } yield result
+
+      case Starting =>
+        for {
+          _ <- dbRef.inTransaction {
+            patchQuery.updatePatchAsComplete(message.runtimePatchDetails.runtimeId)
+          }
+          // TODO: should eventually check if the resulting machine config is what the user requested to see if the patch worked correctly
+        } yield ()
 
       //No actions for other statuses yet. There is some logic that will be needed for all other cases (i.e. the 'None' case where no cluster is found in the db and possibly the case that checks for the data in the DB)
       // TODO: Refactor once there is more than one case
@@ -308,15 +316,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         } yield ()
       }
       // Update the machine type
-      // If it's a stop-update transition, persist a followup record and transition the runtime to Stopping
+      // If it's a stop-update transition, transition the runtime to Stopping
       _ <- msg.newMachineType.traverse_ { m =>
         if (msg.stopToUpdateMachineType) {
-          val followupDetails = RuntimeFollowupDetails(msg.runtimeId, RuntimeStatus.Stopped)
           for {
-            _ <- dbRef.inTransaction(
-              clusterQuery.setToStopping(msg.runtimeId, now) >> followupQuery
-                .save(followupDetails, Some(m))
-            )
+            _ <- dbRef.inTransaction(clusterQuery.setToStopping(msg.runtimeId, now))
             _ <- runtimeConfig.cloudService.interpreter
               .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
           } yield ()

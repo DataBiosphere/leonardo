@@ -183,6 +183,7 @@ class ClusterMonitorActor(
       handleNotReadyCluster(runtimeAndRuntimeConfig, googleStatus, dataprocInstances, msg).unsafeToFuture() pipeTo self
 
     case ReadyCluster(runtimeAndRuntimeConfig, ip, dataprocInstances) =>
+      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
       handleReadyCluster(runtimeAndRuntimeConfig, ip, dataprocInstances).unsafeToFuture() pipeTo self
 
     case FailedCluster(runtimeAndRuntimeConfig, errorDetails, dataprocInstances) =>
@@ -279,7 +280,9 @@ class ClusterMonitorActor(
    */
   private def handleReadyCluster(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                  publicIp: IP,
-                                 dataprocInstances: Set[DataprocInstance]): IO[ClusterMonitorMessage] =
+                                 dataprocInstances: Set[DataprocInstance])(
+                                  implicit ev: ApplicativeAsk[IO, TraceId]
+                                ): IO[ClusterMonitorMessage] =
     for {
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
@@ -305,6 +308,10 @@ class ClusterMonitorActor(
           runtimeAndRuntimeConfig.runtimeConfig.cloudService
         )
       else IO.unit
+      traceId <- ev.ask
+      _ <- publisherQueue.enqueue1(
+        RuntimeTransitionMessage(RuntimePatchDetails(clusterId, runtimeAndRuntimeConfig.runtime.status), Some(traceId))
+      )
       // Finally pipe a shutdown message to this actor
       _ <- IO(logger.info(s"Cluster ${runtimeAndRuntimeConfig.runtime.projectNameString} is ready for use!"))
     } yield ShutdownActor(RemoveFromList(runtimeAndRuntimeConfig.runtime))
@@ -456,7 +463,7 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction { clusterQuery.clearKernelFoundBusyDate(runtimeAndRuntimeConfig.runtime.id, now) }
       traceId <- ev.ask
       _ <- publisherQueue.enqueue1(
-        RuntimeTransitionMessage(RuntimeFollowupDetails(clusterId, RuntimeStatus.Stopped), Some(traceId))
+        RuntimeTransitionMessage(RuntimePatchDetails(clusterId, RuntimeStatus.Stopped), Some(traceId))
       )
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(

@@ -54,7 +54,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       List(),
       Instant.now(),
       false,
-      0
+      0,
+      false
     )
 
   /**

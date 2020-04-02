@@ -112,7 +112,7 @@ object Leonardo extends RestClient with LazyLogging {
 object AutomationTestJsonCodec {
   implicit val clusterStatusDecoder: Decoder[ClusterStatus] =
     Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"Invalid cluster status ${s}"))
-  implicit val clusterDecoder: Decoder[ClusterCopy] = Decoder.forProduct12[ClusterCopy,
+  implicit val clusterDecoder: Decoder[ClusterCopy] = Decoder.forProduct13[ClusterCopy,
                                                                            RuntimeName,
                                                                            GoogleProject,
                                                                            ServiceAccountInfo,
@@ -124,7 +124,8 @@ object AutomationTestJsonCodec {
                                                                            Option[List[RuntimeError]],
                                                                            Instant,
                                                                            Boolean,
-                                                                           Int](
+                                                                           Int,
+                                                                           Boolean](
     "clusterName",
     "googleProject",
     "serviceAccountInfo",
@@ -136,9 +137,10 @@ object AutomationTestJsonCodec {
     "errors",
     "dateAccessed",
     "stopAfterCreation",
-    "autopauseThreshold"
-  ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc, at) =>
-    ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at)
+    "autopauseThreshold",
+    "patchInProgress"
+  ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc, at, ip) =>
+    ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at, ip)
   }
 }
 
