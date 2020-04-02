@@ -99,7 +99,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         Some(resourceConstraints)
       )
 
-      _ <- bucketHelper.initializeBucketObjects(initBucketName, templateParams, Map.empty).compile.drain
+      _ <- bucketHelper.initializeBucketObjects(initBucketName, templateParams, params.customEnvironmentVariables).compile.drain
 
       serviceAccount <- params.serviceAccountInfo.clusterServiceAccount.fold(
         Async[F].raiseError[WorkbenchEmail](MissingServiceAccountException(params.runtimeProjectAndName))
