@@ -789,7 +789,7 @@ class ClusterMonitorActor(
                                             cloudService: CloudService): IO[Unit] =
     for {
       endTime <- IO(System.currentTimeMillis)
-      metricsName = s"monitor/${runtimeUI.asString}/transition/${origStatus}_to_${finalStatus}"
+      metricsName = s"monitor/transition/${origStatus}_to_${finalStatus}"
       duration = (endTime - startTime).millis
       tags = Map("cloudService" -> cloudService.asString, "ui_client" -> runtimeUI.asString)
       _ <- openTelemetryMetrics.incrementCounter(metricsName, 1, tags)
