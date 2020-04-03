@@ -116,7 +116,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
-          scopes = Config.dataprocConfig.defaultScopes
+          scopes = Config.gceConfig.defaultScopes
         )
       message shouldBe expectedMessage
     }
