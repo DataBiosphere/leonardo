@@ -1997,7 +1997,7 @@ components:
                 Optional, the machine type determines the number of CPUs and memory
                 for the cluster master node. For example "n1-standard-16" or "n1-highmem-64".
                 To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
-            diskSize:
+            masterDiskSize:
               type: integer
               description: >
                 Optional, disk size of the master node in gigabytes
