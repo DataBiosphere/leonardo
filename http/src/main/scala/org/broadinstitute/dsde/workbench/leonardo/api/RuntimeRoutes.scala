@@ -328,7 +328,7 @@ object RuntimeRoutes {
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct20(
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct21(
     "id",
     "runtimeName",
     "googleProject",
@@ -348,7 +348,8 @@ object RuntimeRoutes {
     "defaultClientId",
     "runtimeImages",
     "scopes",
-    "customEnvironmentVariables"
+    "customEnvironmentVariables",
+    "patchInProgress"
   )(
     x =>
       (
@@ -371,13 +372,14 @@ object RuntimeRoutes {
         x.defaultClientId,
         x.clusterImages,
         x.scopes,
-        x.customClusterEnvironmentVariables
+        x.customClusterEnvironmentVariables,
+        x.patchInProgress
       )
   )
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse] = Encoder.forProduct14(
+  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse] = Encoder.forProduct15(
     "id",
     "runtimeName",
     "googleProject",
@@ -391,7 +393,8 @@ object RuntimeRoutes {
     "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "autopauseThreshold",
-    "defaultClientId"
+    "defaultClientId",
+    "patchInProgress"
   )(
     x =>
       (
@@ -408,7 +411,8 @@ object RuntimeRoutes {
         x.jupyterExtensionUri,
         x.jupyterUserScriptUri,
         x.autopauseThreshold,
-        x.defaultClientId
+        x.defaultClientId,
+        x.patchInProgress
       )
   )
 }
