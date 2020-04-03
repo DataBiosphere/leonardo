@@ -9,7 +9,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import fs2.{Pipe, Stream}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Stopped, Starting}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Starting, Stopped}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.subscriberConfig
@@ -98,7 +98,6 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
       .inTransaction { clusterQuery.getClusterById(message.runtimeId) }
       .flatMap {
         case Some(resolvedCluster) if RuntimeStatus.stoppableStatuses.contains(resolvedCluster.status) =>
-
           for {
             _ <- logger.info(
               s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder"
@@ -137,12 +136,12 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
 
           result <- clusterOpt match {
             case Some(resolvedCluster)
-              if resolvedCluster.status != RuntimeStatus.Stopped && savedMasterMachineType.isDefined =>
+                if resolvedCluster.status != RuntimeStatus.Stopped && savedMasterMachineType.isDefined =>
               Async[F].raiseError[Unit](
                 PubsubHandleMessageError.ClusterNotStopped(resolvedCluster.id,
-                  resolvedCluster.projectNameString,
-                  resolvedCluster.status,
-                  message)
+                                                           resolvedCluster.projectNameString,
+                                                           resolvedCluster.status,
+                                                           message)
               )
             case Some(resolvedCluster) =>
               savedMasterMachineType match {

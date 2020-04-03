@@ -5,7 +5,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{RuntimeContainerServiceType, 
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 class MockToolDAO(isProxyAvailable: Boolean) extends ToolDAO[RuntimeContainerServiceType] {
-  override def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): IO[Boolean] = IO.pure(isProxyAvailable)
+  override def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): IO[Boolean] =
+    IO.pure(isProxyAvailable)
 }
 
 object MockToolDAO {

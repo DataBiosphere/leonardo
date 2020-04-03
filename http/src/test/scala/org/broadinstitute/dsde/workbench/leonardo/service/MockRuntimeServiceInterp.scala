@@ -3,10 +3,7 @@ package service
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateRuntime2Request,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse, RuntimeService}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject

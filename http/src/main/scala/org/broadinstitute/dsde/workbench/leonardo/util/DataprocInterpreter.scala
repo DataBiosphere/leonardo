@@ -133,7 +133,10 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         )
         templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
         _ <- bucketHelper
-          .initializeBucketObjects(initBucketName, templateParams.serviceAccountKey, templateValues, params.customEnvironmentVariables)
+          .initializeBucketObjects(initBucketName,
+                                   templateParams.serviceAccountKey,
+                                   templateValues,
+                                   params.customEnvironmentVariables)
           .compile
           .drain
 

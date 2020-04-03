@@ -11,9 +11,16 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, Runtime, RuntimeConfig, RuntimeImage, RuntimeOperation, WelderAction}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  Runtime,
+  RuntimeConfig,
+  RuntimeImage,
+  RuntimeOperation,
+  WelderAction
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
@@ -133,10 +140,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     } yield ()
 
   // Startup script to run after the runtime is resumed
-  protected def getStartupScript(runtime: Runtime,
-                                 welderAction: Option[WelderAction],
-                                 now: Instant,
-                                 blocker: Blocker)(implicit ev: ApplicativeAsk[F, AppContext]): F[Map[String, String]] = {
+  protected def getStartupScript(runtime: Runtime, welderAction: Option[WelderAction], now: Instant, blocker: Blocker)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
@@ -157,16 +163,16 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       ctx <- ev.ask
       replacements = RuntimeTemplateValues(templateConfig, Some(ctx.now))
       mp <- TemplateHelper
-            .templateResource[F](replacements.toMap, config.clusterResourcesConfig.startupScript, blocker)
-            .through(fs2.text.utf8Decode)
-            .compile
-            .string
-            .map { s =>
-              Map(
-                googleKey -> s,
-                userScriptStartupOutputUriMetadataKey -> replacements.jupyterStartUserScriptOutputUri
-              )
-            }
+        .templateResource[F](replacements.toMap, config.clusterResourcesConfig.startupScript, blocker)
+        .through(fs2.text.utf8Decode)
+        .compile
+        .string
+        .map { s =>
+          Map(
+            googleKey -> s,
+            userScriptStartupOutputUriMetadataKey -> replacements.jupyterStartUserScriptOutputUri
+          )
+        }
     } yield mp
   }
 

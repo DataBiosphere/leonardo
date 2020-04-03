@@ -204,7 +204,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, label)
   }
 
-  val clusterLabelPatchQuery: Query[(ClusterTable, Rep[Option[LabelTable]], Rep[Option[PatchTable]]), (ClusterRecord, Option[LabelRecord], Option[PatchRecord]), Seq] = {
+  val clusterLabelPatchQuery: Query[(ClusterTable, Rep[Option[LabelTable]], Rep[Option[PatchTable]]),
+                                    (ClusterRecord, Option[LabelRecord], Option[PatchRecord]),
+                                    Seq] = {
     for {
       ((cluster, label), patch) <- clusterQuery joinLeft
         labelQuery on (_.id === _.clusterId) joinLeft
@@ -295,13 +297,16 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     clusterLabelPatchQuery.result.map(unmarshalMinimalCluster)
 
   def listActiveWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
-    clusterLabelPatchQuery.filter { _._1.status inSetBind RuntimeStatus.activeStatuses.map(_.toString) }.result map { recs =>
-      unmarshalMinimalCluster(recs)
+    clusterLabelPatchQuery.filter { _._1.status inSetBind RuntimeStatus.activeStatuses.map(_.toString) }.result map {
+      recs =>
+        unmarshalMinimalCluster(recs)
     }
 
   def listMonitoredClusterOnly(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterQuery.filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
-      recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty))
+      recs.map(
+        rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
+      )
     }
 
   def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
@@ -595,16 +600,19 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.runtimeConfigId
     )
 
-  private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord], Option[PatchRecord])]): Seq[Runtime] = {
+  private def unmarshalMinimalCluster(
+    clusterLabels: Seq[(ClusterRecord, Option[LabelRecord], Option[PatchRecord])]
+  ): Seq[Runtime] = {
     // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
-    val clusterLabelMap: Map[ClusterRecord, (Map[String, Chain[String]], Chain[PatchRecord])] = clusterLabels.toList.foldMap {
-      case (clusterRecord, labelRecordOpt, patchRecordOpt) =>
-        val labelMap = labelRecordOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
-        val patchList = patchRecordOpt.toList
-        Map(clusterRecord -> (labelMap, Chain.fromSeq(patchList)))
-    }
+    val clusterLabelMap: Map[ClusterRecord, (Map[String, Chain[String]], Chain[PatchRecord])] =
+      clusterLabels.toList.foldMap {
+        case (clusterRecord, labelRecordOpt, patchRecordOpt) =>
+          val labelMap = labelRecordOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
+          val patchList = patchRecordOpt.toList
+          Map(clusterRecord -> (labelMap, Chain.fromSeq(patchList)))
+      }
 
     // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
     clusterLabelMap.map {
@@ -718,7 +726,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     val clusterImages = clusterImageRecords map clusterImageQuery.unmarshalClusterImage toSet
     val patchInProgress = patch.headOption match {
       case Some(patchRec) => patchRec.inProgress
-      case None => false
+      case None           => false
     }
 
     Runtime(

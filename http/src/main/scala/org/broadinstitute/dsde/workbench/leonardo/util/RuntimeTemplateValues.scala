@@ -191,7 +191,9 @@ object RuntimeTemplateValues {
       config.jupyterUserScriptUri.map(_.asString).getOrElse(""),
       config.stagingBucketName.map(n => jupyterUserScriptOutputUriPath(n).toUri).getOrElse(""),
       config.jupyterStartUserScriptUri.map(_.asString).getOrElse(""),
-      config.stagingBucketName.map(n => jupyterUserStartScriptOutputUriPath(n, now.getOrElse(Instant.now)).toUri).getOrElse(""), //TODO: remove this complication
+      config.stagingBucketName
+        .map(n => jupyterUserStartScriptOutputUriPath(n, now.getOrElse(Instant.now)).toUri)
+        .getOrElse(""), //TODO: remove this complication
       (for {
         _ <- config.serviceAccountKey
         n <- config.initBucketName
@@ -223,11 +225,14 @@ object RuntimeTemplateValues {
       (config.welderAction == Some(DisableDelocalization)).toString
     )
 
-  def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath = GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt"))
+  def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =
+    GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt"))
   private def jupyterUserStartScriptOutputUriPath(stagingBucketName: GcsBucketName, now: Instant): GcsPath = {
-    val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
-        .withZone( ZoneId.systemDefault() )
-    val formatedNow = formatter.format(now)
+    val formatter = DateTimeFormatter
+      .ofLocalizedDateTime(FormatStyle.SHORT)
+      .withZone(ZoneId.systemDefault())
+    val formatedNow = formatter
+      .format(now)
       .replace(" ", "_")
       .replace("/", "_")
     GcsPath(stagingBucketName, GcsObjectName(s"startscript_output/${formatedNow}.txt"))

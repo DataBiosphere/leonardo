@@ -8,13 +8,20 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, InstanceName, MachineTypeName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  InstanceName,
+  MachineTypeName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
@@ -97,7 +104,13 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
       templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
 
-      _ <- bucketHelper.initializeBucketObjects(initBucketName, templateParams.serviceAccountKey, templateValues, params.customEnvironmentVariables).compile.drain
+      _ <- bucketHelper
+        .initializeBucketObjects(initBucketName,
+                                 templateParams.serviceAccountKey,
+                                 templateValues,
+                                 params.customEnvironmentVariables)
+        .compile
+        .drain
 
       serviceAccount <- params.serviceAccountInfo.clusterServiceAccount.fold(
         Async[F].raiseError[WorkbenchEmail](MissingServiceAccountException(params.runtimeProjectAndName))
@@ -192,8 +205,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   override protected def startGoogleRuntime(runtime: Runtime,
                                             welderAction: Option[WelderAction],
-                                            runtimeConfig: RuntimeConfig
-                                           )(
+                                            runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -268,11 +280,12 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 }
 
 object GceInterpreter {
-  def instanceStatusToRuntimeStatus(instance: Option[Instance]): RuntimeStatus = instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(
-    s =>
-      GceInstanceStatus
-        .withNameInsensitiveOption(s.getStatus)
-        .map(RuntimeStatus.fromGceInstanceStatus)
-        .getOrElse(RuntimeStatus.Unknown)
-  )
+  def instanceStatusToRuntimeStatus(instance: Option[Instance]): RuntimeStatus =
+    instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(
+      s =>
+        GceInstanceStatus
+          .withNameInsensitiveOption(s.getStatus)
+          .map(RuntimeStatus.fromGceInstanceStatus)
+          .getOrElse(RuntimeStatus.Unknown)
+    )
 }
