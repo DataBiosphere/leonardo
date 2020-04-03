@@ -23,3 +23,15 @@ script:
 after_success:
   - SBT_OPTS=-J-Xmx3g sbt "project http" coveralls
   - docker rm -f mysql
+
+# https://www.scala-sbt.org/1.x/docs/Travis-CI-with-sbt.html describes how to enable caches for sbt dependencies
+before_cache:
+  - rm -fv $HOME/.ivy2/.sbt.ivy.lock
+  - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
+  - find $HOME/.sbt        -name "*.lock"               -print -delete
+
+cache:
+  directories:
+    - $HOME/.cache/coursier
+    - $HOME/.ivy2/cache
+    - $HOME/.sbt
