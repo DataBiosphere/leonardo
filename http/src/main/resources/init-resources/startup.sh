@@ -59,8 +59,7 @@ export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export DISABLE_DELOCALIZATION=$(disableDelocalization)
 export STAGING_BUCKET=$(stagingBucketName)
 export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
-# Include a timestamp suffix to differentiate different startup logs across restarts.
-export JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
+export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
 
 JUPYTER_HOME=/etc/jupyter
 

@@ -136,7 +136,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   protected def getStartupScript(runtime: Runtime,
                                  welderAction: Option[WelderAction],
                                  now: Instant,
-                                 blocker: Blocker): F[Map[String, String]] = {
+                                 blocker: Blocker)(implicit ev: ApplicativeAsk[F, AppContext]): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
@@ -152,16 +152,22 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       RuntimeOperation.Restarting,
       welderAction
     )
-    val replacements = RuntimeTemplateValues(templateConfig).toMap
 
-    TemplateHelper
-      .templateResource[F](replacements, config.clusterResourcesConfig.startupScript, blocker)
-      .through(fs2.text.utf8Decode)
-      .compile
-      .string
-      .map { s =>
-        Map(googleKey -> s)
-      }
+    for {
+      ctx <- ev.ask
+      replacements = RuntimeTemplateValues(templateConfig, Some(ctx.now))
+      mp <- TemplateHelper
+            .templateResource[F](replacements.toMap, config.clusterResourcesConfig.startupScript, blocker)
+            .through(fs2.text.utf8Decode)
+            .compile
+            .string
+            .map { s =>
+              Map(
+                googleKey -> s,
+                userScriptStartupOutputUriMetadataKey -> replacements.jupyterStartUserScriptOutputUri
+              )
+            }
+    } yield mp
   }
 
   // Shutdown script to run after the runtime is paused
@@ -181,7 +187,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       RuntimeOperation.Stopping,
       None
     )
-    val replacements = RuntimeTemplateValues(templateConfig).toMap
+    val replacements = RuntimeTemplateValues(templateConfig, None).toMap
 
     TemplateHelper
       .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript, blocker)

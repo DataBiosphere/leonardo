@@ -148,7 +148,7 @@ object RuntimeTemplateValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
   val customEnvVarFilename = "custom_env_vars.env"
 
-  def apply(config: RuntimeTemplateValuesConfig, now: Option[Instant] = None): RuntimeTemplateValues =
+  def apply(config: RuntimeTemplateValuesConfig, now: Option[Instant]): RuntimeTemplateValues =
     RuntimeTemplateValues(
       config.runtimeProjectAndName.googleProject.value,
       config.runtimeProjectAndName.runtimeName.asString,
@@ -225,9 +225,11 @@ object RuntimeTemplateValues {
 
   def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath = GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt"))
   private def jupyterUserStartScriptOutputUriPath(stagingBucketName: GcsBucketName, now: Instant): GcsPath = {
-    val formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.SHORT )
+    val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
         .withZone( ZoneId.systemDefault() )
     val formatedNow = formatter.format(now)
-    GcsPath(stagingBucketName, GcsObjectName(s"startscript_output_${formatedNow}.txt"))
+      .replace(" ", "_")
+      .replace("/", "_")
+    GcsPath(stagingBucketName, GcsObjectName(s"startscript_output/${formatedNow}.txt"))
   }
 }
