@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
+import _root_.java.time.Instant
+import java.net.URL
 import java.util.UUID
 
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
@@ -18,12 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes.validateRuntimeNameDirective
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  GetRuntimeResponse,
-  ListRuntimeResponse,
-  RuntimeConfigRequest,
-  RuntimeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse, RuntimeConfigRequest, RuntimeService}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -328,7 +325,7 @@ object RuntimeRoutes {
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct21(
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct20(
     "id",
     "runtimeName",
     "googleProject",
@@ -348,8 +345,7 @@ object RuntimeRoutes {
     "defaultClientId",
     "runtimeImages",
     "scopes",
-    "customEnvironmentVariables",
-    "patchInProgress"
+    "customEnvironmentVariables"
   )(
     x =>
       (
@@ -372,28 +368,21 @@ object RuntimeRoutes {
         x.defaultClientId,
         x.clusterImages,
         x.scopes,
-        x.customClusterEnvironmentVariables,
-        x.patchInProgress
+        x.customClusterEnvironmentVariables
       )
   )
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse] = Encoder.forProduct15(
+  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct9(
     "id",
     "runtimeName",
     "googleProject",
-    "serviceAccount",
-    "asyncRuntimeFields",
     "auditInfo",
     "runtimeConfig",
     "proxyUrl",
     "status",
     "labels",
-    "jupyterExtensionUri",
-    "jupyterUserScriptUri",
-    "autopauseThreshold",
-    "defaultClientId",
     "patchInProgress"
   )(
     x =>
@@ -401,17 +390,11 @@ object RuntimeRoutes {
         x.id,
         x.clusterName,
         x.googleProject,
-        x.serviceAccountInfo.clusterServiceAccount.get,
-        x.asyncRuntimeFields,
         x.auditInfo,
         x.machineConfig,
-        x.clusterUrl,
+        x.proxyUrl,
         x.status,
         x.labels,
-        x.jupyterExtensionUri,
-        x.jupyterUserScriptUri,
-        x.autopauseThreshold,
-        x.defaultClientId,
         x.patchInProgress
       )
   )
@@ -452,3 +435,13 @@ final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntime
                                       allowStop: Boolean,
                                       updateAutopauseEnabled: Option[Boolean],
                                       updateAutopauseThreshold: Option[FiniteDuration])
+
+final case class ListRuntimeResponse2(id: Long,
+                                     clusterName: RuntimeName,
+                                     googleProject: GoogleProject,
+                                     auditInfo: AuditInfo,
+                                     machineConfig: RuntimeConfig,
+                                     proxyUrl: URL,
+                                     status: RuntimeStatus,
+                                     labels: LabelMap,
+                                     patchInProgress: Boolean)

@@ -7,18 +7,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
-import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{fullClusterQueryByUniqueKey, unmarshalFullCluster}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  GetRuntimeResponse,
-  ListRuntimeResponse,
-  RuntimeNotFoundException
-}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 
-object LeonardoServiceDbQueries {
+object RuntimeServiceDbQueries {
 
   type ClusterJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
 
@@ -27,29 +21,11 @@ object LeonardoServiceDbQueries {
       (cluster, label) <- baseQuery.joinLeft(labelQuery).on(_.id === _.clusterId)
     } yield (cluster, label)
 
-  def getGetClusterResponse(googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit executionContext: ExecutionContext
-  ): DBIO[GetRuntimeResponse] = {
-    val activeCluster = fullClusterQueryByUniqueKey(googleProject, clusterName, None)
-      .joinLeft(runtimeConfigs)
-      .on(_._1.runtimeConfigId === _.id)
-    activeCluster.result.flatMap { recs =>
-      val clusterRecs = recs.map(_._1)
-      val res = for {
-        cluster <- unmarshalFullCluster(clusterRecs).headOption
-        runtimeConfig <- recs.headOption.flatMap(_._2)
-      } yield GetRuntimeResponse.fromRuntime(cluster, runtimeConfig.runtimeConfig)
-      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, clusterName)))(
-        r => DBIO.successful(r)
-      )
-    }
-  }
-
   // new runtime route return a lot less fields than legacy listCluster API
   // Once we remove listCluster API, we can optimize this query
   def listClusters(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ec: ExecutionContext
-  ): DBIO[List[ListRuntimeResponse]] = {
+  ): DBIO[List[ListRuntimeResponse2]] = {
     val clusterQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === "Deleted")
     val clusterQueryFilteredByProject = googleProjectOpt.fold(clusterQueryFilteredByDeletion)(
@@ -77,45 +53,27 @@ object LeonardoServiceDbQueries {
       }
     }
 
-    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = clusterLabelRuntimeConfigQuery(
-      clusterQueryFilteredByLabel
-    )
+    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = clusterLabelRuntimeConfigQuery(clusterQueryFilteredByLabel)
 
     clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
-      val clusterLabelMap
-        : Map[(ClusterRecord, Option[RuntimeConfig], Option[PatchRecord]), Map[String, Chain[String]]] =
-        x.toList.foldMap {
-          case (((clusterRec, labelRecOpt), runTimeConfigRecOpt), patchRecOpt) =>
-            val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-            Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig), patchRecOpt) -> labelMap)
-        }
+      val clusterLabelMap: Map[(ClusterRecord, Option[RuntimeConfig], Option[PatchRecord]), Map[String, Chain[String]]] = x.toList.foldMap {
+        case (((clusterRec, labelRecOpt), runTimeConfigRecOpt), patchRecOpt) =>
+          val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
+          Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig), patchRecOpt) -> labelMap)
+      }
 
       clusterLabelMap.map {
         case ((clusterRec, runTimeConfigRecOpt, patchRecOpt), labelMap) =>
           val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
-          val dataprocInfo = (clusterRec.googleId, clusterRec.operationName, clusterRec.stagingBucket).mapN {
-            (googleId, operationName, stagingBucket) =>
-              AsyncRuntimeFields(googleId,
-                                 OperationName(operationName),
-                                 GcsBucketName(stagingBucket),
-                                 clusterRec.hostIp map IP)
-          }
 
-          val serviceAccountInfo = ServiceAccountInfo(
-            clusterRec.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
-            clusterRec.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
-          )
           val patchInProgress = patchRecOpt match {
             case Some(patchRec) => patchRec.inProgress
-            case None           => false
+            case None => false
           }
-          ListRuntimeResponse(
+          ListRuntimeResponse2(
             clusterRec.id,
-            RuntimeInternalId(clusterRec.internalId),
             clusterRec.clusterName,
             clusterRec.googleProject,
-            serviceAccountInfo,
-            dataprocInfo,
             clusterRec.auditInfo,
             runTimeConfigRecOpt
               .getOrElse(throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")), //In theory, the exception should never happen because it's enforced by db foreign key
@@ -123,16 +81,9 @@ object LeonardoServiceDbQueries {
                                 clusterRec.googleProject,
                                 clusterRec.clusterName,
                                 Set.empty,
-                                lmp), //TODO: remove clusterImages field
+                                lmp),
             RuntimeStatus.withName(clusterRec.status),
             lmp,
-            clusterRec.jupyterExtensionUri,
-            clusterRec.jupyterUserScriptUri,
-            Set.empty, //TODO: remove instances from ListResponse
-            clusterRec.autopauseThreshold,
-            clusterRec.defaultClientId,
-            clusterRec.stopAfterCreation,
-            clusterRec.welderEnabled,
             patchInProgress
           )
       }.toList
