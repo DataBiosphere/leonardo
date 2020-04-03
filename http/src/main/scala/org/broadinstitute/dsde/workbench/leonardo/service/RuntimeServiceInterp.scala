@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   CreateRuntime2Request,
+  ListRuntimeResponse2,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
@@ -35,15 +36,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateRuntimeMessage,
-  DeleteRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage,
-  UpdateRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, DeleteRuntimeMessage, StartRuntimeMessage, StopRuntimeMessage, UpdateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
 
 import scala.concurrent.ExecutionContext
 
@@ -172,11 +167,16 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+<<<<<<< HEAD
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Vector[ListRuntimeResponse]] =
+=======
+    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+  ): F[Vector[ListRuntimeResponse2]] =
+>>>>>>> fix compile error
     for {
       paramMap <- F.fromEither(processListClustersParameters(params))
-      clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
+      clusters <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
     } yield {

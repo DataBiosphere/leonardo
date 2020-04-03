@@ -72,6 +72,7 @@ object RuntimeServiceDbQueries {
           }
           ListRuntimeResponse2(
             clusterRec.id,
+            RuntimeInternalId(clusterRec.internalId),
             clusterRec.clusterName,
             clusterRec.googleProject,
             clusterRec.auditInfo,

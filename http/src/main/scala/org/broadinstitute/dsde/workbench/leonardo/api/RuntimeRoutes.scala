@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes.validateRuntimeNameDirective
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, ListRuntimeResponse, RuntimeConfigRequest, RuntimeService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeConfigRequest, RuntimeService}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -437,6 +437,7 @@ final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntime
                                       updateAutopauseThreshold: Option[FiniteDuration])
 
 final case class ListRuntimeResponse2(id: Long,
+                                     internalId: RuntimeInternalId,
                                      clusterName: RuntimeName,
                                      googleProject: GoogleProject,
                                      auditInfo: AuditInfo,
