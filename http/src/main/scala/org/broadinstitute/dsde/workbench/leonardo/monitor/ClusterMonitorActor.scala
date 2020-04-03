@@ -499,9 +499,9 @@ class ClusterMonitorActor(
             startUpScriptSuccess <- checkUserScripts(userStartupScript, google2StorageDAO)
             r <- (userScriptSuccess, startUpScriptSuccess) match {
               case (true, true) => continueCheckRuntimeInGoogle(runtimeAndRuntimeConfig, runtimeStatus)
-              case (false, true) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some("user script failed")), Set.empty): ClusterMonitorMessage)
-              case (true, false) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some("user start up script failed")), Set.empty): ClusterMonitorMessage)
-              case (false, false) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some("both user script and startUp script failed")), Set.empty): ClusterMonitorMessage)
+              case (false, true) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some(s"user script ${userScript} failed")), Set.empty): ClusterMonitorMessage)
+              case (true, false) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some(s"user start up script ${userStartupScript} failed")), Set.empty): ClusterMonitorMessage)
+              case (false, false) => IO.pure(FailedCluster(runtimeAndRuntimeConfig, RuntimeErrorDetails(-1, Some(s"both user script ${userScript} and startUp ${userStartupScript} script failed")), Set.empty): ClusterMonitorMessage)
             }
           } yield r
         case CloudService.Dataproc =>
