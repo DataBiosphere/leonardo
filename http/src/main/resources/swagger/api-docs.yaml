@@ -1975,13 +1975,13 @@ components:
         - $ref: '#/components/schemas/UpdateRuntimeConfig'
         - type: object
           properties:
-            updatedMachineType:
+            machineType:
               type: string
               description: >
                 Optional, the machine type determines the number of CPUs and memory
                 for the instance. For example "n1-standard-16" or "n1-highmem-64".
                 To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
-            updatedDiskSize:
+            diskSize:
               type: integer
               description: >
                 Optional, disk size in gigabytes
@@ -1991,21 +1991,21 @@ components:
         - $ref: '#/components/schemas/UpdateRuntimeConfig'
         - type: object
           properties:
-            updatedMasterMachineType:
+            masterMachineType:
               type: string
               description: >
                 Optional, the machine type determines the number of CPUs and memory
                 for the cluster master node. For example "n1-standard-16" or "n1-highmem-64".
                 To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
-            updatedDiskSize:
+            diskSize:
               type: integer
               description: >
                 Optional, disk size of the master node in gigabytes
-            updatedNumberOfWorkers:
+            numberOfWorkers:
               type: integer
               description: >
                 Optional, number of workers in the cluster
-            updatedNumberOfPreemptibleWorkers:
+            numberOfPreemptibleWorkers:
               type: integer
               description: >
                 Optional, number of preemptible workers in the cluster
@@ -2022,7 +2022,7 @@ components:
       description: Updates a runtime
       type: object
       properties:
-        updatedRuntimeConfig:
+        runtimeConfig:
           oneOf:
             - $ref: "#/components/schemas/UpdateGceConfig"
             - $ref: "#/components/schemas/UpdateDataprocConfig"
@@ -2033,10 +2033,10 @@ components:
           description: Whether leo should stop the runtime if it is necessary for the
             update. If false, an exception will be thrown in cases where a stop
             was required. Defaults to false.
-        updatedAutopause:
+        autopause:
           type: boolean
           description: Whether autopause feature is enabled for this specific cluster.
-        updatedAutopauseThreshold:
+        autopauseThreshold:
           type: integer
           description: The number of minutes of idle time to elapse before the cluster is
             autopaused. If autopause is set to false, this value is disregarded.
