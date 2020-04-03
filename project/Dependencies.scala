@@ -19,9 +19,8 @@ object Dependencies {
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
   val workbenchGoogleV = "0.21-96ad43c"
-  val workbenchGoogle2V = "0.8-e191f58"
+  val workbenchGoogle2V = "0.8-026b2b3"
   val workbenchMetricsV = "0.3-c5b80d2"
-  val workbenchNewRelicV = "0.3-8bae8e8"
   val workbenchOpenTelemetryV = "0.1-73d6a64"
 
   val excludeAkkaActor = ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
@@ -77,7 +76,6 @@ object Dependencies {
   val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.28.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
   val googleOAuth2: ModuleID =              "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1" excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
-  val googleSourceRepositories: ModuleID =  "com.google.apis" % "google-api-services-sourcerepo"  % s"v1-rev21-$googleV" excludeAll (excludeGuavaJDK5)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV  % "test"
   val mockito: ModuleID =   "org.mockito"   % "mockito-core"  % "3.2.4"    % "test"
@@ -86,7 +84,7 @@ object Dependencies {
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
   val workbenchUtil: ModuleID =         "org.broadinstitute.dsde.workbench" %% "workbench-util"     % workbenchUtilV excludeAll (excludeWorkbenchModel, excludeGoogleError, excludeGuava)
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
-  val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeGuava)
+  val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeGuava)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (excludeWorkbenchUtil,
     excludeWorkbenchModel,
     excludeWorkbenchMetrics,
@@ -104,9 +102,6 @@ object Dependencies {
     excludeGuava)
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeGuava)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
-  val workbenchMetrics: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-metrics"  % workbenchMetricsV excludeAll (excludeWorkbenchUtil, excludeSlf4j, excludeGuava)
-  val workbenchNewRelic: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV excludeAll (excludeGuava)
-  val workbenchNewRelicTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV % "test" classifier "tests" excludeAll (excludeGuava)
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % "test" classifier "tests" excludeAll (excludeGuava)
 
@@ -125,12 +120,11 @@ object Dependencies {
 
   val coreDependencies = List(
     scalaTest,
+    slick,
     guava,
     workbenchModel,
     workbenchGoogle2,
     workbenchGoogle2Test,
-    workbenchNewRelic,
-    workbenchNewRelicTest,
     workbenchOpenTelemetry,
     workbenchOpenTelemetryTest,
     "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
@@ -164,19 +158,16 @@ object Dependencies {
     googleDataproc,
     googleRpc,
     googleOAuth2,
-    googleSourceRepositories,
     mockito,
     hikariCP,
     workbenchUtil,
     workbenchGoogle,
     workbenchGoogleTest,
-    workbenchMetrics,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
     googleCloudNio,
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
-    slick,
     mysql,
     liquibase,
     "de.heikoseeberger" %% "akka-http-circe" % "1.31.0"
@@ -218,7 +209,6 @@ object Dependencies {
     guava,
     workbenchUtil,
     workbenchModel,
-    workbenchMetrics,
     workbenchGoogle,
     workbenchGoogle2,
     workbenchServiceTest,

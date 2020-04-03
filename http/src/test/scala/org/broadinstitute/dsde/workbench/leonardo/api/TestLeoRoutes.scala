@@ -62,11 +62,7 @@ trait TestLeoRoutes {
   }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
-  val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
-  mockGoogleStorageDAO.buckets += jupyterExtensionUri.bucketName -> Set(
-    (jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes()))
-  )
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
     petMock.buckets += jupyterUserScriptBucketName -> Set(
@@ -87,7 +83,6 @@ trait TestLeoRoutes {
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig,
                          MockGoogleComputeService,
-                         mockGoogleStorageDAO,
                          mockGoogle2StorageDAO,
                          mockGoogleProjectDAO,
                          serviceAccountProvider,
@@ -149,8 +144,6 @@ trait TestLeoRoutes {
   val timedLeoRoutes = new LeoRoutes(leonardoService, timedUserInfoDirectives)
 
   val runtimeService = new RuntimeServiceInterp(
-    blocker,
-    semaphore,
     RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                          imageConfig,
                          autoFreezeConfig,

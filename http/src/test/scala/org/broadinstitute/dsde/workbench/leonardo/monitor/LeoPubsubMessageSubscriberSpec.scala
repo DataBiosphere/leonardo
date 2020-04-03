@@ -10,7 +10,6 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
-import fs2.concurrent.InspectableQueue
 import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -57,7 +56,8 @@ class LeoPubsubMessageSubscriberSpec
   val projectDAO = new MockGoogleProjectDAO
   val authProvider = mock[LeoAuthProvider[IO]]
   val currentTime = Instant.now
-  implicit val appContext: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const(AppContext.generate.unsafeRunSync())
+  implicit val appContext: ApplicativeAsk[IO, AppContext] =
+    ApplicativeAsk.const(AppContext.generate[IO].unsafeRunSync())
 
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     new MockGoogleStorageDAO
@@ -68,7 +68,6 @@ class LeoPubsubMessageSubscriberSpec
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig,
                          MockGoogleComputeService,
-                         storageDAO,
                          FakeGoogleStorageService,
                          projectDAO,
                          serviceAccountProvider,
@@ -96,20 +95,19 @@ class LeoPubsubMessageSubscriberSpec
 
   val runningCluster = makeCluster(1).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount),
-    asyncRuntimeFields = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Running,
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val stoppedCluster = makeCluster(2).copy(
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount),
-    asyncRuntimeFields = Some(makeDataprocInfo(1).copy(hostIp = None)),
+    asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Stopped
   )
 
   "LeoPubsubMessageSubscriber" should "handle StopUpdateMessage and stop cluster" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val savedRunningCluster = runningCluster.save()
     savedRunningCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual runningCluster
@@ -122,7 +120,7 @@ class LeoPubsubMessageSubscriberSpec
 
     dbRef
       .inTransaction(
-        patchQuery.getPatchAction(patchDetails)
+        patchQuery.getPatchAction(patchDetails.runtimeId)
       )
       .unsafeRunSync() shouldBe None
 
@@ -134,8 +132,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       runtime <- IO(
@@ -163,8 +160,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle DeleteRuntimeMessage and delete cluster" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -182,8 +178,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "not handle DeleteRuntimeMessage when cluster is not in Deleting status" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -199,8 +194,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle StopRuntimeMessage and stop cluster" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -218,8 +212,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "not handle StopRuntimeMessage when cluster is not in Stopping status" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -235,8 +228,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle StartRuntimeMessage and start cluster" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -254,8 +246,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "not handle StartRuntimeMessage when cluster is not in Starting status" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -271,8 +262,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and stop the cluster when there's a machine type change" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -293,8 +283,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and update the runtime config in the database" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       now <- IO(Instant.now)
@@ -325,9 +314,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   "LeoPubsubMessageSubscriber messageResponder" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
-
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val savedRunningCluster = runningCluster.save()
 
@@ -336,7 +323,7 @@ class LeoPubsubMessageSubscriberSpec
     val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
     val message = RuntimeTransitionMessage(patchKey, None)
 
-    val preStorage = dbRef.inTransaction(patchQuery.getPatchAction(patchKey)).unsafeRunSync()
+    val preStorage = dbRef.inTransaction(patchQuery.getPatchAction(patchKey.runtimeId)).unsafeRunSync()
     preStorage shouldBe None
 
     //save follow-up details in DB
@@ -354,8 +341,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   "LeoPubsubMessageSubscriber messageHandler" should "not throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
     val savedRunningCluster = runningCluster.save()
     val patchKey = RuntimePatchDetails(savedRunningCluster.id, RuntimeStatus.Stopped)
     val message = RuntimeTransitionMessage(patchKey, None)
@@ -378,9 +364,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "throw an exception if it receives an incorrect StopUpdate message and the database does not reflect the state in message" in isolatedDbTest {
-
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val savedStoppedCluster = stoppedCluster.save()
 
@@ -390,7 +374,7 @@ class LeoPubsubMessageSubscriberSpec
     val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopping)
 
     dbRef
-      .inTransaction(patchQuery.getPatchAction(patchKey))
+      .inTransaction(patchQuery.getPatchAction(patchKey.runtimeId))
       .unsafeRunSync() shouldBe None
 
     the[ClusterInvalidState] thrownBy {
@@ -398,7 +382,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     dbRef
-      .inTransaction(patchQuery.getPatchAction(patchKey))
+      .inTransaction(patchQuery.getPatchAction(patchKey.runtimeId))
       .unsafeRunSync() shouldBe None
 
     dbFutureValue(clusterQuery.getClusterById(clusterId)).get.status shouldBe RuntimeStatus.Stopped
@@ -408,8 +392,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedRunningCluster = runningCluster.save()
     val clusterId = savedRunningCluster.id
     val newMachineType = MachineTypeName("n1-standard-8")
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val patchDetails = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
 
@@ -425,7 +408,7 @@ class LeoPubsubMessageSubscriberSpec
       RuntimeTransitionMessage(RuntimePatchDetails(clusterId, RuntimeStatus.Creating), None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
-    val postStorage = dbRef.inTransaction(patchQuery.getPatchAction(patchDetails)).unsafeRunSync()
+    val postStorage = dbRef.inTransaction(patchQuery.getPatchAction(patchDetails.runtimeId)).unsafeRunSync()
     postStorage shouldBe Some(newMachineType)
 
     val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
@@ -437,8 +420,7 @@ class LeoPubsubMessageSubscriberSpec
   "LeoPubsubMessageSubscriber" should "perform a no-op when no follow-up action is present for a transition" in isolatedDbTest {
     val savedStoppedCluster = stoppedCluster.save()
     val clusterId = savedStoppedCluster.id
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
     val transitionFinishedMessage = RuntimeTransitionMessage(patchKey, None)
@@ -455,8 +437,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedStoppedCluster = stoppedCluster.save()
     val cluster = savedStoppedCluster
     val newMachineType = MachineTypeName("n1-standard-8")
-    val queue = QueueFactory.makeSubscriberQueue()
-    val leoSubscriber = makeLeoSubscriber(queue)
+    val leoSubscriber = makeLeoSubscriber()
 
     val patchDetails = RuntimePatchDetails(cluster.id, RuntimeStatus.Stopped)
 
@@ -533,10 +514,14 @@ class LeoPubsubMessageSubscriberSpec
     decodedMessage.right.get shouldBe originalMessage
   }
 
-  def makeLeoSubscriber(queue: InspectableQueue[IO, Event[LeoPubsubMessage]]) = {
+  def makeLeoSubscriber() = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](googleSubscriber)
+    new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(Config.gceConfig.zoneName),
+                                       googleSubscriber,
+                                       MockGoogleComputeService,
+                                       MockGceRuntimeMonitor,
+      mockWelderDAO)
   }
 
 }

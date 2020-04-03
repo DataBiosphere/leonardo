@@ -23,7 +23,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageServi
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
@@ -40,8 +39,8 @@ class DataprocInterpreterSpec
     with ScalaFutures
     with LeonardoTestSuite {
 
-  implicit val nr = FakeNewRelicMetricsInterpreter
-  implicit val appContext: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const(AppContext.generate.unsafeRunSync())
+  implicit val appContext: ApplicativeAsk[IO, AppContext] =
+    ApplicativeAsk.const(AppContext.generate[IO].unsafeRunSync())
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO
@@ -59,7 +58,6 @@ class DataprocInterpreterSpec
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig,
                          MockGoogleComputeService,
-                         mockGoogleStorageDAO,
                          FakeGoogleStorageService,
                          mockGoogleProjectDAO,
                          serviceAccountProvider,

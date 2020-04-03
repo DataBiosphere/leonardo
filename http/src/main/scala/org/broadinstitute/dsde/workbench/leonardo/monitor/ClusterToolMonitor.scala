@@ -5,13 +5,11 @@ import akka.actor.{Actor, Props, Timers}
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterToolMonitor._
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 
@@ -19,14 +17,12 @@ object ClusterToolMonitor {
 
   def props(
     config: ClusterToolConfig,
-    gdDAO: GoogleDataprocDAO,
-    googleProjectDAO: GoogleProjectDAO,
     dbRef: DbReference[IO],
-    newRelic: NewRelicMetrics[IO]
-  )(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
+    metrics: OpenTelemetryMetrics[IO]
+  )(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
     ec: ExecutionContext,
     cs: ContextShift[IO]): Props =
-    Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, newRelic))
+    Props(new ClusterToolMonitor(config, dbRef, metrics))
 
   sealed trait ClusterToolMonitorMessage
   case object DetectClusterStatus extends ClusterToolMonitorMessage
@@ -36,15 +32,14 @@ object ClusterToolMonitor {
 }
 
 /**
+ * TODO: Is this needed?
  * Monitors tool status (Jupyter, RStudio, Welder, etc) on Running clusters and reports if any tool is down.
  */
 class ClusterToolMonitor(
   config: ClusterToolConfig,
-  gdDAO: GoogleDataprocDAO,
-  googleProjectDAO: GoogleProjectDAO,
   dbRef: DbReference[IO],
-  newRelic: NewRelicMetrics[IO]
-)(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
+  metrics: OpenTelemetryMetrics[IO]
+)(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
   ec: ExecutionContext,
   cs: ContextShift[IO])
     extends Actor
@@ -75,7 +70,7 @@ class ClusterToolMonitor(
         logger.warn(
           s"The tool ${toolName} is down on cluster ${status.runtime.googleProject.value}/${status.runtime.runtimeName.asString}"
         )
-      ) >> newRelic.incrementCounter(toolName + "Down")
+      ) >> metrics.incrementCounter(toolName + "Down")
     } else IO.unit
 
   private def getActiveClustersFromDatabase: IO[Seq[RunningRuntime]] =

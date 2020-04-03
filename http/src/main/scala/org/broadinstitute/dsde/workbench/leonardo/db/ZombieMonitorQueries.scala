@@ -7,7 +7,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import slick.dbio.DBIO
-import LeoProfile.api._
 
 import scala.concurrent.ExecutionContext
 

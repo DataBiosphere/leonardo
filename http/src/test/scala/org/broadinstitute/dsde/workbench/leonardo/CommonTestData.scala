@@ -87,7 +87,7 @@ object CommonTestData {
   val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val monitorConfig = config.as[MonitorConfig]("monitor")
-  val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
+  val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
@@ -152,7 +152,7 @@ object CommonTestData {
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
 
-  def makeDataprocInfo(index: Int): AsyncRuntimeFields =
+  def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(
       GoogleId(UUID.randomUUID().toString),
       OperationName("operationName" + index.toString),
@@ -182,7 +182,7 @@ object CommonTestData {
       internalId = internalId,
       googleProject = project,
       serviceAccountInfo = serviceAccountInfo,
-      asyncRuntimeFields = Some(makeDataprocInfo(index)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
       status = RuntimeStatus.Unknown,

@@ -25,13 +25,13 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     lazy val err1 = RuntimeError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = GoogleId(UUID.randomUUID().toString)
     val cluster1 = makeCluster(1).copy(
-      asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),
       dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2),
       stopAfterCreation = true
     )
 
     val cluster1WithErr = makeCluster(1).copy(
-      asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),
       errors = List(err1),
       dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
     )

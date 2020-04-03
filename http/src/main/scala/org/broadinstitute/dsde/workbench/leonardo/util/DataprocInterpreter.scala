@@ -26,10 +26,10 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -64,7 +64,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 )(implicit val executionContext: ExecutionContext,
   val system: ActorSystem,
   contextShift: ContextShift[IO], // needed for IO.fromFuture(...)
-  metrics: NewRelicMetrics[F],
+  metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F]
@@ -445,9 +445,9 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                             clusterName: RuntimeName,
                                             initBucketName: GcsBucketName,
                                             serviceAccountInfo: ServiceAccountInfo,
-                                            serviceAccountKeyOpt: Option[ServiceAccountKey]): F[Unit] = {
+                                            serviceAccountKeyOpt: Option[ServiceAccountKey])(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
     // Clean up resources in Google
-    val deleteBucket = bucketHelper.deleteInitBucket(initBucketName).attempt.flatMap {
+    val deleteBucket = bucketHelper.deleteInitBucket(googleProject, initBucketName).attempt.flatMap {
       case Left(e) =>
         Logger[F].error(e)(
           s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"

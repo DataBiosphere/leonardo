@@ -32,8 +32,6 @@ import scala.concurrent.duration._
 class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val runtimeService = new RuntimeServiceInterp(
-    blocker,
-    semaphore,
     RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                          imageConfig,
                          autoFreezeConfig,

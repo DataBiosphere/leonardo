@@ -4,12 +4,11 @@ import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeContainerServiceType, RuntimeStatus}
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
@@ -127,21 +126,17 @@ class ClusterToolMonitorSpec
   }
 
   private def withServiceActor[T](
-    newRelic: NewRelicMetrics[IO] = mock[NewRelicMetrics[IO]],
-    welderDAO: WelderDAO[IO] = new MockWelderDAO(),
-    jupyterDAO: JupyterDAO[IO] = new MockJupyterDAO(),
-    rstudioDAO: RStudioDAO[IO] = new MockRStudioDAO()
-  )(testCode: (ActorRef, NewRelicMetrics[IO]) => T): T = {
+                                   metrics: OpenTelemetryMetrics[IO] = mock[OpenTelemetryMetrics[IO]],
+                                   welderDAO: WelderDAO[IO] = new MockWelderDAO(),
+                                   jupyterDAO: JupyterDAO[IO] = new MockJupyterDAO(),
+                                   rstudioDAO: RStudioDAO[IO] = new MockRStudioDAO()
+  )(testCode: (ActorRef, OpenTelemetryMetrics[IO]) => T): T = {
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, rstudioDAO)
 
     val actor = system.actorOf(
-      ClusterToolMonitor.props(clusterToolConfig,
-                               gdDAO = new MockGoogleDataprocDAO,
-                               googleProjectDAO = new MockGoogleProjectDAO,
-                               dbRef,
-                               newRelic)
+      ClusterToolMonitor.props(clusterToolConfig, dbRef, metrics)
     )
-    val testResult = Try(testCode(actor, newRelic))
+    val testResult = Try(testCode(actor, metrics))
 
     // shut down the actor and wait for it to terminate
     testKit watch actor

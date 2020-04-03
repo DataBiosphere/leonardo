@@ -95,7 +95,6 @@ class LeonardoServiceSpec
     val bucketHelper =
       new BucketHelper[IO](bucketHelperConfig,
                            MockGoogleComputeService,
-                           storageDAO,
                            FakeGoogleStorageService,
                            projectDAO,
                            serviceAccountProvider,
@@ -567,7 +566,7 @@ class LeonardoServiceSpec
       Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
-      Some(makeDataprocInfo(1)),
+      Some(makeAsyncRuntimeFields(1)),
       Instant.now
     )
     dbFutureValue {
@@ -625,7 +624,7 @@ class LeonardoServiceSpec
       Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
-      Some(makeDataprocInfo(1)),
+      Some(makeAsyncRuntimeFields(1)),
       Instant.now
     )
     dbFutureValue {
@@ -671,7 +670,7 @@ class LeonardoServiceSpec
       Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
-      Some(makeDataprocInfo(1)),
+      Some(makeAsyncRuntimeFields(1)),
       Instant.now
     )
     dbFutureValue {

@@ -11,18 +11,11 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  Runtime,
-  RuntimeConfig,
-  RuntimeImage,
-  RuntimeOperation,
-  WelderAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, Runtime, RuntimeConfig, RuntimeImage, RuntimeOperation, WelderAction}
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 import scala.util.Try
@@ -30,7 +23,7 @@ import scala.util.Try
 abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: Logger](
   config: RuntimeInterpreterConfig,
   welderDao: WelderDAO[F]
-)(implicit dbRef: DbReference[F], metrics: NewRelicMetrics[F], executionContext: ExecutionContext)
+)(implicit dbRef: DbReference[F], metrics: OpenTelemetryMetrics[F], executionContext: ExecutionContext)
     extends RuntimeAlgebra[F] {
 
   protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
@@ -114,7 +107,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   private def updateWelder(runtime: Runtime, now: Instant): F[Runtime] =
     for {
       _ <- Logger[F].info(s"Will deploy welder to cluster ${runtime.projectNameString}")
-      _ <- metrics.incrementCounter("welder/deploy")
+      _ <- metrics.incrementCounter("welder/upgrade")
       welderImage = RuntimeImage(Welder, config.imageConfig.welderImage.imageUrl, now)
 
       _ <- dbRef.inTransaction {

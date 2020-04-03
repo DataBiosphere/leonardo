@@ -29,7 +29,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageServi
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito._
@@ -46,8 +45,6 @@ class AuthProviderSpec
     with GcsPathUtils
     with TestProxy
     with BeforeAndAfterAll {
-
-  implicit val nr = FakeNewRelicMetricsInterpreter
 
   val cluster1 = makeCluster(1)
   val cluster1Name = cluster1.runtimeName
@@ -81,7 +78,6 @@ class AuthProviderSpec
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig,
                          MockGoogleComputeService,
-                         mockGoogleStorageDAO,
                          FakeGoogleStorageService,
                          mockGoogleProjectDAO,
                          serviceAccountProvider,
@@ -175,7 +171,7 @@ class AuthProviderSpec
         Some(GcsPath(initBucketName, GcsObjectName(""))),
         Some(serviceAccountKey),
         cluster1.id,
-        Some(makeDataprocInfo(1)),
+        Some(makeAsyncRuntimeFields(1)),
         Instant.now
       )
       // change cluster status to Running so that it can be deleted

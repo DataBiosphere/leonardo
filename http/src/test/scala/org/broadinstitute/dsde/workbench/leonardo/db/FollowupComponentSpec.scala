@@ -17,9 +17,9 @@ class PatchComponentSpec extends FlatSpecLike with TestComponent {
 
     val res = for {
       r1 <- patchQuery.save(patchDetails, Some(MachineTypeName("machineType1"))).transaction
-      r2 <- patchQuery.getPatchAction(patchDetails).transaction
+      r2 <- patchQuery.getPatchAction(patchDetails.runtimeId).transaction
       r3 <- patchQuery.save(patchDetails, Some(MachineTypeName("machineType2"))).transaction
-      r4 <- patchQuery.getPatchAction(patchDetails).transaction
+      r4 <- patchQuery.getPatchAction(patchDetails.runtimeId).transaction
     } yield {
       r1 shouldBe (1)
       r2 shouldBe (Some(MachineTypeName("machineType1")))

@@ -5,15 +5,14 @@ import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import cats.effect.{ContextShift, IO, Timer}
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   AutoFreezeConfig,
-  ClusterBucketConfig,
   DataprocConfig,
   GceConfig,
   ImageConfig,
-  MonitorConfig
+  MonitorConfig,
+  RuntimeBucketConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
@@ -30,10 +29,9 @@ object TestClusterSupervisorActor {
     dataprocConfig: DataprocConfig,
     gceConfig: GceConfig,
     imageConfig: ImageConfig,
-    clusterBucketConfig: ClusterBucketConfig,
+    clusterBucketConfig: RuntimeBucketConfig,
     gdDAO: GoogleDataprocDAO,
     googleComputeService: GoogleComputeService[IO],
-    googleStorageDAO: GoogleStorageDAO,
     google2StorageDAO: GoogleStorageService[IO],
     dbRef: DbReference[IO],
     testKit: TestKit,
@@ -52,7 +50,6 @@ object TestClusterSupervisorActor {
                                      clusterBucketConfig,
                                      gdDAO,
                                      googleComputeService,
-                                     googleStorageDAO,
                                      google2StorageDAO,
                                      dbRef,
                                      testKit,
@@ -75,10 +72,9 @@ class TestClusterSupervisorActor(
   dataprocConfig: DataprocConfig,
   gceConfig: GceConfig,
   imageConfig: ImageConfig,
-  clusterBucketConfig: ClusterBucketConfig,
+  clusterBucketConfig: RuntimeBucketConfig,
   gdDAO: GoogleDataprocDAO,
   googleComputeService: GoogleComputeService[IO],
-  googleStorageDAO: GoogleStorageDAO,
   google2StorageDAO: GoogleStorageService[IO],
   dbRef: DbReference[IO],
   testKit: TestKit,
@@ -97,11 +93,8 @@ class TestClusterSupervisorActor(
       clusterBucketConfig,
       gdDAO,
       googleComputeService,
-      googleStorageDAO,
       google2StorageDAO,
       authProvider,
-      autoFreezeConfig,
-      jupyterProxyDAO,
       rstudioProxyDAO,
       welderDAO,
       publisherQueue

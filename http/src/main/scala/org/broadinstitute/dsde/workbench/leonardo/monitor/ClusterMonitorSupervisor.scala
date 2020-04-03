@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.{Duration, Instant}
+import java.time.Instant
 import java.util.UUID
 
 import akka.actor.SupervisorStrategy.Restart
@@ -10,16 +10,15 @@ import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{RStudioDAO, ToolDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterSupervisorMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeInstances, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
@@ -33,14 +32,11 @@ object ClusterMonitorSupervisor {
     dataprocConfig: DataprocConfig,
     gceConfig: GceConfig,
     imageConfig: ImageConfig,
-    clusterBucketConfig: ClusterBucketConfig,
+    clusterBucketConfig: RuntimeBucketConfig,
     gdDAO: GoogleDataprocDAO,
     googleComputeService: GoogleComputeService[IO],
-    googleStorageDAO: GoogleStorageDAO,
     google2StorageDAO: GoogleStorageService[IO],
     authProvider: LeoAuthProvider[IO],
-    autoFreezeConfig: AutoFreezeConfig,
-    jupyterProxyDAO: JupyterDAO[IO],
     rstudioProxyDAO: RStudioDAO[IO],
     welderDAO: WelderDAO[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
@@ -48,7 +44,7 @@ object ClusterMonitorSupervisor {
     timer: Timer[IO],
     dbRef: DbReference[IO],
     ec: ExecutionContext,
-    clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
+    clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
     cs: ContextShift[IO],
     runtimeInstances: RuntimeInstances[IO]): Props =
     Props(
@@ -59,11 +55,8 @@ object ClusterMonitorSupervisor {
                                    clusterBucketConfig,
                                    gdDAO,
                                    googleComputeService,
-                                   googleStorageDAO,
                                    google2StorageDAO,
                                    authProvider,
-                                   autoFreezeConfig,
-                                   jupyterProxyDAO,
                                    rstudioProxyDAO,
                                    welderDAO,
                                    publisherQueue)
@@ -96,14 +89,9 @@ object ClusterMonitorSupervisor {
 
     //Sent when the cluster should be removed from the monitored cluster list
     case class RemoveFromList(cluster: Runtime) extends ClusterSupervisorMessage
-
-    // Auto freeze idle clusters
-    case object AutoFreezeClusters extends ClusterSupervisorMessage
-
   }
 
   case object CheckClusterTimerKey
-  case object AutoFreezeTimerKey
   private case object CheckForClusters extends ClusterSupervisorMessage
 }
 
@@ -112,21 +100,18 @@ class ClusterMonitorSupervisor(
   dataprocConfig: DataprocConfig,
   gceConfig: GceConfig,
   imageConfig: ImageConfig,
-  clusterBucketConfig: ClusterBucketConfig,
+  clusterBucketConfig: RuntimeBucketConfig,
   gdDAO: GoogleDataprocDAO,
   googleComputeService: GoogleComputeService[IO],
-  googleStorageDAO: GoogleStorageDAO,
   google2StorageDAO: GoogleStorageService[IO],
   authProvider: LeoAuthProvider[IO],
-  autoFreezeConfig: AutoFreezeConfig,
-  jupyterProxyDAO: JupyterDAO[IO],
   rstudioProxyDAO: RStudioDAO[IO],
   welderProxyDAO: WelderDAO[IO],
   publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
 )(implicit openTelemetryMetrics: OpenTelemetryMetrics[IO],
   ec: ExecutionContext,
   dbRef: DbReference[IO],
-  clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
+  clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
   cs: ContextShift[IO],
   timer: Timer[IO],
   runtimeInstances: RuntimeInstances[IO])
@@ -140,9 +125,6 @@ class ClusterMonitorSupervisor(
     super.preStart()
 
     timers.startTimerWithFixedDelay(CheckClusterTimerKey, CheckForClusters, monitorConfig.pollPeriod)
-
-    if (autoFreezeConfig.enableAutoFreeze)
-      timers.startTimerWithFixedDelay(AutoFreezeTimerKey, AutoFreezeClusters, autoFreezeConfig.autoFreezeCheckScheduler)
   }
 
   override def receive: Receive = {
@@ -222,11 +204,6 @@ class ClusterMonitorSupervisor(
       addToMonitoredClusters(cluster)
       startClusterMonitorActor(cluster)
 
-    case AutoFreezeClusters =>
-      val traceId = UUID.randomUUID()
-      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
-      autoFreezeClusters().unsafeToFuture()
-
     case CheckForClusters =>
       createClusterMonitors.unsafeRunSync()
 
@@ -245,7 +222,6 @@ class ClusterMonitorSupervisor(
         clusterBucketConfig,
         gdDAO,
         googleComputeService,
-        googleStorageDAO,
         google2StorageDAO,
         dbRef,
         authProvider,
@@ -262,52 +238,6 @@ class ClusterMonitorSupervisor(
         context.watchWith(child, watchMsg)
     }
   }
-
-  def autoFreezeClusters()(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    for {
-      clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
-      now <- IO(Instant.now)
-      pauseableClusters <- clusters.toList.filterA { cluster =>
-        jupyterProxyDAO.isAllKernelsIdle(cluster.googleProject, cluster.runtimeName).attempt.flatMap {
-          case Left(t) =>
-            IO(logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.runtimeName} due to $t"))
-              .as(true)
-          case Right(isIdle) =>
-            if (!isIdle) {
-              val idleLimit = Duration.ofNanos(autoFreezeConfig.maxKernelBusyLimit.toNanos) // convert from FiniteDuration to java Duration
-              val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
-                case Some(attemptedDate) => IO(Duration.between(attemptedDate, now).compareTo(idleLimit) == 1)
-                case None =>
-                  clusterQuery
-                    .updateKernelFoundBusyDate(cluster.id, now, now)
-                    .transaction
-                    .as(false) // max kernel active time has not been exceeded
-              }
-
-              maxKernelActiveTimeExceeded.ifM(
-                openTelemetryMetrics.incrementCounter("autoPause/maxKernelActiveTimeExceeded") >>
-                  IO(
-                    logger.info(
-                      s"Auto pausing ${cluster.googleProject}/${cluster.runtimeName} due to exceeded max kernel active time"
-                    )
-                  ).as(true),
-                openTelemetryMetrics.incrementCounter("autoPause/activeKernelClusters") >> IO(
-                  logger.info(
-                    s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.runtimeName} due to active kernels"
-                  )
-                ).as(false)
-              )
-            } else IO.pure(isIdle)
-        }
-      }
-      _ <- openTelemetryMetrics.gauge("autoPause/numOfCusters", pauseableClusters.length)
-      _ <- pauseableClusters.traverse_ { cl =>
-        IO(logger.info(s"Auto freezing cluster ${cl.runtimeName} in project ${cl.googleProject}")) >>
-          stopCluster(cl, now).attempt.map { e =>
-            e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
-          }
-      }
-    } yield ()
 
   private def stopCluster(cluster: Runtime, now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
@@ -332,21 +262,29 @@ class ClusterMonitorSupervisor(
       .flatMap {
         case Right(clusters) =>
           val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
+          clustersNotAlreadyBeingMonitored.toList
+            .filterA { c =>
+              RuntimeConfigQueries
+                .getRuntimeConfig(c.runtimeConfigId)
+                .transaction
+                .map(x => x.cloudService == CloudService.Dataproc) //only monitor dataproc runtimes
+            }
+            .flatMap { runtimes =>
+              runtimes.traverse_ {
+                case c if c.status == RuntimeStatus.Deleting => IO(self ! ClusterDeleted(c))
 
-          clustersNotAlreadyBeingMonitored.toList traverse_ {
-            case c if c.status == RuntimeStatus.Deleting => IO(self ! ClusterDeleted(c))
+                case c if c.status == RuntimeStatus.Stopping => IO(self ! ClusterStopped(c))
 
-            case c if c.status == RuntimeStatus.Stopping => IO(self ! ClusterStopped(c))
+                case c if c.status == RuntimeStatus.Starting => IO(self ! ClusterStarted(c))
 
-            case c if c.status == RuntimeStatus.Starting => IO(self ! ClusterStarted(c))
+                case c if c.status == RuntimeStatus.Updating => IO(self ! ClusterUpdated(c))
 
-            case c if c.status == RuntimeStatus.Updating => IO(self ! ClusterUpdated(c))
+                case c if c.status == RuntimeStatus.Creating && c.asyncRuntimeFields.isDefined =>
+                  IO(self ! ClusterCreated(c, c.stopAfterCreation))
 
-            case c if c.status == RuntimeStatus.Creating && c.asyncRuntimeFields.isDefined =>
-              IO(self ! ClusterCreated(c, c.stopAfterCreation))
-
-            case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))
-          }
+                case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))
+              }
+            }
         case Left(e) =>
           IO(logger.error("Error starting cluster monitor", e))
       }

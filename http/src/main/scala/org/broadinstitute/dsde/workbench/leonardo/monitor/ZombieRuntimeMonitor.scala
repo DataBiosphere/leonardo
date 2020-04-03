@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import cats.Parallel
@@ -20,8 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.{GetRuntimeStatusParams, RuntimeInstances}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import scala.concurrent.ExecutionContext
 
 /**
@@ -31,7 +29,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   config: ZombieRuntimeMonitorConfig,
   googleProjectDAO: GoogleProjectDAO
 )(implicit F: Concurrent[F],
-  metrics: NewRelicMetrics[F],
+  metrics: OpenTelemetryMetrics[F],
   logger: Logger[F],
   dbRef: DbReference[F],
   ec: ExecutionContext,
@@ -44,8 +42,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   private[monitor] val zombieCheck: F[Unit] =
     for {
       start <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
-      uuid <- F.delay(UUID.randomUUID())
-      implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](TraceId(uuid))
+      implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](TraceId(s"fromZombieCheck_${start}"))
       startInstant = Instant.ofEpochMilli(start)
       semaphore <- Semaphore[F](config.concurrency)
 
@@ -72,7 +69,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
           )
       }
       // Error out each detected zombie cluster
-      _ <- zombies.parTraverse(zombie => semaphore.withPermit(handleZombieCluster(zombie, startInstant)))
+      _ <- zombies.parTraverse(zombie => semaphore.withPermit(handleZombieRuntime(zombie, startInstant)))
       end <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       duration = end - start
       _ <- logger.info(
@@ -125,13 +122,13 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
               .as(true)
         }
     }
-
   }
 
-  private def handleZombieCluster(runtime: PotentialZombieRuntime, now: Instant): F[Unit] =
+  private def handleZombieRuntime(runtime: PotentialZombieRuntime, now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
-      _ <- logger.info(s"Deleting zombie cluster: ${runtime.googleProject} / ${runtime.runtimeName}")
-      _ <- metrics.incrementCounter("zombieClusters")
+      traceId <- ev.ask
+      _ <- logger.info(s"${traceId.asString} | Deleting zombie cluster: ${runtime.googleProject} / ${runtime.runtimeName}") //TODO: do we need to delete sam resource as well?
+      _ <- metrics.incrementCounter("numOfZombieRuntimes")
       _ <- dbRef.inTransaction {
         for {
           _ <- clusterQuery.completeDeletion(runtime.id, now)
@@ -151,7 +148,7 @@ object ZombieRuntimeMonitor {
     config: ZombieRuntimeMonitorConfig,
     googleProjectDAO: GoogleProjectDAO
   )(implicit F: Concurrent[F],
-    metrics: NewRelicMetrics[F],
+    metrics: OpenTelemetryMetrics[F],
     logger: Logger[F],
     dbRef: DbReference[F],
     ec: ExecutionContext,

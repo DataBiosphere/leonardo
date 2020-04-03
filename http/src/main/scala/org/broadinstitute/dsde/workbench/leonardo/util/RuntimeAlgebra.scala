@@ -56,7 +56,7 @@ final case class CreateRuntimeParams(id: Long,
 object CreateRuntimeParams {
   def fromCreateRuntimeMessage(message: CreateRuntimeMessage): CreateRuntimeParams =
     CreateRuntimeParams(
-      message.id,
+      message.runtimeId,
       message.runtimeProjectAndName,
       message.serviceAccountInfo,
       message.asyncRuntimeFields,

@@ -10,7 +10,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.Identity
 import fs2._
-import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleComputeService, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperConfig,
                                                            googleComputeService: GoogleComputeService[F],
-                                                           googleStorageDAO: GoogleStorageDAO,
                                                            google2StorageDAO: GoogleStorageService[F],
                                                            googleProjectDAO: GoogleProjectDAO,
                                                            serviceAccountProvider: ServiceAccountProvider[F],
@@ -30,10 +29,11 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
   /**
    * Creates the dataproc init bucket and sets the necessary ACLs.
    */
-  def createInitBucket(googleProject: GoogleProject,
-                       bucketName: GcsBucketName,
-                       serviceAccountInfo: ServiceAccountInfo): Stream[F, Unit] =
+  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): Stream[F, Unit] =
     for {
+      ctx <- Stream.eval(ev.ask)
       // The init bucket is created in the cluster's project.
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
@@ -45,8 +45,8 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
         .getOrElse(Map.empty)
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList.one(leoEntity))
 
-      _ <- google2StorageDAO.insertBucket(googleProject, bucketName)
-      _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl)
+      _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx))
+      _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl, traceId = Some(ctx))
     } yield ()
 
   /**
@@ -59,6 +59,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     serviceAccountInfo: ServiceAccountInfo
   )(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
     for {
+      ctx <- Stream.eval(ev.ask)
       // The staging bucket is created in the cluster's project.
       // Leo service account -> Owner
       // Available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
@@ -77,24 +78,30 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
         .getOrElse(Map.empty)
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList(leoEntity, bucketSAs))
 
-      _ <- google2StorageDAO.insertBucket(googleProject, bucketName)
-      _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl)
+      _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx))
+      _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl, traceId = Some(ctx))
     } yield ()
 
   def storeObject(bucketName: GcsBucketName,
                   objectName: GcsBlobName,
                   objectContents: Array[Byte],
-                  objectType: String): Stream[F, Unit] =
-    google2StorageDAO.createBlob(bucketName, objectName, objectContents, objectType).void
+                  objectType: String)(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
+    for {
+      traceId <- Stream.eval(ev.ask)
+      _ <- google2StorageDAO.createBlob(bucketName, objectName, objectContents, objectType, traceId = Some(traceId)).void
+    } yield ()
 
-  def deleteInitBucket(initBucketName: GcsBucketName): F[Unit] =
-    // TODO: implement deleteBucket in google2
-    Async[F].liftIO(IO.fromFuture(IO(googleStorageDAO.deleteBucket(initBucketName, recurse = true))))
+  def deleteInitBucket(googleProject: GoogleProject, initBucketName: GcsBucketName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+    for {
+      traceId <- ev.ask
+      _ <- google2StorageDAO.deleteBucket(googleProject, initBucketName, isRecursive = true, traceId = Some(traceId)).compile.drain
+    } yield ()
+  }
 
   def initializeBucketObjects(initBucketName: GcsBucketName,
                               serviceAccountKey: Option[ServiceAccountKey],
                               templateValues: RuntimeTemplateValues,
-                              customClusterEnvironmentVariables: Map[String, String]): Stream[F, Unit] = {
+                              customClusterEnvironmentVariables: Map[String, String])(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = templateValues.toMap
 

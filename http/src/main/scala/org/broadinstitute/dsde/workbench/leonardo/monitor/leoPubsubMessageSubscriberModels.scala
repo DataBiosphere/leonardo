@@ -46,6 +46,7 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
 sealed trait LeoPubsubMessage {
   def traceId: Option[TraceId]
   def messageType: LeoPubsubMessageType
+  def runtimeId: Long
 }
 
 object LeoPubsubMessage {
@@ -58,9 +59,10 @@ object LeoPubsubMessage {
   final case class RuntimeTransitionMessage(runtimePatchDetails: RuntimePatchDetails, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.TransitionFinished
+    val runtimeId = runtimePatchDetails.runtimeId
   }
 
-  final case class CreateRuntimeMessage(id: Long,
+  final case class CreateRuntimeMessage(runtimeId: Long,
                                         runtimeProjectAndName: RuntimeProjectAndName,
                                         serviceAccountInfo: ServiceAccountInfo,
                                         asyncRuntimeFields: Option[AsyncRuntimeFields],
@@ -232,24 +234,25 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "traceId"
-    )(x =>
-      (x.messageType,
-       x.id,
-       x.runtimeProjectAndName,
-       x.serviceAccountInfo,
-       x.asyncRuntimeFields,
-       x.auditInfo,
-       x.jupyterExtensionUri,
-       x.jupyterUserScriptUri,
-       x.jupyterStartUserScriptUri,
-       x.userJupyterExtensionConfig,
-       x.defaultClientId,
-       x.runtimeImages,
-       x.scopes,
-       x.welderEnabled,
-       x.customEnvironmentVariables,
-       x.runtimeConfig,
-       x.traceId)
+    )(
+      x =>
+        (x.messageType,
+         x.runtimeId,
+         x.runtimeProjectAndName,
+         x.serviceAccountInfo,
+         x.asyncRuntimeFields,
+         x.auditInfo,
+         x.jupyterExtensionUri,
+         x.jupyterUserScriptUri,
+         x.jupyterStartUserScriptUri,
+         x.userJupyterExtensionConfig,
+         x.defaultClientId,
+         x.runtimeImages,
+         x.scopes,
+         x.welderEnabled,
+         x.customEnvironmentVariables,
+         x.runtimeConfig,
+         x.traceId)
     )
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =

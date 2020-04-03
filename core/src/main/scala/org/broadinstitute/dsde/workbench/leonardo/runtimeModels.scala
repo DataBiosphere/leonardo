@@ -76,16 +76,17 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   // Leonardo defined runtime statuses.
 
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
+  // transition statuses
   case object Creating extends RuntimeStatus
-  case object Running extends RuntimeStatus
-  case object Updating extends RuntimeStatus
-  case object Error extends RuntimeStatus
+  case object Updating extends RuntimeStatus //only for dataproc status
   case object Deleting extends RuntimeStatus
-
-  case object Unknown extends RuntimeStatus
-  case object Stopping extends RuntimeStatus
-  case object Stopped extends RuntimeStatus
   case object Starting extends RuntimeStatus
+  case object Stopping extends RuntimeStatus
+
+  case object Running extends RuntimeStatus
+  case object Error extends RuntimeStatus
+  case object Unknown extends RuntimeStatus
+  case object Stopped extends RuntimeStatus
   case object Deleted extends RuntimeStatus
 
   def fromDataprocClusterStatus(dataprocClusterStatus: DataprocClusterStatus): RuntimeStatus =

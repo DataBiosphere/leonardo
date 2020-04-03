@@ -48,7 +48,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, Servic
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
@@ -68,7 +67,6 @@ object Boot extends IOApp {
     implicit val logger = Slf4jLogger.getLogger[IO]
 
     createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
-      implicit val metrics = appDependencies.metrics
       implicit val openTelemetry = appDependencies.openTelemetryMetrics
       implicit val dbRef = appDependencies.dbReference
 
@@ -81,7 +79,6 @@ object Boot extends IOApp {
       )
       val bucketHelper = new BucketHelper(bucketHelperConfig,
                                           appDependencies.googleComputeService,
-                                          appDependencies.googleStorageDAO,
                                           appDependencies.google2StorageDao,
                                           appDependencies.googleProjectDAO,
                                           appDependencies.serviceAccountProvider,
@@ -121,39 +118,6 @@ object Boot extends IOApp {
                                                 bucketHelper,
                                                 appDependencies.dockerDAO,
                                                 appDependencies.publisherQueue)
-
-      if (leoExecutionModeConfig.backLeo) {
-        implicit def clusterToolToToolDao =
-          ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
-                                       appDependencies.welderDAO,
-                                       appDependencies.rStudioDAO)
-        system.actorOf(
-          ClusterMonitorSupervisor.props(
-            monitorConfig,
-            dataprocConfig,
-            gceConfig,
-            imageConfig,
-            clusterBucketConfig,
-            appDependencies.googleDataprocDAO,
-            appDependencies.googleComputeService,
-            appDependencies.googleStorageDAO,
-            appDependencies.google2StorageDao,
-            appDependencies.authProvider,
-            autoFreezeConfig,
-            appDependencies.jupyterDAO,
-            appDependencies.rStudioDAO,
-            appDependencies.welderDAO,
-            appDependencies.publisherQueue
-          )
-        )
-        system.actorOf(
-          ClusterToolMonitor.props(clusterToolMonitorConfig,
-                                   appDependencies.googleDataprocDAO,
-                                   appDependencies.googleProjectDAO,
-                                   appDependencies.dbReference,
-                                   appDependencies.metrics)
-        )
-      }
       val clusterDateAccessedActor =
         system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
       val proxyService = new ProxyService(proxyConfig,
@@ -174,8 +138,6 @@ object Boot extends IOApp {
         gceConfig
       )
       val runtimeService = new RuntimeServiceInterp[IO](
-        appDependencies.blocker,
-        appDependencies.semaphore,
         runtimeServiceConfig,
         appDependencies.authProvider,
         appDependencies.serviceAccountProvider,
@@ -210,13 +172,63 @@ object Boot extends IOApp {
       } yield ()
 
       val allStreams = {
-        val extra =
-          if (leoExecutionModeConfig.backLeo) {
-            // only needed for backleo
-            val pubsubSubscriber: LeoPubsubMessageSubscriber[IO] =
-              new LeoPubsubMessageSubscriber(appDependencies.subscriber)
-            List(pubsubSubscriber.process, Stream.eval(appDependencies.subscriber.start), zombieClusterMonitor.process)
-          } else List.empty[Stream[IO, Unit]]
+        val extra = if (leoExecutionModeConfig.backLeo) {
+          implicit def clusterToolToToolDao =
+            ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
+                                         appDependencies.welderDAO,
+                                         appDependencies.rStudioDAO)
+          system.actorOf(
+            ClusterMonitorSupervisor.props(
+              monitorConfig,
+              dataprocConfig,
+              gceConfig,
+              imageConfig,
+              clusterBucketConfig,
+              appDependencies.googleDataprocDAO,
+              appDependencies.googleComputeService,
+              appDependencies.google2StorageDao,
+              appDependencies.authProvider,
+              appDependencies.rStudioDAO,
+              appDependencies.welderDAO,
+              appDependencies.publisherQueue
+            )
+          )
+          system.actorOf(
+            ClusterToolMonitor.props(clusterToolMonitorConfig,
+                                     appDependencies.dbReference,
+                                     appDependencies.openTelemetryMetrics)
+          )
+
+          val gceRuntimeMonitor = new GceRuntimeMonitorInterp[IO](
+            gceMonitorConfig,
+            appDependencies.googleComputeService,
+            appDependencies.authProvider,
+            appDependencies.google2StorageDao,
+            gceInterp
+          )
+
+          val monitorAtBoot = new MonitorAtBoot[IO](gceRuntimeMonitor, appDependencies.publisherQueue)
+
+          // only needed for backleo
+          val pubsubSubscriber =
+            new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(gceConfig.zoneName),
+                                               appDependencies.subscriber,
+                                               appDependencies.googleComputeService,
+                                               gceRuntimeMonitor,
+              appDependencies.welderDAO)
+
+          val autopauseMonitor = AutopauseMonitor(
+            autoFreezeConfig,
+            appDependencies.jupyterDAO,
+            appDependencies.publisherQueue
+          )
+          List(pubsubSubscriber.process,
+               Stream.eval(appDependencies.subscriber.start),
+               zombieClusterMonitor.process, // mark runtimes that are no long active in google as zombie periodically
+               monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
+               autopauseMonitor.process // check database to autopause runtimes periodically
+          )
+        } else List.empty[Stream[IO, Unit]]
 
         List(
           appDependencies.publisherStream, //start the publisher queue .dequeue
@@ -248,7 +260,6 @@ object Boot extends IOApp {
   private def createDependencies[F[_]: StructuredLogger: ContextShift: ConcurrentEffect: Timer](
     pathToCredentialJson: String
   )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
-    implicit val metrics = NewRelicMetrics.fromNewRelic[F](applicationConfig.applicationName)
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
@@ -265,6 +276,11 @@ object Boot extends IOApp {
       concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
       dbRef <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig, blocker)
+      // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
+      // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
+      // As best practice, we should have all related metrics under same prefix separated by `/`
+      implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
+        .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName, blocker)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
       dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
       jupyterDao = new HttpJupyterDAO[F](clusterDnsCache, clientWithRetryAndLogging)
@@ -278,7 +294,6 @@ object Boot extends IOApp {
       json = Json(credentialJson)
       jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
 
-      googleStorageDAO = new HttpGoogleStorageDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       petGoogleStorageDAO = (token: String) =>
         new HttpGoogleStorageDAO(applicationConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
@@ -303,16 +318,10 @@ object Boot extends IOApp {
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
       googleComputeService <- GoogleComputeService.resource(pathToCredentialJson, blocker, semaphore)
-      // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
-      // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
-      // As best practice, we should have all related metrics under same prefix separated by `/`
-      openTelemetry <- OpenTelemetryMetrics
-        .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName, blocker)
     } yield AppDependencies(
       storage,
       dbRef,
       clusterDnsCache,
-      googleStorageDAO,
       petGoogleStorageDAO,
       googleComputeService,
       googleProjectDAO,
@@ -326,7 +335,6 @@ object Boot extends IOApp {
       rstudioDAO,
       serviceAccountProvider,
       authProvider,
-      metrics,
       openTelemetry,
       blocker,
       semaphore,
@@ -356,7 +364,6 @@ object Boot extends IOApp {
 final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F],
                                        dbReference: DbReference[F],
                                        clusterDnsCache: ClusterDnsCache[F],
-                                       googleStorageDAO: HttpGoogleStorageDAO,
                                        petGoogleStorageDAO: String => GoogleStorageDAO,
                                        googleComputeService: GoogleComputeService[F],
                                        googleProjectDAO: HttpGoogleProjectDAO,
@@ -370,7 +377,6 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        rStudioDAO: RStudioDAO[F],
                                        serviceAccountProvider: ServiceAccountProvider[F],
                                        authProvider: LeoAuthProvider[F],
-                                       metrics: NewRelicMetrics[F],
                                        openTelemetryMetrics: OpenTelemetryMetrics[F],
                                        blocker: Blocker,
                                        semaphore: Semaphore[F],

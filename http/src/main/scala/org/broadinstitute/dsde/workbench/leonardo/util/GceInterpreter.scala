@@ -8,27 +8,21 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  GoogleComputeService,
-  InstanceName,
-  MachineTypeName,
-  SubnetworkName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, InstanceName, MachineTypeName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
-import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
@@ -47,7 +41,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   val system: ActorSystem,
-  metrics: NewRelicMetrics[F],
+  metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F] {
@@ -104,6 +98,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
       templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
 
+      _ <- Logger[F].info(s"1111 scopes: ${params.scopes.toList}")
       _ <- bucketHelper
         .initializeBucketObjects(initBucketName,
                                  templateParams.serviceAccountKey,
@@ -120,7 +115,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       instance = Instance
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)
-        .setDescription("Leonardo VM")
+        .setDescription("Leonardo Managed VM")
         .setTags(Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build())
         .setMachineType(buildMachineTypeUri(config.gceConfig.zoneName, params.runtimeConfig.machineType))
         .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork))
@@ -131,7 +126,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
             .setInitializeParams(
               AttachedDiskInitializeParams
                 .newBuilder()
-                .setDescription("Leonardo Persistent Disk")
+                .setDescription("Leonardo Managed Persistent Disk")
                 .setSourceImage(config.gceConfig.customGceImage.asString)
                 .setDiskSizeGb(params.runtimeConfig.diskSize.gb.toString)
                 .putAllLabels(Map("leonardo" -> "true").asJava)

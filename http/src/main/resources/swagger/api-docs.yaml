@@ -1384,10 +1384,10 @@ components:
             $ref: "#/components/schemas/UpdateRuntimeRequest"
           example:
             allowStop: true
-            updatedRuntimeConfig:
+            runtimeConfig:
               cloudService: gce
-              updatedMachineType: n1-highmem-16
-              updatedDiskSize: 500
+              machineType: n1-highmem-16
+              diskSize: 500
     # legacy
     ClusterRequest:
       content:
