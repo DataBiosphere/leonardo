@@ -3,7 +3,7 @@ import sbt._
 object Dependencies {
   val scalaV = "2.12"
 
-  val akkaV = "2.6.1"
+  val akkaV = "2.6.3"
   val akkaHttpV = "10.1.11"
   val jacksonV = "2.9.9"
   val jacksonDatabindV = "2.9.9.2" // jackson-databind has a security patch on the 2.9.9 branch
