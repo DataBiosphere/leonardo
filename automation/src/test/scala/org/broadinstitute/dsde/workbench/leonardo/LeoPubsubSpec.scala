@@ -7,8 +7,8 @@ import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.scalatest.time.{Minutes, Span}
 import org.scalatest.DoNotDiscover
 
-@DoNotDiscover
-class LeoPubsubSpec extends ClusterFixtureSpec with LeonardoTestUtils {
+//@DoNotDiscover
+class LeoPubsubSpec extends RuntimeFixtureSpec with LeonardoTestUtils {
 
   "Google publisher should be able to auth" in { _ =>
     logger.info(s"publisher config is: ${LeonardoConfig.Leonardo.publisherConfig}")
