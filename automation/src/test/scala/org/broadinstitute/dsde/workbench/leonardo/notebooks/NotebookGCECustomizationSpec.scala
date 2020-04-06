@@ -18,113 +18,113 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
 
   "NotebookGCECustomizationSpec" - {
 
-    "should run a user script" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      // Create a new bucket
-      withNewGoogleBucket(billingProject) { bucketName =>
-        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
-        googleStorageDAO.setBucketAccessControl(bucketName,
-                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                GcsRoles.Owner)
-
-        // Add the user script to the bucket
-        val userScriptString = "#!/usr/bin/env bash\n\npip3 install mock"
-        val userScriptObjectName = GcsObjectName("user-script.sh")
-        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
-
-        withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
-          googleStorageDAO.setObjectAccessControl(bucketName,
-                                                  objectName,
-                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                  GcsRoles.Owner)
-
-          // Create a new cluster using the URI of the user script
-          val clusterRequestWithUserScript = defaultRuntimeRequest.copy(Map(), None, Option(userScriptUri))
-          withNewRuntime(billingProject, request = clusterRequestWithUserScript) { cluster =>
-            Thread.sleep(10000)
-            withWebDriver { implicit driver =>
-              // Create a notebook that will check if the user script ran
-              withNewNotebook(cluster, Python3) { notebookPage =>
-                notebookPage.executeCell("""print("Hello Notebook!")""") shouldBe Some("Hello Notebook!")
-                notebookPage.executeCell("""import mock""") shouldBe None
-              }
-            }
-          }(ronAuthToken)
-        }
-      }
-    }
-
-    // Using nbtranslate extension from here:
-    // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
-      withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
-        translateExtensionBucketPath =>
-          val extensionConfig = multiExtensionClusterRequest.copy(
-            nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
-          )
-          withNewRuntime(billingProject,
-                         request = defaultRuntimeRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {
-            cluster =>
-              withWebDriver { implicit driver =>
-                withNewNotebook(cluster, Python3) { notebookPage =>
-                  // Check the extensions were installed
-                  val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-                  nbExt.get should include("jupyter-gmaps/extension  enabled")
-                  nbExt.get should include("pizzabutton/index  enabled")
-                  nbExt.get should include("translate_nbextension/main  enabled")
-                  // should be installed by default
-                  nbExt.get should include("toc2/main  enabled")
-
-                  val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-                  serverExt.get should include("pizzabutton  enabled")
-                  serverExt.get should include("jupyterlab  enabled")
-                  // should be installed by default
-                  serverExt.get should include("jupyter_nbextensions_configurator  enabled")
-
-                  // Exercise the translate extension
-                  notebookPage.translateMarkup("Yes") should include("Oui")
-                }
-              }
-          }
-      }
-    }
-
-    //MAKE SURE SCOPES ARE BEING USED PROPERLY IN THE CLUSTERCOPY
-    "should give cluster user-specified scopes" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      withNewRuntime(
-        billingProject,
-        request = defaultRuntimeRequest.copy(
-          scopes = Set(
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/source.read_only"
-          )
-        )
-
-      ) { cluster =>
-        withWebDriver { implicit driver =>
-            //With Scopes
-          withNewNotebook(cluster) { notebookPage =>
-
-            val query =
-              """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
-
-            // Result should fail due to insufficient scopes.
-            // Note we used to check for 'Invalid credential' in the result but the error message from
-            // Google does not seem stable.
-            val result = notebookPage.executeCell(query, timeout = 5.minutes).get
-            result should include("BigQuery error in query operation")
-            result should not include "scullion_count"
-          }
-        }
-      }
-    }
+//    "should run a user script" in { billingProject =>
+//      implicit val ronToken: AuthToken = ronAuthToken
+//
+//      // Create a new bucket
+//      withNewGoogleBucket(billingProject) { bucketName =>
+//        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
+//        googleStorageDAO.setBucketAccessControl(bucketName,
+//                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+//                                                GcsRoles.Owner)
+//
+//        // Add the user script to the bucket
+//        val userScriptString = "#!/usr/bin/env bash\n\npip3 install mock"
+//        val userScriptObjectName = GcsObjectName("user-script.sh")
+//        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
+//
+//        withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
+//          googleStorageDAO.setObjectAccessControl(bucketName,
+//                                                  objectName,
+//                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+//                                                  GcsRoles.Owner)
+//
+//          // Create a new cluster using the URI of the user script
+//          val clusterRequestWithUserScript = defaultRuntimeRequest.copy(Map(), None, Option(userScriptUri))
+//          withNewRuntime(billingProject, request = clusterRequestWithUserScript) { cluster =>
+//            Thread.sleep(10000)
+//            withWebDriver { implicit driver =>
+//              // Create a notebook that will check if the user script ran
+//              withNewNotebook(cluster, Python3) { notebookPage =>
+//                notebookPage.executeCell("""print("Hello Notebook!")""") shouldBe Some("Hello Notebook!")
+//                notebookPage.executeCell("""import mock""") shouldBe None
+//              }
+//            }
+//          }(ronAuthToken)
+//        }
+//      }
+//    }
+//
+//    // Using nbtranslate extension from here:
+//    // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
+//    "should install user specified notebook extensions" in { billingProject =>
+//      implicit val ronToken: AuthToken = ronAuthToken
+//
+//      val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
+//      withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
+//        translateExtensionBucketPath =>
+//          val extensionConfig = multiExtensionClusterRequest.copy(
+//            nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
+//          )
+//          withNewRuntime(billingProject,
+//                         request = defaultRuntimeRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {
+//            cluster =>
+//              withWebDriver { implicit driver =>
+//                withNewNotebook(cluster, Python3) { notebookPage =>
+//                  // Check the extensions were installed
+//                  val nbExt = notebookPage.executeCell("! jupyter nbextension list")
+//                  nbExt.get should include("jupyter-gmaps/extension  enabled")
+//                  nbExt.get should include("pizzabutton/index  enabled")
+//                  nbExt.get should include("translate_nbextension/main  enabled")
+//                  // should be installed by default
+//                  nbExt.get should include("toc2/main  enabled")
+//
+//                  val serverExt = notebookPage.executeCell("! jupyter serverextension list")
+//                  serverExt.get should include("pizzabutton  enabled")
+//                  serverExt.get should include("jupyterlab  enabled")
+//                  // should be installed by default
+//                  serverExt.get should include("jupyter_nbextensions_configurator  enabled")
+//
+//                  // Exercise the translate extension
+//                  notebookPage.translateMarkup("Yes") should include("Oui")
+//                }
+//              }
+//          }
+//      }
+//    }
+//
+//    //MAKE SURE SCOPES ARE BEING USED PROPERLY IN THE CLUSTERCOPY
+//    "should give cluster user-specified scopes" in { billingProject =>
+//      implicit val ronToken: AuthToken = ronAuthToken
+//
+//      withNewRuntime(
+//        billingProject,
+//        request = defaultRuntimeRequest.copy(
+//          scopes = Set(
+//            "https://www.googleapis.com/auth/userinfo.email",
+//            "https://www.googleapis.com/auth/userinfo.profile",
+//            "https://www.googleapis.com/auth/source.read_only"
+//          )
+//        )
+//
+//      ) { cluster =>
+//        withWebDriver { implicit driver =>
+//            //With Scopes
+//          withNewNotebook(cluster) { notebookPage =>
+//
+//            val query =
+//              """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+//
+//            // Result should fail due to insufficient scopes.
+//            // Note we used to check for 'Invalid credential' in the result but the error message from
+//            // Google does not seem stable.
+//            val result = notebookPage.executeCell(query, timeout = 5.minutes).get
+//            result should include("BigQuery error in query operation")
+//            result should not include "scullion_count"
+//          }
+//        }
+//      }
+//    }
 
     //SEE IF THE CUSTOMCLUSTERENVIRONMENTVARIABLES are being assigned properly
     "should populate user-specified environment variables" in { billingProject =>
@@ -147,52 +147,52 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
-    "should execute user-specified start script" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      withNewGoogleBucket(billingProject) { bucketName =>
-        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
-        googleStorageDAO.setBucketAccessControl(bucketName,
-                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                GcsRoles.Owner)
-
-        // Add the user script to the bucket. This script increments and writes a count to file,
-        // tracking the number of times it has been invoked.
-        val startScriptString = "#!/usr/bin/env bash\n\n" +
-          "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
-          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt"
-        val startScriptObjectName = GcsObjectName("start-script.sh")
-        val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
-
-        withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
-          googleStorageDAO.setObjectAccessControl(bucketName,
-                                                  objectName,
-                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                  GcsRoles.Owner)
-
-          withNewRuntime(billingProject,
-                         request = defaultRuntimeRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
-            cluster =>
-              withWebDriver { implicit driver =>
-                withNewNotebook(cluster, Python3) { notebookPage =>
-                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
-                }
-
-                // Stop the cluster
-                stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
-
-                // Start the cluster
-                startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
-
-                withNewNotebook(cluster, Python3) { notebookPage =>
-                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
-                }
-              }
-          }
-
-        }
-      }
-    }
+//    "should execute user-specified start script" in { billingProject =>
+//      implicit val ronToken: AuthToken = ronAuthToken
+//
+//      withNewGoogleBucket(billingProject) { bucketName =>
+//        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
+//        googleStorageDAO.setBucketAccessControl(bucketName,
+//                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+//                                                GcsRoles.Owner)
+//
+//        // Add the user script to the bucket. This script increments and writes a count to file,
+//        // tracking the number of times it has been invoked.
+//        val startScriptString = "#!/usr/bin/env bash\n\n" +
+//          "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
+//          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt"
+//        val startScriptObjectName = GcsObjectName("start-script.sh")
+//        val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
+//
+//        withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
+//          googleStorageDAO.setObjectAccessControl(bucketName,
+//                                                  objectName,
+//                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+//                                                  GcsRoles.Owner)
+//
+//          withNewRuntime(billingProject,
+//                         request = defaultRuntimeRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
+//            cluster =>
+//              withWebDriver { implicit driver =>
+//                withNewNotebook(cluster, Python3) { notebookPage =>
+//                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
+//                }
+//
+//                // Stop the cluster
+//                stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+//
+//                // Start the cluster
+//                startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+//
+//                withNewNotebook(cluster, Python3) { notebookPage =>
+//                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
+//                }
+//              }
+//          }
+//
+//        }
+//      }
+//    }
 
     // TODO: This test has flaky selenium logic, ignoring for now. More details in:
     // https://broadworkbench.atlassian.net/browse/QA-1027
