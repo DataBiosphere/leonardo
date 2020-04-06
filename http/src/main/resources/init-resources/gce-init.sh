@@ -102,7 +102,7 @@ export JUPYTER_SERVER_NAME=$(jupyterServerName)
 export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
 export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
-export JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputBaseUri)-$(date -u "+%Y.%m.%d-%H.%M.%S").txt"
+export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
 export NOTEBOOKS_DIR=$(notebooksDir)
 export WELDER_SERVER_NAME=$(welderServerName)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)

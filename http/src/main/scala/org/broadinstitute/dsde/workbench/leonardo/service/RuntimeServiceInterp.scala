@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   CreateRuntime2Request,
-  RuntimeServiceContext,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
@@ -69,7 +68,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: CreateRuntime2Request
-  )(implicit as: ApplicativeAsk[F, RuntimeServiceContext]): F[Unit] =
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
       hasPermission <- authProvider.hasProjectPermission(userInfo, ProjectActions.CreateClusters, googleProject)
@@ -158,7 +157,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     } yield ()
 
   override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+    implicit as: ApplicativeAsk[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
       // throws 404 if not existent
@@ -173,7 +172,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
-    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+    implicit as: ApplicativeAsk[F, AppContext]
   ): F[Vector[ListRuntimeResponse]] =
     for {
       paramMap <- F.fromEither(processListClustersParameters(params))
@@ -191,7 +190,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     }
 
   override def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+    implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       // throw 404 if not existent
@@ -234,7 +233,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     } yield ()
 
   def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+    implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       // throw 404 if not existent
@@ -267,7 +266,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
+    implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       // throw 404 if not existent
@@ -304,7 +303,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: UpdateRuntimeRequest
-  )(implicit as: ApplicativeAsk[F, RuntimeServiceContext]): F[Unit] =
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
@@ -410,7 +409,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
         res.recoverWith {
           case e: BaseServiceException if e.getCode == StatusCodes.Forbidden.intValue =>
             log.error(e)(
-              s"User ${userEmail.value} does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}"
+              s"User ${userEmail.value}'s PET account does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}"
             ) >> F.raiseError(BucketObjectAccessException(userEmail, gcsPath))
           case e: BaseServiceException if e.getCode == 401 =>
             log.warn(e)(s"Could not validate object [${gcsUri}] as user [${userEmail.value}]")

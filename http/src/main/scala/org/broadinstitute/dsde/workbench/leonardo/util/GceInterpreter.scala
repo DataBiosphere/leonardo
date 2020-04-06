@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo
+package util
 
 import akka.actor.ActorSystem
 import cats.Parallel
@@ -15,7 +16,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -24,9 +24,11 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
+import GceInterpreter._
+import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 
 final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
@@ -52,9 +54,10 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   override def createRuntime(
     params: CreateRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[CreateRuntimeResponse] =
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse] =
     // TODO clean up on error
     for {
+      ctx <- ev.ask
       // Set up VPC and firewall
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
         SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
@@ -99,7 +102,15 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         Some(resourceConstraints)
       )
 
-      _ <- bucketHelper.initializeBucketObjects(initBucketName, templateParams, params.customEnvironmentVariables).compile.drain
+      templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
+
+      _ <- bucketHelper
+        .initializeBucketObjects(initBucketName,
+                                 templateParams.serviceAccountKey,
+                                 templateValues,
+                                 params.customEnvironmentVariables)
+        .compile
+        .drain
 
       serviceAccount <- params.serviceAccountInfo.clusterServiceAccount.fold(
         Async[F].raiseError[WorkbenchEmail](MissingServiceAccountException(params.runtimeProjectAndName))
@@ -143,6 +154,12 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                 .setValue(initScript.toUri)
                 .build()
             )
+            .addItems(
+              Items.newBuilder
+                .setKey(userScriptStartupOutputUriMetadataKey)
+                .setValue(templateValues.jupyterStartUserScriptOutputUri)
+                .build()
+            )
             .build()
         )
         .putAllLabels(Map("leonardo" -> "true").asJava)
@@ -169,15 +186,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       )
       status <- googleComputeService
         .getInstance(params.googleProject, zoneName, InstanceName(params.runtimeName.asString))
-        .map { instance =>
-          instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(
-            s =>
-              GceInstanceStatus
-                .withNameInsensitiveOption(s.getStatus)
-                .map(RuntimeStatus.fromGceInstanceStatus)
-                .getOrElse(RuntimeStatus.Unknown)
-          )
-        }
+        .map(instanceStatusToRuntimeStatus)
     } yield status
 
   override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
@@ -197,10 +206,11 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   override protected def startGoogleRuntime(runtime: Runtime,
                                             welderAction: Option[WelderAction],
                                             runtimeConfig: RuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
-      metadata <- getStartupScript(runtime, welderAction, blocker)
+      ctx <- ev.ask
+      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker)
       // remove the startup-script-url metadata entry if present which is only used at creation time
       _ <- googleComputeService.modifyInstanceMetadata(
         runtime.googleProject,
@@ -267,4 +277,15 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, subnetwork))
       .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build)
       .build
+}
+
+object GceInterpreter {
+  def instanceStatusToRuntimeStatus(instance: Option[Instance]): RuntimeStatus =
+    instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(
+      s =>
+        GceInstanceStatus
+          .withNameInsensitiveOption(s.getStatus)
+          .map(RuntimeStatus.fromGceInstanceStatus)
+          .getOrElse(RuntimeStatus.Unknown)
+    )
 }

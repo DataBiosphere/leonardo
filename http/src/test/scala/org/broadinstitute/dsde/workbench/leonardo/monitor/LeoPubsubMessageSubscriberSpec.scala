@@ -7,6 +7,7 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.concurrent.InspectableQueue
@@ -56,6 +57,7 @@ class LeoPubsubMessageSubscriberSpec
   val projectDAO = new MockGoogleProjectDAO
   val authProvider = mock[LeoAuthProvider[IO]]
   val currentTime = Instant.now
+  implicit val appContext: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const(AppContext.generate.unsafeRunSync())
 
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     new MockGoogleStorageDAO

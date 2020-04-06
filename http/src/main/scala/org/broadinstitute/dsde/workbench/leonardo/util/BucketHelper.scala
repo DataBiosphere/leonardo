@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, GoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleComputeService, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperConfig,
@@ -92,10 +92,11 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     Async[F].liftIO(IO.fromFuture(IO(googleStorageDAO.deleteBucket(initBucketName, recurse = true))))
 
   def initializeBucketObjects(initBucketName: GcsBucketName,
-                              templateConfig: RuntimeTemplateValuesConfig,
+                              serviceAccountKey: Option[ServiceAccountKey],
+                              templateValues: RuntimeTemplateValues,
                               customClusterEnvironmentVariables: Map[String, String]): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements = RuntimeTemplateValues(templateConfig).toMap
+    val replacements = templateValues.toMap
 
     // Jupyter allows setting of arbitrary environment variables on cluster creation if they are passed in to
     // docker-compose as a file of format:
@@ -150,7 +151,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     } yield ()
 
     val uploadPrivateKey = for {
-      k <- Stream(templateConfig.serviceAccountKey).unNone
+      k <- Stream(serviceAccountKey).unNone
       data <- Stream(k.privateKeyData.decode).unNone
       _ <- storeObject(initBucketName,
                        GcsBlobName(RuntimeTemplateValues.serviceAccountCredentialsFilename),

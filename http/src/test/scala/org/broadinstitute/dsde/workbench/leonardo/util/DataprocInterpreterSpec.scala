@@ -6,6 +6,7 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
@@ -36,9 +37,11 @@ class DataprocInterpreterSpec
     with TestComponent
     with Matchers
     with BeforeAndAfterAll
-    with ScalaFutures {
+    with ScalaFutures
+    with LeonardoTestSuite {
 
   implicit val nr = FakeNewRelicMetricsInterpreter
+  implicit val appContext: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const(AppContext.generate.unsafeRunSync())
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO

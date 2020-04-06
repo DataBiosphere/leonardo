@@ -10,9 +10,10 @@ import akka.testkit.TestKit
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{Operation => GoogleOperation, _}
+import com.google.cloud.storage.Blob
 import fs2.concurrent.InspectableQueue
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.RetryConfig
+import org.broadinstitute.dsde.workbench.{model, RetryConfig}
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
@@ -55,7 +56,6 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -1561,6 +1561,18 @@ class ClusterMonitorSpec
     }
 
   }
+
+  it should "check whether user script has failed correctly" in {
+    ClusterMonitor.checkUserScripts(None, FakeGoogleStorageService).unsafeRunSync() shouldBe (true)
+    ClusterMonitor
+      .checkUserScripts(Some(model.google.GcsPath(GcsBucketName("failure"), GcsObjectName(""))),
+                        FakeGoogleStorageService)
+      .unsafeRunSync() shouldBe (false)
+    ClusterMonitor
+      .checkUserScripts(Some(model.google.GcsPath(GcsBucketName("success"), GcsObjectName(""))),
+                        FakeGoogleStorageService)
+      .unsafeRunSync() shouldBe (true)
+  }
 }
 
 object FakeGoogleStorageService extends BaseFakeGoogleStorage {
@@ -1569,4 +1581,19 @@ object FakeGoogleStorageService extends BaseFakeGoogleStorage {
                                  traceId: Option[TraceId],
                                  retryConfig: RetryConfig): fs2.Stream[IO, GetMetadataResponse] =
     fs2.Stream.empty.covary[IO]
+
+  override def getBlob(bucketName: GcsBucketName,
+                       blobName: GcsBlobName,
+                       traceId: Option[TraceId],
+                       retryConfig: RetryConfig): fs2.Stream[IO, Blob] =
+    bucketName match {
+      case GcsBucketName("nonExistent") => fs2.Stream.empty
+      case GcsBucketName("failure") =>
+        super.createBlob(bucketName, blobName, Array.empty[Byte], "text/plain", Map("passed" -> "false")) >> super
+          .getBlob(bucketName, blobName)
+      case GcsBucketName("success") =>
+        super.createBlob(bucketName, blobName, Array.empty[Byte], "text/plain", Map("passed" -> "true")) >> super
+          .getBlob(bucketName, blobName)
+      case _ => super.getBlob(bucketName, blobName, traceId)
+    }
 }
