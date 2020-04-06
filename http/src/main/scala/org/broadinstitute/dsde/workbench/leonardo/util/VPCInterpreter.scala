@@ -14,6 +14,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.collection.JavaConverters._
+import org.broadinstitute.dsde.workbench.DoneCheckableInstances.computeDoneCheckable
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 
 final case class InvalidVPCSetupException(project: GoogleProject)
     extends LeoException(s"Invalid VPC configuration in project ${project.value}")

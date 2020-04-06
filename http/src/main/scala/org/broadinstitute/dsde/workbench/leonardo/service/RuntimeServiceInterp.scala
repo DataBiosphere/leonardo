@@ -19,19 +19,8 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  DbReference,
-  LeonardoServiceDbQueries,
-  RuntimeConfigQueries,
-  SaveCluster
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateRuntime2Request,
-  ListRuntimeResponse2,
-  UpdateRuntimeConfigRequest,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, LeonardoServiceDbQueries, RuntimeConfigQueries, RuntimeServiceDbQueries, SaveCluster, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, ListRuntimeResponse2, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -167,13 +156,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
-<<<<<<< HEAD
     implicit as: ApplicativeAsk[F, AppContext]
-  ): F[Vector[ListRuntimeResponse]] =
-=======
-    implicit as: ApplicativeAsk[F, RuntimeServiceContext]
   ): F[Vector[ListRuntimeResponse2]] =
->>>>>>> fix compile error
     for {
       paramMap <- F.fromEither(processListClustersParameters(params))
       clusters <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction

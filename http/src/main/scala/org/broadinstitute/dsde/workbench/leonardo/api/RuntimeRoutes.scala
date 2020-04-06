@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import _root_.java.time.Instant
 import java.net.URL
 import java.util.UUID
 

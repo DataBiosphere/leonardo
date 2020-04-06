@@ -3,19 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  FirewallRuleName,
-  GoogleComputeService,
-  InstanceName,
-  MachineTypeName,
-  NetworkName,
-  OperationName,
-  PollOperation,
-  RegionName,
-  SubnetworkName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.google2.{DiskName, FirewallRuleName, GoogleComputeService, InstanceName, MachineTypeName, NetworkName, OperationName, RegionName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -111,12 +100,11 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
   override def pollOperation(project: GoogleProject, operation: Operation, delay: FiniteDuration, maxAttempts: Int)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): fs2.Stream[IO, PollOperation] =
+    implicit ev: ApplicativeAsk[IO, TraceId],
+    doneEv: DoneCheckable[Operation]
+  ): fs2.Stream[IO, Operation] =
     fs2.Stream.emit(
-      PollOperation(
-        Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("DONE").build()
-      )
+      Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("DONE").build()
     )
 }
 
