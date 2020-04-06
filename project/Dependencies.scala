@@ -51,6 +51,9 @@ object Dependencies {
   val excludeAutoValue = ExclusionRule(organization = "com.google.auto.value", name = "auto-value_" + scalaV)
   val excludeAutoValueAnnotation = ExclusionRule(organization = "com.google.auto.value", name = "auto-value_annotations_" + scalaV)
   val excludeFirestore = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-firestore")
+  val excludeBouncyCastle = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-jdk15on")
+  val excludeBouncyCastleExt = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-ext-jdk15on")
+  val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
 
   val jacksonAnnotations: ModuleID =  "com.fasterxml.jackson.core" % "jackson-annotations"  % jacksonV
   val jacksonDatabind: ModuleID =     "com.fasterxml.jackson.core" % "jackson-databind"     % jacksonDatabindV excludeAll (excludeJacksonAnnotation)
@@ -84,7 +87,21 @@ object Dependencies {
   val workbenchUtil: ModuleID =         "org.broadinstitute.dsde.workbench" %% "workbench-util"     % workbenchUtilV excludeAll (excludeWorkbenchModel, excludeGoogleError, excludeGuava)
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
   val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeGuava)
-  val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeFirestore, excludeGuava)
+  val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (excludeWorkbenchUtil,
+    excludeWorkbenchModel,
+    excludeWorkbenchMetrics,
+    excludeIoGrpc,
+    excludeFindbugsJsr,
+    excludeGoogleApiClient,
+    excludeGoogleError,
+    excludeHttpComponent,
+    excludeAutoValue,
+    excludeAutoValueAnnotation,
+    excludeFirestore,
+    excludeBouncyCastle,
+    excludeBouncyCastleExt,
+    excludeSundrCodegen,
+    excludeGuava)
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeGuava)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchMetrics: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-metrics"  % workbenchMetricsV excludeAll (excludeWorkbenchUtil, excludeSlf4j, excludeGuava)
@@ -162,7 +179,7 @@ object Dependencies {
     slick,
     mysql,
     liquibase,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.30.0"
+    "de.heikoseeberger" %% "akka-http-circe" % "1.31.0"
   )
 
   val serviceTestV = "0.16-e6493d5"
