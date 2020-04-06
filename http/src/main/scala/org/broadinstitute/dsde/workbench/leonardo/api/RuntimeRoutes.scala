@@ -280,25 +280,25 @@ object RuntimeRoutes {
 
   implicit val updateGceConfigDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
     for {
-      machineType <- x.downField("updatedMachineType").as[Option[MachineTypeName]]
+      machineType <- x.downField("machineType").as[Option[MachineTypeName]]
       diskSize <- x
-        .downField("updatedDiskSize")
+        .downField("diskSize")
         .as[Option[DiskSize]]
     } yield UpdateRuntimeConfigRequest.GceConfig(machineType, diskSize)
   }
 
   implicit val updateDataprocConfigDecoder: Decoder[UpdateRuntimeConfigRequest.DataprocConfig] = Decoder.instance { x =>
     for {
-      masterMachineType <- x.downField("updatedMasterMachineType").as[Option[MachineTypeName]]
+      masterMachineType <- x.downField("masterMachineType").as[Option[MachineTypeName]]
       diskSize <- x
-        .downField("updatedMasterDiskSize")
+        .downField("masterDiskSize")
         .as[Option[DiskSize]]
-      numWorkers <- x.downField("updatedNumberOfWorkers").as[Option[Int]].flatMap {
+      numWorkers <- x.downField("numberOfWorkers").as[Option[Int]].flatMap {
         case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
         case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
         case x                 => Right(x)
       }
-      numPreemptibles <- x.downField("updatedNumberOfPreemptibleWorkers").as[Option[Int]].flatMap {
+      numPreemptibles <- x.downField("numberOfPreemptibleWorkers").as[Option[Int]].flatMap {
         case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case x                => Right(x)
       }
@@ -319,10 +319,10 @@ object RuntimeRoutes {
 
   implicit val updateRuntimeRequestDecoder: Decoder[UpdateRuntimeRequest] = Decoder.instance { x =>
     for {
-      rc <- x.downField("updatedRuntimeConfig").as[Option[UpdateRuntimeConfigRequest]]
+      rc <- x.downField("runtimeConfig").as[Option[UpdateRuntimeConfigRequest]]
       as <- x.downField("allowStop").as[Option[Boolean]]
-      ap <- x.downField("updatedAutopause").as[Option[Boolean]]
-      at <- x.downField("updatedAutopauseThreshold").as[Option[Int]]
+      ap <- x.downField("autopause").as[Option[Boolean]]
+      at <- x.downField("autopauseThreshold").as[Option[Int]]
     } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes))
   }
 

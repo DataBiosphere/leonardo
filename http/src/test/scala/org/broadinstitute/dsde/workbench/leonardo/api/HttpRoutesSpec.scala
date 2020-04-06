@@ -174,7 +174,7 @@ class HttpRoutesSpec
                            None,
                            None)
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
+      .withEntity(ContentTypes.`application/json`, oneWorker.asJson.spaces2) ~> routes.route ~> check {
       handled shouldBe false
     }
   }
@@ -231,17 +231,17 @@ object HttpRoutesSpec {
 
   implicit val updateGceConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
     "cloudService",
-    "updatedMachineType",
-    "updatedDiskSize"
+    "machineType",
+    "diskSize"
   )(x => (x.cloudService, x.updatedMachineType, x.updatedDiskSize))
 
   implicit val updateDataprocConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.DataprocConfig] =
     Encoder.forProduct5(
       "cloudService",
-      "updatedMasterMachineType",
-      "updatedMasterDiskSize",
-      "updatedNumberOfWorkers",
-      "updatedNumberOfPreemptibleWorkers"
+      "masterMachineType",
+      "masterDiskSize",
+      "numberOfWorkers",
+      "numberOfPreemptibleWorkers"
     )(
       x =>
         (x.cloudService,
@@ -259,10 +259,10 @@ object HttpRoutesSpec {
   }
 
   implicit val updateRuntimeRequestEncoder: Encoder[UpdateRuntimeRequest] = Encoder.forProduct4(
-    "updatedRuntimeConfig",
+    "runtimeConfig",
     "allowStop",
-    "updatedAutopause",
-    "updatedAutopauseThreshold"
+    "autopause",
+    "autopauseThreshold"
   )(
     x =>
       (
