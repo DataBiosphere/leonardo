@@ -17,7 +17,7 @@ import scala.concurrent.duration._
 final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils with GPAllocBeforeAndAfterAll{
 
   "NotebookGCECustomizationSpec" - {
-
+//
 //    "should run a user script" in { billingProject =>
 //      implicit val ronToken: AuthToken = ronAuthToken
 //
@@ -92,8 +92,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
 //          }
 //      }
 //    }
-//
-//    //MAKE SURE SCOPES ARE BEING USED PROPERLY IN THE CLUSTERCOPY
+
+    //MAKE SURE SCOPES ARE BEING USED PROPERLY IN THE CLUSTERCOPY
 //    "should give cluster user-specified scopes" in { billingProject =>
 //      implicit val ronToken: AuthToken = ronAuthToken
 //
