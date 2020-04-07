@@ -21,6 +21,13 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.{
+  ConnectSrc,
+  FrameAncestors,
+  ObjectSrc,
+  ScriptSrc,
+  StyleSrc
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
@@ -214,6 +221,17 @@ object Config {
     )
   }
 
+  implicit val contentSecurityPolicyConfigReader: ValueReader[ContentSecurityPolicyConfig] = ValueReader.relative {
+    config =>
+      ContentSecurityPolicyConfig(
+        config.as[FrameAncestors]("frameAncestors"),
+        config.as[ScriptSrc]("scriptSrc"),
+        config.as[StyleSrc]("styleSrc"),
+        config.as[ConnectSrc]("connectSrc"),
+        config.as[ObjectSrc]("objectSrc")
+      )
+  }
+
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
       config.getString("googleClientId"),
@@ -326,6 +344,11 @@ object Config {
   implicit val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
   implicit val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
+  implicit val frameAncestorsReader: ValueReader[FrameAncestors] = traversableReader[List, String].map(FrameAncestors)
+  implicit val scriptSrcReader: ValueReader[ScriptSrc] = traversableReader[List, String].map(ScriptSrc)
+  implicit val styleSrcReader: ValueReader[StyleSrc] = traversableReader[List, String].map(StyleSrc)
+  implicit val connectSrcReader: ValueReader[ConnectSrc] = traversableReader[List, String].map(ConnectSrc)
+  implicit val objectSrcReader: ValueReader[ObjectSrc] = traversableReader[List, String].map(ObjectSrc)
 
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
@@ -341,8 +364,7 @@ object Config {
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
-  val contentSecurityPolicy =
-    config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
+  val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
 
   implicit val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>
