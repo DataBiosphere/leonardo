@@ -88,8 +88,7 @@ object CommonTestData {
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
-  val contentSecurityPolicy =
-    config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
+  val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),
