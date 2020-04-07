@@ -9,7 +9,7 @@ import scala.concurrent.duration.DurationLong
 /**
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
  */
-//@DoNotDiscover
+@DoNotDiscover
 class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)

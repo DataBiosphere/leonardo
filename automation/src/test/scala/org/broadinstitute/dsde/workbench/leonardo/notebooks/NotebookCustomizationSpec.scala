@@ -15,8 +15,8 @@ import scala.concurrent.duration._
 /**
  * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
  */
-//@DoNotDiscover
-final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils with GPAllocBeforeAndAfterAll{
+@DoNotDiscover
+final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils{
 
   "NotebookCustomizationSpec" - {
 

@@ -6,7 +6,7 @@ import org.scalatest.DoNotDiscover
 /**
  * This spec verifies expected functionality of the Terra GATK+Samtools image.
  */
-//@DoNotDiscover
+@DoNotDiscover
 class NotebookGATKSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.gatkImageUrl)

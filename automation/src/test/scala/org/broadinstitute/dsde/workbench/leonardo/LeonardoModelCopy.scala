@@ -32,31 +32,7 @@ case class  ClusterCopy(clusterName: RuntimeName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
-// Same as DataprocConfig but uses String instead of MachineConfig because of jackson serialization problems
-// https://github.com/FasterXML/jackson-module-scala/issues/209
-/*final case class DataprocConfigCopy(numberOfWorkers: Int,
-                                    masterMachineType: String,
-                                    masterDiskSize: Int, //min 10
-                                    // worker settings are None when numberOfWorkers is 0
-                                    workerMachineType: Option[String] = None,
-                                    workerDiskSize: Option[Int] = None, //min 10
-                                    numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                                    numberOfPreemptibleWorkers: Option[Int] = None)
 
-
-object DataprocConfigCopy {
-
-  def fromDataprocConfig(dataprocConfig: RuntimeConfig.DataprocConfig): DataprocConfigCopy =
-    DataprocConfigCopy(
-      dataprocConfig.numberOfWorkers,
-      dataprocConfig.machineType.value,
-      dataprocConfig.masterDiskSize.gb,
-      dataprocConfig.workerMachineType.map(_.value),
-      dataprocConfig.workerDiskSize.map(_.gb),
-      dataprocConfig.numberOfWorkerLocalSSDs,
-      dataprocConfig.numberOfPreemptibleWorkers
-    )
-}*/
 
 sealed trait RuntimeConfigRequest extends Product with Serializable {
   def typedCloudService: CloudService
@@ -244,5 +220,5 @@ object UpdateRuntimeConfigRequestCopy {
                                   numberOfWorkers: Option[Int],
                                   numberOfPreemptibleWorkers: Option[Int],
                                   cloudService: String = CloudService.Dataproc.asString)
-    extends UpdateRuntimeConfigRequestCopy 
+    extends UpdateRuntimeConfigRequestCopy
 }

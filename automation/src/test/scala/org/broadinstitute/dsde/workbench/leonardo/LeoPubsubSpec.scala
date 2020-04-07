@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.scalatest.time.{Minutes, Span}
 import org.scalatest.{DoNotDiscover, FlatSpec}
 
-//@DoNotDiscover
+@DoNotDiscover
 class LeoPubsubSpec extends FlatSpec with LeonardoTestUtils {
 
   it should "Google publisher should be able to auth" in {

@@ -8,7 +8,7 @@ import scala.concurrent.duration._
 /**
  * This spec verifies notebook functionality specifically around the R kernel.
  */
-//@DoNotDiscover
+@DoNotDiscover
 class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
   "NotebookRKernelSpec" - {

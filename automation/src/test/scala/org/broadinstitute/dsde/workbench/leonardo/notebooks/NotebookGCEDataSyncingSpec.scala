@@ -19,7 +19,7 @@ import scala.language.postfixOps
  * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
  * and welder localization/delocalization.
  */
-//@DoNotDiscover
+@DoNotDiscover
 class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 

@@ -22,8 +22,8 @@ import scala.util.Try
  * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
  * so lives in the notebooks sub-package.
  */
-//@DoNotDiscover
-class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils with GPAllocBeforeAndAfterAll{
+@DoNotDiscover
+class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils{
 
   "NotebookGCEClusterMonitoringSpec" - {
 

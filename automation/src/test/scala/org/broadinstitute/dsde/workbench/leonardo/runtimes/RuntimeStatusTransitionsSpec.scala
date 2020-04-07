@@ -12,8 +12,8 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
  * Note these tests can take a long time so we don't test all edge cases, but these cases
  * should exercise the most commonly used paths through the system.
  */
-//@DoNotDiscover
-class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils with GPAllocBeforeAndAfterAll {
+@DoNotDiscover
+class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "RuntimeStatusTransitionsSpec" - {

@@ -102,17 +102,7 @@ abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
   }
   //should take a parameter from cloudService to determine if it is GCE or Dataproc
   def getClusterRequest(cloudService: CloudService = CloudService.GCE): ClusterRequest = {
-    /*val machineConfig =
-      RuntimeConfig.DataprocConfig(
-        numberOfWorkers = 0,
-        masterDiskSize = DiskSize(500),
-        masterMachineType = MachineTypeName("n1-standard-8"),
-        workerMachineType = Some(MachineTypeName("n1-standard-8")),
-        workerDiskSize = None,
-        numberOfWorkerLocalSSDs = None,
-        numberOfPreemptibleWorkers = None,
-        properties = Map.empty
-      )*/
+
     val machineConfig = cloudService match{
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
@@ -138,7 +128,6 @@ abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
 
     ClusterRequest(
       machineConfig = Some(machineConfig),
-      //runtimeConfig = Some(machineConfig),
       enableWelder = Some(enableWelder),
       toolDockerImage = toolDockerImage,
       autopause = Some(false)

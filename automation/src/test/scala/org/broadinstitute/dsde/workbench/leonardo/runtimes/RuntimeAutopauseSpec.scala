@@ -5,8 +5,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, GPAllocBeforeA
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-//@DoNotDiscover
-class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils with GPAllocBeforeAndAfterAll{
+@DoNotDiscover
+class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils{
 
   implicit val ronToken: AuthToken = ronAuthToken
 

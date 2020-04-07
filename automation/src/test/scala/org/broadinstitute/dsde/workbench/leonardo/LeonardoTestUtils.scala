@@ -198,10 +198,7 @@ trait LeonardoTestUtils
       runtimeRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter")
     ).toMap ++ jupyterExtensions
 
-//    val actualSeen = seen - "clusterServiceAccount" - "notebookServiceAccount"
-//    val actualExpected = expected - "clusterServiceAccount" - "notebookServiceAccount"
-//    logger.info(s"PRINTING SEEN ${actualSeen}")
-//    logger.info(s"PRINTING EXPECTED ${actualExpected}")
+
     (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
 
   }

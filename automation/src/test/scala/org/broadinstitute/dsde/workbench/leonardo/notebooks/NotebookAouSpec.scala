@@ -6,7 +6,7 @@ import org.scalatest.DoNotDiscover
 /**
  * This spec verifies expected functionality of the Terra AoU Jupyter image.
  */
-//@DoNotDiscover
+@DoNotDiscover
 class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.aouImageUrl)
   "NotebookAoUSpec" - {
