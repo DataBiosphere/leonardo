@@ -3,7 +3,7 @@ package http
 package service
 
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, ListRuntimeResponse2, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -19,7 +19,7 @@ trait RuntimeService[F[_]] {
 
   def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
     implicit as: ApplicativeAsk[F, AppContext]
-  ): F[Vector[ListRuntimeResponse]]
+  ): F[Vector[ListRuntimeResponse2]]
 
   def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit as: ApplicativeAsk[F, AppContext]

@@ -14,18 +14,8 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport.runtimeConfigRequestEncoder
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateRuntime2Request,
-  HttpRoutes,
-  TestLeoRoutes,
-  UpdateRuntimeConfigRequest,
-  UpdateRuntimeRequest
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  GetRuntimeResponse,
-  ListRuntimeResponse,
-  RuntimeConfigRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, HttpRoutes, ListRuntimeResponse2, TestLeoRoutes, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.service.MockRuntimeServiceInterp
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
@@ -97,7 +87,7 @@ class HttpRoutesSpec
   it should "list runtimes with a project" in {
     Get("/api/google/v1/runtimes/googleProject") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Vector[ListRuntimeResponse]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
+      responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
       validateRawCookie(header("Set-Cookie"))
     }
   }
@@ -105,7 +95,7 @@ class HttpRoutesSpec
   it should "list runtimes without a project" in {
     Get("/api/google/v1/runtimes") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Vector[ListRuntimeResponse]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
+      responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
       validateRawCookie(header("Set-Cookie"))
     }
   }
@@ -113,7 +103,7 @@ class HttpRoutesSpec
   it should "list runtimes with parameters" in {
     Get("/api/google/v1/runtimes?project=foo&creator=bar") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Vector[ListRuntimeResponse]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
+      responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
       validateRawCookie(header("Set-Cookie"))
     }
   }
@@ -323,41 +313,28 @@ object HttpRoutesSpec {
     )
   }
 
-  implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse] = Decoder.instance { x =>
+  implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]
       clusterName <- x.downField("runtimeName").as[RuntimeName]
       googleProject <- x.downField("googleProject").as[GoogleProject]
-      serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
-      asyncRuntimeFields <- x.downField("asyncRuntimeFields").as[Option[AsyncRuntimeFields]]
       auditInfo <- x.downField("auditInfo").as[AuditInfo]
       machineConfig <- x.downField("runtimeConfig").as[RuntimeConfig]
       clusterUrl <- x.downField("proxyUrl").as[URL]
       status <- x.downField("status").as[RuntimeStatus]
       labels <- x.downField("labels").as[LabelMap]
-      jupyterExtensionUri <- x.downField("jupyterExtensionUri").as[Option[GcsPath]]
-      jupyterUserScriptUri <- x.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
-      autopauseThreshold <- x.downField("autopauseThreshold").as[Int]
-    } yield ListRuntimeResponse(
+      patchInProgress <- x.downField("patchInProgress").as[Boolean]
+    } yield ListRuntimeResponse2(
       id,
-      RuntimeInternalId(""),
+      RuntimeInternalId("fakeId"),
       clusterName,
       googleProject,
-      ServiceAccountInfo(Some(serviceAccount), None),
-      asyncRuntimeFields,
       auditInfo,
       machineConfig,
       clusterUrl,
       status,
       labels,
-      jupyterExtensionUri,
-      jupyterUserScriptUri,
-      Set.empty, //TODO: do this when this field is needed
-      autopauseThreshold,
-      None,
-      false,
-      true,
-      false
+      patchInProgress
     )
   }
 }

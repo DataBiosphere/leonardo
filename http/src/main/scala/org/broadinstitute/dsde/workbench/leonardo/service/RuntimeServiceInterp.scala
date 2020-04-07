@@ -19,31 +19,15 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  DbReference,
-  LeonardoServiceDbQueries,
-  RuntimeConfigQueries,
-  SaveCluster
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateRuntime2Request,
-  UpdateRuntimeConfigRequest,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, LeonardoServiceDbQueries, RuntimeConfigQueries, RuntimeServiceDbQueries, SaveCluster, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, ListRuntimeResponse2, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateRuntimeMessage,
-  DeleteRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage,
-  UpdateRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, DeleteRuntimeMessage, StartRuntimeMessage, StopRuntimeMessage, UpdateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
 
 import scala.concurrent.ExecutionContext
 
@@ -173,10 +157,10 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
     implicit as: ApplicativeAsk[F, AppContext]
-  ): F[Vector[ListRuntimeResponse]] =
+  ): F[Vector[ListRuntimeResponse2]] =
     for {
       paramMap <- F.fromEither(processListClustersParameters(params))
-      clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
+      clusters <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
     } yield {
