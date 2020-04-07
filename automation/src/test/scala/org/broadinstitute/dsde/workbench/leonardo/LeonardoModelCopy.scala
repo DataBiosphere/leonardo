@@ -227,24 +227,22 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          defaultClientId: Option[String]
                                         )
 
-final case class UpdateRuntimeRequestCopy(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequestCopy],
-                                      allowStop: Boolean,
-                                      updateAutopauseEnabled: Option[Boolean],
-                                      updateAutopauseThreshold: Option[FiniteDuration])
+final case class UpdateRuntimeRequestCopy(runtimeConfig: Option[UpdateRuntimeConfigRequestCopy],
+                                          allowStop: Boolean,
+                                          autopauseEnabled: Option[Boolean],
+                                          autopauseThreshold: Option[FiniteDuration])
 
 sealed trait UpdateRuntimeConfigRequestCopy extends Product with Serializable {
-  def cloudService: CloudService
+  def cloudService: String
 }
 object UpdateRuntimeConfigRequestCopy {
-  final case class GceConfig(machineType: Option[String], updatedDiskSize: Option[Int])
-    extends UpdateRuntimeConfigRequestCopy {
-    val cloudService: CloudService = CloudService.GCE
-  }
+  final case class GceConfig(machineType: Option[String], diskSize: Option[Int], cloudService: String = CloudService.GCE.asString)
+    extends UpdateRuntimeConfigRequestCopy
+
   final case class DataprocConfig(masterMachineType: Option[String],
                                   masterDiskSize: Option[Int],
                                   numberOfWorkers: Option[Int],
-                                  numberOfPreemptibleWorkers: Option[Int])
-    extends UpdateRuntimeConfigRequestCopy {
-    val cloudService: CloudService = CloudService.Dataproc
-  }
+                                  numberOfPreemptibleWorkers: Option[Int],
+                                  cloudService: String = CloudService.Dataproc.asString)
+    extends UpdateRuntimeConfigRequestCopy 
 }
