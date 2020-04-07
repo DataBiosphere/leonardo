@@ -7,47 +7,41 @@ import org.scalatest.DoNotDiscover
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
 //@DoNotDiscover
-class RuntimePatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
+class RuntimePatchSpec extends RuntimeFixtureSpec with LeonardoTestUtils {
 
   //this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start tranition" taggedAs Tags.SmokeTest in { clusterFixture =>
     val newMasterMachineType = "n1-standard-2"
-    val machineConfig =
-      RuntimeConfigRequest.DataprocConfig(
-        Some(0),
-        masterMachineType = Some(newMasterMachineType),
-        Some(500),
-        workerMachineType = None,
-        workerDiskSize = None,
-        numberOfWorkerLocalSSDs = None,
-        numberOfPreemptibleWorkers = None,
-        properties = Map.empty
-      )
-
-    val originalCluster = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-    originalCluster.status shouldBe ClusterStatus.Running
-
-    val originalMachineConfig = originalCluster.machineConfig
-
-    Leonardo.cluster.update(
-      clusterFixture.cluster.googleProject,
-      clusterFixture.cluster.clusterName,
-      clusterRequest = defaultClusterRequest.copy(allowStop = true,
-                                                  machineConfig =
-                                                    Some(machineConfig))
+    val runtimeConfig = UpdateRuntimeConfigRequestCopy.GceConfig(
+      //TODO See if this fails to go lower
+      Some(newMasterMachineType),
+      None
     )
 
-    eventually(timeout(Span(1, Minutes)), interval(Span(10, Seconds))) {
-      val getCluster: ClusterCopy =
-        Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-      getCluster.status shouldBe ClusterStatus.Stopping
+
+    val originalCluster = Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+    originalCluster.status shouldBe ClusterStatus.Running
+
+    val originalMachineConfig = originalCluster.runtimeConfig
+
+    Leonardo.cluster.updateRuntime(
+      clusterFixture.cluster.googleProject,
+      clusterFixture.cluster.clusterName,
+      request = UpdateRuntimeRequestCopy(Some(runtimeConfig), true, None, None )
+    )
+
+    eventually(timeout(Span(10, Minutes)), interval(Span(10, Seconds))) {
+      val getRuntime =
+        Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+      logger.info(s"GET RUNTIME STATUS ${getRuntime.status}")
+      getRuntime.status shouldBe ClusterStatus.Stopping
     }
 
     eventually(timeout(Span(10, Minutes)), interval(Span(30, Seconds))) {
-      val getCluster: ClusterCopy =
-        Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
-      getCluster.status shouldBe ClusterStatus.Running
-      getCluster.machineConfig shouldBe originalMachineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].copy(masterMachineType = MachineTypeName(newMasterMachineType))
+      val getRuntime =
+        Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+      getRuntime.status shouldBe ClusterStatus.Running
+      getRuntime.runtimeConfig shouldBe originalMachineConfig.asInstanceOf[RuntimeConfig.GceConfig].copy(machineType = MachineTypeName(newMasterMachineType))
     }
   }
 

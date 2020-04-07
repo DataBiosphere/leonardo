@@ -3,14 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
-
 import org.scalatest.time.{Minutes, Span}
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, FlatSpec}
 
 //@DoNotDiscover
-class LeoPubsubSpec extends RuntimeFixtureSpec with LeonardoTestUtils {
+class LeoPubsubSpec extends FlatSpec with LeonardoTestUtils {
 
-  "Google publisher should be able to auth" in { _ =>
+  it should "Google publisher should be able to auth" in {
     logger.info(s"publisher config is: ${LeonardoConfig.Leonardo.publisherConfig}")
 
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
@@ -22,7 +21,7 @@ class LeoPubsubSpec extends RuntimeFixtureSpec with LeonardoTestUtils {
       .unsafeRunSync()
   }
 
-  "Google publisher should publish" in { _ =>
+  it should "Google publisher should publish" in {
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
     val queue = InspectableQueue.bounded[IO, String](100).unsafeRunSync()
 

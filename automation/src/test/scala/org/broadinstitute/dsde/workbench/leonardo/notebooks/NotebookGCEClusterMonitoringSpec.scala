@@ -62,46 +62,6 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
     }
 
 
-
-    "should deploy welder on a cluster" taggedAs (Retryable) in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
-
-      // Create a cluster with welder disabled
-
-      withNewRuntime(
-        billingProject,
-        request = defaultRuntimeRequest.copy(labels = Map(deployWelderLabel -> "true"),
-                                             toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl),
-                                             /*enableWelder = Some(false)*/)
-      ) { cluster =>
-        withWebDriver { implicit driver =>
-          // Verify welder is not running
-          Welder.getWelderStatus(cluster).attempt.unsafeRunSync().isRight shouldBe false
-
-          // Create a notebook and execute cells to create a local file
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
-            notebookPage.executeCell(s"""! echo "foo" > foo.txt""") shouldBe None
-            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
-            notebookPage.saveAndCheckpoint()
-          }
-          // Stop the cluster
-          stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
-
-          // Start the cluster
-          startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
-
-          // Verify welder is now running
-          Welder.getWelderStatus(cluster).attempt.unsafeRunSync().isRight shouldBe true
-
-          // Make a new notebook and verify the file still exists
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
-            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
-          }
-        }
-      }
-    }
-
     "should update welder on a cluster" taggedAs Retryable in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
@@ -112,7 +72,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
         billingProject,
         request = defaultRuntimeRequest.copy(labels = Map(deployWelderLabel -> "true"),
                                              welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage)
-                                             /*enableWelder = Some(true)*/)
+                                             )
       ) { cluster =>
         // Verify welder is running with old version
         val statusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()

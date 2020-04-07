@@ -131,7 +131,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Note: the R image includes R and python 3 kernels
-      val clusterRequest = defaultRuntimeRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))
+      val clusterRequest = defaultRuntimeRequest.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 
       withNewRuntime(billingProject, request = clusterRequest) { cluster =>
         withWebDriver { implicit driver =>

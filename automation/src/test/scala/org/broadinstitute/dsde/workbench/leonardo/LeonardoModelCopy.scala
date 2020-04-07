@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.findValues
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
+import scala.concurrent.duration.FiniteDuration
 import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
@@ -121,7 +122,7 @@ case class RuntimeRequest(labels: LabelMap = Map(),
                           toolDockerImage: Option[String] = None,
                           welderDockerImage: Option[String] = None,
                           scopes: Set[String] = Set.empty,
-                          customClusterEnvironmentVariables: Map[String, String] = Map.empty,
+                          customEnvironmentVariables: Map[String, String] = Map.empty,
                           allowStop: Boolean = false)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -225,3 +226,25 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          autopauseThreshold: Int,
                                          defaultClientId: Option[String]
                                         )
+
+final case class UpdateRuntimeRequestCopy(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequestCopy],
+                                      allowStop: Boolean,
+                                      updateAutopauseEnabled: Option[Boolean],
+                                      updateAutopauseThreshold: Option[FiniteDuration])
+
+sealed trait UpdateRuntimeConfigRequestCopy extends Product with Serializable {
+  def cloudService: CloudService
+}
+object UpdateRuntimeConfigRequestCopy {
+  final case class GceConfig(machineType: Option[String], updatedDiskSize: Option[Int])
+    extends UpdateRuntimeConfigRequestCopy {
+    val cloudService: CloudService = CloudService.GCE
+  }
+  final case class DataprocConfig(masterMachineType: Option[String],
+                                  masterDiskSize: Option[Int],
+                                  numberOfWorkers: Option[Int],
+                                  numberOfPreemptibleWorkers: Option[Int])
+    extends UpdateRuntimeConfigRequestCopy {
+    val cloudService: CloudService = CloudService.Dataproc
+  }
+}
