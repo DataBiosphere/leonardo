@@ -8,19 +8,23 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.{BeforeAndAfterAll, Outcome, Retries, fixture}
+import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class RuntimeFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries with GPAllocBeforeAndAfterAll{
+abstract class RuntimeFixtureSpec
+    extends fixture.FreeSpec
+    with BeforeAndAfterAll
+    with LeonardoTestUtils
+    with Retries
+    with GPAllocBeforeAndAfterAll {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
   def toolDockerImage: Option[String] = None
   var ronCluster: ClusterCopy = _
   var clusterCreationFailureMsg: String = ""
-
 
   /**
    * See
@@ -63,7 +67,7 @@ abstract class RuntimeFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
   //should take a parameter from cloudService to determine if it is GCE or Dataproc
   def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): RuntimeRequest = {
 
-    val machineConfig = cloudService match{
+    val machineConfig = cloudService match {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
           machineType = Some("n1-standard-4"),
@@ -82,9 +86,6 @@ abstract class RuntimeFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
         )
 
     }
-
-
-
 
     RuntimeRequest(
       //machineConfig = Some(machineConfig),
@@ -107,28 +108,27 @@ abstract class RuntimeFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
     super.beforeAll()
     logger.info("beforeAll")
 
-      sys.props.get(gpallocProjectKey) match {
-        case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
-          clusterCreationFailureMsg = msg
-        case Some(billingProject) =>
-          Either.catchNonFatal(createRonRuntime(GoogleProject(billingProject))).handleError { e =>
-            clusterCreationFailureMsg = e.getMessage
-            ronCluster = null
-          }
-        case None =>
-          clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
-      }
-
+    sys.props.get(gpallocProjectKey) match {
+      case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
+        clusterCreationFailureMsg = msg
+      case Some(billingProject) =>
+        Either.catchNonFatal(createRonRuntime(GoogleProject(billingProject))).handleError { e =>
+          clusterCreationFailureMsg = e.getMessage
+          ronCluster = null
+        }
+      case None =>
+        clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
+    }
 
   }
 
   override def afterAll(): Unit = {
     logger.info("afterAll")
 
-      sys.props.get(gpallocProjectKey) match {
-        case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject))
-        case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
-      }
+    sys.props.get(gpallocProjectKey) match {
+      case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject))
+      case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
+    }
 
     super.afterAll()
   }

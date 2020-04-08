@@ -93,9 +93,6 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
         // can delete an Error'd cluster
       }
     }
-
-
-
     // Note: omitting stop/start and patch/update tests here because those are covered in more depth in NotebookClusterMonitoringSpec
   }
 

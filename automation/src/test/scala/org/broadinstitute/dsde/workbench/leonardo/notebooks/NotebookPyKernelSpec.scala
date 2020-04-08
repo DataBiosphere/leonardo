@@ -205,7 +205,6 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       clusterFixture.cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
       //clusterFixture.cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
-
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
           // should not have notebook credentials because Leo is not configured to use a notebook service account

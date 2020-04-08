@@ -16,7 +16,7 @@ import scala.language.implicitConversions
 sealed trait StringValueClass extends Any
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 
-case class  ClusterCopy(clusterName: RuntimeName,
+case class ClusterCopy(clusterName: RuntimeName,
                        googleProject: GoogleProject,
                        serviceAccountInfo: ServiceAccountInfo,
                        machineConfig: RuntimeConfig,
@@ -32,23 +32,18 @@ case class  ClusterCopy(clusterName: RuntimeName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
-
-
 sealed trait RuntimeConfigRequest extends Product with Serializable {
   def typedCloudService: CloudService
 }
 object RuntimeConfigRequest {
   final case class GceConfig(
-                              cloudService: String = "GCE",
-                              machineType: Option[String],
-                              diskSize: Option[Int]
-                            ) extends RuntimeConfigRequest {
+    cloudService: String = "GCE",
+    machineType: Option[String],
+    diskSize: Option[Int]
+  ) extends RuntimeConfigRequest {
     val typedCloudService: CloudService = CloudService.GCE
 
   }
-
-
-
 
   final case class DataprocConfig(numberOfWorkers: Option[Int],
                                   masterMachineType: Option[String],
@@ -59,7 +54,7 @@ object RuntimeConfigRequest {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String])
-    extends RuntimeConfigRequest {
+      extends RuntimeConfigRequest {
     val typedCloudService: CloudService = CloudService.Dataproc
 
   }
@@ -166,24 +161,21 @@ object ClusterStatus extends Enumeration {
       .getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
 }
 
-
-
-final case class GetRuntimeResponseCopy(
-                                    runtimeName: RuntimeName,
-                                    googleProject: GoogleProject,
-                                    serviceAccount: WorkbenchEmail,
-                                    auditInfo: AuditInfo,
-                                    asyncRuntimeFields: Option[AsyncRuntimeFields],
-                                    runtimeConfig: RuntimeConfig,
-                                    clusterUrl: URL,
-                                    status: ClusterStatus,
-                                    labels: LabelMap,
-                                    jupyterExtensionUri: Option[GcsPath],
-                                    jupyterUserScriptUri: Option[UserScriptPath],
-                                    jupyterStartUserScriptUri: Option[UserScriptPath],
-                                    errors: List[RuntimeError],
-                                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                                    autopauseThreshold: Int)
+final case class GetRuntimeResponseCopy(runtimeName: RuntimeName,
+                                        googleProject: GoogleProject,
+                                        serviceAccount: WorkbenchEmail,
+                                        auditInfo: AuditInfo,
+                                        asyncRuntimeFields: Option[AsyncRuntimeFields],
+                                        runtimeConfig: RuntimeConfig,
+                                        clusterUrl: URL,
+                                        status: ClusterStatus,
+                                        labels: LabelMap,
+                                        jupyterExtensionUri: Option[GcsPath],
+                                        jupyterUserScriptUri: Option[UserScriptPath],
+                                        jupyterStartUserScriptUri: Option[UserScriptPath],
+                                        errors: List[RuntimeError],
+                                        userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                        autopauseThreshold: Int)
 
 final case class ListRuntimeResponseCopy(id: Long,
                                          runtimeName: RuntimeName,
@@ -196,8 +188,7 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          jupyterExtensionUri: Option[GcsPath],
                                          jupyterUserScriptUri: Option[UserScriptPath],
                                          autopauseThreshold: Int,
-                                         defaultClientId: Option[String]
-                                        )
+                                         defaultClientId: Option[String])
 
 final case class UpdateRuntimeRequestCopy(runtimeConfig: Option[UpdateRuntimeConfigRequestCopy],
                                           allowStop: Boolean,
@@ -208,13 +199,15 @@ sealed trait UpdateRuntimeConfigRequestCopy extends Product with Serializable {
   def cloudService: String
 }
 object UpdateRuntimeConfigRequestCopy {
-  final case class GceConfig(machineType: Option[String], diskSize: Option[Int], cloudService: String = CloudService.GCE.asString)
-    extends UpdateRuntimeConfigRequestCopy
+  final case class GceConfig(machineType: Option[String],
+                             diskSize: Option[Int],
+                             cloudService: String = CloudService.GCE.asString)
+      extends UpdateRuntimeConfigRequestCopy
 
   final case class DataprocConfig(masterMachineType: Option[String],
                                   masterDiskSize: Option[Int],
                                   numberOfWorkers: Option[Int],
                                   numberOfPreemptibleWorkers: Option[Int],
                                   cloudService: String = CloudService.Dataproc.asString)
-    extends UpdateRuntimeConfigRequestCopy
+      extends UpdateRuntimeConfigRequestCopy
 }

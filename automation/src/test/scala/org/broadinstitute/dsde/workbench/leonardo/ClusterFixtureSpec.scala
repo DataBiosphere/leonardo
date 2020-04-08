@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries{
+abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
@@ -103,7 +103,7 @@ abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
   //should take a parameter from cloudService to determine if it is GCE or Dataproc
   def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): ClusterRequest = {
 
-    val machineConfig = cloudService match{
+    val machineConfig = cloudService match {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
           machineType = Some("n1-standard-4"),
@@ -122,9 +122,6 @@ abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
         )
 
     }
-
-
-
 
     ClusterRequest(
       machineConfig = Some(machineConfig),

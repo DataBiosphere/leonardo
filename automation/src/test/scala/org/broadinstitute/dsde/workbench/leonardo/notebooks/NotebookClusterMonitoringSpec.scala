@@ -68,7 +68,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       implicit val ronToken: AuthToken = ronAuthToken
 
       val initialMachineConfig =
-
         RuntimeConfigRequest.DataprocConfig(
           numberOfWorkers = Some(2),
           masterMachineType = Some("n1-standard-2"),
@@ -82,97 +81,114 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
       withNewCluster(billingProject,
                      request = defaultClusterRequest
-                       .copy(machineConfig = Some(initialMachineConfig))) {
-        cluster =>
-          // update the cluster to add another worker node and increase the master disk
-          val newMachineConfig =
-            RuntimeConfigRequest.DataprocConfig(
-              numberOfWorkers = Some(3),
-              masterDiskSize = Some(100),
-              masterMachineType = Some("n1-standard-2"),
-              workerMachineType = None,
-              workerDiskSize = None,
-              numberOfWorkerLocalSSDs = None,
-              numberOfPreemptibleWorkers = None,
-              properties = Map.empty
-            )
+                       .copy(machineConfig = Some(initialMachineConfig))) { cluster =>
+        // update the cluster to add another worker node and increase the master disk
+        val newMachineConfig =
+          RuntimeConfigRequest.DataprocConfig(
+            numberOfWorkers = Some(3),
+            masterDiskSize = Some(100),
+            masterMachineType = Some("n1-standard-2"),
+            workerMachineType = None,
+            workerDiskSize = None,
+            numberOfWorkerLocalSSDs = None,
+            numberOfPreemptibleWorkers = None,
+            properties = Map.empty
+          )
+        Leonardo.cluster.update(
+          billingProject,
+          cluster.clusterName,
+          ClusterRequest(machineConfig = Some(newMachineConfig))
+        )
+
+        eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
+          val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
+          status shouldBe ClusterStatus.Updating
+        }
+
+        val timeToAddWorker = time {
+          eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+            val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
+            clusterResponse.machineConfig
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
+              .numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
+            clusterResponse.machineConfig
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
+              .masterMachineType shouldBe initialMachineConfig.masterMachineType
+            clusterResponse.machineConfig
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
+              .masterDiskSize shouldBe newMachineConfig.masterDiskSize
+            clusterResponse.status shouldBe ClusterStatus.Running
+          }
+        }
+
+        logger.info(
+          s"Adding worker to ${cluster.projectNameString}} took ${timeToAddWorker.duration.toSeconds} seconds"
+        )
+
+        // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
+        val twoWorkersConfig =
+          newMachineConfig.copy(numberOfWorkers = Some(2),
+                                masterDiskSize = Some(500),
+                                masterMachineType = Some("n1-standard-2"))
+        Leonardo.cluster.update(
+          billingProject,
+          cluster.clusterName,
+          ClusterRequest(machineConfig = Some(twoWorkersConfig))
+        )
+
+        eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
+          val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
+          status shouldBe ClusterStatus.Updating
+        }
+
+        val timeToRemoveWorker = time {
+          eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+            val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
+            clusterResponse.machineConfig
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
+              .numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
+            clusterResponse.machineConfig
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
+              .masterMachineType shouldBe initialMachineConfig.masterMachineType
+            clusterResponse.machineConfig
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
+              .masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
+            clusterResponse.status shouldBe ClusterStatus.Running
+          }
+        }
+
+        logger.info(
+          s"Removing worker to ${cluster.projectNameString}} took ${timeToRemoveWorker.duration.toSeconds} seconds"
+        )
+
+        // finally, change the master machine type
+        // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
+        val newMachineTypeConfig =
+          twoWorkersConfig.copy(masterMachineType = Some("n1-standard-4"),
+                                masterDiskSize = Some(500),
+                                numberOfWorkers = Some(2))
+        withRestartCluster(cluster) { cluster =>
           Leonardo.cluster.update(
             billingProject,
             cluster.clusterName,
-            ClusterRequest(machineConfig = Some(newMachineConfig))
+            ClusterRequest(machineConfig = Some(newMachineTypeConfig))
           )
+          // cluster status should still be Stopped
+          val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
+          status shouldBe ClusterStatus.Stopped
+        }
 
-          eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
-            val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
-            status shouldBe ClusterStatus.Updating
-          }
-
-          val timeToAddWorker = time {
-            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
-              val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
-              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterMachineType shouldBe initialMachineConfig.masterMachineType
-              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterDiskSize shouldBe newMachineConfig.masterDiskSize
-              clusterResponse.status shouldBe ClusterStatus.Running
-            }
-          }
-
-          logger.info(
-            s"Adding worker to ${cluster.projectNameString}} took ${timeToAddWorker.duration.toSeconds} seconds"
-          )
-
-          // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
-          val twoWorkersConfig =
-            newMachineConfig.copy(numberOfWorkers = Some(2),
-                                  masterDiskSize = Some(500),
-                                  masterMachineType = Some("n1-standard-2"))
-          Leonardo.cluster.update(
-            billingProject,
-            cluster.clusterName,
-            ClusterRequest(machineConfig = Some(twoWorkersConfig))
-          )
-
-          eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
-            val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
-            status shouldBe ClusterStatus.Updating
-          }
-
-          val timeToRemoveWorker = time {
-            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
-              val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
-              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterMachineType shouldBe initialMachineConfig.masterMachineType
-              clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
-              clusterResponse.status shouldBe ClusterStatus.Running
-            }
-          }
-
-          logger.info(
-            s"Removing worker to ${cluster.projectNameString}} took ${timeToRemoveWorker.duration.toSeconds} seconds"
-          )
-
-          // finally, change the master machine type
-          // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
-          val newMachineTypeConfig =
-            twoWorkersConfig.copy(masterMachineType = Some("n1-standard-4"),
-                                  masterDiskSize = Some(500),
-                                  numberOfWorkers = Some(2))
-          withRestartCluster(cluster) { cluster =>
-            Leonardo.cluster.update(
-              billingProject,
-              cluster.clusterName,
-              ClusterRequest(machineConfig = Some(newMachineTypeConfig))
-            )
-            // cluster status should still be Stopped
-            val status = Leonardo.cluster.get(billingProject, cluster.clusterName).status
-            status shouldBe ClusterStatus.Stopped
-          }
-
-          val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-          clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
-          clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterMachineType shouldBe newMachineTypeConfig.masterMachineType
-          clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
-          clusterResponse.status shouldBe ClusterStatus.Running
+        val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
+        clusterResponse.machineConfig
+          .asInstanceOf[RuntimeConfig.DataprocConfig]
+          .numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
+        clusterResponse.machineConfig
+          .asInstanceOf[RuntimeConfig.DataprocConfig]
+          .masterMachineType shouldBe newMachineTypeConfig.masterMachineType
+        clusterResponse.machineConfig
+          .asInstanceOf[RuntimeConfig.DataprocConfig]
+          .masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
+        clusterResponse.status shouldBe ClusterStatus.Running
       }
     }
 
@@ -198,13 +214,11 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
         val request = defaultClusterRequest.copy(
           machineConfig = Some(
-
-              RuntimeConfigRequest.GceConfig(
-                // need at least 2 regular workers to enable preemptibles
-                machineType = Some("n1-standard-4"),
-                diskSize = Some(500)
-              )
-
+            RuntimeConfigRequest.GceConfig(
+              // need at least 2 regular workers to enable preemptibles
+              machineType = Some("n1-standard-4"),
+              diskSize = Some(500)
+            )
           ),
           toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl)
         )

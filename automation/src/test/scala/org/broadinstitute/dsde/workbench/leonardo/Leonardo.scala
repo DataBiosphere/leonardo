@@ -79,7 +79,9 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
-    def listIncludingDeletedRuntime(googleProject: GoogleProject)(implicit token: AuthToken): Seq[ListRuntimeResponseCopy] = {
+    def listIncludingDeletedRuntime(
+      googleProject: GoogleProject
+    )(implicit token: AuthToken): Seq[ListRuntimeResponseCopy] = {
       val path = s"api/google/v1/runtimes/${googleProject.value}?includeDeleted=true"
       logger.info(s"Listing runtimes including deleted in project: GET /$path")
       val parsedRequest = parseResponse(getRequest(s"$url/$path"))
@@ -89,7 +91,6 @@ object Leonardo extends RestClient with LazyLogging {
     def create(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: ClusterRequest)(
       implicit token: AuthToken
     ): ClusterCopy = {
-
 
       val path = clusterPath(googleProject, clusterName, Some(ApiVersion.V2))
       logger.info(s"Create cluster: PUT /$path")
@@ -118,7 +119,8 @@ object Leonardo extends RestClient with LazyLogging {
       cluster
     }
 
-    def getRuntime(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): GetRuntimeResponseCopy = {
+    def getRuntime(googleProject: GoogleProject,
+                   clusterName: RuntimeName)(implicit token: AuthToken): GetRuntimeResponseCopy = {
       val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1))
 
       val responseString = parseResponse(getRequest(url + path))
@@ -131,7 +133,7 @@ object Leonardo extends RestClient with LazyLogging {
       res.fold(e => throw e, resp => {
         logger.info(s"Get runtime: GET /$path. Status = ${resp.status}")
         resp
-      } )
+      })
     }
 
     def delete(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
@@ -189,7 +191,6 @@ object Leonardo extends RestClient with LazyLogging {
 
     }
 
-
   }
 }
 
@@ -199,19 +200,19 @@ object AutomationTestJsonCodec {
 
   implicit val clusterDecoder: Decoder[ClusterCopy] =
     Decoder.forProduct13[ClusterCopy,
-      RuntimeName,
-      GoogleProject,
-      ServiceAccountInfo,
-      RuntimeConfig,
-      ClusterStatus,
-      WorkbenchEmail,
-      LabelMap,
-      Option[GcsBucketName],
-      Option[List[RuntimeError]],
-      Instant,
-      Boolean,
-      Int,
-      Boolean](
+                         RuntimeName,
+                         GoogleProject,
+                         ServiceAccountInfo,
+                         RuntimeConfig,
+                         ClusterStatus,
+                         WorkbenchEmail,
+                         LabelMap,
+                         Option[GcsBucketName],
+                         Option[List[RuntimeError]],
+                         Instant,
+                         Boolean,
+                         Int,
+                         Boolean](
       "clusterName",
       "googleProject",
       "serviceAccountInfo",
@@ -230,46 +231,47 @@ object AutomationTestJsonCodec {
     }
 
   //removed the Dataproc Instances (don't know what to have for the implicit value)
-  implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct15[GetRuntimeResponseCopy,
-      RuntimeName,
-      GoogleProject,
-      WorkbenchEmail,
-      AuditInfo,
-      Option[AsyncRuntimeFields],
-      RuntimeConfig,
-      URL,
-      ClusterStatus,
-      LabelMap,
-      Option[GcsPath],
-      Option[UserScriptPath],
-      Option[UserScriptPath],
-      Option[List[RuntimeError]],
-      Option[UserJupyterExtensionConfig],
-      Int](
-      //TODO Change clusterName to runtimeName in the future. Pending PR
-      "runtimeName",
-      "googleProject",
-      "serviceAccount",
-      "auditInfo",
-      "asyncRuntimeFields",
-      "runtimeConfig",
-      "proxyUrl",
-      "status",
-      "labels",
-      "jupyterExtensionUri",
-      "jupyterUserScriptUri",
-      "jupyterStartUserScriptUri",
-      "errors",
-      "userJupyterExtensionConfig",
-      "autopauseThreshold"
-    ) { (rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e,  ujec, at) =>
+  implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct15[
+    GetRuntimeResponseCopy,
+    RuntimeName,
+    GoogleProject,
+    WorkbenchEmail,
+    AuditInfo,
+    Option[AsyncRuntimeFields],
+    RuntimeConfig,
+    URL,
+    ClusterStatus,
+    LabelMap,
+    Option[GcsPath],
+    Option[UserScriptPath],
+    Option[UserScriptPath],
+    Option[List[RuntimeError]],
+    Option[UserJupyterExtensionConfig],
+    Int
+  ](
+    //TODO Change clusterName to runtimeName in the future. Pending PR
+    "runtimeName",
+    "googleProject",
+    "serviceAccount",
+    "auditInfo",
+    "asyncRuntimeFields",
+    "runtimeConfig",
+    "proxyUrl",
+    "status",
+    "labels",
+    "jupyterExtensionUri",
+    "jupyterUserScriptUri",
+    "jupyterStartUserScriptUri",
+    "errors",
+    "userJupyterExtensionConfig",
+    "autopauseThreshold"
+  ) { (rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e, ujec, at) =>
     //Figure this out
 
-      GetRuntimeResponseCopy(rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e.getOrElse(List.empty), ujec, at)
-    }
+    GetRuntimeResponseCopy(rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e.getOrElse(List.empty), ujec, at)
+  }
 
   implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct12(
-
     "id",
     "runtimeName",
     "googleProject",
@@ -282,7 +284,7 @@ object AutomationTestJsonCodec {
     "jupyterUserScriptUri",
     "autopauseThreshold",
     "defaultClientId"
-  ) (ListRuntimeResponseCopy.apply)
+  )(ListRuntimeResponseCopy.apply)
 }
 
 sealed trait ApiVersion {

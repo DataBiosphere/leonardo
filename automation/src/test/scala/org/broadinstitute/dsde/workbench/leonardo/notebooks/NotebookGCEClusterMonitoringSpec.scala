@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudio
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEntity, GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.time.{Seconds, Span}
@@ -23,7 +23,7 @@ import scala.util.Try
  * so lives in the notebooks sub-package.
  */
 @DoNotDiscover
-class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils{
+class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
   "NotebookGCEClusterMonitoringSpec" - {
 
@@ -61,7 +61,6 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       }
     }
 
-
     "should update welder on a cluster" taggedAs Retryable in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
@@ -71,8 +70,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       withNewRuntime(
         billingProject,
         request = defaultRuntimeRequest.copy(labels = Map(deployWelderLabel -> "true"),
-                                             welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage)
-                                             )
+                                             welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage))
       ) { cluster =>
         // Verify welder is running with old version
         val statusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
@@ -99,7 +97,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       implicit val ronToken: AuthToken = ronAuthToken
 
       withNewRuntime(billingProject,
-                     request = defaultRuntimeRequest.copy(toolDockerImage = None /*enableWelder = Some(true)*/)) {
+                     request = defaultRuntimeRequest.copy(toolDockerImage = None /*enableWelder = Some(true)*/ )) {
         cluster =>
           withWebDriver { implicit driver =>
             withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
@@ -119,10 +117,12 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a cluster
-      withNewRuntime(billingProject,
-                     request = defaultRuntimeRequest.copy(toolDockerImage =
-                                                            Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl),
-                                                         /* enableWelder = Some(true)*/)) { cluster =>
+      withNewRuntime(
+        billingProject,
+        request = defaultRuntimeRequest.copy(
+          toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl) /* enableWelder = Some(true)*/
+        )
+      ) { cluster =>
         // Make sure RStudio is up
         // See this ticket for adding more comprehensive selenium tests for RStudio:
         // https://broadworkbench.atlassian.net/browse/IA-697

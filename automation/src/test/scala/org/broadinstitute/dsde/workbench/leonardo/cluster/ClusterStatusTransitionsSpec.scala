@@ -13,7 +13,11 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
  * should exercise the most commonly used paths through the system.
  */
 @DoNotDiscover
-class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils with GPAllocBeforeAndAfterAll{
+class ClusterStatusTransitionsSpec
+    extends GPAllocFixtureSpec
+    with ParallelTestExecution
+    with LeonardoTestUtils
+    with GPAllocBeforeAndAfterAll {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "ClusterStatusTransitionsSpec" - {

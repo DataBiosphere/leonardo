@@ -5,7 +5,13 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 
-import org.broadinstitute.dsde.workbench.leonardo.{GPAllocBeforeAndAfterAll, GPAllocFixtureSpec, LeonardoConfig, RuntimeConfig, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  GPAllocBeforeAndAfterAll,
+  GPAllocFixtureSpec,
+  LeonardoConfig,
+  RuntimeConfig,
+  RuntimeConfigRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -16,7 +22,7 @@ import scala.concurrent.duration._
  * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
  */
 @DoNotDiscover
-final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils{
+final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
   "NotebookCustomizationSpec" - {
 
@@ -198,16 +204,14 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         billingProject,
         request = defaultClusterRequest.copy(
           machineConfig = Some(
-
-              RuntimeConfigRequest.DataprocConfig(numberOfWorkers = Some(0),
-                                           masterMachineType = Some("n1-standard-2"),
-                                           masterDiskSize = Some(500),
-                                           None,
-                                           None,
-                                           None,
-                                           None,
-                                           Map.empty)
-
+            RuntimeConfigRequest.DataprocConfig(numberOfWorkers = Some(0),
+                                                masterMachineType = Some("n1-standard-2"),
+                                                masterDiskSize = Some(500),
+                                                None,
+                                                None,
+                                                None,
+                                                None,
+                                                Map.empty)
           ),
           toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)
         )
