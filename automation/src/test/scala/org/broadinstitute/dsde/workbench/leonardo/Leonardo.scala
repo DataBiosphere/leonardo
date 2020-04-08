@@ -186,7 +186,6 @@ object Leonardo extends RestClient with LazyLogging {
     ): Unit = {
       val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1))
       logger.info(s"Update runtime: PATCH /$path")
-      logger.info(s"PATCH REQUEST: ${request}")
       patchRequest(url + path, request)
 
     }
