@@ -271,7 +271,7 @@ object AutomationTestJsonCodec {
     GetRuntimeResponseCopy(rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e.getOrElse(List.empty), ujec, at)
   }
 
-  implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct12(
+  implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct13(
     "id",
     "runtimeName",
     "googleProject",
@@ -283,6 +283,7 @@ object AutomationTestJsonCodec {
     "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "autopauseThreshold",
+    "patchInProgress",
     "defaultClientId"
   )(ListRuntimeResponseCopy.apply)
 }

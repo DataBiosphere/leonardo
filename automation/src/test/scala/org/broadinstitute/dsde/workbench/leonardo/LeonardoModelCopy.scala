@@ -37,7 +37,7 @@ sealed trait RuntimeConfigRequest extends Product with Serializable {
 }
 object RuntimeConfigRequest {
   final case class GceConfig(
-    cloudService: String = "GCE",
+    cloudService: String = CloudService.GCE.asString,
     machineType: Option[String],
     diskSize: Option[Int]
   ) extends RuntimeConfigRequest {
@@ -45,7 +45,8 @@ object RuntimeConfigRequest {
 
   }
 
-  final case class DataprocConfig(numberOfWorkers: Option[Int],
+  final case class DataprocConfig( cloudService: String = CloudService.Dataproc.asString,
+                                   numberOfWorkers: Option[Int],
                                   masterMachineType: Option[String],
                                   masterDiskSize: Option[Int], //min 10
                                   // worker settings are None when numberOfWorkers is 0
@@ -188,6 +189,7 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          jupyterExtensionUri: Option[GcsPath],
                                          jupyterUserScriptUri: Option[UserScriptPath],
                                          autopauseThreshold: Int,
+                                         patchInProgress: Boolean,
                                          defaultClientId: Option[String])
 
 final case class UpdateRuntimeRequestCopy(runtimeConfig: Option[UpdateRuntimeConfigRequestCopy],
