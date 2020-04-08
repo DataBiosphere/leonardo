@@ -1,12 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{
-  ClusterStatus,
-  GPAllocFixtureSpec,
-  Leonardo,
-  LeonardoTestUtils
-}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, GPAllocFixtureSpec, Leonardo, LeonardoTestUtils}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 

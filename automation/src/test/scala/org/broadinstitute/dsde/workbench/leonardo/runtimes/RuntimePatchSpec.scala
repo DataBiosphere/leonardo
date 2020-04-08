@@ -17,8 +17,8 @@ class RuntimePatchSpec extends RuntimeFixtureSpec with LeonardoTestUtils {
       None
     )
 
-
-    val originalCluster = Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+    val originalCluster =
+      Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
     originalCluster.status shouldBe ClusterStatus.Running
 
     val originalMachineConfig = originalCluster.runtimeConfig
@@ -26,7 +26,7 @@ class RuntimePatchSpec extends RuntimeFixtureSpec with LeonardoTestUtils {
     Leonardo.cluster.updateRuntime(
       clusterFixture.cluster.googleProject,
       clusterFixture.cluster.clusterName,
-      request = UpdateRuntimeRequestCopy(Some(runtimeConfig), true, None, None )
+      request = UpdateRuntimeRequestCopy(Some(runtimeConfig), true, None, None)
     )
 
     eventually(timeout(Span(10, Minutes)), interval(Span(10, Seconds))) {
@@ -39,7 +39,9 @@ class RuntimePatchSpec extends RuntimeFixtureSpec with LeonardoTestUtils {
       val getRuntime =
         Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       getRuntime.status shouldBe ClusterStatus.Running
-      getRuntime.runtimeConfig shouldBe originalMachineConfig.asInstanceOf[RuntimeConfig.GceConfig].copy(machineType = MachineTypeName(newMasterMachineType))
+      getRuntime.runtimeConfig shouldBe originalMachineConfig
+        .asInstanceOf[RuntimeConfig.GceConfig]
+        .copy(machineType = MachineTypeName(newMasterMachineType))
     }
   }
 

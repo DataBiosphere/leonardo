@@ -264,7 +264,6 @@ object AutomationTestJsonCodec {
     "userJupyterExtensionConfig",
     "autopauseThreshold"
   ) { (rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e, ujec, at) =>
-
     GetRuntimeResponseCopy(rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e.getOrElse(List.empty), ujec, at)
   }
 

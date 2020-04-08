@@ -254,7 +254,6 @@ trait LeonardoTestUtils
 
     gceLabelCheck(cluster.labels, expectedName, expectedProject, cluster.auditInfo.creator, runtimeRequest)
 
-
     if (bucketCheck) {
       implicit val patienceConfig: PatienceConfig = storagePatience
       googleStorageDAO.bucketExists(cluster.asyncRuntimeFields.get.stagingBucket).futureValue shouldBe true

@@ -3,7 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.{CloudService, GPAllocFixtureSpec, LeonardoConfig, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  CloudService,
+  GPAllocFixtureSpec,
+  LeonardoConfig,
+  RuntimeConfigRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -106,12 +111,10 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
             "https://www.googleapis.com/auth/source.read_only"
           )
         )
-
       ) { cluster =>
         withWebDriver { implicit driver =>
-            //With Scopes
+          //With Scopes
           withNewNotebook(cluster) { notebookPage =>
-
             val query =
               """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
@@ -201,15 +204,17 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
         billingProject,
         request = defaultClusterRequest.copy(
           machineConfig = Some(
-            RuntimeConfigRequest.DataprocConfig(cloudService = CloudService.Dataproc.asString,
-                                                numberOfWorkers = Some(0),
-                                                masterMachineType = Some("n1-standard-2"),
-                                                masterDiskSize = Some(500),
-                                                None,
-                                                None,
-                                                None,
-                                                None,
-                                                Map.empty)
+            RuntimeConfigRequest.DataprocConfig(
+              cloudService = CloudService.Dataproc.asString,
+              numberOfWorkers = Some(0),
+              masterMachineType = Some("n1-standard-2"),
+              masterDiskSize = Some(500),
+              None,
+              None,
+              None,
+              None,
+              Map.empty
+            )
           ),
           toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)
         )

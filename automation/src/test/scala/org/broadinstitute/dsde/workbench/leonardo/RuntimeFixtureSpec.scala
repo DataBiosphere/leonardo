@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
