@@ -45,8 +45,8 @@ object RuntimeConfigRequest {
 
   }
 
-  final case class DataprocConfig( cloudService: String = CloudService.Dataproc.asString,
-                                   numberOfWorkers: Option[Int],
+  final case class DataprocConfig(cloudService: String = CloudService.Dataproc.asString,
+                                  numberOfWorkers: Option[Int],
                                   masterMachineType: Option[String],
                                   masterDiskSize: Option[Int], //min 10
                                   // worker settings are None when numberOfWorkers is 0
