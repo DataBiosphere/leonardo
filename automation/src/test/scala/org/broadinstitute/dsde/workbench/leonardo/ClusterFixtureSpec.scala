@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries with GPAllocBeforeAndAfterAll{
+abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries{
 
   implicit val ronToken: AuthToken = ronAuthToken
 
@@ -98,10 +98,10 @@ abstract class ClusterFixtureSpec  extends fixture.FreeSpec with BeforeAndAfterA
    */
   def createRonCluster(billingProject: GoogleProject): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    ronCluster = createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)
+    ronCluster = createNewCluster(billingProject, request = getRuntimeRequest())(ronAuthToken)
   }
   //should take a parameter from cloudService to determine if it is GCE or Dataproc
-  def getClusterRequest(cloudService: CloudService = CloudService.GCE): ClusterRequest = {
+  def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): ClusterRequest = {
 
     val machineConfig = cloudService match{
       case CloudService.GCE =>

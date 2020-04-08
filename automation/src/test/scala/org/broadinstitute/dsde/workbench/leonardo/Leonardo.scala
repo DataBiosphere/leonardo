@@ -37,15 +37,6 @@ object Leonardo extends RestClient with LazyLogging {
       res.getOrElse(throw new Exception("Failed to parse list of clusters response"))
     }
 
-    def handleRuntimeResponse(response: String): ClusterCopy = {
-      val res = for {
-        json <- io.circe.parser.parse(response)
-        r <- json.as[ClusterCopy]
-      } yield r
-
-      res.getOrElse(throw new Exception("Failed to parse list of clusters response"))
-    }
-
     def handleClusterSeqResponse(response: String): List[ClusterCopy] = {
       val res = for {
         json <- io.circe.parser.parse(response)
@@ -71,10 +62,10 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def runtimePath(googleProject: GoogleProject,
-                    clusterName: RuntimeName,
+                    runtimeName: RuntimeName,
                     version: Option[ApiVersion] = None): String = {
       val versionPath = version.map(_.toUrlSegment).getOrElse("")
-      s"api/google${versionPath}/runtimes/${googleProject.value}/${clusterName.asString}"
+      s"api/google${versionPath}/runtimes/${googleProject.value}/${runtimeName.asString}"
     }
 
     def list(googleProject: GoogleProject)(implicit token: AuthToken): Seq[ClusterCopy] = {
@@ -92,8 +83,6 @@ object Leonardo extends RestClient with LazyLogging {
       val path = s"api/google/v1/runtimes/${googleProject.value}?includeDeleted=true"
       logger.info(s"Listing runtimes including deleted in project: GET /$path")
       val parsedRequest = parseResponse(getRequest(s"$url/$path"))
-      //logger.info(s"PARSED RESPONSE ${parsedRequest}")
-      //Something going wrong here
       handleListRuntimeResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
@@ -139,18 +128,10 @@ object Leonardo extends RestClient with LazyLogging {
         r <- json.as[GetRuntimeResponseCopy]
       } yield r
 
-      //res Either[Throwable,GetRunTimeResponseCopy]
       res.fold(e => throw e, resp => {
         logger.info(s"Get runtime: GET /$path. Status = ${resp.status}")
         resp
       } )
-
-      /*res match {
-        case Left(e) => throw e
-        case Right(resp) =>
-          logger.info(s"Get cluster: GET /$path. Status = ${resp.status}")
-          resp
-      }*/
     }
 
     def delete(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
@@ -287,19 +268,16 @@ object AutomationTestJsonCodec {
       GetRuntimeResponseCopy(rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e.getOrElse(List.empty), ujec, at)
     }
 
-  implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct14(
+  implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct12(
 
     "id",
     "runtimeName",
     "googleProject",
-    "serviceAccount",
-    "asyncRuntimeFields",
     "auditInfo",
     "runtimeConfig",
     "proxyUrl",
     "status",
     "labels",
-
     "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "autopauseThreshold",
