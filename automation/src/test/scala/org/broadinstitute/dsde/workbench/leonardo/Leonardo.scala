@@ -230,7 +230,6 @@ object AutomationTestJsonCodec {
       ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at, pip)
     }
 
-  //removed the Dataproc Instances (don't know what to have for the implicit value)
   implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct15[
     GetRuntimeResponseCopy,
     RuntimeName,
@@ -249,7 +248,6 @@ object AutomationTestJsonCodec {
     Option[UserJupyterExtensionConfig],
     Int
   ](
-    //TODO Change clusterName to runtimeName in the future. Pending PR
     "runtimeName",
     "googleProject",
     "serviceAccount",

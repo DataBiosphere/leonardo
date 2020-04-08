@@ -4,7 +4,6 @@ import java.io.File
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudio
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group

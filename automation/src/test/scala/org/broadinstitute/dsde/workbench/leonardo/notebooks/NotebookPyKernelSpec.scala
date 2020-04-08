@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo, LeonardoConfig, RuntimeFixtureSpec}
+import org.broadinstitute.dsde.workbench.leonardo.{Leonardo, LeonardoConfig, RuntimeFixtureSpec}
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.scalatest.DoNotDiscover
 
@@ -203,7 +203,6 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       // cluster should have been created with the pet service account
 
       clusterFixture.cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
-      //clusterFixture.cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>

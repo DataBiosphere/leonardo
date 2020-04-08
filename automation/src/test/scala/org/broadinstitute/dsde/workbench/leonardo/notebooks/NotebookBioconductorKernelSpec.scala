@@ -18,7 +18,7 @@
  */
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig, RuntimeFixtureSpec}
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._

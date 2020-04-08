@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.service.RestException
-import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**

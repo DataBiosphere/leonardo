@@ -14,6 +14,7 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
     val newMasterMachineType = "n1-standard-2"
     val machineConfig =
       RuntimeConfigRequest.DataprocConfig(
+        cloudService = CloudService.Dataproc.asString,
         Some(0),
         masterMachineType = Some(newMasterMachineType),
         Some(500),

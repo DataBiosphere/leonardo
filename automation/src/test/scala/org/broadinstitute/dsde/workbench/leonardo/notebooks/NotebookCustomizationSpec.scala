@@ -3,15 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-
-import org.broadinstitute.dsde.workbench.leonardo.{
-  GPAllocBeforeAndAfterAll,
-  GPAllocFixtureSpec,
-  LeonardoConfig,
-  RuntimeConfig,
-  RuntimeConfigRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudService, GPAllocFixtureSpec, LeonardoConfig, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -204,7 +196,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         billingProject,
         request = defaultClusterRequest.copy(
           machineConfig = Some(
-            RuntimeConfigRequest.DataprocConfig(numberOfWorkers = Some(0),
+            RuntimeConfigRequest.DataprocConfig(cloudService = CloudService.Dataproc.asString,
+                                                numberOfWorkers = Some(0),
                                                 masterMachineType = Some("n1-standard-2"),
                                                 masterDiskSize = Some(500),
                                                 None,

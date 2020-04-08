@@ -3,10 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 
-import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.findValues
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
@@ -49,7 +47,6 @@ object RuntimeConfigRequest {
                                   numberOfWorkers: Option[Int],
                                   masterMachineType: Option[String],
                                   masterDiskSize: Option[Int], //min 10
-                                  // worker settings are None when numberOfWorkers is 0
                                   workerMachineType: Option[String] = None,
                                   workerDiskSize: Option[Int] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
@@ -78,7 +75,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           enableWelder: Option[Boolean] = None,
                           customClusterEnvironmentVariables: Map[String, String] = Map.empty,
                           allowStop: Boolean = false)
-//ceck swagger page to clean up parameters
+
 case class RuntimeRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
@@ -139,7 +136,6 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
   }
 }
 
-//TODO Rename to RuntimeStatus once everything is running. Avoiding for now for compile issues
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   //NOTE: Remember to update the definition of this enum in Swagger when you add new ones

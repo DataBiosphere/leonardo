@@ -3,15 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudio
-import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
-import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEntity, GcsObjectName, GcsPath}
-import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.tagobjects.Retryable
-import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._

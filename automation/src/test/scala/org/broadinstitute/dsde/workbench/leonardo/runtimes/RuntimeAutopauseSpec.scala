@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{
   ClusterStatus,
-  GPAllocBeforeAndAfterAll,
   GPAllocFixtureSpec,
   Leonardo,
   LeonardoTestUtils

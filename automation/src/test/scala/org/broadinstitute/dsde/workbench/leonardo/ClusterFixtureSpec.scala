@@ -100,7 +100,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
     ronCluster = createNewCluster(billingProject, request = getRuntimeRequest())(ronAuthToken)
   }
-  //should take a parameter from cloudService to determine if it is GCE or Dataproc
+
   def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): ClusterRequest = {
 
     val machineConfig = cloudService match {

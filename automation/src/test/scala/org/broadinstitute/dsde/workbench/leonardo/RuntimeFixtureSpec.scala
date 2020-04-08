@@ -1,12 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
 
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
 
@@ -64,7 +61,7 @@ abstract class RuntimeFixtureSpec
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
     ronCluster = createNewRuntime(billingProject, request = getRuntimeRequest())(ronAuthToken)
   }
-  //should take a parameter from cloudService to determine if it is GCE or Dataproc
+
   def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): RuntimeRequest = {
 
     val machineConfig = cloudService match {
@@ -88,9 +85,7 @@ abstract class RuntimeFixtureSpec
     }
 
     RuntimeRequest(
-      //machineConfig = Some(machineConfig),
       runtimeConfig = Some(machineConfig),
-      //enableWelder = Some(enableWelder),
       toolDockerImage = toolDockerImage,
       autopause = Some(false)
     )
