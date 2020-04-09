@@ -9,12 +9,7 @@ import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class RuntimeFixtureSpec
-    extends fixture.FreeSpec
-    with BeforeAndAfterAll
-    with LeonardoTestUtils
-    with Retries
-{
+abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
