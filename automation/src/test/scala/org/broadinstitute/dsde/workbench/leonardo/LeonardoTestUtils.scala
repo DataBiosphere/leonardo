@@ -564,7 +564,7 @@ trait LeonardoTestUtils
 
       caught.message should include("\"statusCode\":422")
       caught.message should include(
-        s"""Runtime ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
+        s"""Cluster ${googleProject.value}/${runtimeName.asString} is stopped. Start your cluster before proceeding."""
       )
     }
   }

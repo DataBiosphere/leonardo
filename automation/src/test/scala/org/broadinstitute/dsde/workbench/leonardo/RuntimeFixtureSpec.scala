@@ -14,7 +14,7 @@ abstract class RuntimeFixtureSpec
     with BeforeAndAfterAll
     with LeonardoTestUtils
     with Retries
-    with GPAllocBeforeAndAfterAll {
+{
 
   implicit val ronToken: AuthToken = ronAuthToken
 
