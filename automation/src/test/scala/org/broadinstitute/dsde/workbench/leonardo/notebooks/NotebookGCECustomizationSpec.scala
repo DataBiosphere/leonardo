@@ -73,9 +73,9 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
           )
           withNewRuntime(billingProject,
                          request = defaultRuntimeRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {
-            cluster =>
+            runtime =>
               withWebDriver { implicit driver =>
-                withNewNotebook(cluster, Python3) { notebookPage =>
+                withNewNotebook(runtime, Python3) { notebookPage =>
                   // Check the extensions were installed
                   val nbExt = notebookPage.executeCell("! jupyter nbextension list")
                   nbExt.get should include("jupyter-gmaps/extension  enabled")
@@ -98,7 +98,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
-    //MAKE SURE SCOPES ARE BEING USED PROPERLY IN THE CLUSTERCOPY
+    //TODO Renable test once this is fixed
 //    "should give cluster user-specified scopes" in { billingProject =>
 //      implicit val ronToken: AuthToken = ronAuthToken
 //
@@ -133,9 +133,9 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Note: the R image includes R and python 3 kernels
-      val clusterRequest = defaultRuntimeRequest.copy(customEnvironmentVariables = Map("KEY" -> "value"))
+      val runtimeRequest = defaultRuntimeRequest.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 
-      withNewRuntime(billingProject, request = clusterRequest) { cluster =>
+      withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
         withWebDriver { implicit driver =>
           withNewNotebook(cluster, Python3) { notebookPage =>
             notebookPage.executeCell("import os")
@@ -172,19 +172,19 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
 
           withNewRuntime(billingProject,
                          request = defaultRuntimeRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
-            cluster =>
+            runtime =>
               withWebDriver { implicit driver =>
-                withNewNotebook(cluster, Python3) { notebookPage =>
+                withNewNotebook(runtime, Python3) { notebookPage =>
                   notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
                 }
 
                 // Stop the cluster
-                stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+                stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
                 // Start the cluster
-                startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+                startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-                withNewNotebook(cluster, Python3) { notebookPage =>
+                withNewNotebook(runtime, Python3) { notebookPage =>
                   notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
                 }
               }

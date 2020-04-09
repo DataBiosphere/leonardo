@@ -16,9 +16,9 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   "NotebookPyKernelSpec" - {
 
-    "should create a notebook with a working Python 3 kernel and import installed packages" in { clusterFixture =>
+    "should create a notebook with a working Python 3 kernel and import installed packages" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           val getPythonVersion =
             """import platform
               |print(platform.python_version())""".stripMargin
@@ -33,9 +33,9 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     Seq(Python3).foreach { kernel =>
-      s"should be able to pip install packages using ${kernel.string}" in { clusterFixture =>
+      s"should be able to pip install packages using ${kernel.string}" in { runtimeFixture =>
         withWebDriver { implicit driver =>
-          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+          withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
             // install a package that is not installed by default
             notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should include("ModuleNotFoundError")
             pipInstall(notebookPage, kernel, "fuzzywuzzy")
@@ -50,7 +50,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should NOT be able to run Spark" in { clusterFixture =>
+    "should NOT be able to run Spark" in { runtimeFixture =>
       val sparkCommandToFail =
         """try:
           |    name = sc.appName
@@ -59,7 +59,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           |    print(err)""".stripMargin
 
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           // As proof of not having Spark installed:
           // We should get an error upon attempting to access the SparkContext object 'sc'
           // since Python kernels do not include Spark installation.
@@ -69,8 +69,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should include Content-Security-Policy in headers" in { clusterFixture =>
-      val headers = Notebook.getApiHeaders(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+    "should include Content-Security-Policy in headers" in { runtimeFixture =>
+      val headers = Notebook.getApiHeaders(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe 'defined
       contentSecurityHeader.get.value should include("https://bvdp-saturn-dev.appspot.com")
@@ -78,14 +78,14 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       contentSecurityHeader.get.value should not include ("*.terra.bio")
     }
 
-    "should allow BigQuerying via the command line" in { clusterFixture =>
+    "should allow BigQuerying via the command line" in { runtimeFixture =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
       val ownerToken = hermioneAuthToken
-      Orchestration.billing.addGoogleRoleToBillingProjectUser(clusterFixture.cluster.googleProject.value,
+      Orchestration.billing.addGoogleRoleToBillingProjectUser(runtimeFixture.runtime.googleProject.value,
                                                               ronEmail,
                                                               "bigquery.jobUser")(ownerToken)
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           val query =
             """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
           val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
@@ -97,7 +97,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should allow BigQuerying through python" in { clusterFixture =>
+    "should allow BigQuerying through python" in { runtimeFixture =>
       val query = """"SELECT
                     |CONCAT(
                     |'https://stackoverflow.com/questions/',
@@ -116,7 +116,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
                         |results = query_job.result()""".stripMargin
 
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           notebookPage.executeCell(bigQuery) shouldBe None
           notebookPage.executeCell("print(results)").get should include(
             "google.cloud.bigquery.table.RowIterator object"
@@ -125,25 +125,25 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should update dateAccessed if the notebook is open" in { clusterFixture =>
+    "should update dateAccessed if the notebook is open" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           val firstApiCall =
-            Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+            Leonardo.cluster.getRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
           //Sleeping for 90s to simulate idle notebook
           logger.info("Sleeping for 90s to simulate idle notebook")
           Thread.sleep(90000)
           val secondApiCall =
-            Leonardo.cluster.getRuntime(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+            Leonardo.cluster.getRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
           firstApiCall.auditInfo.dateAccessed should be < secondApiCall.auditInfo.dateAccessed
         }
       }
     }
 
     Seq(Python3).foreach { kernel =>
-      s"should preinstall google cloud subpackages for ${kernel.string}" in { clusterFixture =>
+      s"should preinstall google cloud subpackages for ${kernel.string}" in { runtimeFixture =>
         withWebDriver { implicit driver =>
-          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+          withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
             //all other packages cannot be tested for their versions in this manner
             //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
             notebookPage.executeCell(
@@ -161,25 +161,25 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     // https://github.com/DataBiosphere/leonardo/issues/797
-    s"should be able to import ggplot for ${Python3.toString}" in { clusterFixture =>
+    s"should be able to import ggplot for ${Python3.toString}" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("from ggplot import *").get should not include ("ImportError")
           notebookPage.executeCell("ggplot") shouldBe Some("ggplot.ggplot.ggplot")
         }
       }
     }
 
-    s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { clusterFixture =>
+    s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebookInSubfolder(clusterFixture.cluster, Python3) { notebookPage =>
+        withNewNotebookInSubfolder(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")
           notebookPage
             .executeCell("os.getenv('GOOGLE_PROJECT')")
-            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            .get shouldBe s"'${runtimeFixture.runtime.googleProject.value}'"
           notebookPage
             .executeCell("os.getenv('WORKSPACE_NAMESPACE')")
-            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            .get shouldBe s"'${runtimeFixture.runtime.googleProject.value}'"
           notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
           notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
           // workspace bucket is not wired up in tests
@@ -189,23 +189,23 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     // https://github.com/DataBiosphere/leonardo/issues/891
-    "should be able to install python libraries with C bindings" in { clusterFixture =>
+    "should be able to install python libraries with C bindings" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("! pip install Cython").get should include("Successfully installed Cython")
           notebookPage.executeCell("! pip install POT").get should include("Successfully installed POT")
         }
       }
     }
 
-    "should use pet credentials" in { clusterFixture =>
-      val petEmail = getAndVerifyPet(clusterFixture.cluster.googleProject)
+    "should use pet credentials" in { runtimeFixture =>
+      val petEmail = getAndVerifyPet(runtimeFixture.runtime.googleProject)
       // cluster should have been created with the pet service account
 
-      clusterFixture.cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
+      runtimeFixture.runtime.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
 
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           // should not have notebook credentials because Leo is not configured to use a notebook service account
           verifyNoNotebookCredentials(notebookPage)
         }

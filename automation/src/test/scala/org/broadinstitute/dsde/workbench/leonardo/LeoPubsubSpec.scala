@@ -9,7 +9,7 @@ import org.scalatest.{DoNotDiscover, FlatSpec}
 @DoNotDiscover
 class LeoPubsubSpec extends FlatSpec with LeonardoTestUtils {
 
-  it should "Google publisher should be able to auth" in {
+  "Google publisher" should "be able to auth" in {
     logger.info(s"publisher config is: ${LeonardoConfig.Leonardo.publisherConfig}")
 
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
@@ -21,7 +21,7 @@ class LeoPubsubSpec extends FlatSpec with LeonardoTestUtils {
       .unsafeRunSync()
   }
 
-  it should "Google publisher should publish" in {
+  it should "publish" in {
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
     val queue = InspectableQueue.bounded[IO, String](100).unsafeRunSync()
 

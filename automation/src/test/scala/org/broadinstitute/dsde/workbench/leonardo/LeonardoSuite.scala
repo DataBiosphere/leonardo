@@ -14,6 +14,11 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
+  RuntimeAutopauseSpec,
+  RuntimePatchSpec,
+  RuntimeStatusTransitionsSpec
+}
 
 trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
   override type FixtureParam = GoogleProject
@@ -106,7 +111,13 @@ final class LeonardoSuite
       new RStudioSpec,
       new LeoPubsubSpec,
       new ClusterPatchSpec,
-      new ClusterAutopauseSpec
+      new ClusterAutopauseSpec,
+      new RuntimeAutopauseSpec,
+      new RuntimePatchSpec,
+      new RuntimeStatusTransitionsSpec,
+      new NotebookGCEClusterMonitoringSpec,
+      new NotebookGCECustomizationSpec,
+      new NotebookGCEDataSyncingSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll

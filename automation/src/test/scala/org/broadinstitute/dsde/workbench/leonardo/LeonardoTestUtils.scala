@@ -232,7 +232,7 @@ trait LeonardoTestUtils
     cluster
   }
 
-  def verifyRuntime(cluster: GetRuntimeResponseCopy,
+  def verifyRuntime(runtime: GetRuntimeResponseCopy,
                     expectedProject: GoogleProject,
                     expectedName: RuntimeName,
                     expectedStatuses: List[ClusterStatus],
@@ -240,26 +240,26 @@ trait LeonardoTestUtils
                     bucketCheck: Boolean = true): GetRuntimeResponseCopy = {
     // Always log cluster errors
 
-    if (cluster.errors.nonEmpty) {
+    if (runtime.errors.nonEmpty) {
       logger.warn(
-        s"ClusterCopy ${cluster.googleProject}/${cluster.runtimeName} returned the following errors: ${cluster.errors}"
+        s"ClusterCopy ${runtime.googleProject}/${runtime.runtimeName} returned the following errors: ${runtime.errors}"
       )
     }
-    withClue(s"ClusterCopy ${cluster.googleProject}/${cluster.runtimeName}: ") {
-      expectedStatuses should contain(cluster.status)
+    withClue(s"ClusterCopy ${runtime.googleProject}/${runtime.runtimeName}: ") {
+      expectedStatuses should contain(runtime.status)
     }
 
-    cluster.googleProject shouldBe expectedProject
-    cluster.runtimeName shouldBe expectedName
+    runtime.googleProject shouldBe expectedProject
+    runtime.runtimeName shouldBe expectedName
 
-    gceLabelCheck(cluster.labels, expectedName, expectedProject, cluster.auditInfo.creator, runtimeRequest)
+    gceLabelCheck(runtime.labels, expectedName, expectedProject, runtime.auditInfo.creator, runtimeRequest)
 
     if (bucketCheck) {
       implicit val patienceConfig: PatienceConfig = storagePatience
-      googleStorageDAO.bucketExists(cluster.asyncRuntimeFields.get.stagingBucket).futureValue shouldBe true
+      googleStorageDAO.bucketExists(runtime.asyncRuntimeFields.get.stagingBucket).futureValue shouldBe true
     }
 
-    cluster
+    runtime
 
   }
 
@@ -308,15 +308,15 @@ trait LeonardoTestUtils
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
-    val clusterTimeResult = time(
+    val runtimeTimeResult = time(
       concurrentClusterCreationPermits
         .withPermit(IO(Leonardo.cluster.createRuntime(googleProject, runtimeName, runtimeRequest)))
         .unsafeRunSync()
     )
-    logger.info(s"Time it took to get cluster create response with: ${clusterTimeResult.duration}")
+    logger.info(s"Time it took to get runtime create response with: ${runtimeTimeResult.duration}")
 
     // verify with get()
-    val creatingCluster = eventually {
+    val creatingRuntime = eventually {
       verifyRuntime(
         Leonardo.cluster.getRuntime(googleProject, runtimeName),
         googleProject,
@@ -327,11 +327,11 @@ trait LeonardoTestUtils
     }(getAfterCreatePatience, implicitly[Position])
 
     if (monitor) {
-      val runningCluster = monitorCreateRuntime(googleProject, runtimeName, runtimeRequest, creatingCluster)
+      val runningRuntime = monitorCreateRuntime(googleProject, runtimeName, runtimeRequest, creatingRuntime)
 
-      runningCluster
+      runningRuntime
     } else {
-      creatingCluster
+      creatingRuntime
     }
   }
 
@@ -373,12 +373,12 @@ trait LeonardoTestUtils
 
   def monitorCreateRuntime(
     googleProject: GoogleProject,
-    clusterName: RuntimeName,
-    clusterRequest: RuntimeRequest,
-    creatingCluster: GetRuntimeResponseCopy
+    runtimeName: RuntimeName,
+    runtimeRequest: RuntimeRequest,
+    creatingRuntime: GetRuntimeResponseCopy
   )(implicit token: AuthToken): GetRuntimeResponseCopy = {
     // wait for "Running", "Stopped", or error (fail fast)
-    val stopAfterCreate = clusterRequest.stopAfterCreation.getOrElse(false)
+    val stopAfterCreate = runtimeRequest.stopAfterCreation.getOrElse(false)
 
     implicit val patienceConfig: PatienceConfig =
       if (stopAfterCreate) clusterStopAfterCreatePatience else clusterPatience
@@ -386,24 +386,24 @@ trait LeonardoTestUtils
     val expectedStatuses =
       List(ClusterStatus.Running, ClusterStatus.Error)
 
-    val runningOrErroredCluster = Try {
+    val runningOrErroredRuntime = Try {
       eventually {
-        val cluster = Leonardo.cluster.getRuntime(googleProject, clusterName)
+        val runtime = Leonardo.cluster.getRuntime(googleProject, runtimeName)
 
-        verifyRuntime(cluster, googleProject, clusterName, expectedStatuses, clusterRequest, true)
+        verifyRuntime(runtime, googleProject, runtimeName, expectedStatuses, runtimeRequest, true)
       }
     }
 
     // If the cluster is running, grab the jupyter.log and welder.log files for debugging.
 
-    runningOrErroredCluster.foreach { getRuntimeResponseCopy =>
+    runningOrErroredRuntime.foreach { getRuntimeResponseCopy =>
       if (getRuntimeResponseCopy.status == ClusterStatus.Running) {
 
-        saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "create")
+        saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "create")
       }
     }
 
-    runningOrErroredCluster.get
+    runningOrErroredRuntime.get
 
   }
   // creates a cluster and checks to see that it reaches the Running state
@@ -412,10 +412,10 @@ trait LeonardoTestUtils
   ): ClusterCopy =
     createCluster(googleProject, clusterName, clusterRequest, monitor = true)
 
-  def createAndMonitorRuntime(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: RuntimeRequest)(
+  def createAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, runtimeRequest: RuntimeRequest)(
     implicit token: AuthToken
   ): GetRuntimeResponseCopy =
-    createRuntime(googleProject, clusterName, clusterRequest, monitor = true)
+    createRuntime(googleProject, runtimeName, runtimeRequest, monitor = true)
 
   def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
@@ -438,17 +438,17 @@ trait LeonardoTestUtils
     }
   }
 
-  def deleteRuntime(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
+  def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
     //we cannot save the log if the cluster isn't running
 
-    if (Leonardo.cluster.getRuntime(googleProject, clusterName).status == ClusterStatus.Running) {
+    if (Leonardo.cluster.getRuntime(googleProject, runtimeName).status == ClusterStatus.Running) {
 
-      saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "delete")
+      saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "delete")
     }
     try {
-      Leonardo.cluster.deleteRuntime(googleProject, clusterName) shouldBe
+      Leonardo.cluster.deleteRuntime(googleProject, runtimeName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."
     } catch {
       // OK if cluster not found / already deleted
@@ -457,7 +457,7 @@ trait LeonardoTestUtils
     }
 
     if (monitor) {
-      monitorDeleteRuntime(googleProject, clusterName)
+      monitorDeleteRuntime(googleProject, runtimeName)
     }
   }
 
@@ -483,21 +483,21 @@ trait LeonardoTestUtils
     }
   }
 
-  def monitorDeleteRuntime(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): Unit = {
+  def monitorDeleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit = {
     // wait until not found or in "Deleted" state
     implicit val patienceConfig: PatienceConfig = clusterPatience
     eventually {
       val allStatus: Set[ClusterStatus] = Leonardo.cluster
         .listIncludingDeletedRuntime(googleProject)
-        .filter(c => c.runtimeName == clusterName && c.googleProject == googleProject)
+        .filter(c => c.runtimeName == runtimeName && c.googleProject == googleProject)
         .map(_.status)
         .toSet
 
       val isDeleted = if (allStatus.isEmpty || allStatus == Set(ClusterStatus.Deleted)) {
-        logger.info(s"ClusterCopy ${googleProject.value}/${clusterName.asString} is deleted")
+        logger.info(s"ClusterCopy ${googleProject.value}/${runtimeName.asString} is deleted")
         true
       } else {
-        logger.info(s"ClusterCopy ${googleProject.value}/${clusterName.asString} is not deleted yet")
+        logger.info(s"ClusterCopy ${googleProject.value}/${runtimeName.asString} is not deleted yet")
         false
       }
 
@@ -539,32 +539,32 @@ trait LeonardoTestUtils
     }
   }
 
-  def stopRuntime(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
+  def stopRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
-    Leonardo.cluster.stopRuntime(googleProject, clusterName) shouldBe
+    Leonardo.cluster.stopRuntime(googleProject, runtimeName) shouldBe
       "The request has been accepted for processing, but the processing has not been completed."
 
     // verify with get()
-    val stoppingCluster = Leonardo.cluster.getRuntime(googleProject, clusterName)
+    val stoppingCluster = Leonardo.cluster.getRuntime(googleProject, runtimeName)
     stoppingCluster.status shouldBe ClusterStatus.Stopping
 
     if (monitor) {
       // wait until in Stopped state
       implicit val patienceConfig: PatienceConfig = clusterPatience
       eventually {
-        val status = Leonardo.cluster.getRuntime(googleProject, clusterName).status
+        val status = Leonardo.cluster.getRuntime(googleProject, runtimeName).status
         status shouldBe ClusterStatus.Stopped
       }
 
       // Verify notebook error
       val caught = the[RestException] thrownBy {
-        Notebook.getTree(googleProject, clusterName)
+        Notebook.getTree(googleProject, runtimeName)
       }
 
       caught.message should include("\"statusCode\":422")
       caught.message should include(
-        s"""Cluster ${googleProject.value}/${clusterName.asString} is stopped. Start your cluster before proceeding."""
+        s"""Runtime ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
       )
     }
   }
@@ -572,8 +572,8 @@ trait LeonardoTestUtils
   def stopAndMonitor(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): Unit =
     stopCluster(googleProject, clusterName, monitor = true)(token)
 
-  def stopAndMonitorRuntime(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): Unit =
-    stopRuntime(googleProject, clusterName, monitor = true)(token)
+  def stopAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
+    stopRuntime(googleProject, runtimeName, monitor = true)(token)
 
   def startCluster(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
@@ -603,38 +603,38 @@ trait LeonardoTestUtils
     }
   }
 
-  def startRuntime(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
+  def startRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
-    Leonardo.cluster.startRuntime(googleProject, clusterName)(token) shouldBe
+    Leonardo.cluster.startRuntime(googleProject, runtimeName)(token) shouldBe
       "The request has been accepted for processing, but the processing has not been completed."
 
     // verify with get()
-    val startingCluster = Leonardo.cluster.getRuntime(googleProject, clusterName)
+    val startingCluster = Leonardo.cluster.getRuntime(googleProject, runtimeName)
     startingCluster.status shouldBe ClusterStatus.Starting
     if (monitor) {
       // wait until in Running state
       implicit val patienceConfig: PatienceConfig = clusterPatience
       eventually {
-        val status = Leonardo.cluster.getRuntime(googleProject, clusterName).status
+        val status = Leonardo.cluster.getRuntime(googleProject, runtimeName).status
         status shouldBe ClusterStatus.Running
       }
 
-      logger.info(s"Checking if cluster is proxyable yet")
-      val getResult = Try(Notebook.getApi(googleProject, clusterName))
+      logger.info(s"Checking if runtime is proxyable yet")
+      val getResult = Try(Notebook.getApi(googleProject, runtimeName))
       getResult.isSuccess shouldBe true
       getResult.get should not include "ProxyException"
 
       // Grab the jupyter.log and welder.log files for debugging.
-      saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "start")
+      saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")
     }
   }
 
   def startAndMonitor(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): Unit =
     startCluster(googleProject, clusterName, monitor = true)(token)
 
-  def startAndMonitorRuntime(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): Unit =
-    startRuntime(googleProject, clusterName, monitor = true)(token)
+  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
+    startRuntime(googleProject, runtimeName, monitor = true)(token)
 
   def randomClusterName: RuntimeName = RuntimeName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
@@ -797,14 +797,14 @@ trait LeonardoTestUtils
       val request = RuntimeRequest(jupyterUserScriptUri = Some(bucketPath.toUri))
       val testResult: Try[T] = Try {
 
-        val cluster = createAndMonitorRuntime(googleProject, name, request)
+        val runtime = createAndMonitorRuntime(googleProject, name, request)
 
-        cluster.status shouldBe ClusterStatus.Error
-        cluster.errors should have size 1
-        cluster.errors.head.errorMessage should include("gs://")
-        cluster.errors.head.errorMessage should include("Userscript failed.")
+        runtime.status shouldBe ClusterStatus.Error
+        runtime.errors should have size 1
+        runtime.errors.head.errorMessage should include("gs://")
+        runtime.errors.head.errorMessage should include("Userscript failed.")
 
-        testCode(cluster)
+        testCode(runtime)
       }
 
       // delete before checking testCode status, which may throw

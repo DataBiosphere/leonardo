@@ -98,14 +98,14 @@ object Leonardo extends RestClient with LazyLogging {
 
     }
 
-    def createRuntime(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: RuntimeRequest)(
+    def createRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, runtimeRequest: RuntimeRequest)(
       implicit token: AuthToken
     ): Unit = {
 
-      val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1))
+      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
       logger.info(s"Create runtime: POST /$path")
 
-      postRequest(url + path, clusterRequest)
+      postRequest(url + path, runtimeRequest)
 
     }
 
@@ -120,8 +120,8 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def getRuntime(googleProject: GoogleProject,
-                   clusterName: RuntimeName)(implicit token: AuthToken): GetRuntimeResponseCopy = {
-      val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1))
+                   runtimeName: RuntimeName)(implicit token: AuthToken): GetRuntimeResponseCopy = {
+      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
 
       val responseString = parseResponse(getRequest(url + path))
 
@@ -142,8 +142,8 @@ object Leonardo extends RestClient with LazyLogging {
       deleteRequest(url + path)
     }
 
-    def deleteRuntime(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
-      val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1))
+    def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
+      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
 
       logger.info(s"Delete runtime: DELETE /$path")
       deleteRequest(url + path)
@@ -155,8 +155,8 @@ object Leonardo extends RestClient with LazyLogging {
       postRequest(url + path)
     }
 
-    def stopRuntime(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
-      val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1)) + "/stop"
+    def stopRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
+      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1)) + "/stop"
       logger.info(s"Stopping runtime: POST /$path")
       postRequest(url + path)
     }
@@ -167,8 +167,8 @@ object Leonardo extends RestClient with LazyLogging {
       postRequest(url + path)
     }
 
-    def startRuntime(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
-      val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1)) + "/start"
+    def startRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
+      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1)) + "/start"
       logger.info(s"Starting runtime: POST /$path")
       postRequest(url + path)
     }
@@ -181,10 +181,10 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterResponse(patchRequest(url + path, clusterRequest))
     }
 
-    def updateRuntime(googleProject: GoogleProject, clusterName: RuntimeName, request: UpdateRuntimeRequestCopy)(
+    def updateRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, request: UpdateRuntimeRequestCopy)(
       implicit token: AuthToken
     ): Unit = {
-      val path = runtimePath(googleProject, clusterName, Some(ApiVersion.V1))
+      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
       logger.info(s"Update runtime: PATCH /$path")
       patchRequest(url + path, request)
 

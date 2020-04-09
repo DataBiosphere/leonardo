@@ -11,17 +11,17 @@ class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution
   implicit val ronToken: AuthToken = ronAuthToken
 
   "autopause should work" in { billingProject =>
-    val clusterName = randomClusterName
-    val clusterRequest = defaultRuntimeRequest.copy(autopause = Some(true), autopauseThreshold = Some(1))
+    val runtimeName = randomClusterName
+    val runtimeRequest = defaultRuntimeRequest.copy(autopause = Some(true), autopauseThreshold = Some(1))
 
-    withNewRuntime(billingProject, clusterName, clusterRequest) { cluster =>
+    withNewRuntime(billingProject, runtimeName, runtimeRequest) { runtime =>
       Leonardo.cluster
-        .getRuntime(cluster.googleProject, cluster.clusterName)
+        .getRuntime(runtime.googleProject, runtime.clusterName)
         .autopauseThreshold shouldBe 1
 
       //the autopause check interval is 1 minute at the time of creation, but it can be flaky with a tighter window.
       eventually(timeout(Span(3, Minutes)), interval(Span(10, Seconds))) {
-        val dbCluster = Leonardo.cluster.getRuntime(cluster.googleProject, cluster.clusterName)
+        val dbCluster = Leonardo.cluster.getRuntime(runtime.googleProject, runtime.clusterName)
         dbCluster.status shouldBe ClusterStatus.Stopping
       }
     }

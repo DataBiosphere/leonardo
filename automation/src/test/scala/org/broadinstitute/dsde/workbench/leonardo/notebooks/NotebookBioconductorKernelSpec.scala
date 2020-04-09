@@ -31,18 +31,18 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.bioconductorImageUrl)
   "NotebookBioconductorKernelSpec" - {
 
-    "should use Bioconductor version 3.10" in { clusterFixture =>
+    "should use Bioconductor version 3.10" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           // Make sure BiocManager has the correct version of Bioconductor
           notebookPage.executeCell("""BiocManager::version() == "3.10"""")
         }
       }
     }
 
-    "should create a notebook with a working R kernel and install package rsbml" ignore { clusterFixture =>
+    "should create a notebook with a working R kernel and install package rsbml" ignore { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           // Make sure unicode characters display correctly
           notebookPage.executeCell("""BiocManager::install("rsbml")""")
           notebookPage.executeCell("library(rsbml)")
@@ -51,9 +51,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should create a notebook with a working R kernel and install package RCurl" ignore { clusterFixture =>
+    "should create a notebook with a working R kernel and install package RCurl" ignore { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           // Make sure unicode characters display correctly
           notebookPage.executeCell("""BiocManager::install("RCurl")""")
           notebookPage.executeCell("library(RCurl)")
@@ -62,9 +62,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to call installed Bioconductor libraries" in { clusterFixture =>
+    "should be able to call installed Bioconductor libraries" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           // it shouldn't take long to load libraries
           val callLibraryTimeout = 1.minutes
 
@@ -78,49 +78,49 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should have GenomicFeatures automatically installed" in { clusterFixture =>
+    "should have GenomicFeatures automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""GenomicFeatures" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should have SingleCellExperiment automatically installed" in { clusterFixture =>
+    "should have SingleCellExperiment automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""SingleCellExperiment" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should have GenomicAlignments automatically installed" in { clusterFixture =>
+    "should have GenomicAlignments automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""GenomicAlignments" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should have ShortRead automatically installed" in { clusterFixture =>
+    "should have ShortRead automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""ShortRead" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should have DESeq2 automatically installed" in { clusterFixture =>
+    "should have DESeq2 automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""DESeq2" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should be able to install packages that depend on libXML" in { clusterFixture =>
+    "should be able to install packages that depend on libXML" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('XML')""", installTimeout)
@@ -130,9 +130,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on graphviz" in { clusterFixture =>
+    "should be able to install packages that depend on graphviz" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('Rgraphviz')""", installTimeout)
@@ -141,9 +141,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on scikit-learn python package" in { clusterFixture =>
+    "should be able to install packages that depend on scikit-learn python package" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('BiocSklearn')""", installTimeout)
@@ -153,9 +153,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on hdf5" in { clusterFixture =>
+    "should be able to install packages that depend on hdf5" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('rhdf5')""", installTimeout)
@@ -165,9 +165,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on openbabel" in { clusterFixture =>
+    "should be able to install packages that depend on openbabel" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('ChemmineOB')""", installTimeout)
@@ -177,9 +177,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on gsl" in { clusterFixture =>
+    "should be able to install packages that depend on gsl" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput =
@@ -190,9 +190,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on magick++" in { clusterFixture =>
+    "should be able to install packages that depend on magick++" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('EBImage')""", installTimeout)
@@ -202,9 +202,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on database packages" in { clusterFixture =>
+    "should be able to install packages that depend on database packages" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('RMySQL')""", installTimeout)
@@ -214,9 +214,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on jags" in { clusterFixture =>
+    "should be able to install packages that depend on jags" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('rjags')""", installTimeout)
@@ -226,9 +226,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on protobuf" in { clusterFixture =>
+    "should be able to install packages that depend on protobuf" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('protolite')""", installTimeout)
@@ -238,9 +238,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on Cairo and gtk" in { clusterFixture =>
+    "should be able to install packages that depend on Cairo and gtk" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('RGtk2')""", installTimeout)
@@ -250,9 +250,9 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should have Java available" in { clusterFixture =>
+    "should have Java available" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val javaOutput = notebookPage.executeCell("""system('java --version', intern = TRUE)""")
           javaOutput shouldBe 'defined
           javaOutput.get should include("OpenJDK Runtime Environment")

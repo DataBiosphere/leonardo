@@ -20,76 +20,76 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
     implicit val ronToken: AuthToken = ronAuthToken
 
     "create, monitor, delete should transition correctly" in { billingProject =>
-      logger.info("Starting ClusterStatusTransitionsSpec: create, monitor, delete should transition correctly")
+      logger.info("Starting RuntimeStatusTransitionsSpec: create, monitor, delete should transition correctly")
 
-      val clusterName = randomClusterName
-      val clusterRequest = defaultRuntimeRequest
+      val runtimeName = randomClusterName
+      val runtimeRequest = defaultRuntimeRequest
 
-      // create a cluster, but don't wait
-      createNewRuntime(billingProject, clusterName, clusterRequest, monitor = false)
+      // create a runtime, but don't wait
+      createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
 
-      // cluster status should be Creating
-      val creatingCluster = Leonardo.cluster.getRuntime(billingProject, clusterName)
-      creatingCluster.status shouldBe ClusterStatus.Creating
+      // runtime status should be Creating
+      val creatingRuntime = Leonardo.cluster.getRuntime(billingProject, runtimeName)
+      creatingRuntime.status shouldBe ClusterStatus.Creating
 
-      // can't create another cluster with the same name
-      val caught = the[RestException] thrownBy createNewRuntime(billingProject, clusterName, monitor = false)
+      // can't create another runtime with the same name
+      val caught = the[RestException] thrownBy createNewRuntime(billingProject, runtimeName, monitor = false)
       caught.message should include(""""statusCode":409""")
 
-      // can't stop a Creating cluster
-      val caught2 = the[RestException] thrownBy stopRuntime(billingProject, clusterName, monitor = false)
+      // can't stop a Creating runtime
+      val caught2 = the[RestException] thrownBy stopRuntime(billingProject, runtimeName, monitor = false)
       caught2.message should include(""""statusCode":409""")
 
-      // wait for cluster to be running
-      monitorCreateRuntime(billingProject, clusterName, clusterRequest, creatingCluster)
-      Leonardo.cluster.getRuntime(billingProject, clusterName).status shouldBe ClusterStatus.Running
+      // wait for runtime to be running
+      monitorCreateRuntime(billingProject, runtimeName, runtimeRequest, creatingRuntime)
+      Leonardo.cluster.getRuntime(billingProject, runtimeName).status shouldBe ClusterStatus.Running
 
-      // delete the cluster, but don't wait
-      deleteRuntime(billingProject, clusterName, monitor = false)
+      // delete the runtime, but don't wait
+      deleteRuntime(billingProject, runtimeName, monitor = false)
 
-      // cluster status should be Deleting
-      Leonardo.cluster.getRuntime(billingProject, clusterName).status shouldBe ClusterStatus.Deleting
+      // runtime status should be Deleting
+      Leonardo.cluster.getRuntime(billingProject, runtimeName).status shouldBe ClusterStatus.Deleting
 
       // Call delete again. This should succeed, and not change the status.
-      deleteRuntime(billingProject, clusterName, monitor = false)
-      Leonardo.cluster.getRuntime(billingProject, clusterName).status shouldBe ClusterStatus.Deleting
+      deleteRuntime(billingProject, runtimeName, monitor = false)
+      Leonardo.cluster.getRuntime(billingProject, runtimeName).status shouldBe ClusterStatus.Deleting
 
-      // Can't recreate while cluster is deleting
+      // Can't recreate while runtime is deleting
       val caught3 = the[RestException] thrownBy createNewRuntime(billingProject,
-                                                                 clusterName,
-                                                                 clusterRequest,
+                                                                 runtimeName,
+                                                                 runtimeRequest,
                                                                  monitor = false)
       caught3.message should include(""""statusCode":409""")
 
-      // Wait for the cluster to be deleted
-      monitorDeleteRuntime(billingProject, clusterName)
+      // Wait for the runtime to be deleted
+      monitorDeleteRuntime(billingProject, runtimeName)
 
-      // New cluster can now be recreated with the same name
+      // New runtime can now be recreated with the same name
       // We monitor creation to make sure it gets successfully created in Google.
-      withNewRuntime(billingProject, clusterName, clusterRequest, monitorCreate = true, monitorDelete = false)(noop)
+      withNewRuntime(billingProject, runtimeName, runtimeRequest, monitorCreate = true, monitorDelete = false)(noop)
     }
 
-    "error'd clusters should transition correctly" in { billingProject =>
-      logger.info("Starting ClusterStatusTransitionsSpec: error'd clusters should transition correctly")
+    "error'd runtimes should transition correctly" in { billingProject =>
+      logger.info("Starting RuntimeStatusTransitionsSpec: error'd runtimes should transition correctly")
 
-      // make an Error'd cluster
-      withNewErroredRuntime(billingProject) { cluster =>
-        // cluster should be in Error status
-        cluster.status shouldBe ClusterStatus.Error
+      // make an Error'd runtime
+      withNewErroredRuntime(billingProject) { runtime =>
+        // runtime should be in Error status
+        runtime.status shouldBe ClusterStatus.Error
 
-        // can't stop an Error'd cluster
-        val caught = the[RestException] thrownBy stopRuntime(cluster.googleProject,
-                                                             cluster.runtimeName,
+        // can't stop an Error'd runtime
+        val caught = the[RestException] thrownBy stopRuntime(runtime.googleProject,
+                                                             runtime.runtimeName,
                                                              monitor = false)
         caught.message should include(""""statusCode":409""")
 
-        // can't recreate an Error'd cluster
-        val caught2 = the[RestException] thrownBy createNewRuntime(cluster.googleProject,
-                                                                   cluster.runtimeName,
+        // can't recreate an Error'd runtime
+        val caught2 = the[RestException] thrownBy createNewRuntime(runtime.googleProject,
+                                                                   runtime.runtimeName,
                                                                    monitor = false)
         caught2.message should include(""""statusCode":409""")
 
-        // can delete an Error'd cluster
+        // can delete an Error'd runtime
       }
     }
     // Note: omitting stop/start and patch/update tests here because those are covered in more depth in NotebookClusterMonitoringSpec

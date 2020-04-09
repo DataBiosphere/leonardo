@@ -29,7 +29,7 @@ abstract class RuntimeFixtureSpec
    *
    * Claim a billing project for project owner
    */
-  case class ClusterFixture(cluster: ClusterCopy)
+  case class ClusterFixture(runtime: ClusterCopy)
 
   override type FixtureParam = ClusterFixture
 

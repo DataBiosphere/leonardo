@@ -25,25 +25,25 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a cluster
-      withNewRuntime(billingProject) { cluster =>
+      withNewRuntime(billingProject) { runtime =>
         val printStr = "Pause/resume test"
 
         withWebDriver { implicit driver =>
           // Create a notebook and execute a cell
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+          withNewNotebook(runtime, kernel = Python3) { notebookPage =>
             notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
           }
 
-          // Stop the cluster
-          stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+          // Stop the runtime
+          stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-          // Start the cluster
-          startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+          // Start the runtime
+          startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
           // TODO make tests rename notebooks?
           val notebookPath = new File("Untitled.ipynb")
           // Use a longer timeout than default because opening notebooks after resume can be slow
-          withOpenNotebook(cluster, notebookPath, 10.minutes) { notebookPage =>
+          withOpenNotebook(runtime, notebookPath, 10.minutes) { notebookPage =>
             // old output should still exist
             val firstCell = notebookPage.firstCell
             notebookPage.cellOutput(firstCell) shouldBe Some(CellOutput(printStr, None))
@@ -65,45 +65,24 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
         billingProject,
         request = defaultRuntimeRequest.copy(labels = Map(deployWelderLabel -> "true"),
                                              welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage))
-      ) { cluster =>
+      ) { runtime =>
         // Verify welder is running with old version
-        val statusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
+        val statusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
         statusResponse.isRight shouldBe true
         val oldWelderHash = LeonardoConfig.Leonardo.oldWelderDockerImage.split(":")(1)
         statusResponse.toOption.get.gitHeadCommit should startWith(oldWelderHash)
 
-        // Stop the cluster
-        stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+        // Stop the runtime
+        stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-        // Start the cluster
-        startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+        // Start the runtime
+        startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
         // Verify welder is now running
         val curWelderHash = LeonardoConfig.Leonardo.curWelderDockerImage.split(":")(1)
-        val newStatusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
+        val newStatusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
         newStatusResponse.isRight shouldBe true
         newStatusResponse.toOption.get.gitHeadCommit should startWith(curWelderHash)
-      }
-    }
-
-    // TODO: remove this test once we stop supporting the legacy image
-    "should set environment variables for old image" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      withNewRuntime(billingProject,
-                     request = defaultRuntimeRequest.copy(toolDockerImage = None /*enableWelder = Some(true)*/ )) {
-        cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
-              notebookPage.executeCell("import os")
-              notebookPage.executeCell("os.getenv('GOOGLE_PROJECT')").get shouldBe s"'${billingProject.value}'"
-              notebookPage.executeCell("os.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${billingProject.value}'"
-              notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
-              notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
-              // workspace bucket is not wired up in tests
-              notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
-            }
-          }
       }
     }
 
@@ -116,24 +95,24 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
         request = defaultRuntimeRequest.copy(
           toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl) /* enableWelder = Some(true)*/
         )
-      ) { cluster =>
+      ) { runtime =>
         // Make sure RStudio is up
         // See this ticket for adding more comprehensive selenium tests for RStudio:
         // https://broadworkbench.atlassian.net/browse/IA-697
-        val getResult = Try(RStudio.getApi(cluster.googleProject, cluster.clusterName))
+        val getResult = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
         getResult.isSuccess shouldBe true
         getResult.get should include("unsupported_browser")
         getResult.get should not include "ProxyException"
 
         // Stop the cluster
-        stopAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+        stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
         // Start the cluster
-        startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
+        startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
         // RStudio should still be up
         // TODO: also check that the session is preserved after IA-697 is done
-        val getResultAfterResume = Try(RStudio.getApi(cluster.googleProject, cluster.clusterName))
+        val getResultAfterResume = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
         getResultAfterResume.isSuccess shouldBe true
         getResultAfterResume.get should include("unsupported_browser")
         getResultAfterResume.get should not include "ProxyException"

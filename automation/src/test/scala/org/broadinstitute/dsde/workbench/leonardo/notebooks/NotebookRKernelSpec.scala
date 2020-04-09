@@ -14,9 +14,9 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   "NotebookRKernelSpec" - {
 
     // See https://github.com/DataBiosphere/leonardo/issues/398
-    "should use UTF-8 encoding" in { clusterFixture =>
+    "should use UTF-8 encoding" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           // Check the locale is set to en_US.UTF-8
           notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
 
@@ -38,9 +38,9 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     // Dataproc is giving us Spark 2.2.1. However this chart indicates that we should be getting Spark 2.2.3:
     // https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-release-1.2.
     // Opening a Google ticket and temporarily ignoring this test.
-    "should create a notebook with a working R kernel and import installed packages" ignore { clusterFixture =>
+    "should create a notebook with a working R kernel and import installed packages" ignore { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell("library(SparkR)").get should include("SparkR")
           notebookPage.executeCell("sparkR.session()")
           notebookPage.executeCell("df <- as.DataFrame(faithful)")
@@ -62,9 +62,9 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should be able to install new R packages" in { clusterFixture =>
+    "should be able to install new R packages" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           // httr is a simple http library for R
           // http://httr.r-lib.org//index.html
 
@@ -88,9 +88,9 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     // See https://github.com/DataBiosphere/leonardo/issues/398
-    "should be able to install mlr" in { clusterFixture =>
+    "should be able to install mlr" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           // mlr: machine learning in R
           // https://github.com/mlr-org/mlr
 
@@ -110,26 +110,26 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should have tidyverse automatically installed" in { clusterFixture =>
+    "should have tidyverse automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""tidyverse" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should have Ronaldo automatically installed" in { clusterFixture =>
+    "should have Ronaldo automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""Ronaldo" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
     // See https://github.com/DataBiosphere/leonardo/issues/710
-    "should be able to install packages that depend on gfortran" in { clusterFixture =>
+    "should be able to install packages that depend on gfortran" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
@@ -142,15 +142,15 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    s"should have the workspace-related environment variables set" in { clusterFixture =>
+    s"should have the workspace-related environment variables set" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebookInSubfolder(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebookInSubfolder(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage
             .executeCell("Sys.getenv('GOOGLE_PROJECT')")
-            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            .get shouldBe s"'${runtimeFixture.runtime.googleProject.value}'"
           notebookPage
             .executeCell("Sys.getenv('WORKSPACE_NAMESPACE')")
-            .get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            .get shouldBe s"'${runtimeFixture.runtime.googleProject.value}'"
           notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
           notebookPage.executeCell("Sys.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
           // workspace bucket is not wired up in tests
