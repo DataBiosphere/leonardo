@@ -50,6 +50,7 @@ object Leonardo extends RestClient with LazyLogging {
       val res = for {
         json <- io.circe.parser.parse(response)
         r <- json.as[List[ListRuntimeResponseCopy]]
+
       } yield r
 
       res.getOrElse(throw new Exception("Failed to parse list of runtime response"))
@@ -266,7 +267,7 @@ object AutomationTestJsonCodec {
     GetRuntimeResponseCopy(rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e.getOrElse(List.empty), ujec, at)
   }
 
-  implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct13(
+  implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct9(
     "id",
     "runtimeName",
     "googleProject",
@@ -275,11 +276,7 @@ object AutomationTestJsonCodec {
     "proxyUrl",
     "status",
     "labels",
-    "jupyterExtensionUri",
-    "jupyterUserScriptUri",
-    "autopauseThreshold",
-    "patchInProgress",
-    "defaultClientId"
+    "patchInProgress"
   )(ListRuntimeResponseCopy.apply)
 }
 

@@ -181,11 +181,8 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          proxyUrl: URL,
                                          status: ClusterStatus,
                                          labels: LabelMap,
-                                         jupyterExtensionUri: Option[GcsPath],
-                                         jupyterUserScriptUri: Option[UserScriptPath],
-                                         autopauseThreshold: Int,
-                                         patchInProgress: Boolean,
-                                         defaultClientId: Option[String])
+                                         patchInProgress: Boolean
+)
 
 final case class UpdateRuntimeRequestCopy(runtimeConfig: Option[UpdateRuntimeConfigRequestCopy],
                                           allowStop: Boolean,
