@@ -3,7 +3,11 @@ package service
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, ListRuntimeResponse2, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateRuntime2Request,
+  ListRuntimeResponse2,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeService}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -25,20 +29,22 @@ object MockRuntimeServiceInterp extends RuntimeService[IO] {
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
     implicit as: ApplicativeAsk[IO, AppContext]
   ): IO[Vector[ListRuntimeResponse2]] =
-    IO.pure(Vector(
-      ListRuntimeResponse2(
-        CommonTestData.testCluster.id,
-        CommonTestData.testCluster.internalId,
-        CommonTestData.testCluster.runtimeName,
-        CommonTestData.testCluster.googleProject,
-        CommonTestData.testCluster.auditInfo,
-        CommonTestData.defaultRuntimeConfig,
-        CommonTestData.testCluster.proxyUrl,
-        CommonTestData.testCluster.status,
-        CommonTestData.testCluster.labels,
-        CommonTestData.testCluster.patchInProgress
+    IO.pure(
+      Vector(
+        ListRuntimeResponse2(
+          CommonTestData.testCluster.id,
+          CommonTestData.testCluster.internalId,
+          CommonTestData.testCluster.runtimeName,
+          CommonTestData.testCluster.googleProject,
+          CommonTestData.testCluster.auditInfo,
+          CommonTestData.defaultRuntimeConfig,
+          CommonTestData.testCluster.proxyUrl,
+          CommonTestData.testCluster.status,
+          CommonTestData.testCluster.labels,
+          CommonTestData.testCluster.patchInProgress
+        )
       )
-    ))
+    )
 
   override def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit as: ApplicativeAsk[IO, AppContext]

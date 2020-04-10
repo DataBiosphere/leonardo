@@ -4,7 +4,18 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{DiskName, FirewallRuleName, GoogleComputeService, InstanceName, MachineTypeName, NetworkName, OperationName, RegionName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  FirewallRuleName,
+  GoogleComputeService,
+  InstanceName,
+  MachineTypeName,
+  NetworkName,
+  OperationName,
+  RegionName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 

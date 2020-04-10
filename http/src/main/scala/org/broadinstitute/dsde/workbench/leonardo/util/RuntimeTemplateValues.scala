@@ -46,6 +46,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           notebooksDir: String,
                                           customEnvVarsConfigUri: String,
                                           memLimit: String,
+                                          welderMemLimit: String,
                                           runtimeOperation: String,
                                           deployWelder: String,
                                           updateWelder: String,
@@ -56,25 +57,25 @@ case class RuntimeTemplateValues private (googleProject: String,
 
 }
 
-case class RuntimeTemplateValuesConfig(runtimeProjectAndName: RuntimeProjectAndName,
-                                       stagingBucketName: Option[GcsBucketName],
-                                       runtimeImages: Set[RuntimeImage],
-                                       initBucketName: Option[GcsBucketName],
-                                       jupyterUserScriptUri: Option[UserScriptPath],
-                                       jupyterStartUserScriptUri: Option[UserScriptPath],
-                                       serviceAccountKey: Option[ServiceAccountKey],
-                                       userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                                       defaultClientId: Option[String],
-                                       welderEnabled: Boolean,
-                                       auditInfo: AuditInfo,
-                                       imageConfig: ImageConfig,
-                                       welderConfig: WelderConfig,
-                                       proxyConfig: ProxyConfig,
-                                       clusterFilesConfig: ClusterFilesConfig,
-                                       clusterResourcesConfig: ClusterResourcesConfig,
-                                       clusterResourceConstraints: Option[RuntimeResourceConstraints],
-                                       runtimeOperation: RuntimeOperation,
-                                       welderAction: Option[WelderAction])
+case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimeProjectAndName,
+                                                stagingBucketName: Option[GcsBucketName],
+                                                runtimeImages: Set[RuntimeImage],
+                                                initBucketName: Option[GcsBucketName],
+                                                jupyterUserScriptUri: Option[UserScriptPath],
+                                                jupyterStartUserScriptUri: Option[UserScriptPath],
+                                                serviceAccountKey: Option[ServiceAccountKey],
+                                                userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                                defaultClientId: Option[String],
+                                                welderEnabled: Boolean,
+                                                auditInfo: AuditInfo,
+                                                imageConfig: ImageConfig,
+                                                welderConfig: WelderConfig,
+                                                proxyConfig: ProxyConfig,
+                                                clusterFilesConfig: ClusterFilesConfig,
+                                                clusterResourcesConfig: ClusterResourcesConfig,
+                                                clusterResourceConstraints: Option[RuntimeResourceConstraints],
+                                                runtimeOperation: RuntimeOperation,
+                                                welderAction: Option[WelderAction])
 object RuntimeTemplateValuesConfig {
   def fromCreateRuntimeParams(
     params: CreateRuntimeParams,
@@ -219,6 +220,7 @@ object RuntimeTemplateValues {
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
         .getOrElse(""),
       config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse(""),
+      config.welderConfig.welderReservedMemory.map(_.toString).getOrElse(""),
       config.runtimeOperation.asString,
       (config.welderAction == Some(DeployWelder)).toString,
       (config.welderAction == Some(UpdateWelder)).toString,
@@ -227,7 +229,7 @@ object RuntimeTemplateValues {
 
   def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =
     GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt"))
-  private def jupyterUserStartScriptOutputUriPath(stagingBucketName: GcsBucketName, now: Instant): GcsPath = {
+  private[util] def jupyterUserStartScriptOutputUriPath(stagingBucketName: GcsBucketName, now: Instant): GcsPath = {
     val formatter = DateTimeFormatter
       .ofLocalizedDateTime(FormatStyle.SHORT)
       .withZone(ZoneId.systemDefault())

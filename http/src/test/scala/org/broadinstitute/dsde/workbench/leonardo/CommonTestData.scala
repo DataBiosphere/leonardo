@@ -11,7 +11,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{InstanceName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -54,7 +54,7 @@ object CommonTestData {
                                             ServiceAccountPrivateKeyData("abcdefg"),
                                             Some(Instant.now),
                                             Some(Instant.now.plusSeconds(300)))
-  val initBucketPath = GcsBucketName("init-bucket-path")
+  val initBucketName = GcsBucketName("init-bucket-path")
   val stagingBucketName = GcsBucketName("staging-bucket-name")
   val autopause = true
   val autopauseThreshold = 30
@@ -147,6 +147,7 @@ object CommonTestData {
   val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
+  val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, Instant.now)
   val customDataprocImage = RuntimeImage(VM, "custom_dataproc", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
@@ -212,10 +213,7 @@ object CommonTestData {
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
     asyncRuntimeFields = Some(
-      AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString),
-                         OperationName("op"),
-                         GcsBucketName("testStagingBucket1"),
-                         None)
+      AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
     ),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
@@ -229,12 +227,12 @@ object CommonTestData {
     dataprocInstances = Set.empty,
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
-    defaultClientId = None,
+    defaultClientId = Some("clientId"),
     stopAfterCreation = false,
     allowStop = false,
-    runtimeImages = Set(jupyterImage),
+    runtimeImages = Set(jupyterImage, welderImage, proxyImage),
     scopes = defaultScopes,
-    welderEnabled = false,
+    welderEnabled = true,
     customEnvironmentVariables = Map.empty,
     runtimeConfigId = RuntimeConfigId(-1),
     patchInProgress = false

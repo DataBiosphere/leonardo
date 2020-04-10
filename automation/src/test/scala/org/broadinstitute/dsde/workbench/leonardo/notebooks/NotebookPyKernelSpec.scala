@@ -75,8 +75,8 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe 'defined
       contentSecurityHeader.get.value should include("https://bvdp-saturn-dev.appspot.com")
-      contentSecurityHeader.get.value should not include("https://bvdp-saturn-prod.appspot.com")
-      contentSecurityHeader.get.value should not include("*.terra.bio")
+      contentSecurityHeader.get.value should not include ("https://bvdp-saturn-prod.appspot.com")
+      contentSecurityHeader.get.value should not include ("*.terra.bio")
     }
 
     "should allow BigQuerying via the command line" in { clusterFixture =>

@@ -60,6 +60,7 @@ export DISABLE_DELOCALIZATION=$(disableDelocalization)
 export STAGING_BUCKET=$(stagingBucketName)
 export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
 export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
+export WELDER_MEM_LIMIT=$(welderMemLimit)
 
 JUPYTER_HOME=/etc/jupyter
 

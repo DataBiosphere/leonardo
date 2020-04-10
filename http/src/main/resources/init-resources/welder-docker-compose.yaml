@@ -26,8 +26,8 @@ services:
     env_file:
       - /etc/google_application_credentials.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
-    mem_limit: 512m
-    mem_reservation: 512m
+    mem_limit: ${WELDER_MEM_LIMIT}
+    mem_reservation: ${WELDER_MEM_LIMIT}
     # disable swap by setting it to the same value as mem_limit
-    memswap_limit: 512m
+    memswap_limit: ${WLEDER_MEM_LIMIT}
 
