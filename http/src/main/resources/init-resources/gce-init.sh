@@ -126,6 +126,7 @@ if [[ "$RUNTIME_OPERATION" == 'creating' ]]; then
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export MEM_LIMIT=$(memLimit)
+    export WELDER_MEM_LIMIT=$(welderMemLimit)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)

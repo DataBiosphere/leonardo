@@ -14,7 +14,14 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport.runtimeConfigRequestEncoder
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, HttpRoutes, ListRuntimeResponse2, TestLeoRoutes, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateRuntime2Request,
+  HttpRoutes,
+  ListRuntimeResponse2,
+  TestLeoRoutes,
+  UpdateRuntimeConfigRequest,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.service.MockRuntimeServiceInterp
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail

@@ -535,61 +535,6 @@ class LeonardoServiceSpec
     dbCluster2.map(_.status) shouldBe Some(RuntimeStatus.Creating)
   }
 
-  // TODO move to a VPCHelperSpec
-//  it should "choose the correct VPC subnet and network settings" in isolatedDbTest {
-//    //if config isn't set up to look at labels (which the default one isn't), the labels don't matter
-//    //and we should fall back to the config
-//    val decoySubnetMap = Map("subnet-label" -> "incorrectSubnet", "network-label" -> "incorrectNetwork")
-//    clusterHelper.getClusterVPCSettings(decoySubnetMap) shouldBe Some(VPCSubnet("test-subnet"))
-//
-//    //label behaviour should be: project-subnet, project-network, config-subnet, config-network
-//    val configWithProjectLabels =
-//      dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
-//    val clusterHelperWithLabels = new ClusterHelper(configWithProjectLabels,
-//                                                    imageConfig,
-//                                                    googleGroupsConfig,
-//                                                    proxyConfig,
-//                                                    clusterResourcesConfig,
-//                                                    clusterFilesConfig,
-//                                                    monitorConfig,
-//                                                    welderConfig,
-//                                                    bucketHelper,
-//                                                    gdDAO,
-//                                                    computeDAO,
-//                                                    directoryDAO,
-//                                                    iamDAO,
-//                                                    projectDAO,
-//                                                    MockWelderDAO,
-//                                                    blocker)
-//
-//    val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
-//    clusterHelperWithLabels.getClusterVPCSettings(subnetMap) shouldBe Some(VPCSubnet("correctSubnet"))
-//
-//    val networkMap = Map("network-label" -> "correctNetwork")
-//    clusterHelperWithLabels.getClusterVPCSettings(networkMap) shouldBe Some(VPCNetwork("correctNetwork"))
-//
-//    clusterHelperWithLabels.getClusterVPCSettings(Map()) shouldBe Some(VPCSubnet("test-subnet"))
-//
-//    val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
-//    val clusterHelperWithNoSubnet = new ClusterHelper(configWithNoSubnet,
-//                                                      imageConfig,
-//                                                      googleGroupsConfig,
-//                                                      proxyConfig,
-//                                                      clusterResourcesConfig,
-//                                                      clusterFilesConfig,
-//                                                      monitorConfig,
-//                                                      welderConfig,
-//                                                      bucketHelper,
-//                                                      gdDAO,
-//                                                      computeDAO,
-//                                                      directoryDAO,
-//                                                      iamDAO,
-//                                                      projectDAO,
-//                                                      MockWelderDAO,
-//                                                      blocker)
-//    clusterHelperWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(VPCNetwork("test-network"))
-//  }
-
   it should "delete a Running cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider[IO] = spy(authProvider)
@@ -619,7 +564,7 @@ class LeonardoServiceSpec
 
     // change cluster status to Running so that it can be deleted
     val updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-      Some(GcsPath(initBucketPath, GcsObjectName(""))),
+      Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
       Some(makeDataprocInfo(1)),
@@ -677,7 +622,7 @@ class LeonardoServiceSpec
 
     // change the cluster status to Error
     val updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-      Some(GcsPath(initBucketPath, GcsObjectName(""))),
+      Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
       Some(makeDataprocInfo(1)),
@@ -723,7 +668,7 @@ class LeonardoServiceSpec
 
     // change cluster status to Running so that it can be deleted
     val updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-      Some(GcsPath(initBucketPath, GcsObjectName(""))),
+      Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
       Some(makeDataprocInfo(1)),
@@ -746,55 +691,6 @@ class LeonardoServiceSpec
     val instances = dbFutureValue { instanceQuery.getAllForCluster(getClusterId(getClusterIdKey)) }
     instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
   }
-
-  // TODO move to TemplateHelperSpec
-//  it should "template a script using config values" in isolatedDbTest {
-//    // Create replacements map
-//    val clusterInit = ClusterTemplateValues(
-//      testCluster,
-//      Some(initBucketPath),
-//      Some(stagingBucketName),
-//      Some(serviceAccountKey),
-//      dataprocConfig,
-//      welderConfig,
-//      proxyConfig,
-//      clusterFilesConfig,
-//      clusterResourcesConfig,
-//      Some(clusterResourceConstraints)
-//    )
-//    val replacements: Map[String, String] = clusterInit.toMap
-//
-//    // Each value in the replacement map will replace its key in the file being processed
-//    val result = TemplateHelper
-//      .templateResource(replacements, clusterResourcesConfig.initActionsScript, blocker)
-//      .compile
-//      .to[Array]
-//      .unsafeToFuture
-//      .futureValue
-//
-//    // Check that the values in the bash script file were correctly replaced
-//    val expected =
-//      s"""|#!/usr/bin/env bash
-//          |
-//          |"${name1.value}"
-//          |"${project.value}"
-//          |"${jupyterImage.imageUrl}"
-//          |""
-//          |"${proxyConfig.jupyterProxyDockerImage}"
-//          |"${testCluster.jupyterUserScriptUri.get.asString}"
-//          |"${testCluster.jupyterStartUserScriptUri.get.asString}"
-//          |"${GcsPath(initBucketPath, GcsObjectName(ClusterTemplateValues.serviceAccountCredentialsFilename)).toUri}"
-//          |""
-//          |""
-//          |""
-//          |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
-//          |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
-//          |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
-//          |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"
-//          |"${clusterResourceConstraints.memoryLimit.bytes}b"""".stripMargin
-//
-//    new String(result, StandardCharsets.UTF_8) shouldEqual expected
-//  }
 
   it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {
     val jupyterExtensionUri =

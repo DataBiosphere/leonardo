@@ -53,14 +53,18 @@ object RuntimeServiceDbQueries {
       }
     }
 
-    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = clusterLabelRuntimeConfigQuery(clusterQueryFilteredByLabel)
+    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = clusterLabelRuntimeConfigQuery(
+      clusterQueryFilteredByLabel
+    )
 
     clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
-      val clusterLabelMap: Map[(ClusterRecord, Option[RuntimeConfig], Option[PatchRecord]), Map[String, Chain[String]]] = x.toList.foldMap {
-        case (((clusterRec, labelRecOpt), runTimeConfigRecOpt), patchRecOpt) =>
-          val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-          Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig), patchRecOpt) -> labelMap)
-      }
+      val clusterLabelMap
+        : Map[(ClusterRecord, Option[RuntimeConfig], Option[PatchRecord]), Map[String, Chain[String]]] =
+        x.toList.foldMap {
+          case (((clusterRec, labelRecOpt), runTimeConfigRecOpt), patchRecOpt) =>
+            val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
+            Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig), patchRecOpt) -> labelMap)
+        }
 
       clusterLabelMap.map {
         case ((clusterRec, runTimeConfigRecOpt, patchRecOpt), labelMap) =>
@@ -68,7 +72,7 @@ object RuntimeServiceDbQueries {
 
           val patchInProgress = patchRecOpt match {
             case Some(patchRec) => patchRec.inProgress
-            case None => false
+            case None           => false
           }
           ListRuntimeResponse2(
             clusterRec.id,

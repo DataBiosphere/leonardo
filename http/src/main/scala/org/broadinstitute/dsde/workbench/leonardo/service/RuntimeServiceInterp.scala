@@ -19,15 +19,33 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, LeonardoServiceDbQueries, RuntimeConfigQueries, RuntimeServiceDbQueries, SaveCluster, clusterQuery}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, ListRuntimeResponse2, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  DbReference,
+  LeonardoServiceDbQueries,
+  RuntimeConfigQueries,
+  RuntimeServiceDbQueries,
+  SaveCluster
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateRuntime2Request,
+  ListRuntimeResponse2,
+  UpdateRuntimeConfigRequest,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, DeleteRuntimeMessage, StartRuntimeMessage, StopRuntimeMessage, UpdateRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateRuntimeMessage,
+  DeleteRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage,
+  UpdateRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
+import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
 
@@ -552,9 +570,12 @@ object RuntimeServiceInterp {
       config.autoFreezeConfig
     ) //TODO: use FiniteDuration for autopauseThreshold field in Cluster
     val clusterScopes = req.runtimeConfig match {
-      case Some(rq) if rq.cloudService == CloudService.GCE => if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
-      case Some(rq) if rq.cloudService == CloudService.Dataproc => if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
-      case None => if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes //default to create gce runtime if runtimeConfig is not specified
+      case Some(rq) if rq.cloudService == CloudService.GCE =>
+        if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
+      case Some(rq) if rq.cloudService == CloudService.Dataproc =>
+        if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
+      case None =>
+        if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes //default to create gce runtime if runtimeConfig is not specified
     }
 
     for {

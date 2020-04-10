@@ -224,61 +224,6 @@ class DataprocInterpreterSpec
     erroredDataprocDAO.invocationCount shouldBe 7
   }
 
-  // TODO
-//  it should "choose the correct VPC subnet and network settings" in isolatedDbTest {
-//    // if config isn't set up to look at labels (which the default one isn't), the labels don't matter
-//    // and we should fall back to the config
-//    val decoySubnetMap = Map("subnet-label" -> "incorrectSubnet", "network-label" -> "incorrectNetwork")
-//    clusterHelper.getClusterVPCSettings(decoySubnetMap) shouldBe Some(VPCSubnet("test-subnet"))
-//
-//    // label behaviour should be: project-subnet, project-network, config-subnet, config-network
-//    val configWithProjectLabels =
-//      dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
-//    val clusterHelperWithLabels = new ClusterHelper(configWithProjectLabels,
-//                                                    imageConfig,
-//                                                    googleGroupsConfig,
-//                                                    proxyConfig,
-//                                                    clusterResourcesConfig,
-//                                                    clusterFilesConfig,
-//                                                    monitorConfig,
-//                                                    welderConfig,
-//                                                    bucketHelper,
-//                                                    mockGoogleDataprocDAO,
-//                                                    mockGoogleComputeDAO,
-//                                                    mockGoogleDirectoryDAO,
-//                                                    mockGoogleIamDAO,
-//                                                    mockGoogleProjectDAO,
-//                                                    MockWelderDAO,
-//                                                    blocker)
-//
-//    val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
-//    clusterHelperWithLabels.getClusterVPCSettings(subnetMap) shouldBe Some(VPCSubnet("correctSubnet"))
-//
-//    val networkMap = Map("network-label" -> "correctNetwork")
-//    clusterHelperWithLabels.getClusterVPCSettings(networkMap) shouldBe Some(VPCNetwork("correctNetwork"))
-//
-//    clusterHelperWithLabels.getClusterVPCSettings(Map()) shouldBe Some(VPCSubnet("test-subnet"))
-//
-//    val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
-//    val clusterHelperWithNoSubnet = new ClusterHelper(configWithNoSubnet,
-//                                                      imageConfig,
-//                                                      googleGroupsConfig,
-//                                                      proxyConfig,
-//                                                      clusterResourcesConfig,
-//                                                      clusterFilesConfig,
-//                                                      monitorConfig,
-//                                                      welderConfig,
-//                                                      bucketHelper,
-//                                                      mockGoogleDataprocDAO,
-//                                                      mockGoogleComputeDAO,
-//                                                      mockGoogleDirectoryDAO,
-//                                                      mockGoogleIamDAO,
-//                                                      mockGoogleProjectDAO,
-//                                                      MockWelderDAO,
-//                                                      blocker)
-//    clusterHelperWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(VPCNetwork("test-network"))
-//  }
-
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)

@@ -172,7 +172,7 @@ class AuthProviderSpec
       proxy.proxyLocalize(userInfo, GoogleProject(googleProject), RuntimeName(clusterName), syncRequest).unsafeRunSync()
 
       val updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-        Some(GcsPath(initBucketPath, GcsObjectName(""))),
+        Some(GcsPath(initBucketName, GcsObjectName(""))),
         Some(serviceAccountKey),
         cluster1.id,
         Some(makeDataprocInfo(1)),
