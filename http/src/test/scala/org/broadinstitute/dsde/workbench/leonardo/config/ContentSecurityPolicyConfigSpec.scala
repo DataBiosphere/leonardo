@@ -12,7 +12,7 @@ import org.scalatest.FlatSpecLike
 
 class ContentSecurityPolicyConfigSpec extends LeonardoTestSuite with FlatSpecLike {
 
-  it should "generate a valid string" in {
+  "ContentSecurityPolicyConfig" should "generate a valid string" in {
     val test = ContentSecurityPolicyConfig(
       FrameAncestors(
         List(
