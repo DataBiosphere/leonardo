@@ -107,10 +107,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         val timeToAddWorker = time {
           eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
             val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-            logger.info(
-              s"NEW MACHINE CONFIG RESPONSE NUMBER OF WORKERS: ${clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers}"
-            )
-            logger.info(s"OLD RESPONSE NUMBER OF WORKERS: ${newMachineConfig.numberOfWorkers}")
 
             Some(
               clusterResponse.machineConfig
