@@ -181,8 +181,7 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          proxyUrl: URL,
                                          status: ClusterStatus,
                                          labels: LabelMap,
-                                         patchInProgress: Boolean
-)
+                                         patchInProgress: Boolean)
 
 final case class UpdateRuntimeRequestCopy(runtimeConfig: Option[UpdateRuntimeConfigRequestCopy],
                                           allowStop: Boolean,
