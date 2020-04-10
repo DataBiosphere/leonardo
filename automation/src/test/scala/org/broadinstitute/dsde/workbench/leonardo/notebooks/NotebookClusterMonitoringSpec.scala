@@ -107,15 +107,28 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         val timeToAddWorker = time {
           eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
             val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-            clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfig.DataprocConfig]
-              .numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
-            clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfig.DataprocConfig]
-              .masterMachineType shouldBe initialMachineConfig.masterMachineType
-            clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfig.DataprocConfig]
-              .masterDiskSize shouldBe newMachineConfig.masterDiskSize
+            logger.info(
+              s"NEW MACHINE CONFIG RESPONSE NUMBER OF WORKERS: ${clusterResponse.machineConfig.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers}"
+            )
+            logger.info(s"OLD RESPONSE NUMBER OF WORKERS: ${newMachineConfig.numberOfWorkers}")
+
+            Some(
+              clusterResponse.machineConfig
+                .asInstanceOf[RuntimeConfig.DataprocConfig]
+                .numberOfWorkers
+            ) shouldBe newMachineConfig.numberOfWorkers
+            Some(
+              clusterResponse.machineConfig
+                .asInstanceOf[RuntimeConfig.DataprocConfig]
+                .masterMachineType
+                .value
+            ) shouldBe initialMachineConfig.masterMachineType
+            Some(
+              clusterResponse.machineConfig
+                .asInstanceOf[RuntimeConfig.DataprocConfig]
+                .masterDiskSize
+                .gb
+            ) shouldBe newMachineConfig.masterDiskSize
             clusterResponse.status shouldBe ClusterStatus.Running
           }
         }
@@ -143,15 +156,23 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         val timeToRemoveWorker = time {
           eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
             val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-            clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfig.DataprocConfig]
-              .numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
-            clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfig.DataprocConfig]
-              .masterMachineType shouldBe initialMachineConfig.masterMachineType
-            clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfig.DataprocConfig]
-              .masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
+            Some(
+              clusterResponse.machineConfig
+                .asInstanceOf[RuntimeConfig.DataprocConfig]
+                .numberOfWorkers
+            ) shouldBe twoWorkersConfig.numberOfWorkers
+            Some(
+              clusterResponse.machineConfig
+                .asInstanceOf[RuntimeConfig.DataprocConfig]
+                .masterMachineType
+                .value
+            ) shouldBe initialMachineConfig.masterMachineType
+            Some(
+              clusterResponse.machineConfig
+                .asInstanceOf[RuntimeConfig.DataprocConfig]
+                .masterDiskSize
+                .gb
+            ) shouldBe twoWorkersConfig.masterDiskSize
             clusterResponse.status shouldBe ClusterStatus.Running
           }
         }
@@ -178,15 +199,23 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         }
 
         val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
-        clusterResponse.machineConfig
-          .asInstanceOf[RuntimeConfig.DataprocConfig]
-          .numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
-        clusterResponse.machineConfig
-          .asInstanceOf[RuntimeConfig.DataprocConfig]
-          .masterMachineType shouldBe newMachineTypeConfig.masterMachineType
-        clusterResponse.machineConfig
-          .asInstanceOf[RuntimeConfig.DataprocConfig]
-          .masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
+        Some(
+          clusterResponse.machineConfig
+            .asInstanceOf[RuntimeConfig.DataprocConfig]
+            .numberOfWorkers
+        ) shouldBe newMachineTypeConfig.numberOfWorkers
+        Some(
+          clusterResponse.machineConfig
+            .asInstanceOf[RuntimeConfig.DataprocConfig]
+            .masterMachineType
+            .value
+        ) shouldBe newMachineTypeConfig.masterMachineType
+        Some(
+          clusterResponse.machineConfig
+            .asInstanceOf[RuntimeConfig.DataprocConfig]
+            .masterDiskSize
+            .gb
+        ) shouldBe newMachineTypeConfig.masterDiskSize
         clusterResponse.status shouldBe ClusterStatus.Running
       }
     }
