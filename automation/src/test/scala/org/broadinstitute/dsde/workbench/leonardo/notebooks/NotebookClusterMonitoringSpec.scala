@@ -144,13 +144,13 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
             val clusterResponse = Leonardo.cluster.get(billingProject, cluster.clusterName)
             clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfigRequest.DataprocConfig]
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
               .numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
             clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfigRequest.DataprocConfig]
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
               .masterMachineType shouldBe initialMachineConfig.masterMachineType
             clusterResponse.machineConfig
-              .asInstanceOf[RuntimeConfigRequest.DataprocConfig]
+              .asInstanceOf[RuntimeConfig.DataprocConfig]
               .masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
             clusterResponse.status shouldBe ClusterStatus.Running
           }
