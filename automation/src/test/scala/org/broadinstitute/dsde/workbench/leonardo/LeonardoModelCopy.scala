@@ -1,11 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.net.URL
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
+import scala.concurrent.duration.FiniteDuration
 import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
@@ -14,7 +16,7 @@ case class GoogleServiceAccount(string: String) extends AnyVal with StringValueC
 case class ClusterCopy(clusterName: RuntimeName,
                        googleProject: GoogleProject,
                        serviceAccountInfo: ServiceAccountInfo,
-                       machineConfig: RuntimeConfig.DataprocConfig,
+                       machineConfig: RuntimeConfig,
                        status: ClusterStatus,
                        creator: WorkbenchEmail,
                        labels: LabelMap,
@@ -27,34 +29,39 @@ case class ClusterCopy(clusterName: RuntimeName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
-// Same as DataprocConfig but uses String instead of MachineConfig because of jackson serialization problems
-// https://github.com/FasterXML/jackson-module-scala/issues/209
-final case class DataprocConfigCopy(numberOfWorkers: Int,
-                                    masterMachineType: String,
-                                    masterDiskSize: Int, //min 10
-                                    // worker settings are None when numberOfWorkers is 0
-                                    workerMachineType: Option[String] = None,
-                                    workerDiskSize: Option[Int] = None, //min 10
-                                    numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                                    numberOfPreemptibleWorkers: Option[Int] = None)
-object DataprocConfigCopy {
-  def fromDataprocConfig(dataprocConfig: RuntimeConfig.DataprocConfig): DataprocConfigCopy =
-    DataprocConfigCopy(
-      dataprocConfig.numberOfWorkers,
-      dataprocConfig.machineType.value,
-      dataprocConfig.masterDiskSize.gb,
-      dataprocConfig.workerMachineType.map(_.value),
-      dataprocConfig.workerDiskSize.map(_.gb),
-      dataprocConfig.numberOfWorkerLocalSSDs,
-      dataprocConfig.numberOfPreemptibleWorkers
-    )
+sealed trait RuntimeConfigRequest extends Product with Serializable {
+  def typedCloudService: CloudService
+}
+object RuntimeConfigRequest {
+  final case class GceConfig(
+    cloudService: String = CloudService.GCE.asString,
+    machineType: Option[String],
+    diskSize: Option[Int]
+  ) extends RuntimeConfigRequest {
+    val typedCloudService: CloudService = CloudService.GCE
+
+  }
+
+  final case class DataprocConfig(cloudService: String = CloudService.Dataproc.asString,
+                                  numberOfWorkers: Option[Int],
+                                  masterMachineType: Option[String],
+                                  masterDiskSize: Option[Int], //min 10
+                                  workerMachineType: Option[String] = None,
+                                  workerDiskSize: Option[Int] = None, //min 10
+                                  numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                                  numberOfPreemptibleWorkers: Option[Int] = None,
+                                  properties: Map[String, String])
+      extends RuntimeConfigRequest {
+    val typedCloudService: CloudService = CloudService.Dataproc
+
+  }
 }
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           jupyterStartUserScriptUri: Option[String] = None,
-                          machineConfig: Option[DataprocConfigCopy] = None,
+                          machineConfig: Option[RuntimeConfigRequest] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
@@ -66,6 +73,23 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None,
                           customClusterEnvironmentVariables: Map[String, String] = Map.empty,
+                          allowStop: Boolean = false)
+
+case class RuntimeRequest(labels: LabelMap = Map(),
+                          jupyterExtensionUri: Option[String] = None,
+                          jupyterUserScriptUri: Option[String] = None,
+                          jupyterStartUserScriptUri: Option[String] = None,
+                          runtimeConfig: Option[RuntimeConfigRequest] = None,
+                          properties: Map[String, String] = Map(),
+                          stopAfterCreation: Option[Boolean] = None,
+                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+                          autopause: Option[Boolean] = None,
+                          autopauseThreshold: Option[Int] = None,
+                          defaultClientId: Option[String] = None,
+                          toolDockerImage: Option[String] = None,
+                          welderDockerImage: Option[String] = None,
+                          scopes: Set[String] = Set.empty,
+                          customEnvironmentVariables: Map[String, String] = Map.empty,
                           allowStop: Boolean = false)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -131,4 +155,52 @@ object ClusterStatus extends Enumeration {
     values
       .find(_.toString.equalsIgnoreCase(str))
       .getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
+}
+
+final case class GetRuntimeResponseCopy(runtimeName: RuntimeName,
+                                        googleProject: GoogleProject,
+                                        serviceAccount: WorkbenchEmail,
+                                        auditInfo: AuditInfo,
+                                        asyncRuntimeFields: Option[AsyncRuntimeFields],
+                                        runtimeConfig: RuntimeConfig,
+                                        clusterUrl: URL,
+                                        status: ClusterStatus,
+                                        labels: LabelMap,
+                                        jupyterExtensionUri: Option[GcsPath],
+                                        jupyterUserScriptUri: Option[UserScriptPath],
+                                        jupyterStartUserScriptUri: Option[UserScriptPath],
+                                        errors: List[RuntimeError],
+                                        userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                        autopauseThreshold: Int)
+
+final case class ListRuntimeResponseCopy(id: Long,
+                                         runtimeName: RuntimeName,
+                                         googleProject: GoogleProject,
+                                         auditInfo: AuditInfo,
+                                         runtimeConfig: RuntimeConfig,
+                                         proxyUrl: URL,
+                                         status: ClusterStatus,
+                                         labels: LabelMap,
+                                         patchInProgress: Boolean)
+
+final case class UpdateRuntimeRequestCopy(runtimeConfig: Option[UpdateRuntimeConfigRequestCopy],
+                                          allowStop: Boolean,
+                                          autopauseEnabled: Option[Boolean],
+                                          autopauseThreshold: Option[FiniteDuration])
+
+sealed trait UpdateRuntimeConfigRequestCopy extends Product with Serializable {
+  def cloudService: String
+}
+object UpdateRuntimeConfigRequestCopy {
+  final case class GceConfig(machineType: Option[String],
+                             diskSize: Option[Int],
+                             cloudService: String = CloudService.GCE.asString)
+      extends UpdateRuntimeConfigRequestCopy
+
+  final case class DataprocConfig(masterMachineType: Option[String],
+                                  masterDiskSize: Option[Int],
+                                  numberOfWorkers: Option[Int],
+                                  numberOfPreemptibleWorkers: Option[Int],
+                                  cloudService: String = CloudService.Dataproc.asString)
+      extends UpdateRuntimeConfigRequestCopy
 }

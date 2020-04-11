@@ -1,20 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
 
 /**
  * This spec verifies expected functionality of the Terra GATK+Samtools image.
  */
 @DoNotDiscover
-class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
+class NotebookGATKSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.gatkImageUrl)
   "NotebookGATKSpec" - {
 
-    "should install Python packages, R, GATK, Samtools, and Java" in { clusterFixture =>
+    "should install Python packages, R, GATK, Samtools, and Java" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           val pythonOutput = notebookPage.executeCell("""! pip3 show tensorflow""")
           pythonOutput shouldBe 'defined
           pythonOutput.get should include("Name: tensorflow")

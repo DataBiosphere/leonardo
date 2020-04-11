@@ -98,24 +98,33 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
    */
   def createRonCluster(billingProject: GoogleProject): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    ronCluster = createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)
+    ronCluster = createNewCluster(billingProject, request = getRuntimeRequest())(ronAuthToken)
   }
 
-  def getClusterRequest(): ClusterRequest = {
-    val machineConfig =
-      RuntimeConfig.DataprocConfig(
-        numberOfWorkers = 0,
-        masterDiskSize = DiskSize(500),
-        masterMachineType = MachineTypeName("n1-standard-8"),
-        workerMachineType = Some(MachineTypeName("n1-standard-8")),
-        workerDiskSize = None,
-        numberOfWorkerLocalSSDs = None,
-        numberOfPreemptibleWorkers = None,
-        properties = Map.empty
-      )
+  def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): ClusterRequest = {
+
+    val machineConfig = cloudService match {
+      case CloudService.GCE =>
+        RuntimeConfigRequest.GceConfig(
+          machineType = Some("n1-standard-4"),
+          diskSize = Some(500)
+        )
+      case CloudService.Dataproc =>
+        RuntimeConfigRequest.DataprocConfig(
+          numberOfWorkers = Some(0),
+          masterDiskSize = Some(500),
+          masterMachineType = Some("n1-standard-8"),
+          workerMachineType = Some("n1-standard-8"),
+          workerDiskSize = None,
+          numberOfWorkerLocalSSDs = None,
+          numberOfPreemptibleWorkers = None,
+          properties = Map.empty
+        )
+
+    }
 
     ClusterRequest(
-      machineConfig = Some(DataprocConfigCopy.fromDataprocConfig(machineConfig)),
+      machineConfig = Some(machineConfig),
       enableWelder = Some(enableWelder),
       toolDockerImage = toolDockerImage,
       autopause = Some(false)
