@@ -208,8 +208,8 @@ object RuntimeTemplateValues {
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterNotebookConfigUri.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
-        .map(
-          n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri.asString)).toUri
+        .map(n =>
+          GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri.asString)).toUri
         )
         .getOrElse(""),
       config.defaultClientId.getOrElse(""),

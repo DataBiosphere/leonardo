@@ -49,16 +49,15 @@ object JsonCodec {
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers",
     "cloudService"
-  )(
-    x =>
-      (x.numberOfWorkers,
-       x.machineType,
-       x.diskSize,
-       x.workerMachineType,
-       x.workerDiskSize,
-       x.numberOfWorkerLocalSSDs,
-       x.numberOfPreemptibleWorkers,
-       x.cloudService)
+  )(x =>
+    (x.numberOfWorkers,
+     x.machineType,
+     x.diskSize,
+     x.workerMachineType,
+     x.workerDiskSize,
+     x.numberOfWorkerLocalSSDs,
+     x.numberOfPreemptibleWorkers,
+     x.cloudService)
   )
   implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct3(
     "machineType",
@@ -85,12 +84,11 @@ object JsonCodec {
     "imageUrl",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-  implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(
-    x =>
-      x match {
-        case x: RuntimeConfig.DataprocConfig => x.asJson
-        case x: RuntimeConfig.GceConfig      => x.asJson
-      }
+  implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
+    x match {
+      case x: RuntimeConfig.DataprocConfig => x.asJson
+      case x: RuntimeConfig.GceConfig      => x.asJson
+    }
   )
   implicit val serviceAccountInfoEncoder: Encoder[ServiceAccountInfo] = Encoder.forProduct2(
     "clusterServiceAccount",
@@ -123,16 +121,15 @@ object JsonCodec {
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
   implicit val googleIdDecoder: Decoder[GoogleId] = Decoder.decodeString.map(GoogleId)
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
-  implicit val containerImageDecoder: Decoder[ContainerImage] = Decoder.decodeString.emap(
-    s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}")
-  )
+  implicit val containerImageDecoder: Decoder[ContainerImage] =
+    Decoder.decodeString.emap(s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}"))
   implicit val cloudServiceDecoder: Decoder[CloudService] =
     Decoder.decodeString.emap(s => CloudService.withNameInsensitiveOption(s).toRight(s"Unsupported cloud service ${s}"))
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
   implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
   implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
-  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(
-    s => if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
+  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
+    if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
   )
   implicit val instantDecoder: Decoder[Instant] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
@@ -143,8 +140,8 @@ object JsonCodec {
   implicit val diskSizeDecoder: Decoder[DiskSize] =
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(DiskSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
-  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(
-    s => RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
+  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
+    RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
   )
   implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct3(
     "imageType",

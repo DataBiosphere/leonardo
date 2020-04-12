@@ -78,24 +78,22 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
     DBIO.fold(instances map { delete }, 0)(_ + _)
 
   def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[DataprocInstance]] =
-    instanceQuery.filter { _.clusterId === clusterId }.result map { recs =>
-      recs.map(unmarshalInstance)
-    }
+    instanceQuery.filter(_.clusterId === clusterId).result map { recs => recs.map(unmarshalInstance) }
 
   def instanceByKeyQuery(instanceKey: DataprocInstanceKey) =
     instanceQuery
-      .filter { _.googleProject === instanceKey.project.value }
-      .filter { _.zone === instanceKey.zone.value }
-      .filter { _.name === instanceKey.name.value }
+      .filter(_.googleProject === instanceKey.project.value)
+      .filter(_.zone === instanceKey.zone.value)
+      .filter(_.name === instanceKey.name.value)
 
   def getInstanceByKey(
     instanceKey: DataprocInstanceKey
   )(implicit ec: ExecutionContext): DBIO[Option[DataprocInstance]] =
-    instanceByKeyQuery(instanceKey).result.map { _.headOption.map(unmarshalInstance) }
+    instanceByKeyQuery(instanceKey).result.map(_.headOption.map(unmarshalInstance))
 
   def updateStatusAndIpForCluster(clusterId: Long, newStatus: GceInstanceStatus, newIp: Option[IP]) =
     instanceQuery
-      .filter { _.clusterId === clusterId }
+      .filter(_.clusterId === clusterId)
       .map(inst => (inst.status, inst.ip))
       .update(newStatus.entryName, newIp.map(_.value))
 

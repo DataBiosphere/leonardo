@@ -525,13 +525,12 @@ class LeonardoService(
                 (a, b) =>
                   RuntimeConfigQueries
                     .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
-                    .flatMap(
-                      _ =>
-                        RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(
-                          existingCluster.runtimeConfigId,
-                          Option(b),
-                          now
-                        )
+                    .flatMap(_ =>
+                      RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(
+                        existingCluster.runtimeConfigId,
+                        Option(b),
+                        now
+                      )
                     )
               )
             }
@@ -747,8 +746,8 @@ class LeonardoService(
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
       clusters
-        .filter(
-          c => c.auditInfo.creator == userInfo.userEmail || samVisibleClusters.contains((c.googleProject, c.internalId))
+        .filter(c =>
+          c.auditInfo.creator == userInfo.userEmail || samVisibleClusters.contains((c.googleProject, c.internalId))
         )
         .toVector
     }

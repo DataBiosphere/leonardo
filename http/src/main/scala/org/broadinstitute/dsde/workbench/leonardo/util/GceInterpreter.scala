@@ -281,11 +281,10 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
 object GceInterpreter {
   def instanceStatusToRuntimeStatus(instance: Option[Instance]): RuntimeStatus =
-    instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(
-      s =>
-        GceInstanceStatus
-          .withNameInsensitiveOption(s.getStatus)
-          .map(RuntimeStatus.fromGceInstanceStatus)
-          .getOrElse(RuntimeStatus.Unknown)
+    instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(s =>
+      GceInstanceStatus
+        .withNameInsensitiveOption(s.getStatus)
+        .map(RuntimeStatus.fromGceInstanceStatus)
+        .getOrElse(RuntimeStatus.Unknown)
     )
 }

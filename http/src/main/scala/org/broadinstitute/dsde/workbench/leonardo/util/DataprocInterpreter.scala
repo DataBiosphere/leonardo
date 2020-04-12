@@ -414,7 +414,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): F[Unit] =
     parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
       for {
-        count <- inTransaction { clusterQuery.countActiveByProject(googleProject) }
+        count <- inTransaction(clusterQuery.countActiveByProject(googleProject))
         // Note: Don't remove the account if there are existing active clusters in the same project,
         // because it could potentially break other clusters. We only check this for the 'remove' case.
         _ <- if (count > 0 && !createCluster) {
@@ -546,7 +546,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       // Note: don't remove the role if there are existing active clusters owned by the same user,
       // because it could potentially break other clusters. We only check this for the 'remove' case,
       // it's ok to re-add the roles.
-      dbRef.inTransaction { clusterQuery.countActiveByClusterServiceAccount(email) }.flatMap { count =>
+      dbRef.inTransaction(clusterQuery.countActiveByClusterServiceAccount(email)).flatMap { count =>
         if (count > 0 && !createCluster) {
           Async[F].unit
         } else {
@@ -571,11 +571,10 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         Logger[F].debug(
           s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' does not exist. Attempting to create it..."
         ) >> createDataprocImageUserGoogleGroup()
-      )(
-        group =>
-          Logger[F].debug(
-            s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
-          )
+      )(group =>
+        Logger[F].debug(
+          s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
+        )
       )
     } yield ()
 

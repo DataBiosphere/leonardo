@@ -207,7 +207,9 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
                 notebookPage.areElementsPresent(lockIssueElements) shouldBe true
 
-                notebookPage.executeJavaScript("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
+                notebookPage.executeJavaScript(
+                  "window.onbeforeunload = null;"
+                ) //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
                 notebookPage.goToPlaygroundModeFromLockIssue
               }
 

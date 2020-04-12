@@ -66,9 +66,7 @@ trait TestProxy { this: ScalaFutures =>
 
     // once all connections are terminated,
     // - you can invoke coordinated shutdown to tear down the rest of the system:
-    onceAllConnectionsTerminated.flatMap { _ =>
-      system.terminate()
-    }
+    onceAllConnectionsTerminated.flatMap(_ => system.terminate())
   }
 
   // The backend route (i.e. the route behind the proxy)

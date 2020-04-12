@@ -54,9 +54,7 @@ class LeoRoutes(
                     complete {
                       leonardoService
                         .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
-                        .map { cluster =>
-                          StatusCodes.Accepted -> cluster
-                        }
+                        .map(cluster => StatusCodes.Accepted -> cluster)
                     }
                   }
                 }
@@ -71,9 +69,7 @@ class LeoRoutes(
                       complete {
                         leonardoService
                           .updateCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
-                          .map { cluster =>
-                            StatusCodes.Accepted -> cluster
-                          }
+                          .map(cluster => StatusCodes.Accepted -> cluster)
                       }
                     }
                   } ~
@@ -82,9 +78,7 @@ class LeoRoutes(
                         complete {
                           leonardoService
                             .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
-                            .map { cluster =>
-                              StatusCodes.OK -> cluster
-                            }
+                            .map(cluster => StatusCodes.OK -> cluster)
                         }
                       }
                     } ~
@@ -92,9 +86,7 @@ class LeoRoutes(
                       complete {
                         leonardoService
                           .getClusterAPI(userInfo, GoogleProject(googleProject), clusterName)
-                          .map { clusterDetails =>
-                            StatusCodes.OK -> clusterDetails
-                          }
+                          .map(clusterDetails => StatusCodes.OK -> clusterDetails)
                       }
                     } ~
                     delete {
@@ -133,9 +125,7 @@ class LeoRoutes(
                   complete {
                     leonardoService
                       .listClusters(userInfo, params, Some(GoogleProject(googleProject)))
-                      .map { clusters =>
-                        StatusCodes.OK -> clusters
-                      }
+                      .map(clusters => StatusCodes.OK -> clusters)
                   }
                 }
               } ~
@@ -144,9 +134,7 @@ class LeoRoutes(
                     complete {
                       leonardoService
                         .listClusters(userInfo, params)
-                        .map { clusters =>
-                          StatusCodes.OK -> clusters
-                        }
+                        .map(clusters => StatusCodes.OK -> clusters)
                     }
                   }
                 }

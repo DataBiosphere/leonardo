@@ -122,13 +122,10 @@ class DataprocInterpreterSpec
 
   it should "be able to determine appropriate custom dataproc image" in isolatedDbTest {
     val cluster = LeoLenses.runtimeToRuntimeImages
-      .modify(
-        _ =>
-          Set(
-            RuntimeImage(RuntimeImageType.Jupyter,
-                         "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1",
-                         Instant.now)
-          )
+      .modify(_ =>
+        Set(
+          RuntimeImage(RuntimeImageType.Jupyter, "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1", Instant.now)
+        )
       )(testCluster)
 
     val res =
@@ -141,13 +138,12 @@ class DataprocInterpreterSpec
         .futureValue
     res.customImage shouldBe Config.dataprocConfig.customDataprocImage
     val clusterWithLegacyImage = LeoLenses.runtimeToRuntimeImages
-      .modify(
-        _ =>
-          Set(
-            RuntimeImage(RuntimeImageType.Jupyter,
-                         "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da",
-                         Instant.now)
-          )
+      .modify(_ =>
+        Set(
+          RuntimeImage(RuntimeImageType.Jupyter,
+                       "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da",
+                       Instant.now)
+        )
       )(testCluster)
 
     val resForLegacyImage =

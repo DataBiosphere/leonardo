@@ -43,9 +43,7 @@ package object google {
   def parseGoogleTimestamp(googleTimestamp: String): Option[Instant] =
     Try {
       new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").parse(googleTimestamp)
-    }.toOption map { date =>
-      Instant.ofEpochMilli(date.getTime)
-    }
+    }.toOption map { date => Instant.ofEpochMilli(date.getTime) }
 
   def getInstanceIP(instance: Instance): Option[IP] =
     for {

@@ -207,23 +207,22 @@ object HttpRoutesSpec {
     "welderDockerImage",
     "scopes",
     "customEnvironmentVariables"
-  )(
-    x =>
-      (
-        x.labels,
-        x.jupyterExtensionUri,
-        x.jupyterUserScriptUri,
-        x.jupyterStartUserScriptUri,
-        x.runtimeConfig,
-        x.userJupyterExtensionConfig,
-        x.autopause,
-        x.autopauseThreshold.map(_.toMinutes),
-        x.defaultClientId,
-        x.toolDockerImage,
-        x.welderDockerImage,
-        x.scopes,
-        x.customEnvironmentVariables
-      )
+  )(x =>
+    (
+      x.labels,
+      x.jupyterExtensionUri,
+      x.jupyterUserScriptUri,
+      x.jupyterStartUserScriptUri,
+      x.runtimeConfig,
+      x.userJupyterExtensionConfig,
+      x.autopause,
+      x.autopauseThreshold.map(_.toMinutes),
+      x.defaultClientId,
+      x.toolDockerImage,
+      x.welderDockerImage,
+      x.scopes,
+      x.customEnvironmentVariables
+    )
   )
 
   implicit val updateGceConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
@@ -239,13 +238,12 @@ object HttpRoutesSpec {
       "masterDiskSize",
       "numberOfWorkers",
       "numberOfPreemptibleWorkers"
-    )(
-      x =>
-        (x.cloudService,
-         x.updatedMasterMachineType,
-         x.updatedMasterDiskSize,
-         x.updatedNumberOfWorkers,
-         x.updatedNumberOfPreemptibleWorkers)
+    )(x =>
+      (x.cloudService,
+       x.updatedMasterMachineType,
+       x.updatedMasterDiskSize,
+       x.updatedNumberOfWorkers,
+       x.updatedNumberOfPreemptibleWorkers)
     )
 
   implicit val updateRuntimeConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest] = Encoder.instance { x =>
@@ -260,14 +258,13 @@ object HttpRoutesSpec {
     "allowStop",
     "autopause",
     "autopauseThreshold"
-  )(
-    x =>
-      (
-        x.updatedRuntimeConfig,
-        x.allowStop,
-        x.updateAutopauseEnabled,
-        x.updateAutopauseThreshold.map(_.toMinutes)
-      )
+  )(x =>
+    (
+      x.updatedRuntimeConfig,
+      x.allowStop,
+      x.updateAutopauseEnabled,
+      x.updateAutopauseThreshold.map(_.toMinutes)
+    )
   )
 
   implicit val getClusterResponseDecoder: Decoder[GetRuntimeResponse] = Decoder.instance { x =>

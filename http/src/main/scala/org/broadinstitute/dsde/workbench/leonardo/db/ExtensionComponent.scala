@@ -38,18 +38,16 @@ object extensionQuery extends TableQuery(new ExtensionTable(_)) {
     extensionQuery.filter {
       _.clusterId === clusterId
     }.result map { recs =>
-      val nbExtensions = (recs.filter(_.extensionType == ExtensionType.NBExtension.toString) map { rec =>
-        rec.name -> rec.value
-      }).toMap
+      val nbExtensions =
+        (recs.filter(_.extensionType == ExtensionType.NBExtension.toString) map { rec => rec.name -> rec.value }).toMap
       val serverExtensions = (recs.filter(_.extensionType == ExtensionType.ServerExtension.toString) map { rec =>
         rec.name -> rec.value
       }).toMap
       val combinedExtensions = (recs.filter(_.extensionType == ExtensionType.CombinedExtension.toString) map { rec =>
         rec.name -> rec.value
       }).toMap
-      val labExtensions = (recs.filter(_.extensionType == ExtensionType.LabExtension.toString) map { rec =>
-        rec.name -> rec.value
-      }).toMap
+      val labExtensions =
+        (recs.filter(_.extensionType == ExtensionType.LabExtension.toString) map { rec => rec.name -> rec.value }).toMap
       UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtensions, labExtensions)
     }
 

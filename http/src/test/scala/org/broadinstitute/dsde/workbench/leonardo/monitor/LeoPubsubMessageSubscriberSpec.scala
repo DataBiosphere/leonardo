@@ -129,7 +129,7 @@ class LeoPubsubMessageSubscriberSpec
     leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
 
     eventually {
-      dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe RuntimeStatus.Stopping
+      dbFutureValue(clusterQuery.getClusterById(clusterId)).get.status shouldBe RuntimeStatus.Stopping
     }
   }
 
@@ -310,8 +310,8 @@ class LeoPubsubMessageSubscriberSpec
                                                                Some(tr)),
                                           now)
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-      updatedRuntimeConfig <- updatedRuntime.traverse(
-        r => RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+      updatedRuntimeConfig <- updatedRuntime.traverse(r =>
+        RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
       )
     } yield {
       updatedRuntime shouldBe 'defined
@@ -350,7 +350,7 @@ class LeoPubsubMessageSubscriberSpec
       leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
     }
 
-    dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe RuntimeStatus.Running
+    dbFutureValue(clusterQuery.getClusterById(clusterId)).get.status shouldBe RuntimeStatus.Running
   }
 
   "LeoPubsubMessageSubscriber messageHandler" should "not throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
@@ -370,7 +370,8 @@ class LeoPubsubMessageSubscriberSpec
       )
       .unsafeRunSync()
 
-    val process = fs2.Stream(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance, consumer)) through leoSubscriber.messageHandler
+    val process =
+      fs2.Stream(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance, consumer)) through leoSubscriber.messageHandler
     val res = process.compile.drain
 
     res.attempt.unsafeRunSync().isRight shouldBe true //messageHandler will never throw exception
@@ -400,7 +401,7 @@ class LeoPubsubMessageSubscriberSpec
       .inTransaction(patchQuery.getPatchAction(patchKey))
       .unsafeRunSync() shouldBe None
 
-    dbFutureValue { clusterQuery.getClusterById(clusterId) }.get.status shouldBe RuntimeStatus.Stopped
+    dbFutureValue(clusterQuery.getClusterById(clusterId)).get.status shouldBe RuntimeStatus.Stopped
   }
 
   "LeoPubsubMessageSubscriber" should "perform a noop when it receives an irrelevant transition for a cluster which has a saved action for a different transition" in isolatedDbTest {
@@ -427,7 +428,7 @@ class LeoPubsubMessageSubscriberSpec
     val postStorage = dbRef.inTransaction(patchQuery.getPatchAction(patchDetails)).unsafeRunSync()
     postStorage shouldBe Some(newMachineType)
 
-    val cluster = dbFutureValue { clusterQuery.getClusterById(clusterId) }.get
+    val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
     cluster.status shouldBe RuntimeStatus.Running
     dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
   }
@@ -444,9 +445,9 @@ class LeoPubsubMessageSubscriberSpec
 
     leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
 
-    val cluster = dbFutureValue { clusterQuery.getClusterById(clusterId) }.get
+    val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
     cluster.status shouldBe RuntimeStatus.Stopped
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
   }
 
   //handle transition finished message with follow-up action saved
@@ -470,9 +471,9 @@ class LeoPubsubMessageSubscriberSpec
     //we should consume the followup data
 
     eventually {
-      dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.status shouldBe RuntimeStatus.Starting
+      dbFutureValue(clusterQuery.getClusterById(cluster.id)).get.status shouldBe RuntimeStatus.Starting
 
-      dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId) } shouldBe defaultRuntimeConfig
+      dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
         .copy(
           masterMachineType = newMachineType
         )

@@ -124,7 +124,7 @@ class TestClusterSupervisorActor(
 
   def tearDown: PartialFunction[Any, Unit] = {
     case TearDown =>
-      childActors.foreach { context.stop }
+      childActors.foreach(context.stop)
       context.stop(self)
   }
 

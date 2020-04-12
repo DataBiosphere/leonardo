@@ -192,7 +192,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name0.asString}/jupyter")
 
     // check the cluster persisted to the database matches the create response
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(clusterCreateResponse.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterCreateResponse.id))
     ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterCreateResponse)
 
     // check that no state in Google changed
@@ -201,7 +201,7 @@ class LeonardoServiceSpec
     storageDAO.buckets.keySet shouldBe Set(jupyterExtensionUri.bucketName)
 
     // init bucket should not have been persisted to the database
-    val dbInitBucketOpt = dbFutureValue { clusterQuery.getInitBucket(project, name0) }
+    val dbInitBucketOpt = dbFutureValue(clusterQuery.getInitBucket(project, name0))
     dbInitBucketOpt shouldBe None
   }
 
@@ -227,7 +227,7 @@ class LeonardoServiceSpec
     val clusterResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
     // check the cluster persisted to the database matches the create response
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(clusterResponse.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
     ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
 
     // cluster images should contain welder and Jupyter
@@ -254,7 +254,7 @@ class LeonardoServiceSpec
     val clusterResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
     // check the cluster persisted to the database matches the create response
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(clusterResponse.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
     ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
 
     // cluster images should contain welder and Jupyter
@@ -288,7 +288,7 @@ class LeonardoServiceSpec
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
     // check the cluster persisted to the database matches the create response
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(clusterResponse.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
     ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
 
     // cluster images should contain welder and RStudio
@@ -514,24 +514,24 @@ class LeonardoServiceSpec
     val cluster = leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // change cluster status to Running so that it can be deleted
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now))
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name0).unsafeToFuture.futureValue
 
     // check that the cluster was deleted
-    val dbDeletingCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbDeletingCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbDeletingCluster.map(_.status) shouldBe Some(RuntimeStatus.Deleted)
 
     // recreate cluster with same project and cluster name
     val cluster2 = leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster2 = dbFutureValue { clusterQuery.getClusterById(cluster2.id) }
+    val dbCluster2 = dbFutureValue(clusterQuery.getClusterById(cluster2.id))
     dbCluster2.map(_.status) shouldBe Some(RuntimeStatus.Creating)
   }
 
@@ -559,7 +559,7 @@ class LeonardoServiceSpec
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // change cluster status to Running so that it can be deleted
@@ -573,13 +573,13 @@ class LeonardoServiceSpec
     dbFutureValue {
       clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
     }
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now))
 
     // delete the cluster
     leoForTest.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
     // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
-    dbFutureValue { clusterQuery.getActiveClusterByName(project, name1) }
+    dbFutureValue(clusterQuery.getActiveClusterByName(project, name1))
       .map(_.status) shouldBe Some(RuntimeStatus.Deleting)
 
     // the auth provider should have not yet been notified of deletion
@@ -617,7 +617,7 @@ class LeonardoServiceSpec
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // change the cluster status to Error
@@ -631,13 +631,13 @@ class LeonardoServiceSpec
     dbFutureValue {
       clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
     }
-    dbFutureValue { clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Error, Instant.now) }
+    dbFutureValue(clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Error, Instant.now))
 
     // delete the cluster
     leoForTest.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
     // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
-    dbFutureValue { clusterQuery.getActiveClusterByName(project, name1) }
+    dbFutureValue(clusterQuery.getActiveClusterByName(project, name1))
       .map(_.status) shouldBe Some(RuntimeStatus.Deleting)
 
     // the auth provider should have not yet been notified of deletion
@@ -656,7 +656,7 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // populate some instances for the cluster
@@ -677,18 +677,18 @@ class LeonardoServiceSpec
     dbFutureValue {
       clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
     }
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"), Instant.now))
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
     // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
-    dbFutureValue { clusterQuery.getActiveClusterByName(project, name1) }
+    dbFutureValue(clusterQuery.getActiveClusterByName(project, name1))
       .map(_.status) shouldBe Some(RuntimeStatus.Deleting)
 
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
     val getClusterIdKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
-    val instances = dbFutureValue { instanceQuery.getAllForCluster(getClusterId(getClusterIdKey)) }
+    val instances = dbFutureValue(instanceQuery.getAllForCluster(getClusterId(getClusterIdKey)))
     instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
   }
 
@@ -782,7 +782,7 @@ class LeonardoServiceSpec
       .unsafeToFuture
       .futureValue
 
-    dbFutureValue { clusterQuery.completeDeletion(cluster3.id, Instant.now) }
+    dbFutureValue(clusterQuery.completeDeletion(cluster3.id, Instant.now))
 
     leo.listClusters(userInfo, Map.empty).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1, cluster2).map(
       LeoLenses.createRuntimeRespToListRuntimeResp.get
@@ -831,7 +831,9 @@ class LeonardoServiceSpec
       .listClusters(userInfo, Map("A" -> "B"))
       .unsafeToFuture
       .futureValue
-      .toSet shouldBe Set(cluster2).map(LeoLenses.createRuntimeRespToListRuntimeResp.get) // labels are not case sensitive because MySQL
+      .toSet shouldBe Set(cluster2).map(
+      LeoLenses.createRuntimeRespToListRuntimeResp.get
+    ) // labels are not case sensitive because MySQL
     //Assert that extensions were added as labels as well
     leo
       .listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz"))
@@ -952,29 +954,29 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // populate some instances for the cluster
     val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
     val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
-    dbFutureValue { instanceQuery.saveAllForCluster(getClusterId(getClusterKey), clusterInstances) }
+    dbFutureValue(instanceQuery.saveAllForCluster(getClusterId(getClusterKey), clusterInstances))
     // TODO
 //    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
 //    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // set the cluster to Running
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now))
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
     // cluster status should be Stopping in the DB
-    dbFutureValue { clusterQuery.getClusterByUniqueKey(getClusterKey) }.get.status shouldBe RuntimeStatus.Stopping
+    dbFutureValue(clusterQuery.getClusterByUniqueKey(getClusterKey)).get.status shouldBe RuntimeStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue { instanceQuery.getAllForCluster(getClusterId(getClusterKey)) }
+    val instances = dbFutureValue(instanceQuery.getAllForCluster(getClusterId(getClusterKey)))
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(GceInstanceStatus.Running)
 
@@ -992,11 +994,11 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now))
 
     leo
       .updateCluster(
@@ -1025,10 +1027,10 @@ class LeonardoServiceSpec
     //handles that but we will check as much as we can
 
     //check that status of cluster is Updating
-    dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(RuntimeStatus.Updating)
+    dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(RuntimeStatus.Updating)
 
     //check that the machine config has been updated
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId) }
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId))
       .asInstanceOf[RuntimeConfig.DataprocConfig]
       .numberOfWorkers shouldBe 2
   }
@@ -1038,7 +1040,7 @@ class LeonardoServiceSpec
     val stoppedCluster: Runtime = makeCluster(3).copy(status = RuntimeStatus.Stopped).save()
 
     // check that the cluster is stopped
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(stoppedCluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(stoppedCluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Stopped)
 
     val caught = the[RuntimeCannotBeUpdatedException] thrownBy {
@@ -1072,11 +1074,11 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now))
 
     leo
       .updateCluster(userInfo,
@@ -1087,10 +1089,10 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(RuntimeStatus.Running)
+    dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(RuntimeStatus.Running)
 
     //check that the autopause threshold has been updated
-    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.get.autopauseThreshold shouldBe 7
+    dbFutureValue(clusterQuery.getClusterById(cluster.id)).get.autopauseThreshold shouldBe 7
   }
 
   it should "calculate autopause threshold properly" in {
@@ -1106,11 +1108,11 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // set the cluster to Stopped
-    dbFutureValue { clusterQuery.updateClusterStatus(cluster.id, Stopped, Instant.now) }
+    dbFutureValue(clusterQuery.updateClusterStatus(cluster.id, Stopped, Instant.now))
 
     val newMachineType = MachineTypeName("n1-micro-1")
     leo
@@ -1137,10 +1139,10 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Stopped
-    dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(RuntimeStatus.Stopped)
+    dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(RuntimeStatus.Stopped)
 
     //check that the machine config has been updated
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId) }
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId))
       .asInstanceOf[RuntimeConfig.DataprocConfig]
       .masterMachineType shouldBe newMachineType
   }
@@ -1151,11 +1153,11 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now))
 
     val newMachineType = MachineTypeName("n1-micro-1")
     val failure = leo
@@ -1183,7 +1185,7 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(RuntimeStatus.Running)
+    dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(RuntimeStatus.Running)
 
     failure shouldBe a[RuntimeMachineTypeCannotBeChangedException]
   }
@@ -1282,11 +1284,11 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now))
 
     val newDiskSize = DiskSize(1000)
     leo
@@ -1313,10 +1315,10 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(RuntimeStatus.Running)
+    dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(RuntimeStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId) }
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId))
       .asInstanceOf[RuntimeConfig.DataprocConfig]
       .masterDiskSize shouldBe newDiskSize
   }
@@ -1327,11 +1329,11 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // set the cluster to Running
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now))
 
     val newDiskSize = DiskSize(10)
     val failure = leo
@@ -1359,7 +1361,7 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(RuntimeStatus.Running)
+    dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(RuntimeStatus.Running)
 
     failure shouldBe a[RuntimeDiskSizeCannotBeDecreasedException]
   }
@@ -1371,7 +1373,7 @@ class LeonardoServiceSpec
         leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
       // check that the cluster was created
-      val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+      val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
       dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
       // set the cluster to Running
@@ -1410,7 +1412,7 @@ class LeonardoServiceSpec
       //handles that but we will check as much as we can
 
       //check that status of cluster is Updating
-      dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(status)
+      dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(status)
     }
   }
 
@@ -1420,7 +1422,7 @@ class LeonardoServiceSpec
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
@@ -1428,8 +1430,8 @@ class LeonardoServiceSpec
     // populate some instances for the cluster and set its status to Stopped
     val clusterInstances =
       Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = GceInstanceStatus.Stopped))
-    dbFutureValue { instanceQuery.saveAllForCluster(getClusterId(getClusterKey), clusterInstances) }
-    dbFutureValue { clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Stopped, Instant.now) }
+    dbFutureValue(instanceQuery.saveAllForCluster(getClusterId(getClusterKey), clusterInstances))
+    dbFutureValue(clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Stopped, Instant.now))
     // TODO
 //    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
 //    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
@@ -1438,7 +1440,7 @@ class LeonardoServiceSpec
     leo.startCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
     // cluster status should be Starting in the DB
-    dbFutureValue { clusterQuery.getClusterByUniqueKey(getClusterKey) }.get.status shouldBe RuntimeStatus.Starting
+    dbFutureValue(clusterQuery.getClusterByUniqueKey(getClusterKey)).get.status shouldBe RuntimeStatus.Starting
 
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status
@@ -1463,10 +1465,10 @@ class LeonardoServiceSpec
     val cluster = leo.createCluster(userInfo, project, name1, request).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    dbFutureValue { clusterQuery.getClusterById(cluster.id) }.map(_.status) shouldBe Some(RuntimeStatus.Creating)
+    dbFutureValue(clusterQuery.getClusterById(cluster.id)).map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
     // set its status to Stopped and update its createdDate
-    dbFutureValue { clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Stopped, Instant.now) }
+    dbFutureValue(clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Stopped, Instant.now))
     dbFutureValue {
       clusterQuery.updateClusterCreatedDate(cluster.id,
                                             new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant)
@@ -1477,7 +1479,7 @@ class LeonardoServiceSpec
 
     // cluster status should Starting and have new label
     val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
-    val dbCluster = dbFutureValue { clusterQuery.getClusterByUniqueKey(getClusterKey) }.get
+    val dbCluster = dbFutureValue(clusterQuery.getClusterByUniqueKey(getClusterKey)).get
     dbCluster.status shouldBe RuntimeStatus.Starting
     dbCluster.labels.exists(_ == "welderInstallFailed" -> "true")
   }
@@ -1490,10 +1492,10 @@ class LeonardoServiceSpec
     val cluster = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { clusterQuery.getClusterById(cluster.id) }
+    val dbCluster = dbFutureValue(clusterQuery.getClusterById(cluster.id))
     dbCluster.map(_.status) shouldBe Some(RuntimeStatus.Creating)
 
-    dbFutureValue { clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now) }
+    dbFutureValue(clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now))
 
     val newDiskSize = DiskSize(1000)
     leo
@@ -1520,10 +1522,10 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(RuntimeStatus.Running)
+    dbFutureValue(clusterQuery.getClusterStatus(cluster.id)) shouldBe Some(RuntimeStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId) }.diskSize shouldBe newDiskSize
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(dbCluster.get.runtimeConfigId)).diskSize shouldBe newDiskSize
   }
 
   it should "extract labels properly" in {

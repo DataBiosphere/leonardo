@@ -149,16 +149,15 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     "workerDiskSize",
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers"
-  )(
-    x =>
-      (x.cloudService,
-       x.numberOfWorkers,
-       x.masterMachineType,
-       x.masterDiskSize,
-       x.workerMachineType,
-       x.workerDiskSize,
-       x.numberOfWorkerLocalSSDs,
-       x.numberOfPreemptibleWorkers)
+  )(x =>
+    (x.cloudService,
+     x.numberOfWorkers,
+     x.masterMachineType,
+     x.masterDiskSize,
+     x.workerMachineType,
+     x.workerDiskSize,
+     x.numberOfWorkerLocalSSDs,
+     x.numberOfPreemptibleWorkers)
   )
   implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
     "cloudService",

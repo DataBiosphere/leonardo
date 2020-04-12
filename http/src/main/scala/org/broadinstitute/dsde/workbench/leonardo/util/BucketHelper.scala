@@ -179,7 +179,8 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     } yield sa
 
     // cluster SA orElse compute engine default SA
-    val clusterOrComputeDefault = OptionT.fromOption[F](serviceAccountInfo.clusterServiceAccount) orElse computeDefaultSA
+    val clusterOrComputeDefault =
+      OptionT.fromOption[F](serviceAccountInfo.clusterServiceAccount) orElse computeDefaultSA
 
     // List(cluster or default SA, notebook SA) if they exist
     val identities = clusterOrComputeDefault.value.map { clusterOrDefaultSAOpt =>

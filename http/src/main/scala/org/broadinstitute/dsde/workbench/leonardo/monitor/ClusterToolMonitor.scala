@@ -87,8 +87,6 @@ class ClusterToolMonitor(
     runtime.containers.traverse { tool =>
       tool
         .isProxyAvailable(runtime.googleProject, runtime.runtimeName)
-        .map { status =>
-          ToolStatus(status, tool, runtime)
-        }
+        .map(status => ToolStatus(status, tool, runtime))
     }
 }

@@ -203,8 +203,8 @@ object LeoPubsubCodec {
   implicit val leoPubsubMessageTypeEncoder: Encoder[LeoPubsubMessageType] = Encoder.encodeString.contramap(_.asString)
 
   implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
-    Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(
-      x => (x.messageType, x.updatedMachineConfig, x.runtimeId)
+    Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(x =>
+      (x.messageType, x.updatedMachineConfig, x.runtimeId)
     )
 
   implicit val runtimePatchDetailsEncoder: Encoder[RuntimePatchDetails] =
@@ -232,25 +232,24 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "traceId"
-    )(
-      x =>
-        (x.messageType,
-         x.id,
-         x.runtimeProjectAndName,
-         x.serviceAccountInfo,
-         x.asyncRuntimeFields,
-         x.auditInfo,
-         x.jupyterExtensionUri,
-         x.jupyterUserScriptUri,
-         x.jupyterStartUserScriptUri,
-         x.userJupyterExtensionConfig,
-         x.defaultClientId,
-         x.runtimeImages,
-         x.scopes,
-         x.welderEnabled,
-         x.customEnvironmentVariables,
-         x.runtimeConfig,
-         x.traceId)
+    )(x =>
+      (x.messageType,
+       x.id,
+       x.runtimeProjectAndName,
+       x.serviceAccountInfo,
+       x.asyncRuntimeFields,
+       x.auditInfo,
+       x.jupyterExtensionUri,
+       x.jupyterUserScriptUri,
+       x.jupyterStartUserScriptUri,
+       x.userJupyterExtensionConfig,
+       x.defaultClientId,
+       x.runtimeImages,
+       x.scopes,
+       x.welderEnabled,
+       x.customEnvironmentVariables,
+       x.runtimeConfig,
+       x.traceId)
     )
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =
@@ -270,16 +269,15 @@ object LeoPubsubCodec {
                         "newDiskSize",
                         "newNumWorkers",
                         "newNumPreemptibles",
-                        "traceId")(
-      x =>
-        (x.messageType,
-         x.runtimeId,
-         x.newMachineType,
-         x.stopToUpdateMachineType,
-         x.newDiskSize,
-         x.newNumWorkers,
-         x.newNumPreemptibles,
-         x.traceId)
+                        "traceId")(x =>
+      (x.messageType,
+       x.runtimeId,
+       x.newMachineType,
+       x.stopToUpdateMachineType,
+       x.newDiskSize,
+       x.newNumWorkers,
+       x.newNumPreemptibles,
+       x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>

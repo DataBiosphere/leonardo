@@ -70,9 +70,7 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
                                        googleProject: GoogleProject): Future[Boolean] = {
     val iamDAO: GoogleIamDAO = userGoogleIamDao(userToken.token)
     iamDAO.testIamPermission(googleProject, requiredPermissions).map { foundPermissions =>
-      {
-        foundPermissions == requiredPermissions
-      }
+      foundPermissions == requiredPermissions
     }
   }
 

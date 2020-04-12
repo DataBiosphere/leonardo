@@ -114,7 +114,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue(clusterQuery.getClusterById(runningCluster.id))
       c1.map(_.status) shouldBe Some(RuntimeStatus.Stopping)
     }
   }
@@ -199,7 +199,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue(clusterQuery.getClusterById(runningCluster.id))
       c1.map(_.status) shouldBe (Some(RuntimeStatus.Running))
     }
   }
@@ -279,7 +279,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue(clusterQuery.getClusterById(runningCluster.id))
       c1.map(_.status) shouldBe (Some(RuntimeStatus.Stopping))
     }
   }
@@ -362,7 +362,7 @@ class ClusterMonitorSupervisorSpec
     )
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue { clusterQuery.getClusterById(runningCluster.id) }
+      val c1 = dbFutureValue(clusterQuery.getClusterById(runningCluster.id))
       c1.map(_.status) shouldBe (Some(RuntimeStatus.Stopping))
     }
   }

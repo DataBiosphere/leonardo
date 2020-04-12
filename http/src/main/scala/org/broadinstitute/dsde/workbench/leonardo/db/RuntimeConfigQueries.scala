@@ -37,11 +37,9 @@ object RuntimeConfigQueries {
 
   def getRuntimeConfig(id: RuntimeConfigId)(implicit ec: ExecutionContext): DBIO[RuntimeConfig] =
     runtimeConfigs.filter(x => x.id === id).result.flatMap { x =>
-      val res = x.headOption.map { x =>
-        x.runtimeConfig
-      }
-      res.fold[DBIO[RuntimeConfig]](DBIO.failed(new Exception(s"no runtimeConfig found for ${id}")))(
-        x => DBIO.successful(x)
+      val res = x.headOption.map(x => x.runtimeConfig)
+      res.fold[DBIO[RuntimeConfig]](DBIO.failed(new Exception(s"no runtimeConfig found for ${id}")))(x =>
+        DBIO.successful(x)
       )
     }
 

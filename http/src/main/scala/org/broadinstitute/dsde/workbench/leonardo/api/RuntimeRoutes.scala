@@ -349,30 +349,29 @@ object RuntimeRoutes {
     "runtimeImages",
     "scopes",
     "customEnvironmentVariables"
-  )(
-    x =>
-      (
-        x.id,
-        x.clusterName,
-        x.googleProject,
-        x.serviceAccountInfo.clusterServiceAccount.get,
-        x.asyncRuntimeFields,
-        x.auditInfo,
-        x.runtimeConfig,
-        x.clusterUrl,
-        x.status,
-        x.labels,
-        x.jupyterExtensionUri,
-        x.jupyterUserScriptUri,
-        x.jupyterStartUserScriptUri,
-        x.errors,
-        x.userJupyterExtensionConfig,
-        x.autopauseThreshold,
-        x.defaultClientId,
-        x.clusterImages,
-        x.scopes,
-        x.customClusterEnvironmentVariables
-      )
+  )(x =>
+    (
+      x.id,
+      x.clusterName,
+      x.googleProject,
+      x.serviceAccountInfo.clusterServiceAccount.get,
+      x.asyncRuntimeFields,
+      x.auditInfo,
+      x.runtimeConfig,
+      x.clusterUrl,
+      x.status,
+      x.labels,
+      x.jupyterExtensionUri,
+      x.jupyterUserScriptUri,
+      x.jupyterStartUserScriptUri,
+      x.errors,
+      x.userJupyterExtensionConfig,
+      x.autopauseThreshold,
+      x.defaultClientId,
+      x.clusterImages,
+      x.scopes,
+      x.customClusterEnvironmentVariables
+    )
   )
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
@@ -387,19 +386,18 @@ object RuntimeRoutes {
     "status",
     "labels",
     "patchInProgress"
-  )(
-    x =>
-      (
-        x.id,
-        x.clusterName,
-        x.googleProject,
-        x.auditInfo,
-        x.machineConfig,
-        x.proxyUrl,
-        x.status,
-        x.labels,
-        x.patchInProgress
-      )
+  )(x =>
+    (
+      x.id,
+      x.clusterName,
+      x.googleProject,
+      x.auditInfo,
+      x.machineConfig,
+      x.proxyUrl,
+      x.status,
+      x.labels,
+      x.patchInProgress
+    )
   )
 }
 

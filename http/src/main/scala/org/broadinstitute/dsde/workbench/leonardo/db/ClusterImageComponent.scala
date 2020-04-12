@@ -40,9 +40,7 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
     } yield res
 
   def saveAllForCluster(clusterId: Long, clusterImages: Seq[RuntimeImage]): DBIO[Option[Int]] =
-    clusterImageQuery ++= clusterImages.map { c =>
-      marshallClusterImage(clusterId, c)
-    }
+    clusterImageQuery ++= clusterImages.map(c => marshallClusterImage(clusterId, c))
 
   def upsert(clusterId: Long, clusterImage: RuntimeImage): DBIO[Int] =
     clusterImageQuery.insertOrUpdate(marshallClusterImage(clusterId, clusterImage))
@@ -53,13 +51,13 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
 
   def getRecord(clusterId: Long, imageType: RuntimeImageType) =
     clusterImageQuery
-      .filter { _.clusterId === clusterId }
-      .filter { _.imageType === imageType }
+      .filter(_.clusterId === clusterId)
+      .filter(_.imageType === imageType)
       .result
 
   def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[RuntimeImage]] =
     clusterImageQuery
-      .filter { _.clusterId === clusterId }
+      .filter(_.clusterId === clusterId)
       .result
       .map(_.map(unmarshalClusterImage))
 

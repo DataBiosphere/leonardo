@@ -39,8 +39,8 @@ object LeonardoServiceDbQueries {
         cluster <- unmarshalFullCluster(clusterRecs).headOption
         runtimeConfig <- recs.headOption.flatMap(_._2)
       } yield GetRuntimeResponse.fromRuntime(cluster, runtimeConfig.runtimeConfig)
-      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, clusterName)))(
-        r => DBIO.successful(r)
+      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, clusterName)))(r =>
+        DBIO.successful(r)
       )
     }
   }
@@ -52,8 +52,8 @@ object LeonardoServiceDbQueries {
   ): DBIO[List[ListRuntimeResponse]] = {
     val clusterQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === "Deleted")
-    val clusterQueryFilteredByProject = googleProjectOpt.fold(clusterQueryFilteredByDeletion)(
-      p => clusterQueryFilteredByDeletion.filter(_.googleProject === p)
+    val clusterQueryFilteredByProject = googleProjectOpt.fold(clusterQueryFilteredByDeletion)(p =>
+      clusterQueryFilteredByDeletion.filter(_.googleProject === p)
     )
     val clusterQueryJoinedWithLabel = clusterLabelQuery(clusterQueryFilteredByProject)
 
@@ -70,9 +70,7 @@ object LeonardoServiceDbQueries {
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
             // https://github.com/slick/slick/issues/517
-            .filter { lbl =>
-              labelMap.map { case (k, v) => lbl.key === k && lbl.value === v }.reduce(_ || _)
-            }
+            .filter(lbl => labelMap.map { case (k, v) => lbl.key === k && lbl.value === v }.reduce(_ || _))
             .length === labelMap.size
       }
     }
@@ -118,7 +116,9 @@ object LeonardoServiceDbQueries {
             dataprocInfo,
             clusterRec.auditInfo,
             runTimeConfigRecOpt
-              .getOrElse(throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")), //In theory, the exception should never happen because it's enforced by db foreign key
+              .getOrElse(
+                throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")
+              ), //In theory, the exception should never happen because it's enforced by db foreign key
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
                                 clusterRec.googleProject,
                                 clusterRec.clusterName,

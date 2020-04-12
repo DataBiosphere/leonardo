@@ -31,42 +31,32 @@ class LabNotebookPage(override val url: String)(implicit override val authToken:
 
   lazy val fileMenu: Element = {
     findAll(cssSelector(menus))
-      .filter { e =>
-        e.text == "File"
-      }
+      .filter(e => e.text == "File")
       .toList
       .head
   }
 
   lazy val runMenu: Element = {
     findAll(cssSelector(menus))
-      .filter { e =>
-        e.text == "Run"
-      }
+      .filter(e => e.text == "Run")
       .toList
       .head
   }
 
   lazy val kernelMenu: Element = {
     findAll(cssSelector(menus))
-      .filter { e =>
-        e.text == "Kernel"
-      }
+      .filter(e => e.text == "Kernel")
       .toList
       .head
   }
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean =
-    findAll(prompts).exists { e =>
-      e.text == "In [*]:"
-    }
+    findAll(prompts).exists(e => e.text == "In [*]:")
 
   // has the specified cell completed execution? Cell number will appear in prompt once execution is complete
   def cellIsRendered(cellNumber: Int): Boolean =
-    findAll(cssSelector(prompts)).exists { e =>
-      e.text == s"[$cellNumber]:"
-    }
+    findAll(cssSelector(prompts)).exists(e => e.text == s"[$cellNumber]:")
 
   lazy val cells: Query = cssSelector(cellSelector)
 

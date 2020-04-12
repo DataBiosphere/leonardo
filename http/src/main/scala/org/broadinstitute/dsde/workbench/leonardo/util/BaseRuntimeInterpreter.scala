@@ -52,11 +52,10 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         welderDao
           .flushCache(params.runtimeAndRuntimeConfig.runtime.googleProject,
                       params.runtimeAndRuntimeConfig.runtime.runtimeName)
-          .handleErrorWith(
-            e =>
-              Logger[F].error(e)(
-                s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
-              )
+          .handleErrorWith(e =>
+            Logger[F].error(e)(
+              s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
+            )
           )
       } else Async[F].unit
 
@@ -200,9 +199,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       .through(fs2.text.utf8Decode)
       .compile
       .string
-      .map { s =>
-        Map(googleKey -> s)
-      }
+      .map(s => Map(googleKey -> s))
   }
 
 }

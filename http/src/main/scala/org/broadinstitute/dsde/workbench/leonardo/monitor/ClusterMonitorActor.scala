@@ -247,7 +247,7 @@ class ClusterMonitorActor(
             now <- IO(Instant.now)
             _ <- runtimeAndRuntimeConfig.runtimeConfig.cloudService.interpreter
               .stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
-            _ <- dbRef.inTransaction { clusterQuery.setToStopping(runtimeAndRuntimeConfig.runtime.id, now) }
+            _ <- dbRef.inTransaction(clusterQuery.setToStopping(runtimeAndRuntimeConfig.runtime.id, now))
           } yield ScheduleMonitorPass
         } else {
           handleFailedCluster(
@@ -294,7 +294,7 @@ class ClusterMonitorActor(
       _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances)
       // update DB after auth futures finish
       now <- IO(Instant.now)
-      _ <- dbRef.inTransaction { clusterQuery.setToRunning(runtimeAndRuntimeConfig.runtime.id, publicIp, now) }
+      _ <- dbRef.inTransaction(clusterQuery.setToRunning(runtimeAndRuntimeConfig.runtime.id, publicIp, now))
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(
         getRuntimeUI(runtimeAndRuntimeConfig.runtime),
@@ -461,7 +461,7 @@ class ClusterMonitorActor(
         clusterQuery.updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopped, now)
       }
       // reset the time at which the kernel was last found to be busy
-      _ <- dbRef.inTransaction { clusterQuery.clearKernelFoundBusyDate(runtimeAndRuntimeConfig.runtime.id, now) }
+      _ <- dbRef.inTransaction(clusterQuery.clearKernelFoundBusyDate(runtimeAndRuntimeConfig.runtime.id, now))
       traceId <- ev.ask
       _ <- publisherQueue.enqueue1(
         RuntimeTransitionMessage(RuntimePatchDetails(clusterId, RuntimeStatus.Stopped), Some(traceId))
@@ -568,8 +568,8 @@ class ClusterMonitorActor(
       }
 
       runningInstanceCount = dataprocInstances.count(_.status == GceInstanceStatus.Running)
-      stoppedInstanceCount = dataprocInstances.count(
-        i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated
+      stoppedInstanceCount = dataprocInstances.count(i =>
+        i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated
       )
 
       result <- runtimeStatus match {
@@ -830,11 +830,11 @@ class ClusterMonitorActor(
 
   private def getDbRuntimeAndRuntimeConfig: IO[RuntimeAndRuntimeConfig] =
     for {
-      clusterOpt <- dbRef.inTransaction { clusterQuery.getClusterById(clusterId) }
+      clusterOpt <- dbRef.inTransaction(clusterQuery.getClusterById(clusterId))
       cluster <- IO.fromEither(
         clusterOpt.toRight(new Exception(s"Cluster with id ${clusterId} not found in the database"))
       )
-      runtimeConfig <- dbRef.inTransaction { RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId) }
+      runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId))
     } yield RuntimeAndRuntimeConfig(cluster, runtimeConfig)
 
   private def recordStatusTransitionMetrics(runtimeUI: RuntimeUI,
@@ -917,9 +917,7 @@ object ClusterMonitor {
             .getBlob(path.bucketName, GcsBlobName(path.objectName.value))
             .compile
             .last
-            .map { x =>
-              x.flatMap(blob => Option(blob).flatMap(b => Option(b.getMetadata.get("passed"))))
-            }
+            .map(x => x.flatMap(blob => Option(blob).flatMap(b => Option(b.getMetadata.get("passed")))))
         } yield startScriptPassedOutput
       }
       .map(output => !output.exists(_ == "false"))

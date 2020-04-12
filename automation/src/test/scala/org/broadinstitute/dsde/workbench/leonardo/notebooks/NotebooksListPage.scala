@@ -68,7 +68,7 @@ class NotebooksListPage(override val url: String)(implicit override val authToke
 
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
-    val result = Try { testCode(notebookPage) }
+    val result = Try(testCode(notebookPage))
     Try(notebookPage.shutdownKernel()).recover {
       case e =>
         logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
@@ -87,7 +87,7 @@ class NotebooksListPage(override val url: String)(implicit override val authToke
     // Not calling NotebookPage.open() as it should already be opened
     val notebookPage = new NotebookPage(currentUrl)
     notebookPage.awaitReadyKernel(timeout)
-    val result = Try { testCode(notebookPage) }
+    val result = Try(testCode(notebookPage))
     Try(notebookPage.shutdownKernel()).recover {
       case e =>
         logger.error(s"Error occurred shutting down ${kernel} kernel", e)

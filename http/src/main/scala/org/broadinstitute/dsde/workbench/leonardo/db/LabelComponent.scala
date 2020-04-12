@@ -28,22 +28,20 @@ object labelQuery extends TableQuery(new LabelTable(_)) {
     labelQuery ++= m map { case (key, value) => LabelRecord(clusterId, key, value) }
 
   def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[LabelMap] =
-    labelQuery.filter { _.clusterId === clusterId }.result map { recs =>
-      val tuples = recs map { rec =>
-        rec.key -> rec.value
-      }
+    labelQuery.filter(_.clusterId === clusterId).result map { recs =>
+      val tuples = recs map { rec => rec.key -> rec.value }
       tuples.toMap
     }
 
   private def clusterKeyFilter(clusterId: Long, key: String): Query[LabelTable, LabelRecord, Seq] =
-    labelQuery.filter { _.clusterId === clusterId }.filter { _.key === key }
+    labelQuery.filter(_.clusterId === clusterId).filter(_.key === key)
 
   def get(clusterId: Long, key: String): DBIO[Option[String]] =
-    clusterKeyFilter(clusterId, key).map { _.value }.result.headOption
+    clusterKeyFilter(clusterId, key).map(_.value).result.headOption
 
   def delete(clusterId: Long, key: String): DBIO[Int] =
     clusterKeyFilter(clusterId, key).delete
 
   def deleteAllForCluster(clusterId: Long): DBIO[Int] =
-    labelQuery.filter { _.clusterId === clusterId }.delete
+    labelQuery.filter(_.clusterId === clusterId).delete
 }

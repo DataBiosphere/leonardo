@@ -32,27 +32,21 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
 
   lazy val fileMenu: Element = {
     findAll(menus)
-      .filter { e =>
-        e.text == "File"
-      }
+      .filter(e => e.text == "File")
       .toList
       .head
   }
 
   lazy val cellMenu: Element = {
     findAll(menus)
-      .filter { e =>
-        e.text == "Cell"
-      }
+      .filter(e => e.text == "Cell")
       .toList
       .head
   }
 
   lazy val kernelMenu: Element = {
     findAll(menus)
-      .filter { e =>
-        e.text == "Kernel"
-      }
+      .filter(e => e.text == "Kernel")
       .toList
       .head
   }
@@ -63,9 +57,7 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
   // File -> Download as
   lazy val downloadSubMenu: Element = {
     findAll(submenus)
-      .filter { e =>
-        e.text == "Download as"
-      }
+      .filter(e => e.text == "Download as")
       .toList
       .head
   }
@@ -73,9 +65,7 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
   // Cell -> Cell type
   lazy val cellTypeSubMenu: Element = {
     findAll(submenus)
-      .filter { e =>
-        e.text == "Cell Type"
-      }
+      .filter(e => e.text == "Cell Type")
       .toList
       .head
   }
@@ -147,22 +137,16 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean =
-    findAll(prompts).exists { e =>
-      e.text == "In [*]:"
-    }
+    findAll(prompts).exists(e => e.text == "In [*]:")
 
   // has the specified cell completed execution?
   // since we execute cells one by one, the Nth cell (counting from 1) will also have Cell Number N
   def cellIsRendered(cellNumber: Int): Boolean =
-    findAll(prompts).exists { e =>
-      e.text == s"In [$cellNumber]:"
-    }
+    findAll(prompts).exists(e => e.text == s"In [$cellNumber]:")
 
   // can we see that the kernel connection has terminated?
   def isKernelShutdown: Boolean =
-    find(kernelNotification).exists { e =>
-      e.text == "No kernel"
-    }
+    find(kernelNotification).exists(e => e.text == "No kernel")
 
   def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
     dismissNotebookChanged()
@@ -278,7 +262,9 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
 
   def shutdownKernel(): Unit = {
     dismissNotebookChanged()
-    awaitReadyKernel(1.minutes) //can cause failures with fast tests as it is called in clean-up, and it will timeout if it is called before the kernel is active
+    awaitReadyKernel(
+      1.minutes
+    ) //can cause failures with fast tests as it is called in clean-up, and it will timeout if it is called before the kernel is active
     click on kernelMenu
     click on (await enabled shutdownKernelSelection)
     click on (await enabled shutdownKernelConfirmationSelection)
@@ -373,12 +359,11 @@ class NotebookPage(override val url: String)(implicit override val authToken: Au
   //checks if IDs are present in DOM and the elements with those IDs are displayed. Not the negation of the above, because javascript has many ways to hide elements
   def areElementsPresent(elementIds: List[String]): Boolean =
     elementIds
-      .map(
-        elementId =>
-          find(id(elementId)) match {
-            case Some(el) => el.underlying.isDisplayed
-            case None     => false
-          }
+      .map(elementId =>
+        find(id(elementId)) match {
+          case Some(el) => el.underlying.isDisplayed
+          case None     => false
+        }
       )
       .forall(identity)
 

@@ -37,9 +37,7 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
 
   def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeError]] =
     clusterErrorQuery.filter(_.clusterId === clusterId).result map { recs =>
-      val errors = recs map { rec =>
-        unmarshallClusterErrorRecord(rec)
-      }
+      val errors = recs map { rec => unmarshallClusterErrorRecord(rec) }
       errors.toList
     }
 
