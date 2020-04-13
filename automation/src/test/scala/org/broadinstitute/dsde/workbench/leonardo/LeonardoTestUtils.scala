@@ -802,7 +802,8 @@ trait LeonardoTestUtils
         runtime.status shouldBe ClusterStatus.Error
         runtime.errors should have size 1
         runtime.errors.head.errorMessage should include("gs://")
-        runtime.errors.head.errorMessage should include("Userscript failed.")
+        runtime.errors.head.errorMessage should include("user script")
+        runtime.errors.head.errorMessage should include("failed.")
 
         testCode(runtime)
       }
