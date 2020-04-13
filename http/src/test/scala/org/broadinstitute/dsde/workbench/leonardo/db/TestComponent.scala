@@ -83,7 +83,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   protected def getClusterId(googleProject: GoogleProject,
                              clusterName: RuntimeName,
                              destroyedDateOpt: Option[Instant]): Long =
-    dbFutureValue { clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt) }.get
+    dbFutureValue(clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt)).get
 
   implicit class ClusterExtensions(cluster: Runtime) {
     def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Runtime =

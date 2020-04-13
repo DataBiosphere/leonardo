@@ -69,7 +69,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
           val extensionConfig = multiExtensionClusterRequest.copy(
-            nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
+            nbExtensions =
+              multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
           )
           withNewCluster(billingProject,
                          request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {

@@ -206,10 +206,9 @@ class ClusterMonitorSupervisor(
             IO.raiseError(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
         }
       } yield ())
-        .handleErrorWith(
-          e =>
-            IO(logger.error(s"Error occurred stopping cluster ${cluster.projectNameString} after creation", e)) >> IO
-              .raiseError(e)
+        .handleErrorWith(e =>
+          IO(logger.error(s"Error occurred stopping cluster ${cluster.projectNameString} after creation", e)) >> IO
+            .raiseError(e)
         )
         .unsafeToFuture()
 
@@ -323,12 +322,12 @@ class ClusterMonitorSupervisor(
       _ <- runtimeConfig.cloudService.interpreter
         .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(cluster, runtimeConfig), now))
       // Update the cluster status to Stopping
-      _ <- dbRef.inTransaction { clusterQuery.setToStopping(cluster.id, now) }
+      _ <- dbRef.inTransaction(clusterQuery.setToStopping(cluster.id, now))
     } yield ()
 
   private def createClusterMonitors(): IO[Unit] =
     dbRef
-      .inTransaction { clusterQuery.listMonitoredClusterOnly }
+      .inTransaction(clusterQuery.listMonitoredClusterOnly)
       .attempt
       .flatMap {
         case Right(clusters) =>

@@ -182,7 +182,7 @@ class AuthProviderSpec
       dbFutureValue {
         clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields)
       }
-      dbFutureValue { clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now) }
+      dbFutureValue(clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"), Instant.now))
 
       //delete
       leo.deleteCluster(userInfo, project, cluster1Name).unsafeRunSync()
@@ -283,10 +283,9 @@ class AuthProviderSpec
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(
-        r =>
-          ListRuntimeResponse
-            .fromRuntime(r, dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster.runtimeConfigId)))
+      leo.listClusters(userInfo, Map()).unsafeToFuture.futureValue.toSet shouldEqual Set(savedCluster).map(r =>
+        ListRuntimeResponse
+          .fromRuntime(r, dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster.runtimeConfigId)))
       )
 
       //connect should 401
@@ -343,7 +342,7 @@ class AuthProviderSpec
       clusterCreateExc shouldBe a[RuntimeException]
 
       // no cluster should have been made
-      val clusterLookup = dbFutureValue { clusterQuery.getActiveClusterByName(project, cluster1Name) }
+      val clusterLookup = dbFutureValue(clusterQuery.getActiveClusterByName(project, cluster1Name))
       clusterLookup shouldBe 'empty
 
       // check that the cluster does not exist

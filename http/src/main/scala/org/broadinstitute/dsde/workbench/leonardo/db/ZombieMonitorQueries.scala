@@ -14,7 +14,7 @@ import scala.concurrent.ExecutionContext
 object ZombieMonitorQueries {
 
   def listZombieQuery(implicit ec: ExecutionContext): DBIO[Map[GoogleProject, Chain[PotentialZombieRuntime]]] = {
-    val clusters = clusterQuery.filter { _.status inSetBind RuntimeStatus.activeStatuses.map(_.toString) }
+    val clusters = clusterQuery.filter(_.status inSetBind RuntimeStatus.activeStatuses.map(_.toString))
     val joinedQuery = clusters.joinLeft(RuntimeConfigQueries.runtimeConfigs).on(_.runtimeConfigId === _.id)
     joinedQuery.result.map { cs =>
       cs.toList.foldMap { c =>

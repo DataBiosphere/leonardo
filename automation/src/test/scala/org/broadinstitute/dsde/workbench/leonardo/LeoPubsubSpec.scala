@@ -15,9 +15,7 @@ class LeoPubsubSpec extends FlatSpec with LeonardoTestUtils {
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
 
     publisher
-      .use { _ =>
-        IO.unit
-      }
+      .use(_ => IO.unit)
       .unsafeRunSync()
   }
 
@@ -26,9 +24,7 @@ class LeoPubsubSpec extends FlatSpec with LeonardoTestUtils {
     val queue = InspectableQueue.bounded[IO, String](100).unsafeRunSync()
 
     publisher
-      .use { publisher =>
-        (queue.dequeue through publisher.publish).compile.drain
-      }
+      .use(publisher => (queue.dequeue through publisher.publish).compile.drain)
       .unsafeRunAsync(_ => ())
 
     queue.enqueue1("automation-test-message").unsafeRunSync()

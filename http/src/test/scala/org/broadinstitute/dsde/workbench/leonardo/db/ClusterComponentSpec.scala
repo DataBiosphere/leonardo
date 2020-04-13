@@ -20,7 +20,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
-    dbFutureValue { clusterQuery.listWithLabels } shouldEqual Seq()
+    dbFutureValue(clusterQuery.listWithLabels) shouldEqual Seq()
 
     lazy val err1 = RuntimeError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = GoogleId(UUID.randomUUID().toString)
@@ -68,40 +68,40 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     // instances are returned by list* methods
     val expectedClusters123 =
       Seq(savedCluster1, savedCluster2, savedCluster3).map(_.copy(dataprocInstances = Set.empty))
-    dbFutureValue { clusterQuery.listWithLabels } should contain theSameElementsAs expectedClusters123.map(
+    dbFutureValue(clusterQuery.listWithLabels) should contain theSameElementsAs expectedClusters123.map(
       stripFieldsForListCluster
     )
 
     // instances are returned by get* methods
-    dbFutureValue { clusterQuery.getActiveClusterByName(cluster1.googleProject, cluster1.runtimeName) } shouldEqual Some(
+    dbFutureValue(clusterQuery.getActiveClusterByName(cluster1.googleProject, cluster1.runtimeName)) shouldEqual Some(
       savedCluster1
     )
-    dbFutureValue { clusterQuery.getActiveClusterByName(cluster2.googleProject, cluster2.runtimeName) } shouldEqual Some(
+    dbFutureValue(clusterQuery.getActiveClusterByName(cluster2.googleProject, cluster2.runtimeName)) shouldEqual Some(
       savedCluster2
     )
-    dbFutureValue { clusterQuery.getActiveClusterByName(cluster3.googleProject, cluster3.runtimeName) } shouldEqual Some(
+    dbFutureValue(clusterQuery.getActiveClusterByName(cluster3.googleProject, cluster3.runtimeName)) shouldEqual Some(
       savedCluster3
     )
 
-    dbFutureValue { clusterErrorQuery.save(savedCluster1.id, err1) }
+    dbFutureValue(clusterErrorQuery.save(savedCluster1.id, err1))
     val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id,
                                                          stopAfterCreation = true,
                                                          runtimeConfigId = savedCluster1.runtimeConfigId)
 
-    dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) } shouldEqual Some(cluster1WithErrAssignedId)
-    dbFutureValue { clusterQuery.getClusterById(savedCluster2.id) } shouldEqual Some(savedCluster2)
-    dbFutureValue { clusterQuery.getClusterById(savedCluster3.id) } shouldEqual Some(savedCluster3)
+    dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)) shouldEqual Some(cluster1WithErrAssignedId)
+    dbFutureValue(clusterQuery.getClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)
+    dbFutureValue(clusterQuery.getClusterById(savedCluster3.id)) shouldEqual Some(savedCluster3)
 
-    dbFutureValue { clusterQuery.getServiceAccountKeyId(cluster1.googleProject, cluster1.runtimeName) } shouldEqual None
-    dbFutureValue { clusterQuery.getServiceAccountKeyId(cluster2.googleProject, cluster2.runtimeName) } shouldEqual Some(
+    dbFutureValue(clusterQuery.getServiceAccountKeyId(cluster1.googleProject, cluster1.runtimeName)) shouldEqual None
+    dbFutureValue(clusterQuery.getServiceAccountKeyId(cluster2.googleProject, cluster2.runtimeName)) shouldEqual Some(
       serviceAccountKey.id
     )
-    dbFutureValue { clusterQuery.getServiceAccountKeyId(cluster3.googleProject, cluster3.runtimeName) } shouldEqual Some(
+    dbFutureValue(clusterQuery.getServiceAccountKeyId(cluster3.googleProject, cluster3.runtimeName)) shouldEqual Some(
       serviceAccountKey.id
     )
 
-    dbFutureValue { clusterQuery.countActiveByClusterServiceAccount(clusterServiceAccount.get) } shouldEqual 2
-    dbFutureValue { clusterQuery.countActiveByProject(project) } shouldEqual 3
+    dbFutureValue(clusterQuery.countActiveByClusterServiceAccount(clusterServiceAccount.get)) shouldEqual 2
+    dbFutureValue(clusterQuery.countActiveByProject(project)) shouldEqual 3
 
     // (project, name) unique key test
     val saveCluster = SaveCluster(cluster4,
@@ -109,32 +109,32 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
                                   Some(serviceAccountKey.id),
                                   defaultRuntimeConfig,
                                   Instant.now())
-    dbFailure { clusterQuery.save(saveCluster) } shouldBe a[
+    dbFailure(clusterQuery.save(saveCluster)) shouldBe a[
       SQLException
     ]
 
-    dbFutureValue { clusterQuery.markPendingDeletion(savedCluster1.id, Instant.now) } shouldEqual 1
-    dbFutureValue { clusterQuery.listActiveWithLabels }
+    dbFutureValue(clusterQuery.markPendingDeletion(savedCluster1.id, Instant.now)) shouldEqual 1
+    dbFutureValue(clusterQuery.listActiveWithLabels)
       .map(x => x.copy(runtimeConfigId = RuntimeConfigId(-1))) should contain theSameElementsAs Seq(cluster2, cluster3)
       .map(stripFieldsForListCluster)
 
-    val cluster1status = dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }.get
+    val cluster1status = dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)).get
     cluster1status.status shouldEqual RuntimeStatus.Deleting
     cluster1status.auditInfo.destroyedDate shouldBe None
     cluster1status.asyncRuntimeFields.flatMap(_.hostIp) shouldBe None
     cluster1status.dataprocInstances shouldBe cluster1.dataprocInstances
 
-    dbFutureValue { clusterQuery.markPendingDeletion(savedCluster2.id, Instant.now) } shouldEqual 1
-    dbFutureValue { clusterQuery.listActiveWithLabels }
+    dbFutureValue(clusterQuery.markPendingDeletion(savedCluster2.id, Instant.now)) shouldEqual 1
+    dbFutureValue(clusterQuery.listActiveWithLabels)
       .map(_.copy(runtimeConfigId = RuntimeConfigId(-1))) shouldEqual Seq(cluster3).map(stripFieldsForListCluster)
-    val cluster2status = dbFutureValue { clusterQuery.getClusterById(savedCluster2.id) }.get
+    val cluster2status = dbFutureValue(clusterQuery.getClusterById(savedCluster2.id)).get
     cluster2status.status shouldEqual RuntimeStatus.Deleting
     cluster2status.auditInfo.destroyedDate shouldBe None
     cluster2status.asyncRuntimeFields.flatMap(_.hostIp) shouldBe None
 
-    dbFutureValue { clusterQuery.markPendingDeletion(savedCluster3.id, Instant.now) } shouldEqual 1
-    dbFutureValue { clusterQuery.listActiveWithLabels } shouldEqual Seq()
-    val cluster3status = dbFutureValue { clusterQuery.getClusterById(savedCluster3.id) }.get
+    dbFutureValue(clusterQuery.markPendingDeletion(savedCluster3.id, Instant.now)) shouldEqual 1
+    dbFutureValue(clusterQuery.listActiveWithLabels) shouldEqual Seq()
+    val cluster3status = dbFutureValue(clusterQuery.getClusterById(savedCluster3.id)).get
     cluster3status.status shouldEqual RuntimeStatus.Deleting
     cluster3status.auditInfo.destroyedDate shouldBe None
     cluster3status.asyncRuntimeFields.flatMap(_.hostIp) shouldBe None
@@ -145,24 +145,26 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val initialCluster = makeCluster(1).copy(status = RuntimeStatus.Running).save()
 
     // note: this does not update the instance records
-    dbFutureValue { clusterQuery.setToStopping(initialCluster.id, Instant.now) } shouldEqual 1
-    val stoppedCluster = dbFutureValue { clusterQuery.getClusterById(initialCluster.id) }.get
+    dbFutureValue(clusterQuery.setToStopping(initialCluster.id, Instant.now)) shouldEqual 1
+    val stoppedCluster = dbFutureValue(clusterQuery.getClusterById(initialCluster.id)).get
     val expectedStoppedCluster = initialCluster.copy(
       asyncRuntimeFields = initialCluster.asyncRuntimeFields.map(_.copy(hostIp = None)),
       auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed),
       status = RuntimeStatus.Stopping
     )
-    stoppedCluster.copy(auditInfo = stoppedCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedStoppedCluster
+    stoppedCluster
+      .copy(auditInfo = stoppedCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedStoppedCluster
     stoppedCluster.auditInfo.dateAccessed should be > initialCluster.auditInfo.dateAccessed
 
     dbFutureValue {
       clusterQuery.setToRunning(initialCluster.id, initialCluster.asyncRuntimeFields.flatMap(_.hostIp).get, Instant.now)
     } shouldEqual 1
-    val runningCluster = dbFutureValue { clusterQuery.getClusterById(initialCluster.id) }.get
+    val runningCluster = dbFutureValue(clusterQuery.getClusterById(initialCluster.id)).get
     val expectedRunningCluster = initialCluster.copy(id = initialCluster.id,
                                                      auditInfo =
                                                        initialCluster.auditInfo.copy(dateAccessed = dateAccessed))
-    runningCluster.copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
+    runningCluster
+      .copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
     runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
   }
 
@@ -178,15 +180,15 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
       )
     )
 
-    dbFutureValue { clusterQuery.mergeInstances(updatedCluster1) } shouldEqual updatedCluster1
-    dbFutureValue { clusterQuery.getClusterById(savedCluster1.id) }.get shouldEqual updatedCluster1
+    dbFutureValue(clusterQuery.mergeInstances(updatedCluster1)) shouldEqual updatedCluster1
+    dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)).get shouldEqual updatedCluster1
 
     val updatedCluster1Again = savedCluster1.copy(
       dataprocInstances = Set(masterInstance.copy(status = GceInstanceStatus.Terminated),
                               workerInstance1.copy(status = GceInstanceStatus.Terminated))
     )
 
-    dbFutureValue { clusterQuery.mergeInstances(updatedCluster1Again) } shouldEqual updatedCluster1Again
+    dbFutureValue(clusterQuery.mergeInstances(updatedCluster1Again)) shouldEqual updatedCluster1Again
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
@@ -208,7 +210,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
             autopauseThreshold = 0)
       .save()
 
-    val autoFreezeList = dbFutureValue { clusterQuery.getClustersReadyToAutoFreeze }
+    val autoFreezeList = dbFutureValue(clusterQuery.getClustersReadyToAutoFreeze)
     autoFreezeList should contain(runningCluster1)
     //cluster2 is already stopped
     autoFreezeList should not contain stoppedCluster
@@ -245,9 +247,9 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
       )
 
     val newMachineType = MachineTypeName("this-is-a-new-machine-type")
-    dbFutureValue { RuntimeConfigQueries.updateMachineType(savedCluster1.runtimeConfigId, newMachineType, Instant.now) }
+    dbFutureValue(RuntimeConfigQueries.updateMachineType(savedCluster1.runtimeConfigId, newMachineType, Instant.now))
 
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(savedCluster1.runtimeConfigId) }.machineType shouldBe
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster1.runtimeConfigId)).machineType shouldBe
       newMachineType
   }
 
@@ -266,9 +268,9 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     )
 
     val newDiskSize = DiskSize(1000)
-    dbFutureValue { RuntimeConfigQueries.updateDiskSize(savedCluster1.runtimeConfigId, newDiskSize, Instant.now) }
+    dbFutureValue(RuntimeConfigQueries.updateDiskSize(savedCluster1.runtimeConfigId, newDiskSize, Instant.now))
 
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(savedCluster1.runtimeConfigId) }.diskSize shouldBe
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster1.runtimeConfigId)).diskSize shouldBe
       newDiskSize
   }
 
@@ -276,10 +278,10 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val savedCluster1 = makeCluster(1).save()
     val savedCluster2 = makeCluster(2).copy(asyncRuntimeFields = None).save()
 
-    dbFutureValue { clusterQuery.listMonitoredClusterOnly }.toSet shouldBe Set(savedCluster1, savedCluster2)
+    dbFutureValue(clusterQuery.listMonitoredClusterOnly).toSet shouldBe Set(savedCluster1, savedCluster2)
       .map(stripFieldsForListCluster)
       .map(_.copy(labels = Map.empty))
-    dbFutureValue { clusterQuery.listMonitored }.toSet shouldBe Set(savedCluster1, savedCluster2).map(
+    dbFutureValue(clusterQuery.listMonitored).toSet shouldBe Set(savedCluster1, savedCluster2).map(
       stripFieldsForListCluster
     )
   }
@@ -288,7 +290,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val expectedEvs = Map("foo" -> "bar", "test" -> "this is a test")
     val savedCluster = makeCluster(1).copy(customEnvironmentVariables = expectedEvs).save()
 
-    val retrievedCluster = dbFutureValue { clusterQuery.getClusterById(savedCluster.id) }
+    val retrievedCluster = dbFutureValue(clusterQuery.getClusterById(savedCluster.id))
 
     retrievedCluster shouldBe 'defined
     retrievedCluster.get.customEnvironmentVariables shouldBe expectedEvs
@@ -310,6 +312,6 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val savedCluster = makeCluster(1)
       .saveWithRuntimeConfig(runtimeConfig)
 
-    dbFutureValue { RuntimeConfigQueries.getRuntimeConfig(savedCluster.runtimeConfigId) } shouldBe runtimeConfig
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster.runtimeConfigId)) shouldBe runtimeConfig
   }
 }

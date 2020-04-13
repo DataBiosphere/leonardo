@@ -38,7 +38,7 @@ class ClusterDateAccessedSpec
     val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
     dateAccessedActor ! UpdateDateAccessed(testCluster1.runtimeName, testCluster1.googleProject, currentTime)
     eventually(timeout(Span(5, Seconds))) {
-      val c1 = dbFutureValue { clusterQuery.getClusterById(savedTestCluster1.id) }
+      val c1 = dbFutureValue(clusterQuery.getClusterById(savedTestCluster1.id))
 
       c1.map(_.auditInfo.dateAccessed).get shouldBe currentTime
     }

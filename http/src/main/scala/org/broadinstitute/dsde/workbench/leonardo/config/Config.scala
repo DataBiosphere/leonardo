@@ -330,8 +330,8 @@ object Config {
   implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
   implicit val dataprocCustomImageReader: ValueReader[DataprocCustomImage] = stringValueReader.map(DataprocCustomImage)
   implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
-  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
-    s => ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
+  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(s =>
+    ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )
   implicit val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>

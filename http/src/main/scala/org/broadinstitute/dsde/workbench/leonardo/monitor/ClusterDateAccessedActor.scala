@@ -58,9 +58,7 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
     dbRef.inTransaction {
       clusterQuery
         .clearKernelFoundBusyDateByProjectAndName(googleProject, clusterName, dateAccessed)
-        .flatMap(
-          _ => clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
-        )
+        .flatMap(_ => clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed))
     }
   }
 }

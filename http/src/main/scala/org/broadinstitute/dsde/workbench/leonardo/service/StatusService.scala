@@ -95,9 +95,7 @@ class StatusService(
         }
         SubsystemStatus(statusCheckResponse.ok, messages)
       }
-      .handleErrorWith { t =>
-        logger.error(s"SAM is not healthy. ${t.getMessage}") >> IO.raiseError(t)
-      }
+      .handleErrorWith(t => logger.error(s"SAM is not healthy. ${t.getMessage}") >> IO.raiseError(t))
   }
 
 }

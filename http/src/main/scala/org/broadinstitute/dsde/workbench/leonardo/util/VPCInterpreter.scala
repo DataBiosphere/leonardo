@@ -151,13 +151,12 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       .addTargetTags(config.vpcConfig.networkTag.value)
       .addAllAllowed(
         fwConfig.allowed
-          .map(
-            a =>
-              Allowed
-                .newBuilder()
-                .setIPProtocol(a.protocol)
-                .addAllPorts(a.port.toList.asJava)
-                .build()
+          .map(a =>
+            Allowed
+              .newBuilder()
+              .setIPProtocol(a.protocol)
+              .addAllPorts(a.port.toList.asJava)
+              .build()
           )
           .asJava
       )

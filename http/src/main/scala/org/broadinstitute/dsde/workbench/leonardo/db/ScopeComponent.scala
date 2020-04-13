@@ -30,9 +30,7 @@ object scopeQuery extends TableQuery(new ScopeTable(_)) {
     scopeQuery.filter {
       _.clusterId === clusterId
     }.result map { recs =>
-      val clusterScopes = recs.map { rec =>
-        rec.scope
-      }
+      val clusterScopes = recs.map(rec => rec.scope)
       clusterScopes.toSet
     }
 

@@ -129,17 +129,13 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
    * Extracts the user token from the request, and looks up the cached UserInfo.
    */
   private def extractUserInfo: Directive1[UserInfo] =
-    extractToken.flatMap { token =>
-      onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture())
-    }
+    extractToken.flatMap(token => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()))
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private def logRequestResultForMetrics(userInfo: UserInfo): Directive0 = {
     def myMetricsLogger(logger: LoggingAdapter)(req: HttpRequest)(res: Any): Unit = {
       val headers = req.headers
-      val headerMap: Map[String, String] = headers.map { header =>
-        (header.name(), header.value())
-      }.toMap
+      val headerMap: Map[String, String] = headers.map(header => (header.name(), header.value())).toMap
 
       val entry = res match {
         case Complete(resp) =>

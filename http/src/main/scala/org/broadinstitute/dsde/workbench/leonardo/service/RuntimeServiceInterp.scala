@@ -114,19 +114,17 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                context.now)
             )
             gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
-              .map(
-                config =>
-                  (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values)
-                    .filter(_.startsWith("gs://"))
-                    .toList
+              .map(config =>
+                (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values)
+                  .filter(_.startsWith("gs://"))
+                  .toList
               )
               .getOrElse(List.empty) ++ req.jupyterUserScriptUri.map(_.asString) ++ req.jupyterStartUserScriptUri.map(
               _.asString
             )
-            _ <- petToken.traverse(
-              t =>
-                gcsObjectUrisToValidate
-                  .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
+            _ <- petToken.traverse(t =>
+              gcsObjectUrisToValidate
+                .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
             )
             _ <- authProvider
               .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
@@ -185,8 +183,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
       clusters
-        .filter(
-          c => c.auditInfo.creator == userInfo.userEmail || samVisibleClusters.contains((c.googleProject, c.internalId))
+        .filter(c =>
+          c.auditInfo.creator == userInfo.userEmail || samVisibleClusters.contains((c.googleProject, c.internalId))
         )
         .toVector
     }
@@ -340,8 +338,8 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
       // Updating the runtime config will potentially generate a PubSub message
-      _ <- req.updatedRuntimeConfig.traverse_(
-        update => processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
+      _ <- req.updatedRuntimeConfig.traverse_(update =>
+        processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
       )
     } yield ()
 
@@ -575,7 +573,8 @@ object RuntimeServiceInterp {
       case Some(rq) if rq.cloudService == CloudService.Dataproc =>
         if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
       case None =>
-        if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes //default to create gce runtime if runtimeConfig is not specified
+        if (req.scopes.isEmpty) config.gceConfig.defaultScopes
+        else req.scopes //default to create gce runtime if runtimeConfig is not specified
     }
 
     for {

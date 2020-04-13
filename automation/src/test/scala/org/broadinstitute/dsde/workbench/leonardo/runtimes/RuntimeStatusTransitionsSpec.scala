@@ -55,10 +55,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       Leonardo.cluster.getRuntime(billingProject, runtimeName).status shouldBe ClusterStatus.Deleting
 
       // Can't recreate while runtime is deleting
-      val caught3 = the[RestException] thrownBy createNewRuntime(billingProject,
-                                                                 runtimeName,
-                                                                 runtimeRequest,
-                                                                 monitor = false)
+      val caught3 =
+        the[RestException] thrownBy createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
       caught3.message should include(""""statusCode":409""")
 
       // Wait for the runtime to be deleted
@@ -78,15 +76,13 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
         runtime.status shouldBe ClusterStatus.Error
 
         // can't stop an Error'd runtime
-        val caught = the[RestException] thrownBy stopRuntime(runtime.googleProject,
-                                                             runtime.runtimeName,
-                                                             monitor = false)
+        val caught =
+          the[RestException] thrownBy stopRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
         caught.message should include(""""statusCode":409""")
 
         // can't recreate an Error'd runtime
-        val caught2 = the[RestException] thrownBy createNewRuntime(runtime.googleProject,
-                                                                   runtime.runtimeName,
-                                                                   monitor = false)
+        val caught2 =
+          the[RestException] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
         caught2.message should include(""""statusCode":409""")
 
         // can delete an Error'd runtime

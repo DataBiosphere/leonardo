@@ -18,16 +18,16 @@ class ExtensionComponentSpec extends FlatSpecLike with TestComponent with GcsPat
     val savedCluster2 = makeCluster(2).save()
 
     val missingId = Random.nextLong()
-    dbFutureValue { extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(),
+    dbFutureValue(extensionQuery.getAllForCluster(missingId)) shouldEqual UserJupyterExtensionConfig(Map(),
                                                                                                         Map(),
                                                                                                         Map())
-    dbFailure { extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe a[
+    dbFailure(extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue")) shouldBe a[
       SQLException
     ]
 
-    dbFutureValue { extensionQuery.saveAllForCluster(savedCluster1.id, Some(userExtConfig)) }
-    dbFutureValue { extensionQuery.getAllForCluster(savedCluster1.id) } shouldEqual userExtConfig
+    dbFutureValue(extensionQuery.saveAllForCluster(savedCluster1.id, Some(userExtConfig)))
+    dbFutureValue(extensionQuery.getAllForCluster(savedCluster1.id)) shouldEqual userExtConfig
 
-    dbFutureValue { extensionQuery.save(savedCluster2.id, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe 1
+    dbFutureValue(extensionQuery.save(savedCluster2.id, ExtensionType.NBExtension.toString, "extName", "extValue")) shouldBe 1
   }
 }

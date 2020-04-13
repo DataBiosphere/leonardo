@@ -123,8 +123,8 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
           .orElse(Option(shaOpt).map(Sha))
         for {
           traceId <- ev.ask
-          res <- version.fold(Concurrent[F].raiseError[ParsedImage](ImageParseException(traceId, image)))(
-            i => Concurrent[F].pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
+          res <- version.fold(Concurrent[F].raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
+            Concurrent[F].pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
           )
         } yield res
       case DockerHub.regex(imageName, tagOpt, shaOpt) =>

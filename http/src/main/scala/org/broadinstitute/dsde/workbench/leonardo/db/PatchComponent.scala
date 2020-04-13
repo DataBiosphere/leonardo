@@ -46,7 +46,7 @@ object patchQuery extends TableQuery(new PatchTable(_)) {
 
   def updatePatchAsComplete(clusterId: Long): DBIO[Int] =
     patchQuery
-      .filter { _.clusterId === clusterId }
+      .filter(_.clusterId === clusterId)
       .map(_.inProgress)
       .update(false)
 

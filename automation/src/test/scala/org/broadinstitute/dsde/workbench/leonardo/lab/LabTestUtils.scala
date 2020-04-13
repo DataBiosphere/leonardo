@@ -32,9 +32,7 @@ trait LabTestUtils extends LeonardoTestUtils {
         whenKernelNotReady,
         failureLogMessage = s"Cannot make new notebook"
       )(30 seconds, 5 minutes) { () =>
-        Future(labLauncherPage.withNewLabNotebook(kernel, timeout) { labNotebookPage =>
-          testCode(labNotebookPage)
-        })
+        Future(labLauncherPage.withNewLabNotebook(kernel, timeout)(labNotebookPage => testCode(labNotebookPage)))
       }
       Await.result(result, 5 minutes)
     }

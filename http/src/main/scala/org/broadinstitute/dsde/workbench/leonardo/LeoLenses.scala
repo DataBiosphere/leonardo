@@ -14,61 +14,58 @@ object LeoLenses {
 
   val runtimeToAsyncRuntimeFields: Lens[Runtime, Option[AsyncRuntimeFields]] = GenLens[Runtime](_.asyncRuntimeFields)
 
-  val createRuntimeRespToGetClusterKey = Lens[CreateRuntimeResponse, GetClusterKey](
-    x => GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
-  )(
-    x =>
-      a =>
-        a.copy(googleProject = x.googleProject,
-               clusterName = x.clusterName,
-               auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate))
+  val createRuntimeRespToGetClusterKey = Lens[CreateRuntimeResponse, GetClusterKey](x =>
+    GetClusterKey(x.googleProject, x.clusterName, x.auditInfo.destroyedDate)
+  )(x =>
+    a =>
+      a.copy(googleProject = x.googleProject,
+             clusterName = x.clusterName,
+             auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate))
   )
 
-  val createRuntimeRespToListRuntimeResp = Lens[CreateRuntimeResponse, ListRuntimeResponse](
-    x =>
-      ListRuntimeResponse(
-        x.id,
-        x.internalId,
-        x.clusterName,
-        x.googleProject,
-        x.serviceAccountInfo,
-        x.asyncRuntimeFields,
-        x.auditInfo,
-        x.runtimeConfig,
-        x.clusterUrl,
-        x.status,
-        x.labels,
-        x.jupyterExtensionUri,
-        x.jupyterUserScriptUri,
-        x.dataprocInstances,
-        x.autopauseThreshold,
-        x.defaultClientId,
-        x.stopAfterCreation,
-        x.welderEnabled,
-        x.patchInProgress
+  val createRuntimeRespToListRuntimeResp = Lens[CreateRuntimeResponse, ListRuntimeResponse](x =>
+    ListRuntimeResponse(
+      x.id,
+      x.internalId,
+      x.clusterName,
+      x.googleProject,
+      x.serviceAccountInfo,
+      x.asyncRuntimeFields,
+      x.auditInfo,
+      x.runtimeConfig,
+      x.clusterUrl,
+      x.status,
+      x.labels,
+      x.jupyterExtensionUri,
+      x.jupyterUserScriptUri,
+      x.dataprocInstances,
+      x.autopauseThreshold,
+      x.defaultClientId,
+      x.stopAfterCreation,
+      x.welderEnabled,
+      x.patchInProgress
+    )
+  )(x =>
+    c =>
+      c.copy(
+        id = x.id,
+        internalId = x.internalId,
+        clusterName = x.clusterName,
+        googleProject = x.googleProject,
+        serviceAccountInfo = x.serviceAccountInfo,
+        asyncRuntimeFields = x.asyncRuntimeFields,
+        auditInfo = x.auditInfo,
+        clusterUrl = x.clusterUrl,
+        status = x.status,
+        labels = x.labels,
+        jupyterExtensionUri = x.jupyterExtensionUri,
+        jupyterUserScriptUri = x.jupyterUserScriptUri,
+        dataprocInstances = x.dataprocInstances,
+        autopauseThreshold = x.autopauseThreshold,
+        defaultClientId = x.defaultClientId,
+        stopAfterCreation = x.stopAfterCreation,
+        welderEnabled = x.welderEnabled,
+        patchInProgress = x.patchInProgress
       )
-  )(
-    x =>
-      c =>
-        c.copy(
-          id = x.id,
-          internalId = x.internalId,
-          clusterName = x.clusterName,
-          googleProject = x.googleProject,
-          serviceAccountInfo = x.serviceAccountInfo,
-          asyncRuntimeFields = x.asyncRuntimeFields,
-          auditInfo = x.auditInfo,
-          clusterUrl = x.clusterUrl,
-          status = x.status,
-          labels = x.labels,
-          jupyterExtensionUri = x.jupyterExtensionUri,
-          jupyterUserScriptUri = x.jupyterUserScriptUri,
-          dataprocInstances = x.dataprocInstances,
-          autopauseThreshold = x.autopauseThreshold,
-          defaultClientId = x.defaultClientId,
-          stopAfterCreation = x.stopAfterCreation,
-          welderEnabled = x.welderEnabled,
-          patchInProgress = x.patchInProgress
-        )
   )
 }

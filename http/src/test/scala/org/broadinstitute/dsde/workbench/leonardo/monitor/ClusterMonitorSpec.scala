@@ -1178,7 +1178,9 @@ class ClusterMonitorSpec
         }
         updatedCluster2 shouldBe 'defined
         updatedCluster2.get.status shouldBe RuntimeStatus.Running
-        updatedCluster2.flatMap(_.asyncRuntimeFields.flatMap(_.hostIp)) shouldBe Some(IP("1.2.3.4")) // same ip because we're using the same set of instances
+        updatedCluster2.flatMap(_.asyncRuntimeFields.flatMap(_.hostIp)) shouldBe Some(
+          IP("1.2.3.4")
+        ) // same ip because we're using the same set of instances
         updatedCluster2.get.dataprocInstances
           .map(_.key) shouldBe Set(masterInstance, workerInstance1, workerInstance2).map(modifyInstance).map(_.key)
 

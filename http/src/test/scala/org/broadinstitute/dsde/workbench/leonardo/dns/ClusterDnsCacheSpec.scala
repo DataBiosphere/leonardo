@@ -63,7 +63,7 @@ class ClusterDnsCacheSpec
     eventually {
       clusterDnsCache.getHostStatus(cacheKeyForRunningCluster).unsafeRunSync() shouldEqual HostReady(runningClusterHost)
     }
-    eventually { clusterDnsCache.getHostStatus(cacheKeyForStoppedCluster).unsafeRunSync() shouldEqual HostPaused }
+    eventually(clusterDnsCache.getHostStatus(cacheKeyForStoppedCluster).unsafeRunSync() shouldEqual HostPaused)
 
     clusterDnsCache.size shouldBe 3
     clusterDnsCache.stats.missCount shouldBe 3

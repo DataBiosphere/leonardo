@@ -83,9 +83,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
 
   val process: Stream[F, Unit] =
     (Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName}")) ++ (subscriber.messages through messageHandler))
-      .handleErrorWith(
-        error => Stream.eval(logger.error(error)("Failed to initialize message processor"))
-      )
+      .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] =
     logger.info(s"acking message: ${event}") >> Async[F].delay(
@@ -95,7 +93,7 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
   private def handleStopUpdateMessage(message: StopUpdateMessage,
                                       now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     dbRef
-      .inTransaction { clusterQuery.getClusterById(message.runtimeId) }
+      .inTransaction(clusterQuery.getClusterById(message.runtimeId))
       .flatMap {
         case Some(resolvedCluster) if RuntimeStatus.stoppableStatuses.contains(resolvedCluster.status) =>
           for {
@@ -297,12 +295,11 @@ class LeoPubsubMessageSubscriber[F[_]: Async: Timer: ContextShift: Concurrent](
         for {
           _ <- runtimeConfig.cloudService.interpreter
             .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
-          _ <- msg.newNumWorkers.traverse_(
-            a => RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, now).transaction
+          _ <- msg.newNumWorkers.traverse_(a =>
+            RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, now).transaction
           )
-          _ <- msg.newNumPreemptibles.traverse_(
-            a =>
-              RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), now).transaction
+          _ <- msg.newNumPreemptibles.traverse_(a =>
+            RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), now).transaction
           )
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, now).transaction.void
         } yield ()

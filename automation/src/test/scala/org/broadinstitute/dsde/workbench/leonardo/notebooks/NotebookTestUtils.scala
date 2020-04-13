@@ -94,9 +94,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       logger.info(
         s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
-      notebooksListPage.withOpenNotebook(file, timeout) { notebookPage =>
-        testCode(notebookPage)
-      }
+      notebooksListPage.withOpenNotebook(file, timeout)(notebookPage => testCode(notebookPage))
     }
 
   def withNewNotebook[T](cluster: ClusterCopy, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(
@@ -143,9 +141,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
                                                                                                             2 minutes) {
               () =>
                 Future(
-                  notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
-                    testCode(notebookPage)
-                  }
+                  notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
                 )
             }
           Await.result(result, 10 minutes)
@@ -160,9 +156,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       logger.info(
         s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
-      notebooksListPage.withOpenNotebook(notebookPath, timeout) { notebookPage =>
-        testCode(notebookPage)
-      }
+      notebooksListPage.withOpenNotebook(notebookPath, timeout)(notebookPage => testCode(notebookPage))
     }
 
   def withDummyClientPage[T](cluster: ClusterCopy)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver,

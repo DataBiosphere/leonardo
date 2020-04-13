@@ -45,13 +45,12 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
           }
           .toSet
       val secondaryWorkerInstances = config.machineConfig.numberOfPreemptibleWorkers
-        .map(
-          num =>
-            List
-              .tabulate(num) { i =>
-                DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
-              }
-              .toSet
+        .map(num =>
+          List
+            .tabulate(num) { i =>
+              DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
+            }
+            .toSet
         )
         .getOrElse(Set.empty)
       instances += clusterName -> mutable.Map(Master -> masterInstance,
@@ -130,13 +129,12 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
                              numPreemptibles: Option[Int]): Future[Unit] = {
     if (numWorkers.isDefined) {
       val workerInstances = numWorkers
-        .map(
-          num =>
-            List
-              .tabulate(num) { i =>
-                DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"worker-instance-$i"))
-              }
-              .toSet
+        .map(num =>
+          List
+            .tabulate(num) { i =>
+              DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"worker-instance-$i"))
+            }
+            .toSet
         )
         .getOrElse(Set.empty)
       val existingSecondaryInstances = instances.get(clusterName).flatMap(_.get(SecondaryWorker))
@@ -149,13 +147,12 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
     if (numPreemptibles.isDefined) {
       val secondaryWorkerInstances = numPreemptibles
-        .map(
-          num =>
-            List
-              .tabulate(num) { i =>
-                DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
-              }
-              .toSet
+        .map(num =>
+          List
+            .tabulate(num) { i =>
+              DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
+            }
+            .toSet
         )
         .getOrElse(Set.empty)
       val existingWorkerInstances = instances.get(clusterName).flatMap(_.get(Worker))

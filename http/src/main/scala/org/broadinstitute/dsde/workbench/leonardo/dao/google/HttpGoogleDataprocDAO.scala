@@ -72,16 +72,12 @@ class HttpGoogleDataprocDAO(
 
     val request = dataproc.projects().regions().clusters().create(googleProject.value, regionName.value, cluster)
 
-    retryWithRecover(retryPredicates: _*) { () =>
-      executeGoogleRequest(request)
-    } {
+    retryWithRecover(retryPredicates: _*)(() => executeGoogleRequest(request)) {
       case e: GoogleJsonResponseException
           if e.getStatusCode == 403 &&
             (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") =>
         throw DataprocDisabledException(e.getMessage)
-    }.map { op =>
-        Operation(OperationName(op.getName), getGoogleId(op))
-      }
+    }.map(op => Operation(OperationName(op.getName), getGoogleId(op)))
       .handleGoogleException(googleProject, Some(clusterName.asString))
 
   }
@@ -129,8 +125,8 @@ class HttpGoogleDataprocDAO(
                                         clusterName: RuntimeName): Future[Option[DataprocInstanceKey]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
-      masterInstanceName <- OptionT.fromOption[Future] { getMasterInstanceName(cluster) }
-      masterInstanceZone <- OptionT.fromOption[Future] { getZone(cluster) }
+      masterInstanceName <- OptionT.fromOption[Future](getMasterInstanceName(cluster))
+      masterInstanceZone <- OptionT.fromOption[Future](getZone(cluster))
     } yield DataprocInstanceKey(googleProject, masterInstanceZone, masterInstanceName)
 
     transformed.value.handleGoogleException(googleProject, clusterName)
@@ -140,8 +136,8 @@ class HttpGoogleDataprocDAO(
                                    clusterName: RuntimeName): Future[Map[DataprocRole, Set[DataprocInstanceKey]]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
-      instanceNames <- OptionT.fromOption[Future] { getAllInstanceNames(cluster) }
-      clusterZone <- OptionT.fromOption[Future] { getZone(cluster) }
+      instanceNames <- OptionT.fromOption[Future](getAllInstanceNames(cluster))
+      clusterZone <- OptionT.fromOption[Future](getZone(cluster))
     } yield {
       instanceNames.mapValues(_.map(name => DataprocInstanceKey(googleProject, clusterZone, name)))
     }
@@ -166,8 +162,8 @@ class HttpGoogleDataprocDAO(
     val errorOpt: OptionT[Future, RuntimeErrorDetails] = for {
       operationName <- OptionT.fromOption[Future](operationName)
       operation <- OptionT(getOperation(operationName)) if operation.getDone
-      error <- OptionT.fromOption[Future] { Option(operation.getError) }
-      code <- OptionT.fromOption[Future] { Option(error.getCode) }
+      error <- OptionT.fromOption[Future](Option(operation.getError))
+      code <- OptionT.fromOption[Future](Option(error.getCode))
     } yield RuntimeErrorDetails(code, Option(error.getMessage))
 
     errorOpt.value.handleGoogleException(GoogleProject(""), operationName.map(_.value))
@@ -276,9 +272,7 @@ class HttpGoogleDataprocDAO(
     masterConfig.setImageUri(config.dataprocCustomImage.asString)
 
     // Set the zone, if specified. If not specified, Dataproc will pick a zone within the configured region.
-    zoneNameOpt.foreach { zone =>
-      gceClusterConfig.setZoneUri(zone.value)
-    }
+    zoneNameOpt.foreach(zone => gceClusterConfig.setZoneUri(zone.value))
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
     createClusterConfig(config)
@@ -383,9 +377,7 @@ class HttpGoogleDataprocDAO(
   private def getCluster(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[DataprocCluster]] = {
     val request =
       dataproc.projects().regions().clusters().get(googleProject.value, regionName.value, clusterName.asString)
-    retryWithRecover(retryPredicates: _*) { () =>
-      Option(executeGoogleRequest(request))
-    } {
+    retryWithRecover(retryPredicates: _*)(() => Option(executeGoogleRequest(request))) {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
     }
   }
@@ -395,9 +387,7 @@ class HttpGoogleDataprocDAO(
    */
   private def getOperation(operationName: OperationName): Future[Option[DataprocOperation]] = {
     val request = dataproc.projects().regions().operations().get(operationName.value)
-    retryWithRecover(retryPredicates: _*) { () =>
-      Option(executeGoogleRequest(request))
-    } {
+    retryWithRecover(retryPredicates: _*)(() => Option(executeGoogleRequest(request))) {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
     }
   }
