@@ -32,7 +32,6 @@ object ClusterToolMonitor {
 }
 
 /**
- * TODO: Is this needed?
  * Monitors tool status (Jupyter, RStudio, Welder, etc) on Running clusters and reports if any tool is down.
  */
 class ClusterToolMonitor(
@@ -68,9 +67,9 @@ class ClusterToolMonitor(
       val toolName = status.tool.toString
       IO(
         logger.warn(
-          s"The tool ${toolName} is down on cluster ${status.runtime.googleProject.value}/${status.runtime.runtimeName.asString}"
+          s"The tool ${toolName} is down on runtime ${status.runtime.googleProject.value}/${status.runtime.runtimeName.asString}"
         )
-      ) >> metrics.incrementCounter(toolName + "Down")
+      ) >> metrics.incrementCounter(toolName + "Down", 1)
     } else IO.unit
 
   private def getActiveClustersFromDatabase: IO[Seq[RunningRuntime]] =

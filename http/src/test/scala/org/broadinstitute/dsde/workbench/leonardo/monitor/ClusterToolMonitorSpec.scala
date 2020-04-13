@@ -9,16 +9,19 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeContainerServiceType, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import cats.implicits._
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
-import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.Try
 
+
+//TODO: running this spec results in lots of match `scala.MatchError: null`, investigate why that is
 class ClusterToolMonitorSpec
     extends TestKit(ActorSystem("leonardotest"))
     with FlatSpecLike
@@ -54,8 +57,7 @@ class ClusterToolMonitorSpec
     withServiceActor() { (_, mockNewRelic) =>
       Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
       RuntimeContainerServiceType.values.foreach { service =>
-        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith(service.toString + "Down"),
-                                                       ArgumentMatchers.anyInt())
+        verify(mockNewRelic, never()).incrementCounter(service.toString + "Down", 1)
       }
     }
   }
@@ -64,16 +66,13 @@ class ClusterToolMonitorSpec
     welderEnabledCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
-      (_, mockNewRelic) =>
+      (_, metrics) =>
         eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
           //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
           //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
-                                                          ArgumentMatchers.anyInt())
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
-                                                          ArgumentMatchers.anyInt())
-          verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("RStudioServiceDown"),
-                                                         ArgumentMatchers.anyInt())
+          verify(metrics, times(3)).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
+          verify(metrics, times(3)).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"), ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
+          verify(metrics, never()).incrementCounter(ArgumentMatchers.eq("RStudioServiceDown"), ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
         }
     }
   }
@@ -86,12 +85,12 @@ class ClusterToolMonitorSpec
         eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
           //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
           //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("RStudioServiceDown"),
-                                                          ArgumentMatchers.anyInt())
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
-                                                          ArgumentMatchers.anyInt())
-          verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
-                                                         ArgumentMatchers.anyInt())
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.eq("RStudioServiceDown"),
+            ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
+            ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
+          verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
+            ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
         }
     }
   }
@@ -102,13 +101,13 @@ class ClusterToolMonitorSpec
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
       (_, mockNewRelic) =>
         eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
-          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
-                                                          ArgumentMatchers.anyInt())
+          verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
+            ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
         }
 
-        Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
-                                                       ArgumentMatchers.anyInt())
+        val res = timer.sleep(clusterToolConfig.pollPeriod) >> IO(verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
+          ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]]))
+        res.unsafeRunSync
     }
   }
 
@@ -118,10 +117,10 @@ class ClusterToolMonitorSpec
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
       (_, mockNewRelic) =>
         Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
-        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("WelderServiceDown"),
-                                                       ArgumentMatchers.anyInt())
-        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.startsWith("JupyterServiceDown"),
-                                                       ArgumentMatchers.anyInt())
+        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
+          ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
+        verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
+          ArgumentMatchers.anyLong(), ArgumentMatchers.any[Map[String, String]])
     }
   }
 
