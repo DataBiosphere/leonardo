@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import scala.concurrent.ExecutionContext
 
 /**
- * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
+ * This monitor periodically sweeps the Leo database and auto pause clusters that have been running for too long.
  */
 class AutopauseMonitor[F[_]: ContextShift: Timer](
   config: AutoFreezeConfig,

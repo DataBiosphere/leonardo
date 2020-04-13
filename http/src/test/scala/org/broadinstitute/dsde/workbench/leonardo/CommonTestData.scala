@@ -160,8 +160,11 @@ object CommonTestData {
       Some(IP("numbers.and.dots"))
     )
 
-  val defaultRuntimeConfig =
+  val defaultDataprocRuntimeConfig =
     RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty)
+
+  val defaultGceRuntimeConfig =
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500))
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0),
                                         Some(MachineTypeName("n1-standard-4")),

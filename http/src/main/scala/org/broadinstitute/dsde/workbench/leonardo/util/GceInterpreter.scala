@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import GceInterpreter._
+import com.google.cloud.compute.v1.Operation
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
@@ -185,17 +186,17 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit] =
+  ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
       _ <- googleComputeService.addInstanceMetadata(runtime.googleProject,
                                                     config.gceConfig.zoneName,
                                                     InstanceName(runtime.runtimeName.asString),
                                                     metadata)
-      _ <- googleComputeService.stopInstance(runtime.googleProject,
+      r <- googleComputeService.stopInstance(runtime.googleProject,
                                              config.gceConfig.zoneName,
                                              InstanceName(runtime.runtimeName.asString))
-    } yield ()
+    } yield Some(r)
 
   override protected def startGoogleRuntime(runtime: Runtime,
                                             welderAction: Option[WelderAction],
@@ -226,14 +227,13 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                         InstanceName(runtime.runtimeName.asString),
                                         machineType)
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
     if (params.runtime.asyncRuntimeFields.isDefined)
       googleComputeService
         .deleteInstance(params.runtime.googleProject,
                         config.gceConfig.zoneName,
-                        InstanceName(params.runtime.runtimeName.asString))
-        .void
-    else Async[F].unit
+                        InstanceName(params.runtime.runtimeName.asString)).map(x => Some(x))
+    else Async[F].pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     Async[F].unit

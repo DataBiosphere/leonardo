@@ -30,7 +30,6 @@ import org.broadinstitute.dsde.workbench.util.Retry
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
@@ -190,7 +189,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                   metrics
                     .incrementCounter("zoneCapacityClusterCreationFailure",
                                       errors.filter(whenGoogleZoneCapacityIssue).length)
-                    .flatMap(_ => Async[F].raiseError[Operation](errors.head))
+                    .flatMap(_ => Async[F].raiseError[GoogleOperation](errors.head))
               }
 
               asyncRuntimeFields = AsyncRuntimeFields(operation.id, operation.name, stagingBucketName, None)
@@ -216,7 +215,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         clusterStatusOpt.fold[RuntimeStatus](RuntimeStatus.Deleted)(RuntimeStatus.fromDataprocClusterStatus)
     }
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       // Delete the notebook service account key in Google, if present
       keyIdOpt <- dbRef.inTransaction {
@@ -237,7 +236,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
           IO.fromFuture(IO(gdDAO.deleteCluster(params.runtime.googleProject, params.runtime.runtimeName)))
         )
       else Async[F].unit
-    } yield ()
+    } yield None
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
@@ -247,7 +246,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit] =
+  ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
 
@@ -276,7 +275,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
             googleComputeService.stopInstance(instance.key.project, instance.key.zone, instance.key.name)
         }
       }
-    } yield ()
+    } yield None
 
   override protected def startGoogleRuntime(runtime: Runtime,
                                             welderAction: Option[WelderAction],

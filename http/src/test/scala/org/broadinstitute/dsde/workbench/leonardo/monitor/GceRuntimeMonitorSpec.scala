@@ -466,7 +466,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     val res = for {
       r <- monitor.pollCheck(
         runtime.googleProject,
-        RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultRuntimeConfig),
+        RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig),
         op,
         RuntimeStatus.Deleted
       ).attempt
@@ -512,7 +512,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       savedRuntime <- IO(runtime.save())
       _ <- monitor.pollCheck(
         savedRuntime.googleProject,
-        RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultRuntimeConfig),
+        RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig),
         initialOp,
         RuntimeStatus.Deleting
       ) //start monitoring process
@@ -551,7 +551,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       savedRuntime <- IO(runtime.save())
       _ <- monitor.pollCheck(
         runtime.googleProject,
-        RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultRuntimeConfig),
+        RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig),
         op,
         RuntimeStatus.Deleting
       ) //start monitoring process
@@ -639,12 +639,12 @@ object GceInterp extends RuntimeAlgebra[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[RuntimeStatus] = ???
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[Operation]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
 
-  override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[Operation]] = IO.pure(None)
 
   override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] = ???
 

@@ -173,7 +173,7 @@ object Boot extends IOApp {
 
       val allStreams = {
         val extra = if (leoExecutionModeConfig.backLeo) {
-          implicit def clusterToolToToolDao =
+          implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,
                                          appDependencies.rStudioDAO)
@@ -211,9 +211,7 @@ object Boot extends IOApp {
 
           // only needed for backleo
           val pubsubSubscriber =
-            new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(gceConfig.zoneName),
-                                               appDependencies.subscriber,
-                                               appDependencies.googleComputeService,
+            new LeoPubsubMessageSubscriber[IO](appDependencies.subscriber,
                                                gceRuntimeMonitor,
               appDependencies.welderDAO)
 

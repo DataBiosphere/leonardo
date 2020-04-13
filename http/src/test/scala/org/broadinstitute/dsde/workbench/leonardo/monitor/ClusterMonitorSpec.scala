@@ -10,9 +10,8 @@ import akka.testkit.TestKit
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.auth.Credentials
-import com.google.cloud.compute.v1.{Operation => GoogleOperation, _}
-import com.google.cloud.storage.Storage.BucketSourceOption
 import com.google.cloud.storage.Blob
+import com.google.cloud.storage.Storage.BucketSourceOption
 import fs2.concurrent.InspectableQueue
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.RetryConfig
@@ -29,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
@@ -40,6 +38,8 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
+import com.google.cloud.compute.v1._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -807,7 +807,7 @@ class ClusterMonitorSpec
                           RuntimeName(mockitoEq(creatingCluster.runtimeName.asString)),
                           any[CreateClusterConfig])
     } thenReturn Future.successful {
-      Operation(creatingCluster.asyncRuntimeFields.map(_.operationName).get, newClusterId)
+      GoogleOperation(creatingCluster.asyncRuntimeFields.map(_.operationName).get, newClusterId)
     }
 
     when {
@@ -917,7 +917,7 @@ class ClusterMonitorSpec
         // Since creating cluster is now initiated by pubsub message, we're only validating that we've published the right message
         val createClusterMsg =
           publisherQueue.dequeue1.unsafeRunSync().asInstanceOf[LeoPubsubMessage.CreateRuntimeMessage]
-        val expectedMsg = CreateRuntimeMessage.fromRuntime(creatingCluster, CommonTestData.defaultRuntimeConfig, None)
+        val expectedMsg = CreateRuntimeMessage.fromRuntime(creatingCluster, CommonTestData.defaultDataprocRuntimeConfig, None)
         createClusterMsg.copy(traceId = None, scopes = Set.empty, runtimeId = -1) shouldBe (expectedMsg.copy(
           scopes = Set.empty
         ))
@@ -1346,7 +1346,7 @@ class ClusterMonitorSpec
       computeDAO.stopInstance(mockitoEq(masterInstance.key.project),
                               ZoneName(mockitoEq(masterInstance.key.zone.value)),
                               InstanceName(mockitoEq(masterInstance.key.name.value)))(any[ApplicativeAsk[IO, TraceId]])
-    } thenReturn IO.pure(GoogleOperation.newBuilder().setId("op").build())
+    } thenReturn IO.pure(Operation.newBuilder().setId("op").build())
 
     val iamDAO = mock[GoogleIamDAO]
 

@@ -8,12 +8,12 @@ import cats.effect.{ConcurrentEffect, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import fs2.{Pipe, Stream}
-import org.broadinstitute.dsde.workbench.google2.{Event, GoogleComputeService, GoogleSubscriber, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Starting, Stopped}
-import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.subscriberConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -24,9 +24,7 @@ import scala.concurrent.ExecutionContext
 import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
-  config: LeoPubsubMessageSubscriberConfig,
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  googleComputeService: GoogleComputeService[F],
   gceRuntimeMonitor: GceRuntimeMonitor[F],
   welderDAO: WelderDAO[F]
 )(implicit executionContext: ExecutionContext,
@@ -245,20 +243,19 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      _ <- if (runtimeConfig.cloudService == CloudService.GCE) {
-        googleComputeService
-          .deleteInstance(runtime.googleProject, config.gceZoneName, InstanceName(runtime.runtimeName.asString))
-          .flatMap(
-            op =>
-              F.runAsync(
-                  gceRuntimeMonitor.pollCheck(runtime.googleProject,
-                                              RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-                                              op,
-                                              RuntimeStatus.Deleting)
-                )(logError(runtime.projectNameString))
-                .to[F]
-          )
-      } else CloudService.Dataproc.interpreter.deleteRuntime(DeleteRuntimeParams(runtime))
+      op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
+        DeleteRuntimeParams(runtime)
+      )
+      _ <- op match {
+        case Some(o) => F.runAsync(
+          gceRuntimeMonitor.pollCheck(runtime.googleProject,
+            RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+            o,
+            RuntimeStatus.Deleting)
+        )(logError(runtime.projectNameString))
+          .to[F]
+        case None => F.unit // in the case of dataproc, monitoring will be triggered by ClusterMonitorActor
+      }
     } yield ()
 
   private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage, now: Instant)(
@@ -280,20 +277,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           .flushCache(runtime.googleProject, runtime.runtimeName)
           .handleErrorWith(e => logger.error(e)(s"Failed to flush welder cache for ${runtime.projectNameString}"))
       } else F.unit
-      _ <- if (runtimeConfig.cloudService == CloudService.GCE)
-        for {
-          operation <- googleComputeService.stopInstance(runtime.googleProject,
-            config.gceZoneName,
-            InstanceName(runtime.runtimeName.asString))
-          _ <- F.runAsync(
-            gceRuntimeMonitor.pollCheck(runtime.googleProject,
-              RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-              operation,
-              RuntimeStatus.Stopping)
-          )(logError(runtime.projectNameString))
-            .to[F]
-        } yield ()
-      else CloudService.Dataproc.interpreter.stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
+      op <- runtimeConfig.cloudService.interpreter.stopRuntime(
+        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now)
+      )
+      _ <- op match {
+        case Some(o) => F.runAsync(
+          gceRuntimeMonitor.pollCheck(
+            runtime.googleProject,
+            RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+            o,
+            RuntimeStatus.Stopping)
+        )(logError(runtime.projectNameString))
+          .to[F]
+        case None =>
+          F.unit //dataproc will be monitored by ClusterMonitorActor
+      }
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage, now: Instant)(
@@ -438,5 +436,3 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 }
-
-final case class LeoPubsubMessageSubscriberConfig(gceZoneName: ZoneName)

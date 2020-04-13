@@ -65,7 +65,7 @@ class HttpGoogleDataprocDAO(
 
   override def createCluster(googleProject: GoogleProject,
                              clusterName: RuntimeName,
-                             createClusterConfig: CreateClusterConfig): Future[Operation] = {
+                             createClusterConfig: CreateClusterConfig): Future[GoogleOperation] = {
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.asString)
       .setConfig(getClusterConfig(createClusterConfig))
@@ -77,7 +77,7 @@ class HttpGoogleDataprocDAO(
           if e.getStatusCode == 403 &&
             (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") =>
         throw DataprocDisabledException(e.getMessage)
-    }.map(op => Operation(OperationName(op.getName), getGoogleId(op)))
+    }.map(op => GoogleOperation(OperationName(op.getName), getGoogleId(op)))
       .handleGoogleException(googleProject, Some(clusterName.asString))
 
   }

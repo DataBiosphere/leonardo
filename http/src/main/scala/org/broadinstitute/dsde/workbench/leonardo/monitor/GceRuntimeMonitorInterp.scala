@@ -455,7 +455,7 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
       ctx <- ev.ask
       _ <- List(
         // Delete the cluster in Google
-        gceInterpreter.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime)), //TODO is this right when deleting or stopping fails?
+        gceInterpreter.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime)).void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB
         saveClusterError(runtimeAndRuntimeConfig.runtime, errorDetails.message.getOrElse(""), errorDetails.code, ctx.now)
       ).parSequence_

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.{CloudService, GPAllocBeforeAndAfterAll, GPAllocFixtureSpec, LeonardoConfig, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudService, GPAllocFixtureSpec, LeonardoConfig, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -94,7 +94,6 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
-    //TODO Renable test once this is fixed
     "should give cluster user-specified scopes" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 

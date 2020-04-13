@@ -6,6 +6,7 @@ import java.time.Instant
 import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import com.google.cloud.compute.v1.Operation
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
@@ -28,7 +29,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 
   protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit]
+  ): F[Option[Operation]]
 
   protected def startGoogleRuntime(runtime: Runtime, welderAction: Option[WelderAction], runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, AppContext]
@@ -38,7 +39,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
-  final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
     for {
       // Flush the welder cache to disk
       _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
@@ -53,8 +54,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       } else Async[F].unit
 
       // Stop the cluster in Google
-      _ <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
-    } yield ()
+      r <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
+    } yield r
 
   final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
     val welderAction = getWelderAction(params.runtime)

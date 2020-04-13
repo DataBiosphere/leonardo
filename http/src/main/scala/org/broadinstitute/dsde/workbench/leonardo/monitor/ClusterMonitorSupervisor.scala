@@ -257,20 +257,12 @@ class ClusterMonitorSupervisor(
 
   private def createClusterMonitors(): IO[Unit] =
     dbRef
-      .inTransaction(clusterQuery.listMonitoredClusterOnly)
+      .inTransaction(clusterQuery.listMonitoredDataproc)
       .attempt
       .flatMap {
         case Right(clusters) =>
           val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
-          clustersNotAlreadyBeingMonitored.toList
-            .filterA { c =>
-              RuntimeConfigQueries
-                .getRuntimeConfig(c.runtimeConfigId)
-                .transaction
-                .map(x => x.cloudService == CloudService.Dataproc) //only monitor dataproc runtimes
-            }
-            .flatMap { runtimes =>
-              runtimes.traverse_ {
+          clustersNotAlreadyBeingMonitored.toList.traverse_ {
                 case c if c.status == RuntimeStatus.Deleting => IO(self ! ClusterDeleted(c))
 
                 case c if c.status == RuntimeStatus.Stopping => IO(self ! ClusterStopped(c))
@@ -284,7 +276,6 @@ class ClusterMonitorSupervisor(
 
                 case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))
               }
-            }
         case Left(e) =>
           IO(logger.error("Error starting cluster monitor", e))
       }

@@ -382,7 +382,7 @@ final case class IP(value: String) extends ValueObject
 final case class IpRange(value: String) extends AnyVal
 final case class NetworkTag(value: String) extends ValueObject
 final case class OperationName(value: String) extends ValueObject
-final case class Operation(name: OperationName, id: GoogleId)
+final case class GoogleOperation(name: OperationName, id: GoogleId)
 final case class GoogleId(value: String) extends AnyVal
 
 sealed trait RuntimeOperation extends Product with Serializable {

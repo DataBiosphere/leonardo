@@ -88,7 +88,7 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .futureValue
@@ -130,7 +130,7 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .futureValue
@@ -148,7 +148,7 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams.fromCreateRuntimeMessage(
-            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage, defaultRuntimeConfig, None)
+            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage, defaultDataprocRuntimeConfig, None)
           )
         )
         .unsafeToFuture()
@@ -174,7 +174,7 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .failed
@@ -208,7 +208,7 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .failed
@@ -236,7 +236,7 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .failed
@@ -267,7 +267,7 @@ class DataprocInterpreterSpec
     var invocationCount = 0
     override def createCluster(googleProject: GoogleProject,
                                clusterName: RuntimeName,
-                               config: CreateClusterConfig): Future[Operation] = {
+                               config: CreateClusterConfig): Future[GoogleOperation] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException =

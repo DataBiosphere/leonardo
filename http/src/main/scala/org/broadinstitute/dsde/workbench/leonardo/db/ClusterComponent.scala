@@ -304,14 +304,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       recs => unmarshalMinimalCluster(recs)
     }
 
-  def listMonitoredClusterOnly(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
-    clusterQuery.filter(_.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString)).result map { recs =>
-      recs.map(rec =>
-        unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
-      )
-    }
-
-  def listMonitoredGceOnly(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
+  def listMonitoredGce(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterQuery
       .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
       .joinLeft(runtimeConfigs)
@@ -327,9 +320,20 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       )
     }
 
-  def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
-    clusterLabelPatchQuery.filter(_._1.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString)).result map {
-      recs => unmarshalMinimalCluster(recs)
+  def listMonitoredDataproc(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
+    clusterQuery
+      .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
+      .joinLeft(runtimeConfigs)
+      .on(_.runtimeConfigId === _.id)
+      .filter {
+        case (_, runtimeConfig) =>
+          runtimeConfig.map(x => x.cloudService.asColumnOf[String] === CloudService.Dataproc.asString)
+      }
+      .result map { recs =>
+      recs.map(
+        rec =>
+          unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
+      )
     }
 
   def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =

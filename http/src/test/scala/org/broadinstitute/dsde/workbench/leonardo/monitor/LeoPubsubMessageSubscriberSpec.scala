@@ -113,7 +113,7 @@ class LeoPubsubMessageSubscriberSpec
     savedRunningCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual runningCluster
 
     val clusterId = savedRunningCluster.id
-    val newMachineConfig = defaultRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
+    val newMachineConfig = defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
     val message = StopUpdateMessage(newMachineConfig, clusterId, None)
 
     val patchDetails = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
@@ -369,7 +369,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedStoppedCluster = stoppedCluster.save()
 
     val clusterId = savedStoppedCluster.id
-    val newMachineConfig = defaultRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
+    val newMachineConfig = defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
     val message = StopUpdateMessage(newMachineConfig, clusterId, None)
     val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopping)
 
@@ -413,7 +413,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
     cluster.status shouldBe RuntimeStatus.Running
-    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultDataprocRuntimeConfig
   }
 
   //gracefully handle transition finished with no follow-up action saved
@@ -429,7 +429,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
     cluster.status shouldBe RuntimeStatus.Stopped
-    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultDataprocRuntimeConfig
   }
 
   //handle transition finished message with follow-up action saved
@@ -454,7 +454,7 @@ class LeoPubsubMessageSubscriberSpec
     eventually {
       dbFutureValue(clusterQuery.getClusterById(cluster.id)).get.status shouldBe RuntimeStatus.Starting
 
-      dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultRuntimeConfig
+      dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultDataprocRuntimeConfig
         .copy(
           masterMachineType = newMachineType
         )
@@ -463,7 +463,7 @@ class LeoPubsubMessageSubscriberSpec
 
   "LeoPubsubCodec" should "encode/decode a StopUpdate message" in isolatedDbTest {
     val originalMessage =
-      StopUpdateMessage(defaultRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8")), 1, None)
+      StopUpdateMessage(defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8")), 1, None)
     val json = originalMessage.asJson
     val actualJsonString = json.noSpaces
 
@@ -517,9 +517,7 @@ class LeoPubsubMessageSubscriberSpec
   def makeLeoSubscriber() = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(Config.gceConfig.zoneName),
-                                       googleSubscriber,
-                                       MockGoogleComputeService,
+    new LeoPubsubMessageSubscriber[IO](googleSubscriber,
                                        MockGceRuntimeMonitor,
       mockWelderDAO)
   }

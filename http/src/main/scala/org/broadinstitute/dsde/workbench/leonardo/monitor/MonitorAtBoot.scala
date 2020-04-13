@@ -23,7 +23,7 @@ class MonitorAtBoot[F[_]](gceRuntimeMonitor: GceRuntimeMonitor[F],
 ) {
   val process: Stream[F, Unit] = {
     implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId("BootMonitoring"))
-    val res = clusterQuery.listMonitoredGceOnly
+    val res = clusterQuery.listMonitoredGce
       .transaction[F]
       .attempt
       .flatMap {
