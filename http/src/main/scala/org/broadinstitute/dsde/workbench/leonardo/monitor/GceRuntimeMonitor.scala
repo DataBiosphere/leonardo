@@ -27,17 +27,17 @@ trait GceRuntimeMonitor[F[_]] {
 }
 
 object GceRuntimeMonitor {
-  type CheckResult = (Unit, Option[GcsMonitorState])
+  type CheckResult = (Unit, Option[GceMonitorState])
 }
 
-sealed abstract class GcsMonitorState extends Product with Serializable
-object GcsMonitorState {
-  final case object Initial extends GcsMonitorState
-  final case class Check(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig) extends GcsMonitorState
+sealed abstract class GceMonitorState extends Product with Serializable
+object GceMonitorState {
+  final case object Initial extends GceMonitorState
+  final case class Check(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig) extends GceMonitorState
   final case class CheckTools(ip: IP,
                               runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                               toolsToCheck: List[RuntimeImageType])
-      extends GcsMonitorState
+      extends GceMonitorState
 }
 
 final case class MonitorContext(start: Instant, runtimeId: Long, traceId: TraceId) {

@@ -98,7 +98,6 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
       templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
 
-      _ <- Logger[F].info(s"1111 scopes: ${params.scopes.toList}")
       _ <- bucketHelper
         .initializeBucketObjects(initBucketName,
                                  templateParams.serviceAccountKey,

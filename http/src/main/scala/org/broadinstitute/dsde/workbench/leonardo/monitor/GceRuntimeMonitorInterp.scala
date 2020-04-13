@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO, nowInstant, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.GceRuntimeMonitor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.GcsMonitorState._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.GceMonitorState._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
@@ -53,7 +53,7 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
       traceId <- Stream.eval(ev.ask)
       startMonitoring <- Stream.eval(nowInstant[F])
       monitorContext = MonitorContext(startMonitoring, runtimeId, traceId)
-      _ <- Stream.sleep(config.initialDelay) ++ Stream.unfoldLoopEval[F, GcsMonitorState, Unit](Initial)(
+      _ <- Stream.sleep(config.initialDelay) ++ Stream.unfoldLoopEval[F, GceMonitorState, Unit](Initial)(
         s => Timer[F].sleep(config.pollingInterval) >> handler(monitorContext, s)
       )
     } yield ()
@@ -104,17 +104,17 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
       }
     } yield ()
 
-  private def handler(monitorContext: MonitorContext, gcsMonitorState: GcsMonitorState): F[CheckResult] =
+  private def handler(monitorContext: MonitorContext, gcsMonitorState: GceMonitorState): F[CheckResult] =
     for {
       now <- nowInstant
       implicit0(ct: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
         AppContext(monitorContext.traceId, now)
       )
       r <- gcsMonitorState match {
-        case GcsMonitorState.Initial => handleInitial(monitorContext)
-        case GcsMonitorState.CheckTools(ip, runtimeAndRuntimeConfig, images) =>
+        case GceMonitorState.Initial => handleInitial(monitorContext)
+        case GceMonitorState.CheckTools(ip, runtimeAndRuntimeConfig, images) =>
           handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, images)
-        case GcsMonitorState.Check(runtimeAndRuntimeConfig) => handleCheck(monitorContext, runtimeAndRuntimeConfig)
+        case GceMonitorState.Check(runtimeAndRuntimeConfig) => handleCheck(monitorContext, runtimeAndRuntimeConfig)
       }
     } yield r
 

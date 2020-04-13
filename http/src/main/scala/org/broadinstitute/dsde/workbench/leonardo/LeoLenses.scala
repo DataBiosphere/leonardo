@@ -58,5 +58,27 @@ object LeoLenses {
         x.welderEnabled,
         x.patchInProgress
       )
+  )(x =>
+    c =>
+      c.copy(
+        id = x.id,
+        internalId = x.internalId,
+        clusterName = x.clusterName,
+        googleProject = x.googleProject,
+        serviceAccountInfo = x.serviceAccountInfo,
+        asyncRuntimeFields = x.asyncRuntimeFields,
+        auditInfo = x.auditInfo,
+        clusterUrl = x.clusterUrl,
+        status = x.status,
+        labels = x.labels,
+        jupyterExtensionUri = x.jupyterExtensionUri,
+        jupyterUserScriptUri = x.jupyterUserScriptUri,
+        dataprocInstances = x.dataprocInstances,
+        autopauseThreshold = x.autopauseThreshold,
+        defaultClientId = x.defaultClientId,
+        stopAfterCreation = x.stopAfterCreation,
+        welderEnabled = x.welderEnabled,
+        patchInProgress = x.patchInProgress
+      )
   )
 }
