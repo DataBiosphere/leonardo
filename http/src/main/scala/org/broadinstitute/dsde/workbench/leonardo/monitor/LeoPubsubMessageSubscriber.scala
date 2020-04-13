@@ -11,7 +11,6 @@ import fs2.{Pipe, Stream}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Starting, Stopped}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.subscriberConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -25,8 +24,7 @@ import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  gceRuntimeMonitor: GceRuntimeMonitor[F],
-  welderDAO: WelderDAO[F]
+  gceRuntimeMonitor: GceRuntimeMonitor[F]
 )(implicit executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
   logger: StructuredLogger[F],
@@ -272,11 +270,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      _ <- if (runtime.welderEnabled) {
-        welderDAO
-          .flushCache(runtime.googleProject, runtime.runtimeName)
-          .handleErrorWith(e => logger.error(e)(s"Failed to flush welder cache for ${runtime.projectNameString}"))
-      } else F.unit
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
         StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now)
       )

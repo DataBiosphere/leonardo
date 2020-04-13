@@ -518,8 +518,7 @@ class LeoPubsubMessageSubscriberSpec
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
     new LeoPubsubMessageSubscriber[IO](googleSubscriber,
-                                       MockGceRuntimeMonitor,
-      mockWelderDAO)
+                                       MockGceRuntimeMonitor)
   }
 
 }
