@@ -307,11 +307,11 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def listMonitoredGce(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterQuery
       .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
-      .joinLeft(runtimeConfigs)
+      .join(runtimeConfigs)
       .on(_.runtimeConfigId === _.id)
       .filter {
         case (_, runtimeConfig) =>
-          runtimeConfig.map(x => x.cloudService.asColumnOf[String] === CloudService.GCE.asString)
+          runtimeConfig.cloudService.asColumnOf[String] === CloudService.GCE.asString
       }
       .result map { recs =>
       recs.map(
@@ -323,11 +323,11 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def listMonitoredDataproc(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterQuery
       .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
-      .joinLeft(runtimeConfigs)
+      .join(runtimeConfigs)
       .on(_.runtimeConfigId === _.id)
       .filter {
         case (_, runtimeConfig) =>
-          runtimeConfig.map(x => x.cloudService.asColumnOf[String] === CloudService.Dataproc.asString)
+          runtimeConfig.cloudService.asColumnOf[String] === CloudService.Dataproc.asString
       }
       .result map { recs =>
       recs.map(
