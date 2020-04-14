@@ -6,23 +6,17 @@ import java.time.Instant
 import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import com.google.cloud.compute.v1.Operation
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  Runtime,
-  RuntimeConfig,
-  RuntimeImage,
-  RuntimeOperation,
-  WelderAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, Runtime, RuntimeConfig, RuntimeImage, RuntimeOperation, WelderAction}
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 import scala.util.Try
@@ -30,12 +24,12 @@ import scala.util.Try
 abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: Logger](
   config: RuntimeInterpreterConfig,
   welderDao: WelderDAO[F]
-)(implicit dbRef: DbReference[F], metrics: NewRelicMetrics[F], executionContext: ExecutionContext)
+)(implicit dbRef: DbReference[F], metrics: OpenTelemetryMetrics[F], executionContext: ExecutionContext)
     extends RuntimeAlgebra[F] {
 
   protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit]
+  ): F[Option[Operation]]
 
   protected def startGoogleRuntime(runtime: Runtime, welderAction: Option[WelderAction], runtimeConfig: RuntimeConfig)(
     implicit ev: ApplicativeAsk[F, AppContext]
@@ -45,7 +39,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
-  final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
     for {
       // Flush the welder cache to disk
       _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
@@ -60,8 +54,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       } else Async[F].unit
 
       // Stop the cluster in Google
-      _ <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
-    } yield ()
+      r <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
+    } yield r
 
   final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
     val welderAction = getWelderAction(params.runtime)
@@ -114,7 +108,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   private def updateWelder(runtime: Runtime, now: Instant): F[Runtime] =
     for {
       _ <- Logger[F].info(s"Will deploy welder to cluster ${runtime.projectNameString}")
-      _ <- metrics.incrementCounter("welder/deploy")
+      _ <- metrics.incrementCounter("welder/upgrade")
       welderImage = RuntimeImage(Welder, config.imageConfig.welderImage.imageUrl, now)
 
       _ <- dbRef.inTransaction {

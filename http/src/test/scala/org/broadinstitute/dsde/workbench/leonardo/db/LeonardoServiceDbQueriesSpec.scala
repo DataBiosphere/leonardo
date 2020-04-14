@@ -21,19 +21,19 @@ class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with 
       makeCluster(3).copy(status = RuntimeStatus.Deleted, labels = Map("a" -> "b", "bam" -> "yes")).save()
 
     dbFutureValue(listClusters(Map.empty, false)).toSet shouldEqual Set(savedCluster1, savedCluster2)
-      .map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+      .map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("bam" -> "yes"), false)).toSet shouldEqual Set(savedCluster1).map(r =>
-      ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig)
+      ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig)
     )
     dbFutureValue(listClusters(Map("bam" -> "no"), false)).toSet shouldEqual Set.empty[Runtime]
     dbFutureValue(listClusters(Map("bam" -> "yes", "vcf" -> "no"), false)).toSet shouldEqual Set(
-      ListRuntimeResponse.fromRuntime(savedCluster1, defaultRuntimeConfig)
+      ListRuntimeResponse.fromRuntime(savedCluster1, defaultDataprocRuntimeConfig)
     )
     dbFutureValue(listClusters(Map("foo" -> "bar", "vcf" -> "no"), false)).toSet shouldEqual Set(
       savedCluster1
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false)).toSet shouldEqual Set(
-      ListRuntimeResponse.fromRuntime(savedCluster1, defaultRuntimeConfig)
+      ListRuntimeResponse.fromRuntime(savedCluster1, defaultDataprocRuntimeConfig)
     )
     dbFutureValue(listClusters(Map("a" -> "b"), false)).toSet shouldEqual Set.empty[Runtime]
     dbFutureValue(listClusters(Map("bam" -> "yes", "a" -> "b"), false)).toSet shouldEqual Set
@@ -42,19 +42,19 @@ class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with 
       .empty[Runtime]
     dbFutureValue(listClusters(Map("bam" -> "yes", "vcf" -> "no"), true)).toSet shouldEqual Set(
       savedCluster1
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("foo" -> "bar", "vcf" -> "no"), true)).toSet shouldEqual Set(
       savedCluster1
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true)).toSet shouldEqual Set(
       savedCluster1
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("a" -> "b"), true)).toSet shouldEqual Set(savedCluster3).map(r =>
-      ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig)
+      ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig)
     )
     dbFutureValue(listClusters(Map("bam" -> "yes", "a" -> "b"), true)).toSet shouldEqual Set(
       savedCluster3
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("bam" -> "yes", "a" -> "c"), true)).toSet shouldEqual Set
       .empty[Runtime]
     dbFutureValue(listClusters(Map("bogus" -> "value"), true)).toSet shouldEqual Set.empty[Runtime]
@@ -80,23 +80,23 @@ class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with 
       .save()
 
     dbFutureValue(listClusters(Map.empty, false, Some(project))).toSet shouldEqual Set(savedCluster1)
-      .map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+      .map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map.empty, true, Some(project))).toSet shouldEqual Set(
       savedCluster1,
       savedCluster3
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map.empty, false, Some(project2))).toSet shouldEqual Set(savedCluster2)
-      .map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+      .map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("bam" -> "yes"), true, Some(project))).toSet shouldEqual Set(
       savedCluster1,
       savedCluster3
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("bam" -> "yes"), false, Some(project2))).toSet shouldEqual Set(
       savedCluster2
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("a" -> "b"), true, Some(project))).toSet shouldEqual Set(
       savedCluster3
-    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultRuntimeConfig))
+    ).map(r => ListRuntimeResponse.fromRuntime(r, defaultDataprocRuntimeConfig))
     dbFutureValue(listClusters(Map("a" -> "b"), true, Some(project2))).toSet shouldEqual Set
       .empty[Runtime]
   }

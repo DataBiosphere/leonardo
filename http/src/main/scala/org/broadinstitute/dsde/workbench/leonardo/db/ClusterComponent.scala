@@ -19,7 +19,8 @@ import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits.cloudServiceMappedColumnType
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -303,16 +304,36 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       recs => unmarshalMinimalCluster(recs)
     }
 
-  def listMonitoredClusterOnly(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
-    clusterQuery.filter(_.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString)).result map { recs =>
-      recs.map(rec =>
-        unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
+  def listMonitoredGce(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
+    clusterQuery
+      .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
+      .join(runtimeConfigs)
+      .on(_.runtimeConfigId === _.id)
+      .filter {
+        case (_, runtimeConfig) =>
+          runtimeConfig.cloudService.asColumnOf[String] === CloudService.GCE.asString
+      }
+      .result map { recs =>
+      recs.map(
+        rec =>
+          unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
       )
     }
 
-  def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
-    clusterLabelPatchQuery.filter(_._1.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString)).result map {
-      recs => unmarshalMinimalCluster(recs)
+  def listMonitoredDataproc(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
+    clusterQuery
+      .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
+      .join(runtimeConfigs)
+      .on(_.runtimeConfigId === _.id)
+      .filter {
+        case (_, runtimeConfig) =>
+          runtimeConfig.cloudService.asColumnOf[String] === CloudService.Dataproc.asString
+      }
+      .result map { recs =>
+      recs.map(
+        rec =>
+          unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
+      )
     }
 
   def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =
@@ -430,7 +451,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(recs => recs.headOption.flatten.map(ServiceAccountKeyId))
 
   def getClusterStatus(id: Long)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] =
-    findByIdQuery(id).map(_.status).result.headOption map { statusOpt => statusOpt map RuntimeStatus.withName }
+    findByIdQuery(id).map(_.status).result.headOption map { statusOpt =>
+      statusOpt flatMap RuntimeStatus.withNameInsensitiveOption
+    }
 
   def getClustersReadyToAutoFreeze(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
@@ -541,8 +564,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Running, Some(hostIp), dateAccessed)
 
-  def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
+  def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] = {
     updateClusterStatusAndHostIp(id, RuntimeStatus.Stopping, None, dateAccessed)
+  }
 
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.

@@ -19,7 +19,7 @@ import scala.concurrent.duration._
 
 class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
-  val clusters: mutable.Map[RuntimeName, Operation] = new TrieMap()
+  val clusters: mutable.Map[RuntimeName, GoogleOperation] = new TrieMap()
   val instances: mutable.Map[RuntimeName, mutable.Map[DataprocRole, Set[DataprocInstanceKey]]] = new TrieMap()
   val badClusterName = RuntimeName("badCluster")
   val errorClusterName1 = RuntimeName("erroredCluster1")
@@ -30,11 +30,11 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   override def createCluster(googleProject: GoogleProject,
                              clusterName: RuntimeName,
-                             config: CreateClusterConfig): Future[Operation] =
+                             config: CreateClusterConfig): Future[GoogleOperation] =
     if (clusterName == badClusterName) {
       Future.failed(new Exception("bad cluster!"))
     } else {
-      val operation = Operation(OperationName("op-name"), GoogleId(UUID.randomUUID().toString))
+      val operation = GoogleOperation(OperationName("op-name"), GoogleId(UUID.randomUUID().toString))
       clusters += clusterName -> operation
 
       val masterInstance = Set(DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName("master-instance")))

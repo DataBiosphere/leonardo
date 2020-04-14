@@ -23,7 +23,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageServi
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
@@ -40,8 +39,8 @@ class DataprocInterpreterSpec
     with ScalaFutures
     with LeonardoTestSuite {
 
-  implicit val nr = FakeNewRelicMetricsInterpreter
-  implicit val appContext: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const(AppContext.generate.unsafeRunSync())
+  implicit val appContext: ApplicativeAsk[IO, AppContext] =
+    ApplicativeAsk.const(AppContext.generate[IO].unsafeRunSync())
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO
@@ -59,7 +58,6 @@ class DataprocInterpreterSpec
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig,
                          MockGoogleComputeService,
-                         mockGoogleStorageDAO,
                          FakeGoogleStorageService,
                          mockGoogleProjectDAO,
                          serviceAccountProvider,
@@ -90,7 +88,7 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .futureValue
@@ -132,7 +130,7 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .futureValue
@@ -150,7 +148,7 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams.fromCreateRuntimeMessage(
-            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage, defaultRuntimeConfig, None)
+            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage, defaultDataprocRuntimeConfig, None)
           )
         )
         .unsafeToFuture()
@@ -176,7 +174,7 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .failed
@@ -210,7 +208,7 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .failed
@@ -238,7 +236,7 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
         )
         .unsafeToFuture()
         .failed
@@ -269,7 +267,7 @@ class DataprocInterpreterSpec
     var invocationCount = 0
     override def createCluster(googleProject: GoogleProject,
                                clusterName: RuntimeName,
-                               config: CreateClusterConfig): Future[Operation] = {
+                               config: CreateClusterConfig): Future[GoogleOperation] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException =

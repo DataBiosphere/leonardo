@@ -92,7 +92,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
           SaveCluster(cluster,
                       Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
                       serviceAccountKeyId,
-                      CommonTestData.defaultRuntimeConfig,
+                      CommonTestData.defaultDataprocRuntimeConfig,
                       Instant.now)
         )
       }

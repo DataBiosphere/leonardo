@@ -95,7 +95,6 @@ class LeonardoServiceSpec
     val bucketHelper =
       new BucketHelper[IO](bucketHelperConfig,
                            MockGoogleComputeService,
-                           storageDAO,
                            FakeGoogleStorageService,
                            projectDAO,
                            serviceAccountProvider,
@@ -567,7 +566,7 @@ class LeonardoServiceSpec
       Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
-      Some(makeDataprocInfo(1)),
+      Some(makeAsyncRuntimeFields(1)),
       Instant.now
     )
     dbFutureValue {
@@ -625,7 +624,7 @@ class LeonardoServiceSpec
       Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
-      Some(makeDataprocInfo(1)),
+      Some(makeAsyncRuntimeFields(1)),
       Instant.now
     )
     dbFutureValue {
@@ -671,7 +670,7 @@ class LeonardoServiceSpec
       Some(GcsPath(initBucketName, GcsObjectName(""))),
       Some(serviceAccountKey),
       cluster.id,
-      Some(makeDataprocInfo(1)),
+      Some(makeAsyncRuntimeFields(1)),
       Instant.now
     )
     dbFutureValue {
@@ -1224,9 +1223,9 @@ class LeonardoServiceSpec
 
     val newMachineType = MachineTypeName("n1-micro-1")
     val newConfig = RuntimeConfigRequest.DataprocConfig(
-      Some(defaultRuntimeConfig.numberOfWorkers),
+      Some(defaultDataprocRuntimeConfig.numberOfWorkers),
       Some(newMachineType),
-      Some(defaultRuntimeConfig.masterDiskSize),
+      Some(defaultDataprocRuntimeConfig.masterDiskSize),
       None,
       None,
       None,
@@ -1267,9 +1266,9 @@ class LeonardoServiceSpec
     val message = queue.dequeue1.unsafeRunSync().asInstanceOf[StopUpdateMessage]
 
     message.messageType shouldBe LeoPubsubMessageType.StopUpdate
-    message.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultRuntimeConfig.numberOfWorkers,
+    message.updatedMachineConfig shouldBe RuntimeConfig.DataprocConfig(defaultDataprocRuntimeConfig.numberOfWorkers,
                                                                        newMachineType,
-                                                                       defaultRuntimeConfig.masterDiskSize,
+                                                                       defaultDataprocRuntimeConfig.masterDiskSize,
                                                                        None,
                                                                        None,
                                                                        None,

@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, ServiceAccountKey}
+import com.google.cloud.compute.v1.Operation
 
 /**
  * Defines an algebra for manipulating Leo Runtimes.
@@ -28,9 +29,9 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, G
 trait RuntimeAlgebra[F[_]] {
   def createRuntime(params: CreateRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse]
   def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus]
-  def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-  def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]]
   def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
@@ -56,7 +57,7 @@ final case class CreateRuntimeParams(id: Long,
 object CreateRuntimeParams {
   def fromCreateRuntimeMessage(message: CreateRuntimeMessage): CreateRuntimeParams =
     CreateRuntimeParams(
-      message.id,
+      message.runtimeId,
       message.runtimeProjectAndName,
       message.serviceAccountInfo,
       message.asyncRuntimeFields,

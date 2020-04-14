@@ -25,13 +25,13 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     lazy val err1 = RuntimeError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = GoogleId(UUID.randomUUID().toString)
     val cluster1 = makeCluster(1).copy(
-      asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),
       dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2),
       stopAfterCreation = true
     )
 
     val cluster1WithErr = makeCluster(1).copy(
-      asyncRuntimeFields = Some(makeDataprocInfo(1).copy(googleId = cluster1UUID)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),
       errors = List(err1),
       dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
     )
@@ -107,7 +107,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val saveCluster = SaveCluster(cluster4,
                                   Some(gcsPath("gs://bucket3")),
                                   Some(serviceAccountKey.id),
-                                  defaultRuntimeConfig,
+                                  defaultDataprocRuntimeConfig,
                                   Instant.now())
     dbFailure(clusterQuery.save(saveCluster)) shouldBe a[
       SQLException
@@ -274,16 +274,18 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
       newDiskSize
   }
 
-  it should "list monitored clusters" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1).save()
-    val savedCluster2 = makeCluster(2).copy(asyncRuntimeFields = None).save()
+  it should "list monitored Dataproc or Gce runtimes only" in isolatedDbTest {
+    val savedCluster1 = makeCluster(1).copy(status = RuntimeStatus.Starting).save()
+    makeCluster(2).copy(status = RuntimeStatus.Deleted).save()
+    val savedCluster3 = makeCluster(3).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(runtimeConfig = defaultGceRuntimeConfig)
 
-    dbFutureValue(clusterQuery.listMonitoredClusterOnly).toSet shouldBe Set(savedCluster1, savedCluster2)
+    dbFutureValue(clusterQuery.listMonitoredDataproc).toSet shouldBe Set(savedCluster1)
       .map(stripFieldsForListCluster)
       .map(_.copy(labels = Map.empty))
-    dbFutureValue(clusterQuery.listMonitored).toSet shouldBe Set(savedCluster1, savedCluster2).map(
-      stripFieldsForListCluster
-    )
+
+    dbFutureValue(clusterQuery.listMonitoredGce).toSet shouldBe Set(savedCluster3)
+      .map(stripFieldsForListCluster)
+      .map(_.copy(labels = Map.empty))
   }
 
   it should "persist custom environment variables" in isolatedDbTest {

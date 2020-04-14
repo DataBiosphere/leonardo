@@ -32,8 +32,6 @@ import scala.concurrent.duration._
 class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val runtimeService = new RuntimeServiceInterp(
-    blocker,
-    semaphore,
     RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                          imageConfig,
                          autoFreezeConfig,
@@ -510,14 +508,14 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
 
   "RuntimeServiceInterp.processUpdateDataprocConfigRequest" should "not update a Dataproc runtime when there are no changes" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(
-      Some(defaultRuntimeConfig.masterMachineType),
-      Some(defaultRuntimeConfig.masterDiskSize),
-      Some(defaultRuntimeConfig.numberOfWorkers),
-      defaultRuntimeConfig.numberOfPreemptibleWorkers
+      Some(defaultDataprocRuntimeConfig.masterMachineType),
+      Some(defaultDataprocRuntimeConfig.masterDiskSize),
+      Some(defaultDataprocRuntimeConfig.numberOfWorkers),
+      defaultDataprocRuntimeConfig.numberOfPreemptibleWorkers
     )
     val res = for {
       traceId <- traceId.ask
-      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultRuntimeConfig, traceId)
+      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultDataprocRuntimeConfig, traceId)
       messageOpt <- publisherQueue.tryDequeue1
     } yield {
       messageOpt shouldBe None
@@ -529,7 +527,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), Some(1000))
     val res = for {
       traceId <- traceId.ask
-      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultRuntimeConfig, traceId)
+      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultDataprocRuntimeConfig, traceId)
       message <- publisherQueue.dequeue1
     } yield {
       message shouldBe UpdateRuntimeMessage(testCluster.id, None, false, None, Some(50), Some(1000), Some(traceId))
@@ -544,7 +542,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              testCluster.copy(status = RuntimeStatus.Stopped),
-                                                             defaultRuntimeConfig,
+                                                             defaultDataprocRuntimeConfig,
                                                              traceId)
       message <- publisherQueue.dequeue1
     } yield {
@@ -566,7 +564,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              true,
                                                              testCluster.copy(status = RuntimeStatus.Running),
-                                                             defaultRuntimeConfig,
+                                                             defaultDataprocRuntimeConfig,
                                                              traceId)
       message <- publisherQueue.dequeue1
     } yield {
@@ -588,7 +586,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              testCluster.copy(status = RuntimeStatus.Running),
-                                                             defaultRuntimeConfig,
+                                                             defaultDataprocRuntimeConfig,
                                                              traceId)
     } yield ()
     res.attempt.unsafeRunSync() shouldBe Left(
@@ -603,7 +601,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              testCluster.copy(status = RuntimeStatus.Running),
-                                                             defaultRuntimeConfig,
+                                                             defaultDataprocRuntimeConfig,
                                                              traceId)
     } yield ()
     res.attempt.unsafeRunSync().isLeft shouldBe true
@@ -613,7 +611,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(1024)), None, None)
     val res = for {
       traceId <- traceId.ask
-      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultRuntimeConfig, traceId)
+      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultDataprocRuntimeConfig, traceId)
       message <- publisherQueue.dequeue1
     } yield {
       message shouldBe UpdateRuntimeMessage(testCluster.id,
@@ -631,7 +629,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(50)), None, None)
     val res = for {
       traceId <- traceId.ask
-      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultRuntimeConfig, traceId)
+      _ <- runtimeService.processUpdateDataprocConfigRequest(req, false, testCluster, defaultDataprocRuntimeConfig, traceId)
     } yield ()
     res.attempt.unsafeRunSync() shouldBe Left(RuntimeDiskSizeCannotBeDecreasedException(testCluster))
   }

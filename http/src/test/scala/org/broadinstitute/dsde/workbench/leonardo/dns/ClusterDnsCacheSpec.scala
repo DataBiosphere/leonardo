@@ -26,11 +26,11 @@ class ClusterDnsCacheSpec
 
   val clusterBeingCreated: Runtime =
     makeCluster(2)
-      .copy(status = RuntimeStatus.Creating, asyncRuntimeFields = Some(makeDataprocInfo(2).copy(hostIp = None)))
+      .copy(status = RuntimeStatus.Creating, asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)))
   val runningCluster: Runtime = makeCluster(1).copy(status = RuntimeStatus.Running)
   val stoppedCluster: Runtime =
     makeCluster(3)
-      .copy(status = RuntimeStatus.Stopped, asyncRuntimeFields = Some(makeDataprocInfo(2).copy(hostIp = None)))
+      .copy(status = RuntimeStatus.Stopped, asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)))
 
   val cacheKeyForClusterBeingCreated = DnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.runtimeName)
   val cacheKeyForRunningCluster = DnsCacheKey(runningCluster.googleProject, runningCluster.runtimeName)

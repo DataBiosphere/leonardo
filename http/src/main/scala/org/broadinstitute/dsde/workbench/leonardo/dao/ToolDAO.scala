@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.{
   JupyterService,
   RStudioService,
@@ -9,16 +8,16 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.{
 import org.broadinstitute.dsde.workbench.leonardo.{RuntimeContainerServiceType, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-trait ToolDAO[A] {
-  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): IO[Boolean]
+trait ToolDAO[F[_], A] {
+  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
 }
 
 object ToolDAO {
-  def clusterToolToToolDao(
-    jupyterDAO: JupyterDAO[IO],
-    welderDAO: WelderDAO[IO],
-    rstudioDAO: RStudioDAO[IO]
-  ): RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType] =
+  def clusterToolToToolDao[F[_]](
+    jupyterDAO: JupyterDAO[F],
+    welderDAO: WelderDAO[F],
+    rstudioDAO: RStudioDAO[F]
+  ): RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType] =
     clusterTool =>
       clusterTool match {
         case JupyterService =>

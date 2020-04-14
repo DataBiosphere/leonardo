@@ -11,30 +11,14 @@ import akka.actor.{Actor, Props}
 import akka.http.scaladsl.model.StatusCodes
 import akka.pattern.pipe
 import cats.data.OptionT
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{Async, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import com.google.cloud.storage.BucketInfo
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.{
-  GcsBlobName,
-  GetMetadataResponse,
-  GoogleComputeService,
-  GoogleStorageService,
-  InstanceName
-}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{
-  Creating,
-  Deleted,
-  Deleting,
-  Error,
-  Running,
-  Starting,
-  Stopping,
-  Unknown,
-  Updating
-}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleComputeService, GoogleStorageService, InstanceName}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Creating, Deleted, Deleting, Error, Running, Starting, Stopping, Unknown, Updating}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
@@ -48,20 +32,91 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimeTransitionMessage
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
-import GceInterpreter.instanceStatusToRuntimeStatus
+
 import scala.collection.immutable.Set
 import scala.concurrent.duration._
-import ClusterMonitor._
 
 case class ProxyDAONotFound(clusterName: RuntimeName, googleProject: GoogleProject, clusterTool: RuntimeImageType)
     extends LeoException(s"Cluster ${clusterName}/${googleProject} was initialized with invalid tool: ${clusterTool}",
                          StatusCodes.InternalServerError)
 
 object ClusterMonitorActor {
+  def getRuntimeUI(runtime: Runtime): RuntimeUI =
+    if (runtime.labels.contains(Config.uiConfig.terraLabel)) RuntimeUI.Terra
+    else if (runtime.labels.contains(Config.uiConfig.allOfUsLabel)) RuntimeUI.AoU
+    else RuntimeUI.Other
+
+  private[monitor] def recordStatusTransitionMetrics[F[_]: Timer: Async](
+    startTime: Instant,
+    runtimeUI: RuntimeUI,
+    origStatus: RuntimeStatus,
+    finalStatus: RuntimeStatus,
+    cloudService: CloudService
+  )(implicit openTelemetry: OpenTelemetryMetrics[F]): F[Unit] =
+    for {
+      endTime <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
+      metricsName = s"monitor/transition/${origStatus}_to_${finalStatus}"
+      duration = (endTime - startTime.toEpochMilli).millis
+      tags = Map("cloudService" -> cloudService.asString, "ui_client" -> runtimeUI.asString)
+      _ <- openTelemetry.incrementCounter(metricsName, 1, tags)
+      distributionBucket = List(0.5 minutes,
+                                1 minutes,
+                                1.5 minutes,
+                                2 minutes,
+                                2.5 minutes,
+                                3 minutes,
+                                3.5 minutes,
+                                4 minutes,
+                                4.5 minutes) //Distribution buckets from 0.5 min to 4.5 min
+      _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
+    } yield ()
+
+  private def findToolImageInfo(images: Set[RuntimeImage], imageConfig: ImageConfig): String = {
+    val terraJupyterImage = imageConfig.jupyterImageRegex.r
+    val anvilRStudioImage = imageConfig.rstudioImageRegex.r
+    val broadDockerhubImageRegex = imageConfig.broadDockerhubImageRegex.r
+    images.find(runtimeImage => Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio) contains runtimeImage.imageType) match {
+      case Some(toolImage) =>
+        toolImage.imageUrl match {
+          case terraJupyterImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
+          case anvilRStudioImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
+          case broadDockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
+          case _                                         => "custom_image"
+        }
+      case None => "unknown"
+    }
+  }
+
+  private[monitor] def recordClusterCreationMetrics[F[_]: Timer: Async](
+    createdDate: Instant,
+    images: Set[RuntimeImage],
+    imageConfig: ImageConfig,
+    cloudService: CloudService
+  )(implicit openTelemetry: OpenTelemetryMetrics[F]): F[Unit] =
+    for {
+      endTime <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
+      toolImageInfo = findToolImageInfo(images, imageConfig)
+      metricsName = s"monitor/runtimeCreation"
+      duration = (endTime - createdDate.toEpochMilli).milliseconds
+      tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
+      _ <- openTelemetry.incrementCounter(metricsName, 1, tags)
+      distributionBucket = List(1 minutes,
+                                1.5 minutes,
+                                2 minutes,
+                                2.5 minutes,
+                                3 minutes,
+                                3.5 minutes,
+                                4 minutes,
+                                4.5 minutes,
+                                5 minutes,
+                                5.5 minutes,
+                                6 minutes) //Distribution buckets from 1 min to 6 min
+      _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
+    } yield ()
 
   /**
    * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
@@ -72,16 +127,15 @@ object ClusterMonitorActor {
     dataprocConfig: DataprocConfig,
     gceConfig: GceConfig,
     imageConfig: ImageConfig,
-    clusterBucketConfig: ClusterBucketConfig,
+    clusterBucketConfig: RuntimeBucketConfig,
     gdDAO: GoogleDataprocDAO,
     googleComputeService: GoogleComputeService[IO],
-    googleStorageDAO: GoogleStorageDAO,
     google2StorageDAO: GoogleStorageService[IO],
     dbRef: DbReference[IO],
     authProvider: LeoAuthProvider[IO],
     publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage]
   )(implicit openTelemetryMetrics: OpenTelemetryMetrics[IO],
-    runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
+    runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
     cs: ContextShift[IO],
     timer: Timer[IO],
     runtimeInstances: RuntimeInstances[IO]): Props =
@@ -94,7 +148,6 @@ object ClusterMonitorActor {
                               clusterBucketConfig,
                               gdDAO,
                               googleComputeService,
-                              googleStorageDAO,
                               google2StorageDAO,
                               dbRef,
                               authProvider,
@@ -141,17 +194,16 @@ class ClusterMonitorActor(
   val dataprocConfig: DataprocConfig,
   val gceConfig: GceConfig,
   val imageConfig: ImageConfig,
-  val clusterBucketConfig: ClusterBucketConfig,
+  val clusterBucketConfig: RuntimeBucketConfig,
   val gdDAO: GoogleDataprocDAO,
   val googleComputeService: GoogleComputeService[IO],
-  val googleStorageDAO: GoogleStorageDAO,
   val google2StorageDAO: GoogleStorageService[IO],
   val dbRef: DbReference[IO],
   val authProvider: LeoAuthProvider[IO],
   val publisherQueue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage],
   val startTime: Long = System.currentTimeMillis()
 )(implicit openTelemetryMetrics: OpenTelemetryMetrics[IO],
-  runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[RuntimeContainerServiceType],
+  runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
   cs: ContextShift[IO],
   timer: Timer[IO],
   runtimeInstances: RuntimeInstances[IO])
@@ -265,7 +317,7 @@ class ClusterMonitorActor(
       case _ =>
         IO(
           logger.info(
-            s"Cluster ${runtimeAndRuntimeConfig.runtime.projectNameString} is not ready yet and has taken ${currTimeElapsed.toSeconds} seconds so far (Dataproc cluster status = $googleStatus, GCE instance statuses = ${dataprocInstances
+            s"Dataproc cluster ${runtimeAndRuntimeConfig.runtime.projectNameString} is not ready yet and has taken ${currTimeElapsed.toSeconds} seconds so far (Dataproc cluster status = $googleStatus, GCE instance statuses = ${dataprocInstances
               .groupBy(_.status)
               .mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}. ${msg.getOrElse("")}"
           )
@@ -297,6 +349,7 @@ class ClusterMonitorActor(
       _ <- dbRef.inTransaction(clusterQuery.setToRunning(runtimeAndRuntimeConfig.runtime.id, publicIp, now))
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(
+        Instant.ofEpochMilli(startTime),
         getRuntimeUI(runtimeAndRuntimeConfig.runtime),
         runtimeAndRuntimeConfig.runtime.status,
         RuntimeStatus.Running,
@@ -306,6 +359,7 @@ class ClusterMonitorActor(
         recordClusterCreationMetrics(
           runtimeAndRuntimeConfig.runtime.auditInfo.createdDate,
           runtimeAndRuntimeConfig.runtime.runtimeImages,
+          imageConfig,
           runtimeAndRuntimeConfig.runtimeConfig.cloudService
         )
       else IO.unit
@@ -342,6 +396,7 @@ class ClusterMonitorActor(
 
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(
+        Instant.ofEpochMilli(startTime),
         getRuntimeUI(runtimeAndRuntimeConfig.runtime),
         runtimeAndRuntimeConfig.runtime.status,
         RuntimeStatus.Error,
@@ -376,8 +431,11 @@ class ClusterMonitorActor(
           _ <- dbRef.inTransaction {
             clusterQuery.updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, now)
           }
-          tags = Map("cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString)
-          _ <- openTelemetryMetrics.incrementCounter(s"runtimeCreationFailure/${errorDetails.code}", 1, tags)
+          tags = Map(
+            "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
+            "dataprocErrorCode" -> errorDetails.code.toString,
+          )
+          _ <- openTelemetryMetrics.incrementCounter(s"runtimeCreationFailure", 1, tags)
 
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
@@ -402,7 +460,7 @@ class ClusterMonitorActor(
   private def handleDeletedCluster(
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] = {
-    logger.info(s"Cluster ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted.")
+    logger.info(s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted.")
 
     for {
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted
@@ -433,6 +491,7 @@ class ClusterMonitorActor(
 
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(
+        Instant.ofEpochMilli(startTime),
         getRuntimeUI(runtimeAndRuntimeConfig.runtime),
         runtimeAndRuntimeConfig.runtime.status,
         RuntimeStatus.Deleted,
@@ -466,8 +525,8 @@ class ClusterMonitorActor(
       _ <- publisherQueue.enqueue1(
         RuntimeTransitionMessage(RuntimePatchDetails(clusterId, RuntimeStatus.Stopped), Some(traceId))
       )
-      // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(
+        Instant.ofEpochMilli(startTime),
         getRuntimeUI(runtimeAndRuntimeConfig.runtime),
         runtimeAndRuntimeConfig.runtime.status,
         RuntimeStatus.Stopped,
@@ -501,47 +560,7 @@ class ClusterMonitorActor(
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[ClusterMonitorMessage] =
     runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
       case CloudService.GCE =>
-        for {
-          instanceOpt <- googleComputeService.getInstance(
-            runtimeAndRuntimeConfig.runtime.googleProject,
-            gceConfig.zoneName,
-            InstanceName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-          )
-          runtimeStatus = instanceStatusToRuntimeStatus(instanceOpt)
-          userScript = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields
-            .map(_.stagingBucket)
-            .map(b => RuntimeTemplateValues.jupyterUserScriptOutputUriPath(b))
-          userStartupScript = instanceOpt
-            .flatMap(x => Option(x.getMetadata.getFieldValue(userScriptStartupOutputUriMetadataKey)))
-            .flatMap(s => org.broadinstitute.dsde.workbench.model.google.parseGcsPath(s.toString).toOption)
-
-          userScriptSuccess <- checkUserScripts(userScript, google2StorageDAO)
-          startUpScriptSuccess <- checkUserScripts(userStartupScript, google2StorageDAO)
-          r <- (userScriptSuccess, startUpScriptSuccess) match {
-            case (true, true) => continueCheckRuntimeInGoogle(runtimeAndRuntimeConfig, runtimeStatus)
-            case (false, true) =>
-              IO.pure(
-                FailedCluster(runtimeAndRuntimeConfig,
-                              RuntimeErrorDetails(-1, Some(s"user script ${userScript} failed")),
-                              Set.empty): ClusterMonitorMessage
-              )
-            case (true, false) =>
-              IO.pure(
-                FailedCluster(runtimeAndRuntimeConfig,
-                              RuntimeErrorDetails(-1, Some(s"user start up script ${userStartupScript} failed")),
-                              Set.empty): ClusterMonitorMessage
-              )
-            case (false, false) =>
-              IO.pure(
-                FailedCluster(runtimeAndRuntimeConfig,
-                              RuntimeErrorDetails(
-                                -1,
-                                Some(s"both user script ${userScript} and startUp ${userStartupScript} script failed")
-                              ),
-                              Set.empty): ClusterMonitorMessage
-              )
-          }
-        } yield r
+        IO.raiseError(new Exception("ClusterMonitor shouldn't care about GCE instances"))
       case CloudService.Dataproc =>
         for {
           runtimeStatus <- runtimeInstances
@@ -782,7 +801,7 @@ class ClusterMonitorActor(
       case None =>
         IO(logger.warn(s"Could not lookup init bucket for cluster ${runtime.projectNameString}: cluster not in db"))
       case Some(bucketPath) =>
-        IO.fromFuture(IO(googleStorageDAO.deleteBucket(bucketPath.bucketName, recurse = true))) <*
+        google2StorageDAO.deleteBucket(runtime.googleProject, bucketPath.bucketName, isRecursive = true).compile.drain <*
           IO(
             logger.debug(s"Deleted init bucket $bucketPath for cluster ${runtime.googleProject}/${runtime.runtimeName}")
           )
@@ -801,9 +820,10 @@ class ClusterMonitorActor(
         val ageToDelete = runtime.auditInfo.createdDate
           .until(Instant.now(), ChronoUnit.DAYS)
           .toInt + clusterBucketConfig.stagingBucketExpiration.toDays.toInt
-        IO.fromFuture(
-          IO(googleStorageDAO.setBucketLifecycle(bucketPath.bucketName, ageToDelete, GcsLifecycleTypes.Delete))
-        ) map { _ =>
+        val condition = BucketInfo.LifecycleRule.LifecycleCondition.newBuilder().setAge(ageToDelete).build()
+        val action = BucketInfo.LifecycleRule.LifecycleAction.newDeleteAction()
+        val rule = new BucketInfo.LifecycleRule(action, condition)
+         google2StorageDAO.setBucketLifecycle(bucketPath.bucketName, List(rule), None).compile.drain.map { _ =>
           logger.debug(
             s"Set staging bucket $bucketPath for cluster ${runtime.projectNameString} to be deleted in ${ageToDelete} days."
           )
@@ -836,89 +856,4 @@ class ClusterMonitorActor(
       )
       runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId))
     } yield RuntimeAndRuntimeConfig(cluster, runtimeConfig)
-
-  private def recordStatusTransitionMetrics(runtimeUI: RuntimeUI,
-                                            origStatus: RuntimeStatus,
-                                            finalStatus: RuntimeStatus,
-                                            cloudService: CloudService): IO[Unit] =
-    for {
-      endTime <- IO(System.currentTimeMillis)
-      metricsName = s"monitor/transition/${origStatus}_to_${finalStatus}"
-      duration = (endTime - startTime).millis
-      tags = Map("cloudService" -> cloudService.asString, "ui_client" -> runtimeUI.asString)
-      _ <- openTelemetryMetrics.incrementCounter(metricsName, 1, tags)
-      distributionBucket = List(0.5 minutes,
-                                1 minutes,
-                                1.5 minutes,
-                                2 minutes,
-                                2.5 minutes,
-                                3 minutes,
-                                3.5 minutes,
-                                4 minutes,
-                                4.5 minutes) //Distribution buckets from 0.5 min to 4.5 min
-      _ <- openTelemetryMetrics.recordDuration(metricsName, duration, distributionBucket, tags)
-    } yield ()
-
-  private def findToolImageInfo(images: Set[RuntimeImage]): String = {
-    val terraJupyterImage = imageConfig.jupyterImageRegex.r
-    val anvilRStudioImage = imageConfig.rstudioImageRegex.r
-    val broadDockerhubImageRegex = imageConfig.broadDockerhubImageRegex.r
-    images.find(runtimeImage => Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio) contains runtimeImage.imageType) match {
-      case Some(toolImage) =>
-        toolImage.imageUrl match {
-          case terraJupyterImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
-          case anvilRStudioImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
-          case broadDockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
-          case _                                         => "custom_image"
-        }
-      case None => "unknown"
-    }
-  }
-
-  private def recordClusterCreationMetrics(createdDate: Instant,
-                                           images: Set[RuntimeImage],
-                                           cloudService: CloudService): IO[Unit] =
-    for {
-      endTime <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      toolImageInfo = findToolImageInfo(images)
-      metricsName = s"monitor/runtimeCreation"
-      duration = (endTime - createdDate.toEpochMilli).milliseconds
-      tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
-      _ <- openTelemetryMetrics.incrementCounter(metricsName, 1, tags)
-      distributionBucket = List(1 minutes,
-                                1.5 minutes,
-                                2 minutes,
-                                2.5 minutes,
-                                3 minutes,
-                                3.5 minutes,
-                                4 minutes,
-                                4.5 minutes,
-                                5 minutes,
-                                5.5 minutes,
-                                6 minutes) //Distribution buckets from 1 min to 6 min
-      _ <- openTelemetryMetrics.recordDuration(metricsName, duration, distributionBucket, tags)
-    } yield ()
-
-  def getRuntimeUI(runtime: Runtime): RuntimeUI =
-    if (runtime.labels.contains(Config.uiConfig.terraLabel)) RuntimeUI.Terra
-    else if (runtime.labels.contains(Config.uiConfig.allOfUsLabel)) RuntimeUI.AoU
-    else RuntimeUI.Other
-}
-
-object ClusterMonitor {
-  // In gce init script, we set a metadata "passed" to "true" or "false" depending on whether init script passed
-  // if metadata shows `false`, then runtime creation has failed; otherwise, we don't mark runtime creation as failure
-  private[monitor] def checkUserScripts(gcsPath: Option[GcsPath],
-                                        googleStorageService: GoogleStorageService[IO]): IO[Boolean] =
-    gcsPath
-      .flatTraverse { path =>
-        for {
-          startScriptPassedOutput <- googleStorageService
-            .getBlob(path.bucketName, GcsBlobName(path.objectName.value))
-            .compile
-            .last
-            .map(x => x.flatMap(blob => Option(blob).flatMap(b => Option(b.getMetadata.get("passed")))))
-        } yield startScriptPassedOutput
-      }
-      .map(output => !output.exists(_ == "false"))
 }

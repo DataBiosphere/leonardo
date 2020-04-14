@@ -67,11 +67,9 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       withNewRuntime(billingProject, runtimeName, runtimeRequest, monitorCreate = true, monitorDelete = false)(noop)
     }
 
-    "error'd runtimes should transition correctly" in { billingProject =>
-      logger.info("Starting RuntimeStatusTransitionsSpec: error'd runtimes should transition correctly")
-
+    "error'd runtimes with bad user script should transition correctly" in { billingProject =>
       // make an Error'd runtime
-      withNewErroredRuntime(billingProject) { runtime =>
+      withNewErroredRuntime(billingProject, false) { runtime =>
         // runtime should be in Error status
         runtime.status shouldBe ClusterStatus.Error
 
@@ -86,6 +84,22 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
         caught2.message should include(""""statusCode":409""")
 
         // can delete an Error'd runtime
+      }
+    }
+
+    "Rutnime with bad user startup script should transition correctly" in { billingProject =>
+      withNewErroredRuntime(billingProject, true) { runtime =>
+        runtime.status shouldBe ClusterStatus.Error
+
+        // can't stop an Error'd runtime
+        val caught =
+          the[RestException] thrownBy stopRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
+        caught.message should include(""""statusCode":409""")
+
+        // can't recreate an Error'd runtime
+        val caught2 =
+          the[RestException] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
+        caught2.message should include(""""statusCode":409""")
       }
     }
     // Note: omitting stop/start and patch/update tests here because those are covered in more depth in NotebookClusterMonitoringSpec

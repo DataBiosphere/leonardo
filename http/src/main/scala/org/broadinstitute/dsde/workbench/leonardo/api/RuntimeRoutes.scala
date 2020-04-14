@@ -143,7 +143,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         runtimeName: RuntimeName,
                                         req: CreateRuntime2Request): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate
+      context <- AppContext.generate[IO]
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -159,7 +159,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                      googleProject: GoogleProject,
                                      runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate
+      context <- AppContext.generate[IO]
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -170,7 +170,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                        googleProject: Option[GoogleProject],
                                        params: Map[String, String]): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate
+      context <- AppContext.generate[IO]
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -181,7 +181,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate
+      context <- AppContext.generate[IO]
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -192,7 +192,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                       googleProject: GoogleProject,
                                       runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate
+      context <- AppContext.generate[IO]
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -203,7 +203,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                        googleProject: GoogleProject,
                                        runtimeName: RuntimeName): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate
+      context <- AppContext.generate[IO]
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -215,7 +215,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         runtimeName: RuntimeName,
                                         req: UpdateRuntimeRequest): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate
+      context <- AppContext.generate[IO]
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )

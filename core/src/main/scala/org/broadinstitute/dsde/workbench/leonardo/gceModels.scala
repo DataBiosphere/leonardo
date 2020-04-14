@@ -4,7 +4,7 @@ import enumeratum.{Enum, EnumEntry}
 
 /** Google Compute Instance Status
  *  See: https://cloud.google.com/compute/docs/instances/checking-instance-status */
-sealed trait GceInstanceStatus extends EnumEntry
+sealed trait GceInstanceStatus extends EnumEntry with Product with Serializable
 object GceInstanceStatus extends Enum[GceInstanceStatus] {
   val values = findValues
 

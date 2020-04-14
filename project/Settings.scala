@@ -23,7 +23,8 @@ object Settings {
     scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt console`
     scalacOptions in (Test, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
     scalacOptions in Test --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
-    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
+    addCompilerPlugin("org.typelevel" % "kind-projector_2.12.11" % "0.11.0")
   )
 
   val commonCompilerSettings = Seq(
@@ -92,7 +93,7 @@ object Settings {
   val commonSettings =
     commonBuildSettings ++ List(
     organization  := "org.broadinstitute.dsde.workbench",
-    scalaVersion  := "2.12.10",
+    scalaVersion  := "2.12.11",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )

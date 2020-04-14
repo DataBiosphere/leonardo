@@ -30,13 +30,17 @@ object patchQuery extends TableQuery(new PatchTable(_)) {
       PatchRecord(patchDetails.runtimeId, patchDetails.runtimeStatus, masterMachineType, inProgress = true)
     )
 
-  def delete(patchDetails: RuntimePatchDetails): DBIO[Int] =
-    basePatchQuery(patchDetails).delete
+  def delete(runtimeId: Long): DBIO[Int] =
+    basePatchQuery(runtimeId).delete
 
+  // retrieve additional patch actions need to be done
   def getPatchAction(
-    patchDetails: RuntimePatchDetails
+    runtimeId: Long
   )(implicit ec: ExecutionContext): DBIO[Option[MachineTypeName]] =
-    basePatchQuery(patchDetails).result.headOption
+    patchQuery
+      .filter(_.clusterId === runtimeId)
+      .filter(_.inProgress === true)
+      .result.headOption
       .map { recordOpt =>
         recordOpt match {
           case Some(record) => record.masterMachineType
@@ -50,7 +54,20 @@ object patchQuery extends TableQuery(new PatchTable(_)) {
       .map(_.inProgress)
       .update(false)
 
-  private def basePatchQuery(patchDetails: RuntimePatchDetails) =
+  def isInprogress(runtimeId: Long)(implicit ec: ExecutionContext): DBIO[Boolean] =
     patchQuery
-      .filter(_.clusterId === patchDetails.runtimeId)
+      .filter { _.clusterId === runtimeId }
+      .result
+      .headOption
+      .map {
+        recOpt =>
+        recOpt match {
+          case Some(r) => r.inProgress
+          case None => false
+        }
+      }
+
+  private def basePatchQuery(runtimeId: Long) =
+    patchQuery
+      .filter(_.clusterId === runtimeId)
 }

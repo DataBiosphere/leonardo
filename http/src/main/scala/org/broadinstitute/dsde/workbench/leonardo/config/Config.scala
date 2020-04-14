@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -284,8 +285,8 @@ object Config {
     )
   }
 
-  implicit val clusterBucketConfigValueReader: ValueReader[ClusterBucketConfig] = ValueReader.relative { config =>
-    ClusterBucketConfig(
+  implicit val clusterBucketConfigValueReader: ValueReader[RuntimeBucketConfig] = ValueReader.relative { config =>
+    RuntimeBucketConfig(
       toScalaDuration(config.getDuration("stagingBucketExpiration"))
     )
   }
@@ -381,7 +382,31 @@ object Config {
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
-  val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
+  val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
+
+
+  implicit val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>
+    val statusTimeouts = config.getConfig("statusTimeouts")
+    val timeoutMap: Map[RuntimeStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
+      for {
+        status <- RuntimeStatus.withNameInsensitiveOption(e.getKey)
+        duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
+      } yield (status, duration)
+    }.toMap
+
+    GceMonitorConfig(
+      config.as[FiniteDuration]("initialDelay"),
+      config.as[FiniteDuration]("pollingInterval"),
+      config.as[Int]("pollCheckMaxAttempts"),
+      config.as[FiniteDuration]("checkToolsDelay"),
+      clusterBucketConfig,
+      timeoutMap,
+      gceConfig.zoneName,
+      imageConfig
+    )
+  }
+
+  val gceMonitorConfig = config.as[GceMonitorConfig]("gce.monitor")
   val uiConfig = config.as[ClusterUIConfig]("ui")
   val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")

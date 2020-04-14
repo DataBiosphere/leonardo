@@ -6,12 +6,11 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
-import cats.effect.concurrent.Semaphore
-import cats.effect.{Async, Blocker, ContextShift, Timer}
+import cats.Parallel
+import cats.effect.Async
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import cats.Parallel
-import com.google.auth.oauth2.AccessToken
+import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
@@ -19,39 +18,19 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  DbReference,
-  LeonardoServiceDbQueries,
-  RuntimeConfigQueries,
-  RuntimeServiceDbQueries,
-  SaveCluster
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateRuntime2Request,
-  ListRuntimeResponse2,
-  UpdateRuntimeConfigRequest,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, ListRuntimeResponse2, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateRuntimeMessage,
-  DeleteRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage,
-  UpdateRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
 
 import scala.concurrent.ExecutionContext
 
-class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
-                                           semaphore: Semaphore[F],
-                                           config: RuntimeServiceConfig,
+class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            authProvider: LeoAuthProvider[F],
                                            serviceAccountProvider: ServiceAccountProvider[F],
                                            dockerDAO: DockerDAO[F],
@@ -59,8 +38,6 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                                            publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],
-  timer: Timer[F],
-  cs: ContextShift[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends RuntimeService[F] {
@@ -97,8 +74,6 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
                 ) as None
             }
             clusterImages <- getRuntimeImages(petToken,
-                                              userInfo.userEmail,
-                                              googleProject,
                                               context.now,
                                               req.toolDockerImage,
                                               req.welderDockerImage)
@@ -305,6 +280,7 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
     req: UpdateRuntimeRequest
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
+      ctx <- as.ask
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
@@ -329,7 +305,6 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
       else
         F.raiseError[Unit](RuntimeCannotBeUpdatedException(runtime.projectNameString, runtime.status))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      ctx <- as.ask
       // Updating autopause is just a DB update, so we can do it here instead of sending a PubSub message
       updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled,
                                                               req.updateAutopauseThreshold.map(_.toMinutes.toInt),
@@ -338,15 +313,14 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
       // Updating the runtime config will potentially generate a PubSub message
-      _ <- req.updatedRuntimeConfig.traverse_(update =>
-        processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
+      _ <- req.updatedRuntimeConfig.traverse_(
+        update =>
+          processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
       )
     } yield ()
 
   private[service] def getRuntimeImages(
     petToken: Option[String],
-    userEmail: WorkbenchEmail,
-    googleProject: GoogleProject,
     now: Instant,
     toolDockerImage: Option[ContainerImage],
     welderDockerImage: Option[ContainerImage]
@@ -391,18 +365,16 @@ class RuntimeServiceInterp[F[_]: Parallel](blocker: Blocker,
         // Note GoogleStorageDAO already retries 500 and other errors internally, so we just need to catch 401s here.
         // We might think about moving the retry-on-401 logic inside GoogleStorageDAO.
         val accessToken = new AccessToken(userToken, null) // we currently don't get expiration time from sam
+        val credentials = GoogleCredentials.create(accessToken)
         val retryPolicy = RetryPredicates.retryConfigWithPredicates(
           RetryPredicates.standardRetryPredicate,
           RetryPredicates.whenStatusCode(401)
         )
 
         val res = for {
-          blob <- GoogleStorageService.fromAccessToken(accessToken, blocker, Some(semaphore)).use { gcs =>
-            gcs
-              .getBlob(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), Some(traceId), retryPolicy)
+          blob <- googleStorageService.getBlob(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), credential = Some(credentials), Some(traceId), retryPolicy)
               .compile
               .last
-          }
           _ <- if (blob.isDefined) F.unit else F.raiseError[Unit](BucketObjectException(gcsUri))
         } yield ()
 

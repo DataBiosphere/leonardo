@@ -787,22 +787,29 @@ trait LeonardoTestUtils
   }
 
   def withNewErroredRuntime[T](
-    googleProject: GoogleProject
+    googleProject: GoogleProject,
+    isUserStartupScript: Boolean
   )(testCode: GetRuntimeResponseCopy => T)(implicit token: AuthToken): T = {
     val name = RuntimeName(s"automation-test-a${makeRandomId()}z")
     // Fail a cluster by providing a user script which returns exit status 1
     val hailUploadFile = ResourceFile("bucket-tests/invalid_user_script.sh")
 
     withResourceFileInBucket(googleProject, hailUploadFile, "text/plain") { bucketPath =>
-      val request = RuntimeRequest(jupyterUserScriptUri = Some(bucketPath.toUri))
+      val request = if(isUserStartupScript)
+        RuntimeRequest(jupyterStartUserScriptUri = Some(bucketPath.toUri))
+      else
+        RuntimeRequest(jupyterUserScriptUri = Some(bucketPath.toUri))
+
       val testResult: Try[T] = Try {
 
         val runtime = createAndMonitorRuntime(googleProject, name, request)
 
         runtime.status shouldBe ClusterStatus.Error
         runtime.errors should have size 1
-        runtime.errors.head.errorMessage should include("gs://")
-        runtime.errors.head.errorMessage should include("Userscript failed.")
+        if(isUserStartupScript)
+          runtime.errors.head.errorMessage should include(s"user startup script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/startscript_output")
+        else
+          runtime.errors.head.errorMessage should include(s"user script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/userscript_output.txt failed")
 
         testCode(runtime)
       }

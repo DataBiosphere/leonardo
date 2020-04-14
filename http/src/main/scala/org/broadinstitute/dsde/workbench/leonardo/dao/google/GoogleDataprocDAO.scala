@@ -21,7 +21,7 @@ case class DataprocDisabledException(errorMsg: String) extends LeoException(s"${
 trait GoogleDataprocDAO {
   def createCluster(googleProject: GoogleProject,
                     clusterName: RuntimeName,
-                    createClusterConfig: CreateClusterConfig): Future[Operation]
+                    createClusterConfig: CreateClusterConfig): Future[GoogleOperation]
 
   def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName): Future[Unit]
 

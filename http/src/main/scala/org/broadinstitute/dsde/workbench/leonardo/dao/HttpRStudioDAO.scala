@@ -16,14 +16,16 @@ class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache:
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     Proxy.getTargetHost[F](clusterDnsCache, googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
-        client.successful(
-          Request[F](
-            method = Method.GET,
-            uri = Uri.unsafeFromString(
-              s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/rstudio/"
+        client
+          .successful(
+            Request[F](
+              method = Method.GET,
+              uri = Uri.unsafeFromString(
+                s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/rstudio/"
+              )
             )
           )
-        )
+          .handleError(_ => false)
       case _ => Concurrent[F].pure(false)
     }
 }

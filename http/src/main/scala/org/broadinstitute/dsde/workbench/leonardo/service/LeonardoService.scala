@@ -30,16 +30,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage,
-  StopUpdateMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateRuntimeMessage, StartRuntimeMessage, StopRuntimeMessage, StopUpdateMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.ExecutionContext
@@ -154,7 +149,7 @@ class LeonardoService(
   log: Logger[IO],
   cs: ContextShift[IO],
   timer: Timer[IO],
-  metrics: NewRelicMetrics[IO],
+  metrics: OpenTelemetryMetrics[IO],
   dbRef: DbReference[IO],
   runtimeInstances: RuntimeInstances[IO])
     extends LazyLogging
