@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import slick.dbio.DBIOAction
 import GceRuntimeMonitorInterp._
+
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -183,7 +184,7 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
       }
     } yield result
 
-  private def creatingRuntime(
+  private[monitor] def creatingRuntime(
     instance: Option[Instance],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
@@ -197,17 +198,27 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>
-            val userScript = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields
+            val userScriptOutputFile = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields
               .map(_.stagingBucket)
               .map(b => RuntimeTemplateValues.jupyterUserScriptOutputUriPath(b))
 
-            val userStartupScript = getUserScript(i)
+            val userStartupScriptOutputFile = getUserScript(i)
 
             for {
-              userScriptSuccess <- checkUserScripts(userScript)
-              startUpScriptSuccess <- checkUserScripts(userStartupScript)
-              r <- (userScriptSuccess, startUpScriptSuccess) match {
-                case (true, true) =>
+              validationResult <- validateBothScripts(
+                userScriptOutputFile,
+                userStartupScriptOutputFile,
+                runtimeAndRuntimeConfig.runtime.jupyterUserScriptUri,
+                runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri
+              )
+              r <- validationResult match {
+                case UserScriptsValidationResult.CheckAgain(msg) =>
+                  checkAgain(monitorContext, runtimeAndRuntimeConfig, Some(msg), None)
+                case UserScriptsValidationResult.Error(msg) =>
+                  failedRuntime(monitorContext,
+                    runtimeAndRuntimeConfig,
+                    RuntimeErrorDetails(-1, Some(msg)))
+                case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
@@ -216,21 +227,6 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, Some("Could not retrieve instance IP"))
                   }
-                case (false, true) =>
-                  failedRuntime(monitorContext,
-                    runtimeAndRuntimeConfig,
-                    RuntimeErrorDetails(-1, Some(s"user script ${userScript.map(_.toUri).getOrElse("")} failed")))
-                case (true, false) =>
-                  failedRuntime(monitorContext,
-                    runtimeAndRuntimeConfig,
-                    RuntimeErrorDetails(-1, Some(s"user startUp script ${userStartupScript.map(_.toUri).getOrElse("")} failed")))
-                case (false, false) =>
-                  failedRuntime(monitorContext,
-                    runtimeAndRuntimeConfig,
-                    RuntimeErrorDetails(
-                      -1,
-                      Some(s"both user script ${userScript.map(_.toUri).getOrElse("")} and startUp ${userStartupScript.map(_.toUri).getOrElse("")} script failed")
-                    ))
               }
             } yield r
           case ss =>
@@ -272,21 +268,25 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
             val userStartupScript = getUserScript(i)
 
             for {
-              startUpScriptSuccess <- checkUserScripts(userStartupScript)
-              r <- if (startUpScriptSuccess)
-                getInstanceIP(i) match {
-                  case Some(ip) =>
-                    // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                    Timer[F].sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, List.empty)
-                  case None =>
-                    checkAgain(monitorContext, runtimeAndRuntimeConfig, Some("Could not retrieve instance IP"))
-                } else
-                failedRuntime(monitorContext,
-                  runtimeAndRuntimeConfig,
-                  RuntimeErrorDetails(
-                    -1,
-                    Some(s"user startUp script ${userStartupScript.map(_.toUri).getOrElse("")} failed")
-                  ))
+              validationResult <- validateUserStartupScript(userStartupScript, runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri)
+              r <- validationResult match {
+                case UserScriptsValidationResult.CheckAgain(msg) => checkAgain(monitorContext, runtimeAndRuntimeConfig, Some(msg))
+                case UserScriptsValidationResult.Error(msg) =>
+                  failedRuntime(monitorContext,
+                    runtimeAndRuntimeConfig,
+                    RuntimeErrorDetails(
+                      -1,
+                      Some(msg)
+                    ))
+                case UserScriptsValidationResult.Success =>
+                  getInstanceIP(i) match {
+                    case Some(ip) =>
+                      // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                      Timer[F].sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, List.empty)
+                    case None =>
+                      checkAgain(monitorContext, runtimeAndRuntimeConfig, Some("Could not retrieve instance IP"))
+                  }
+              }
             } yield r
           case ss =>
             failedRuntime(
@@ -385,7 +385,7 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
                          runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                          message: Option[String],
                          ip: Option[IP] = None,
-                         toolsToCheck: List[RuntimeImageType] = List.empty
+                         toolsToCheck: List[RuntimeImageType] = List.empty // If empty, then check all tools; if defined, then only check specified tools
   ): F[CheckResult] = {
     for {
       now <- nowInstant
@@ -617,23 +617,82 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
         }
     }
 
-  private[monitor] def checkUserScripts(gcsPath: Option[GcsPath])(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
+  private[monitor] def checkUserScriptsOutputFile(gcsPath: GcsPath)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Boolean]] =
     for {
       traceId <- ev.ask
-      r <- gcsPath
-        .flatTraverse { path =>
-          for {
-            startScriptPassedOutput <- googleStorageService
-              .getBlob(path.bucketName, GcsBlobName(path.objectName.value), traceId = Some(traceId))
+      blobOpt <- googleStorageService
+              .getBlob(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), traceId = Some(traceId))
               .compile
               .last
-              .map { x =>
-                x.flatMap(blob => Option(blob).flatMap(b => Option(b.getMetadata.get("passed"))))
+      output = blobOpt.flatMap { blob =>
+                Option(blob).flatMap(b => Option(b.getMetadata.get("passed")))
               }
-          } yield startScriptPassedOutput
+    } yield output.map(_ != "false")
+
+  private[monitor] def validateBothScripts(userScriptOutputFile: Option[GcsPath],
+                                        userStartupScriptOutputFile: Option[GcsPath],
+                                        jupyterUserScriptUriInDB: Option[UserScriptPath],
+                                        jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+                                       )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] = {
+    for {
+      userScriptRes <- validateUserScript(userScriptOutputFile, jupyterUserScriptUriInDB)
+      res <- userScriptRes match {
+         case UserScriptsValidationResult.Success =>
+           validateUserStartupScript (userStartupScriptOutputFile, jupyterStartUserScriptUriInDB)
+         case x: UserScriptsValidationResult.Error =>
+           F.pure(x)
+         case x: UserScriptsValidationResult.CheckAgain =>
+           F.pure(x)
+       }
+    } yield res
+  }
+
+  private[monitor] def validateUserScript(userScriptOutputPathFromDB: Option[GcsPath],
+                                        jupyterUserScriptUriInDB: Option[UserScriptPath]
+                                       )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] = {
+    (userScriptOutputPathFromDB, jupyterUserScriptUriInDB) match {
+      case (Some(output), Some(_)) =>
+        checkUserScriptsOutputFile(output).map {
+          o =>
+            o match {
+              case Some(true) => UserScriptsValidationResult.Success
+              case Some(false) => UserScriptsValidationResult.Error(s"user script ${output.toUri} failed")
+              case None => UserScriptsValidationResult.CheckAgain(s"user script ${output.toUri} hasn't finished yet")
+            }
         }
-        .map(output => !output.exists(_ == "false"))
-    } yield r
+      case (None, Some(_)) =>
+        for {
+          ctx <- ev.ask
+          r <- F.raiseError[UserScriptsValidationResult](new Exception(s"${ctx} | staging bucket field hasn't been updated properly before monitoring started"))  // worth error reporting
+        } yield r
+      case (_, None) =>
+        F.pure(UserScriptsValidationResult.Success)
+    }
+  }
+
+  private[monitor] def validateUserStartupScript(
+                                                  userStartupScriptOutputFile: Option[GcsPath],
+                                        jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+                                       )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] = {
+    (userStartupScriptOutputFile, jupyterStartUserScriptUriInDB) match {
+      case (Some(output), Some(_)) =>
+        checkUserScriptsOutputFile(output).map {
+          o =>
+            o match {
+              case Some(true) => UserScriptsValidationResult.Success
+              case Some(false) => UserScriptsValidationResult.Error(s"user startup script ${output.toUri} failed")
+              case None => UserScriptsValidationResult.CheckAgain(s"user startup script ${output.toUri} hasn't finished yet")
+            }
+        }
+      case (None, Some(_)) =>
+        for {
+          ctx <- ev.ask
+          r <- F.pure(UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
+        } yield r
+      case (_, None) =>
+        F.pure(UserScriptsValidationResult.Success)
+    }
+  }
 }
 
 object GceRuntimeMonitorInterp {
@@ -642,4 +701,11 @@ object GceRuntimeMonitorInterp {
     item <- metadata.getItemsList.asScala.toList.filter(item => item.getKey == userScriptStartupOutputUriMetadataKey).headOption
     s <- org.broadinstitute.dsde.workbench.model.google.parseGcsPath(item.getValue).toOption
   } yield s
+}
+
+sealed abstract class UserScriptsValidationResult extends Product with Serializable
+object UserScriptsValidationResult {
+  final case class CheckAgain(msg: String) extends UserScriptsValidationResult
+  final case class Error(msg: String) extends UserScriptsValidationResult
+  case object Success extends UserScriptsValidationResult
 }

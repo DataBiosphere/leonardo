@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.clusterErrorQuery
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
 import org.scalatest.EitherValues
-//import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Instance
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, ZoneName}
@@ -36,6 +35,7 @@ import scala.concurrent.duration._
 import GceRuntimeMonitorInterp._
 
 class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent with LeonardoTestSuite with EitherValues {
+  implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
   val readyInstance = Instance.newBuilder()
     .setStatus("Running")
     .setMetadata(Metadata
@@ -55,17 +55,16 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
   it should "check whether user script has failed correctly" in {
     val monitor = gceRuntimeMonitor()
-    monitor.checkUserScripts(None).unsafeRunSync() shouldBe (true)
     monitor
-      .checkUserScripts(Some(model.google.GcsPath(GcsBucketName("failure"), GcsObjectName(""))))
+      .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("failure"), GcsObjectName("")))
       .unsafeRunSync() shouldBe (false)
     monitor
-      .checkUserScripts(Some(model.google.GcsPath(GcsBucketName("success"), GcsObjectName(""))))
+      .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("success"), GcsObjectName("")))
       .unsafeRunSync() shouldBe (true)
   }
 
   it should "retrieve user script from instance metadata properly" in {
-    getUserScript(readyInstance) shouldBe(Some(GcsPath(GcsBucketName("success"), GcsObjectName("object"))))
+    getUserScript(readyInstance) shouldBe(GcsPath(GcsBucketName("success"), GcsObjectName("object")))
   }
 
   // process, Creating
@@ -145,6 +144,56 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
       error.head.errorMessage shouldBe s"user startUp script gs://staging_bucket/failed_userstartupscript_output.txt failed"
+    }
+
+    res.unsafeRunSync
+  }
+
+  "validateUserScript" should "validate user script properly" in {
+    val monitor = gceRuntimeMonitor()
+    val sucessUserScript = GcsPath(GcsBucketName("success"), GcsObjectName("object_output"))
+    val failureUserScript = GcsPath(GcsBucketName("failure"), GcsObjectName("object_output"))
+    val nonExistentUserScript = GcsPath(GcsBucketName("nonExistent"), GcsObjectName("object_output"))
+    val res = for {
+      ctx <- appContext.ask
+      res1 <- monitor.validateUserScript(None, None)
+      res2 <- monitor.validateUserScript(Some(sucessUserScript), None)
+      res3 <- monitor.validateUserScript(Some(sucessUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+      res4 <- monitor.validateUserScript(Some(failureUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+      res5 <- monitor.validateUserScript(Some(nonExistentUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+      res6 <- monitor.validateUserScript(None, Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))).attempt
+    } yield {
+      res1 shouldBe UserScriptsValidationResult.Success
+      res2 shouldBe UserScriptsValidationResult.Success
+      res3 shouldBe UserScriptsValidationResult.Success
+      res4 shouldBe(UserScriptsValidationResult.Error("user script gs://failure/object_output failed"))
+      res5 shouldBe(UserScriptsValidationResult.CheckAgain("user script gs://nonExistent/object_output hasn't finished yet"))
+      res6.left.value.getMessage shouldBe (s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
+    }
+
+    res.unsafeRunSync
+  }
+
+  "validateUserStartupScript" should "validate user startup script properly" in {
+    val monitor = gceRuntimeMonitor()
+    val sucessUserScript = GcsPath(GcsBucketName("success"), GcsObjectName("object_output"))
+    val failureUserScript = GcsPath(GcsBucketName("failure"), GcsObjectName("object_output"))
+    val nonExistentUserScript = GcsPath(GcsBucketName("nonExistent"), GcsObjectName("object_output"))
+    val res = for {
+      ctx <- appContext.ask
+      res1 <- monitor.validateUserStartupScript(None, None)
+      res2 <- monitor.validateUserStartupScript(Some(sucessUserScript), None)
+      res3 <- monitor.validateUserStartupScript(Some(sucessUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+      res4 <- monitor.validateUserStartupScript(Some(failureUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+      res5 <- monitor.validateUserStartupScript(Some(nonExistentUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+      res6 <- monitor.validateUserStartupScript(None, Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+    } yield {
+      res1 shouldBe UserScriptsValidationResult.Success
+      res2 shouldBe UserScriptsValidationResult.Success
+      res3 shouldBe UserScriptsValidationResult.Success
+      res4 shouldBe(UserScriptsValidationResult.Error("user startup script gs://failure/object_output failed"))
+      res5 shouldBe(UserScriptsValidationResult.CheckAgain("user startup script gs://nonExistent/object_output hasn't finished yet"))
+      res6 shouldBe(UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
     }
 
     res.unsafeRunSync
