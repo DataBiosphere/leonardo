@@ -348,25 +348,26 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         if (msg.stopToUpdateMachineType) {
           for {
             _ <- dbRef.inTransaction(clusterQuery.setToStopping(msg.runtimeId, now))
-            _ <- runtimeConfig.cloudService.interpreter
+            operation <- runtimeConfig.cloudService.interpreter
               .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
-             _ <- if (runtimeConfig.cloudService == CloudService.GCE) //TODO: we should cover dataproc as well in the future
-              // We're running this asynchronously because we don't want to hold up acking event since Stopping an instance can take a while
-               F.runAsync(gceRuntimeMonitor.process(msg.runtimeId).compile.drain) {
+           _ <- operation match {
+             case Some(op) =>
+               F.runAsync(gceRuntimeMonitor.pollCheck(runtime.googleProject, RuntimeAndRuntimeConfig(runtime, runtimeConfig), op, RuntimeStatus.Stopping)) {
                  cb =>
-                  cb match {
-                    case Left(e) => F.toIO(logger.error(e)(s"fail to stop runtime ${runtime.projectNameString} for updating machine type"))
-                    case Right(_) =>
-                      val res = for {
-                        now <- nowInstant
-                        implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](AppContext(tid, now))
-                        _ <- updateRuntimeAfterStopAndStarting(runtime, m)
-                        _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction
-                      } yield ()
-                      F.toIO(res)
-                  }
+                   cb match {
+                     case Left(e) => F.toIO(logger.error(e)(s"fail to stop runtime ${runtime.projectNameString} for updating machine type"))
+                     case Right(_) =>
+                       val res = for {
+                         now <- nowInstant
+                         implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](AppContext(tid, now))
+                         _ <- updateRuntimeAfterStopAndStarting(runtime, m)
+                         _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction
+                       } yield ()
+                       F.toIO(res)
+                   }
                }.to[F]
-            else F.unit
+             case None => F.unit
+           }
           } yield ()
         } else {
           for {
@@ -377,7 +378,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       }
     } yield ()
 
-  private def updateRuntimeAfterStopAndStarting(runtime: Runtime,
+  private def updateRuntimeAfterStopAndStarting(
+                                                 runtime: Runtime,
                                      targetMachineType: MachineTypeName
                                     )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = for {
     ctx <- ev.ask

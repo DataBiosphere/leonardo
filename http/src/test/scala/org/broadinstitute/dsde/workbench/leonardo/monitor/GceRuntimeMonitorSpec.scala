@@ -53,102 +53,6 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       .build())
     .build()
 
-  it should "check whether user script has failed correctly" in {
-    val monitor = gceRuntimeMonitor()
-    monitor
-      .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("failure"), GcsObjectName("")))
-      .unsafeRunSync() shouldBe (false)
-    monitor
-      .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("success"), GcsObjectName("")))
-      .unsafeRunSync() shouldBe (true)
-  }
-
-  it should "retrieve user script from instance metadata properly" in {
-    getUserScript(readyInstance) shouldBe(GcsPath(GcsBucketName("success"), GcsObjectName("object")))
-  }
-
-  // process, Creating
-  "process" should "fail Creating if user script failed" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
-      status = RuntimeStatus.Creating,
-    )
-
-    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Option[Instance]] = IO.pure(Some(readyInstance))
-    }
-
-    val res = for {
-      start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService)
-      savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
-      afterMonitor <- nowInstant
-      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
-      error <- clusterErrorQuery.get(savedRuntime.id).transaction
-    } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
-      status shouldBe Some(RuntimeStatus.Error)
-      error.head.errorMessage shouldBe s"user script gs://failure/userscript_output.txt failed"
-    }
-
-    res.unsafeRunSync
-  }
-
- // process, Creating
-  it should "fail Creating if user startup script failed" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccountInfo =
-        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
-      status = RuntimeStatus.Creating,
-    )
-
-    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Option[Instance]] = {
-        val runningInstance = Instance.newBuilder()
-          .setStatus("Running")
-          .setMetadata(Metadata
-            .newBuilder()
-            .addItems(
-              Items.newBuilder
-                .setKey(userScriptStartupOutputUriMetadataKey)
-                .setValue("gs://staging_bucket/failed_userstartupscript_output.txt")
-                .build()
-            )
-            .build()
-          )
-          .build()
-
-        IO.pure(Some(runningInstance))
-      }
-    }
-
-    val res = for {
-      start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService)
-      savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
-      afterMonitor <- nowInstant
-      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
-      error <- clusterErrorQuery.get(savedRuntime.id).transaction
-    } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
-      status shouldBe Some(RuntimeStatus.Error)
-      error.head.errorMessage shouldBe s"user startUp script gs://staging_bucket/failed_userstartupscript_output.txt failed"
-    }
-
-    res.unsafeRunSync
-  }
-
   "validateUserScript" should "validate user script properly" in {
     val monitor = gceRuntimeMonitor()
     val sucessUserScript = GcsPath(GcsBucketName("success"), GcsObjectName("object_output"))
@@ -194,6 +98,107 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       res4 shouldBe(UserScriptsValidationResult.Error("user startup script gs://failure/object_output failed"))
       res5 shouldBe(UserScriptsValidationResult.CheckAgain("user startup script gs://nonExistent/object_output hasn't finished yet"))
       res6 shouldBe(UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
+    }
+
+    res.unsafeRunSync
+  }
+
+  it should "check whether user script has failed correctly" in {
+    val monitor = gceRuntimeMonitor()
+    monitor
+      .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("failure"), GcsObjectName("")))
+      .unsafeRunSync() shouldBe (Some(false))
+    monitor
+      .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("success"), GcsObjectName("")))
+      .unsafeRunSync() shouldBe (Some(true))
+    monitor
+      .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("nonExistent"), GcsObjectName("")))
+      .unsafeRunSync() shouldBe (None)
+  }
+
+  it should "retrieve user script from instance metadata properly" in {
+    getUserScript(readyInstance) shouldBe Some(GcsPath(GcsBucketName("success"), GcsObjectName("object")))
+  }
+
+  // process, Creating
+  "process" should "fail Creating if user script failed" in isolatedDbTest {
+    val runtime = makeCluster(1).copy(
+      serviceAccountInfo =
+        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
+      jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("failure"), GcsObjectName("userscript_output.txt")))),
+      status = RuntimeStatus.Creating,
+    )
+
+    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[Instance]] = IO.pure(Some(readyInstance))
+    }
+
+    val res = for {
+      start <- nowInstant[IO]
+      monitor = gceRuntimeMonitor(
+        googleComputeService = computeService)
+      savedRuntime <- IO(runtime.save())
+      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      afterMonitor <- nowInstant
+      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+      error <- clusterErrorQuery.get(savedRuntime.id).transaction
+    } yield {
+      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      status shouldBe Some(RuntimeStatus.Error)
+      error.head.errorMessage shouldBe s"user script gs://failure/userscript_output.txt failed"
+    }
+
+    res.unsafeRunSync
+  }
+
+ // process, Creating
+  it should "fail Creating if user startup script failed" in isolatedDbTest {
+    val runtime = makeCluster(1).copy(
+      serviceAccountInfo =
+        ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
+      jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))),
+      status = RuntimeStatus.Creating,
+    )
+
+    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[Instance]] = {
+        val runningInstance = Instance.newBuilder()
+          .setStatus("Running")
+          .setMetadata(Metadata
+            .newBuilder()
+            .addItems(
+              Items.newBuilder
+                .setKey(userScriptStartupOutputUriMetadataKey)
+                .setValue("gs://staging_bucket/failed_userstartupscript_output.txt")
+                .build()
+            )
+            .build()
+          )
+          .build()
+
+        IO.pure(Some(runningInstance))
+      }
+    }
+
+    val res = for {
+      start <- nowInstant[IO]
+      monitor = gceRuntimeMonitor(
+        googleComputeService = computeService)
+      savedRuntime <- IO(runtime.save())
+      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      afterMonitor <- nowInstant
+      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+      error <- clusterErrorQuery.get(savedRuntime.id).transaction
+    } yield {
+      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      status shouldBe Some(RuntimeStatus.Error)
+      error.head.errorMessage shouldBe s"user startup script gs://staging_bucket/failed_userstartupscript_output.txt failed"
     }
 
     res.unsafeRunSync
@@ -285,6 +290,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       serviceAccountInfo =
         ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
+      jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))),
       status = RuntimeStatus.Starting,
     )
 
@@ -322,7 +328,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
-      error.head.errorMessage shouldBe s"user startUp script gs://staging_bucket/failed_userstartupscript_output.txt failed"
+      error.head.errorMessage shouldBe s"user startup script gs://staging_bucket/failed_userstartupscript_output.txt failed"
     }
 
     res.unsafeRunSync

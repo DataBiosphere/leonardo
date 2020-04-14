@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import slick.dbio.DBIOAction
 import GceRuntimeMonitorInterp._
 
 import scala.collection.JavaConverters._
@@ -457,7 +456,7 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
         // Delete the cluster in Google
         gceInterpreter.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime)).void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB
-        saveClusterError(runtimeAndRuntimeConfig.runtime, errorDetails.message.getOrElse(""), errorDetails.code, ctx.now)
+        saveClusterError(runtimeAndRuntimeConfig.runtime.id, errorDetails.message.getOrElse(""), errorDetails.code, ctx.now)
       ).parSequence_
 
       // Record metrics in NewRelic
@@ -479,22 +478,10 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
       _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
     } yield ((), None): CheckResult
 
-  //TODO: can this just be getting the runtime from id(long)?
-  private def saveClusterError(runtime: Runtime, errorMessage: String, errorCode: Int, now: Instant): F[Unit] =
+  private def saveClusterError(runtimeId: Long, errorMessage: String, errorCode: Int, now: Instant): F[Unit] =
     dbRef
       .inTransaction {
-        val clusterId = clusterQuery.getIdByUniqueKey(runtime)
-        clusterId flatMap {
-          case Some(a) =>
-            clusterErrorQuery.save(a, RuntimeError(errorMessage, errorCode, now))
-          case None => {
-            logger.warn(
-              s"Could not find Id for Cluster ${runtime.projectNameString}  with google cluster ID ${runtime.asyncRuntimeFields
-                .map(_.googleId)}."
-            )
-            DBIOAction.successful(0)
-          }
-        }
+        clusterErrorQuery.save(runtimeId, RuntimeError(errorMessage, errorCode, now))
       }
       .void
       .adaptError {

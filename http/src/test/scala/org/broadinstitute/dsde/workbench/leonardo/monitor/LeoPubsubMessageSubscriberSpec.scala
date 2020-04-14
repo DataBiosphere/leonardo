@@ -106,7 +106,7 @@ class LeoPubsubMessageSubscriberSpec
     status = RuntimeStatus.Stopped
   )
 
-  "LeoPubsubMessageSubscriber" should "handle StopUpdateMessage and stop cluster" in isolatedDbTest {
+  it should "handle StopUpdateMessage and stop cluster" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
 
     val savedRunningCluster = runningCluster.save()
