@@ -17,8 +17,24 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.storage.BucketInfo
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleComputeService, GoogleStorageService, InstanceName}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Creating, Deleted, Deleting, Error, Running, Starting, Stopping, Unknown, Updating}
+import org.broadinstitute.dsde.workbench.google2.{
+  GcsBlobName,
+  GetMetadataResponse,
+  GoogleComputeService,
+  GoogleStorageService,
+  InstanceName
+}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{
+  Creating,
+  Deleted,
+  Deleting,
+  Error,
+  Running,
+  Starting,
+  Stopping,
+  Unknown,
+  Updating
+}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, _}
@@ -34,7 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
+import org.broadinstitute.dsde.workbench.util.{addJitter, Retry}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -433,7 +449,7 @@ class ClusterMonitorActor(
           }
           tags = Map(
             "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
-            "dataprocErrorCode" -> errorDetails.code.toString,
+            "dataprocErrorCode" -> errorDetails.code.toString
           )
           _ <- openTelemetryMetrics.incrementCounter(s"runtimeCreationFailure", 1, tags)
 
@@ -801,7 +817,10 @@ class ClusterMonitorActor(
       case None =>
         IO(logger.warn(s"Could not lookup init bucket for cluster ${runtime.projectNameString}: cluster not in db"))
       case Some(bucketPath) =>
-        google2StorageDAO.deleteBucket(runtime.googleProject, bucketPath.bucketName, isRecursive = true).compile.drain <*
+        google2StorageDAO
+          .deleteBucket(runtime.googleProject, bucketPath.bucketName, isRecursive = true)
+          .compile
+          .drain <*
           IO(
             logger.debug(s"Deleted init bucket $bucketPath for cluster ${runtime.googleProject}/${runtime.runtimeName}")
           )
@@ -823,7 +842,7 @@ class ClusterMonitorActor(
         val condition = BucketInfo.LifecycleRule.LifecycleCondition.newBuilder().setAge(ageToDelete).build()
         val action = BucketInfo.LifecycleRule.LifecycleAction.newDeleteAction()
         val rule = new BucketInfo.LifecycleRule(action, condition)
-         google2StorageDAO.setBucketLifecycle(bucketPath.bucketName, List(rule), None).compile.drain.map { _ =>
+        google2StorageDAO.setBucketLifecycle(bucketPath.bucketName, List(rule), None).compile.drain.map { _ =>
           logger.debug(
             s"Set staging bucket $bucketPath for cluster ${runtime.projectNameString} to be deleted in ${ageToDelete} days."
           )

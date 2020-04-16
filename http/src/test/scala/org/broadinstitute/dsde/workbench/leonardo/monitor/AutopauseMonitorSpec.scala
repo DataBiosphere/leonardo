@@ -9,7 +9,7 @@ import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, nowInstant}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.FlatSpec
@@ -17,10 +17,7 @@ import org.scalatest.FlatSpec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class AutopauseMonitorSpec
-    extends FlatSpec
-    with LeonardoTestSuite
-    with TestComponent {
+class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
 
   it should "auto freeze the cluster when kernel is idle" in isolatedDbTest {
     val jupyterDAO = new MockJupyterDAO {
@@ -31,18 +28,19 @@ class AutopauseMonitorSpec
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       now <- nowInstant
-      runningRuntime <- IO(makeCluster(1)
-        .copy(
-          status = RuntimeStatus.Running,
-          auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
-          autopauseThreshold = 1)
-        .save())
-       _ <- monitor(jupyterDAO, queue)(3 seconds)
+      runningRuntime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Running,
+                auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
+                autopauseThreshold = 1)
+          .save()
+      )
+      _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
       event <- queue.tryDequeue1
     } yield {
-      status.get shouldBe(RuntimeStatus.Stopping)
-      event.get.runtimeId shouldBe(runningRuntime.id)
+      status.get shouldBe (RuntimeStatus.Stopping)
+      event.get.runtimeId shouldBe (runningRuntime.id)
     }
 
     res.unsafeRunSync()
@@ -57,18 +55,19 @@ class AutopauseMonitorSpec
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       now <- nowInstant
-      runningRuntime <- IO(makeCluster(1)
-        .copy(
-          status = RuntimeStatus.Running,
-          auditInfo = auditInfo.copy(dateAccessed = now.minus(45, ChronoUnit.SECONDS)),
-          autopauseThreshold = 1)
-        .save())
+      runningRuntime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Running,
+                auditInfo = auditInfo.copy(dateAccessed = now.minus(45, ChronoUnit.SECONDS)),
+                autopauseThreshold = 1)
+          .save()
+      )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
       event <- queue.tryDequeue1
     } yield {
-      status.get shouldBe(RuntimeStatus.Running)
-      event shouldBe(None)
+      status.get shouldBe (RuntimeStatus.Running)
+      event shouldBe (None)
     }
 
     res.unsafeRunSync()
@@ -83,18 +82,19 @@ class AutopauseMonitorSpec
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       now <- nowInstant
-      runningRuntime <- IO(makeCluster(1)
-        .copy(
-          status = RuntimeStatus.Running,
-          auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
-          autopauseThreshold = 1)
-        .save())
+      runningRuntime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Running,
+                auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
+                autopauseThreshold = 1)
+          .save()
+      )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
       event <- queue.tryDequeue1
     } yield {
-      status.get shouldBe(RuntimeStatus.Stopping)
-      event.get.runtimeId shouldBe(runningRuntime.id)
+      status.get shouldBe (RuntimeStatus.Stopping)
+      event.get.runtimeId shouldBe (runningRuntime.id)
     }
 
     res.unsafeRunSync()
@@ -109,28 +109,32 @@ class AutopauseMonitorSpec
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       now <- nowInstant
-      runningRuntime <- IO(makeCluster(1)
-        .copy(
-          status = RuntimeStatus.Running,
-          auditInfo = auditInfo.copy(
-            dateAccessed = now.minus(25, ChronoUnit.HOURS),
-            kernelFoundBusyDate = Some(now.minus(25, ChronoUnit.HOURS))
+      runningRuntime <- IO(
+        makeCluster(1)
+          .copy(
+            status = RuntimeStatus.Running,
+            auditInfo = auditInfo.copy(
+              dateAccessed = now.minus(25, ChronoUnit.HOURS),
+              kernelFoundBusyDate = Some(now.minus(25, ChronoUnit.HOURS))
+            )
           )
-        )
-        .save())
+          .save()
+      )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
       event <- queue.tryDequeue1
     } yield {
-     status.get shouldBe(RuntimeStatus.Stopping)
-      event.get.runtimeId shouldBe(runningRuntime.id)
+      status.get shouldBe (RuntimeStatus.Stopping)
+      event.get.runtimeId shouldBe (runningRuntime.id)
     }
 
     res.unsafeRunSync()
   }
 
-  private def monitor(jupyterDAO: JupyterDAO[IO] = MockJupyterDAO,
-                         publisherQueue: InspectableQueue[IO, LeoPubsubMessage])(waitDuration: FiniteDuration): IO[Unit] = {
+  private def monitor(
+    jupyterDAO: JupyterDAO[IO] = MockJupyterDAO,
+    publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+  )(waitDuration: FiniteDuration): IO[Unit] = {
     val monitor = AutopauseMonitor[IO](autoFreezeConfig, jupyterDAO, publisherQueue)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val signal = Stream.sleep(waitDuration).evalMap(_ => signalToStop.complete(()))

@@ -19,8 +19,8 @@ class ExtensionComponentSpec extends FlatSpecLike with TestComponent with GcsPat
 
     val missingId = Random.nextLong()
     dbFutureValue(extensionQuery.getAllForCluster(missingId)) shouldEqual UserJupyterExtensionConfig(Map(),
-                                                                                                        Map(),
-                                                                                                        Map())
+                                                                                                     Map(),
+                                                                                                     Map())
     dbFailure(extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue")) shouldBe a[
       SQLException
     ]

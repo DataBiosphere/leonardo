@@ -17,13 +17,30 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, Instance
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterActions, ProjectActions, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.model.{
+  LeoAuthProvider,
+  NotebookClusterActions,
+  ProjectActions,
+  ServiceAccountProvider
+}
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GoogleProject}
 import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory.makePublisherQueue
-import org.broadinstitute.dsde.workbench.leonardo.util.{CreateRuntimeParams, CreateRuntimeResponse, DeleteRuntimeParams, FinalizeDeleteParams, GetRuntimeStatusParams, ResizeClusterParams, RuntimeAlgebra, StartRuntimeParams, StopRuntimeParams, UpdateDiskSizeParams, UpdateMachineTypeParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  CreateRuntimeParams,
+  CreateRuntimeResponse,
+  DeleteRuntimeParams,
+  FinalizeDeleteParams,
+  GetRuntimeStatusParams,
+  ResizeClusterParams,
+  RuntimeAlgebra,
+  StartRuntimeParams,
+  StopRuntimeParams,
+  UpdateDiskSizeParams,
+  UpdateMachineTypeParams
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 
@@ -36,21 +53,26 @@ import GceRuntimeMonitorInterp._
 
 class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent with LeonardoTestSuite with EitherValues {
   implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
-  val readyInstance = Instance.newBuilder()
+  val readyInstance = Instance
+    .newBuilder()
     .setStatus("Running")
-    .setMetadata(Metadata
-      .newBuilder()
-      .addItems(
-        Items.newBuilder
-          .setKey(userScriptStartupOutputUriMetadataKey)
-          .setValue("gs://success/object")
-          .build()
-      )
-      .build()
+    .setMetadata(
+      Metadata
+        .newBuilder()
+        .addItems(
+          Items.newBuilder
+            .setKey(userScriptStartupOutputUriMetadataKey)
+            .setValue("gs://success/object")
+            .build()
+        )
+        .build()
     )
-    .addNetworkInterfaces(NetworkInterface.newBuilder()
-      .addAccessConfigs(AccessConfig.newBuilder().setNatIP("fakeIP").build())
-      .build())
+    .addNetworkInterfaces(
+      NetworkInterface
+        .newBuilder()
+        .addAccessConfigs(AccessConfig.newBuilder().setNatIP("fakeIP").build())
+        .build()
+    )
     .build()
 
   "validateUserScript" should "validate user script properly" in {
@@ -62,16 +84,30 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       ctx <- appContext.ask
       res1 <- monitor.validateUserScript(None, None)
       res2 <- monitor.validateUserScript(Some(sucessUserScript), None)
-      res3 <- monitor.validateUserScript(Some(sucessUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
-      res4 <- monitor.validateUserScript(Some(failureUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
-      res5 <- monitor.validateUserScript(Some(nonExistentUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
-      res6 <- monitor.validateUserScript(None, Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))).attempt
+      res3 <- monitor.validateUserScript(
+        Some(sucessUserScript),
+        Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+      )
+      res4 <- monitor.validateUserScript(
+        Some(failureUserScript),
+        Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+      )
+      res5 <- monitor.validateUserScript(
+        Some(nonExistentUserScript),
+        Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+      )
+      res6 <- monitor
+        .validateUserScript(None,
+                            Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+        .attempt
     } yield {
       res1 shouldBe UserScriptsValidationResult.Success
       res2 shouldBe UserScriptsValidationResult.Success
       res3 shouldBe UserScriptsValidationResult.Success
-      res4 shouldBe(UserScriptsValidationResult.Error("user script gs://failure/object_output failed"))
-      res5 shouldBe(UserScriptsValidationResult.CheckAgain("user script gs://nonExistent/object_output hasn't finished yet"))
+      res4 shouldBe (UserScriptsValidationResult.Error("user script gs://failure/object_output failed"))
+      res5 shouldBe (UserScriptsValidationResult.CheckAgain(
+        "user script gs://nonExistent/object_output hasn't finished yet"
+      ))
       res6.left.value.getMessage shouldBe (s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
     }
 
@@ -87,17 +123,31 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       ctx <- appContext.ask
       res1 <- monitor.validateUserStartupScript(None, None)
       res2 <- monitor.validateUserStartupScript(Some(sucessUserScript), None)
-      res3 <- monitor.validateUserStartupScript(Some(sucessUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
-      res4 <- monitor.validateUserStartupScript(Some(failureUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
-      res5 <- monitor.validateUserStartupScript(Some(nonExistentUserScript), Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
-      res6 <- monitor.validateUserStartupScript(None, Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+      res3 <- monitor.validateUserStartupScript(
+        Some(sucessUserScript),
+        Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+      )
+      res4 <- monitor.validateUserStartupScript(
+        Some(failureUserScript),
+        Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+      )
+      res5 <- monitor.validateUserStartupScript(
+        Some(nonExistentUserScript),
+        Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+      )
+      res6 <- monitor.validateUserStartupScript(
+        None,
+        Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+      )
     } yield {
       res1 shouldBe UserScriptsValidationResult.Success
       res2 shouldBe UserScriptsValidationResult.Success
       res3 shouldBe UserScriptsValidationResult.Success
-      res4 shouldBe(UserScriptsValidationResult.Error("user startup script gs://failure/object_output failed"))
-      res5 shouldBe(UserScriptsValidationResult.CheckAgain("user startup script gs://nonExistent/object_output hasn't finished yet"))
-      res6 shouldBe(UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
+      res4 shouldBe (UserScriptsValidationResult.Error("user startup script gs://failure/object_output failed"))
+      res5 shouldBe (UserScriptsValidationResult.CheckAgain(
+        "user startup script gs://nonExistent/object_output hasn't finished yet"
+      ))
+      res6 shouldBe (UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
     }
 
     res.unsafeRunSync
@@ -126,8 +176,9 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       serviceAccountInfo =
         ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
-      jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("failure"), GcsObjectName("userscript_output.txt")))),
-      status = RuntimeStatus.Creating,
+      jupyterUserScriptUri =
+        Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("failure"), GcsObjectName("userscript_output.txt")))),
+      status = RuntimeStatus.Creating
     )
 
     val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
@@ -138,15 +189,14 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService)
+      monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.save())
       _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
       error.head.errorMessage shouldBe s"user script gs://failure/userscript_output.txt failed"
     }
@@ -154,31 +204,36 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     res.unsafeRunSync
   }
 
- // process, Creating
+  // process, Creating
   it should "fail Creating if user startup script failed" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
       serviceAccountInfo =
         ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
-      jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))),
-      status = RuntimeStatus.Creating,
+      jupyterStartUserScriptUri = Some(
+        UserScriptPath
+          .Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))
+      ),
+      status = RuntimeStatus.Creating
     )
 
     val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val runningInstance = Instance.newBuilder()
+        val runningInstance = Instance
+          .newBuilder()
           .setStatus("Running")
-          .setMetadata(Metadata
-            .newBuilder()
-            .addItems(
-              Items.newBuilder
-                .setKey(userScriptStartupOutputUriMetadataKey)
-                .setValue("gs://staging_bucket/failed_userstartupscript_output.txt")
-                .build()
-            )
-            .build()
+          .setMetadata(
+            Metadata
+              .newBuilder()
+              .addItems(
+                Items.newBuilder
+                  .setKey(userScriptStartupOutputUriMetadataKey)
+                  .setValue("gs://staging_bucket/failed_userstartupscript_output.txt")
+                  .build()
+              )
+              .build()
           )
           .build()
 
@@ -188,15 +243,14 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService)
+      monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.save())
       _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
       error.head.errorMessage shouldBe s"user startup script gs://staging_bucket/failed_userstartupscript_output.txt failed"
     }
@@ -217,28 +271,27 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
-          val beforeInstance = None
-          val runningInstance = readyInstance
+        val beforeInstance = None
+        val runningInstance = readyInstance
 
-          for {
-            now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-            res <- if(now - start < 5000)
-              IO.pure(beforeInstance)
-            else IO.pure(Some(runningInstance))
-          } yield res
+        for {
+          now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+          res <- if (now - start < 5000)
+            IO.pure(beforeInstance)
+          else IO.pure(Some(runningInstance))
+        } yield res
       }
     }
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService(start.toEpochMilli))
+      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
       _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000 ) shouldBe true // For 5 seconds, google is returning terminated no instance found
+      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
       status shouldBe Some(RuntimeStatus.Running)
     }
 
@@ -262,7 +315,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
         for {
           now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if(now - start < 5000)
+          res <- if (now - start < 5000)
             IO.pure(Some(beforeInstance))
           else IO.pure(Some(readyInstance))
         } yield res
@@ -271,14 +324,13 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService(start.toEpochMilli))
+      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
       _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000 ) shouldBe true // For 5 seconds, google is returning terminated no instance found
+      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
       status shouldBe Some(RuntimeStatus.Running)
     }
 
@@ -290,25 +342,30 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       serviceAccountInfo =
         ServiceAccountInfo(clusterServiceAccountFromProject(project), notebookServiceAccountFromProject(project)),
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
-      jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))),
-      status = RuntimeStatus.Starting,
+      jupyterStartUserScriptUri = Some(
+        UserScriptPath
+          .Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))
+      ),
+      status = RuntimeStatus.Starting
     )
 
     val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val runningInstance = Instance.newBuilder()
+        val runningInstance = Instance
+          .newBuilder()
           .setStatus("Running")
-          .setMetadata(Metadata
-            .newBuilder()
-            .addItems(
-              Items.newBuilder
-                .setKey(userScriptStartupOutputUriMetadataKey)
-                .setValue("gs://staging_bucket/failed_userstartupscript_output.txt")
-                .build()
-            )
-            .build()
+          .setMetadata(
+            Metadata
+              .newBuilder()
+              .addItems(
+                Items.newBuilder
+                  .setKey(userScriptStartupOutputUriMetadataKey)
+                  .setValue("gs://staging_bucket/failed_userstartupscript_output.txt")
+                  .build()
+              )
+              .build()
           )
           .build()
 
@@ -318,15 +375,14 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService)
+      monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.save())
       _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      (afterMonitor.toEpochMilli - start.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
       error.head.errorMessage shouldBe s"user startup script gs://staging_bucket/failed_userstartupscript_output.txt failed"
     }
@@ -351,7 +407,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - now.toEpochMilli < 6000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
+      (afterMonitor.toEpochMilli - now.toEpochMilli < 6000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
       status shouldBe (Some(RuntimeStatus.Stopped))
     }
 
@@ -375,7 +431,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - now.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
+      (afterMonitor.toEpochMilli - now.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
       status shouldBe (Some(RuntimeStatus.Stopping))
     }
 
@@ -400,9 +456,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       }
     }
     val queue = makePublisherQueue()
-    val monitor = gceRuntimeMonitor(
-      queue = queue,
-      googleComputeService = computeService)
+    val monitor = gceRuntimeMonitor(queue = queue, googleComputeService = computeService)
     val savedRuntime = runtime.save()
     val res = for {
       now <- nowInstant[IO]
@@ -410,7 +464,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - now.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
+      (afterMonitor.toEpochMilli - now.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
       status shouldBe (Some(RuntimeStatus.Stopped))
     }
 
@@ -429,13 +483,15 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(
-        googleComputeService = computeService(start.toEpochMilli, Some(GceInstanceStatus.Running), Some(GceInstanceStatus.Terminated)))
+        googleComputeService =
+          computeService(start.toEpochMilli, Some(GceInstanceStatus.Running), Some(GceInstanceStatus.Terminated))
+      )
       savedRuntime <- IO(runtime.save())
       _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Stopped)
     }
 
@@ -459,7 +515,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - now.toEpochMilli < 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
+      (afterMonitor.toEpochMilli - now.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
       status shouldBe (Some(RuntimeStatus.Deleted))
     }
 
@@ -483,7 +539,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
         for {
           now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if(now - start < 5000)
+          res <- if (now - start < 5000)
             IO.pure(Some(runningInstance))
           else IO.pure(None)
         } yield res
@@ -492,15 +548,14 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService(start.toEpochMilli))
+      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
       _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
       afterMonitor <- nowInstant
 
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Deleted)
     }
 
@@ -519,12 +574,14 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     val op = com.google.cloud.compute.v1.Operation.newBuilder().build()
     val monitor = gceRuntimeMonitor()
     val res = for {
-      r <- monitor.pollCheck(
-        runtime.googleProject,
-        RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig),
-        op,
-        RuntimeStatus.Deleted
-      ).attempt
+      r <- monitor
+        .pollCheck(
+          runtime.googleProject,
+          RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig),
+          op,
+          RuntimeStatus.Deleted
+        )
+        .attempt
     } yield {
       r.left.value.getMessage shouldBe "Monitoring Deleted with pollOperation is not supported"
     }
@@ -551,7 +608,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
         val res = for {
           now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if(now - start < 4000)
+          res <- if (now - start < 4000)
             IO.pure(operation)
           else IO.pure(afterOperation)
         } yield res
@@ -562,8 +619,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService = computeService(start.toEpochMilli))
+      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
       _ <- monitor.pollCheck(
         savedRuntime.googleProject,
@@ -574,7 +630,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 4000 ) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+      (afterMonitor.toEpochMilli - start.toEpochMilli > 4000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Deleted)
     }
 
@@ -595,7 +651,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
         implicit ev: ApplicativeAsk[IO, TraceId],
         doneEv: DoneCheckable[Operation]
       ): fs2.Stream[IO, Operation] =
-      streamFUntilDone(IO(operation), maxAttempts, delay)
+        streamFUntilDone(IO(operation), maxAttempts, delay)
     }
 
     val op = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
@@ -614,7 +670,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 6000 ) shouldBe true // max 5 retries, and each poll interval is 1 second
+      (afterMonitor.toEpochMilli - start.toEpochMilli > 6000) shouldBe true // max 5 retries, and each poll interval is 1 second
       status shouldBe Some(RuntimeStatus.Error)
       error.head.errorMessage shouldBe s"Deleting dsp-leo-test/clustername2 fail to complete in a timely manner"
     }
@@ -624,12 +680,12 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
   implicit val toolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = _ => MockToolDAO(true)
 
-  def gceRuntimeMonitor(queue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage] = makePublisherQueue(),
-                        googleComputeService: GoogleComputeService[IO] = MockGoogleComputeService
-                       ): GceRuntimeMonitorInterp[IO] = {
-    val config = Config.gceMonitorConfig.copy(initialDelay = 2 seconds,
-      pollingInterval = 1 seconds,
-      pollCheckMaxAttempts = 5)
+  def gceRuntimeMonitor(
+    queue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage] = makePublisherQueue(),
+    googleComputeService: GoogleComputeService[IO] = MockGoogleComputeService
+  ): GceRuntimeMonitorInterp[IO] = {
+    val config =
+      Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollingInterval = 1 seconds, pollCheckMaxAttempts = 5)
     new GceRuntimeMonitorInterp[IO](
       config,
       googleComputeService,
@@ -639,7 +695,9 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     )
   }
 
-  def computeService(start: Long, beforeStatus: Option[GceInstanceStatus], afterStatus: Option[GceInstanceStatus]): GoogleComputeService[IO] = new MockGoogleComputeService {
+  def computeService(start: Long,
+                     beforeStatus: Option[GceInstanceStatus],
+                     afterStatus: Option[GceInstanceStatus]): GoogleComputeService[IO] = new MockGoogleComputeService {
     override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
       implicit ev: ApplicativeAsk[IO, TraceId]
     ): IO[Option[Instance]] = {
@@ -648,7 +706,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
       for {
         now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-        res <- if(now - start < 5000)
+        res <- if (now - start < 5000)
           IO.pure(beforeInstance)
         else IO.pure(afterInstance)
       } yield res
@@ -694,12 +752,15 @@ object GceInterp extends RuntimeAlgebra[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[RuntimeStatus] = ???
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[Operation]] = IO.pure(None)
+  override def deleteRuntime(params: DeleteRuntimeParams)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Option[Operation]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
 
-  override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[Operation]] = IO.pure(None)
+  override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[Operation]] =
+    IO.pure(None)
 
   override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] = ???
 

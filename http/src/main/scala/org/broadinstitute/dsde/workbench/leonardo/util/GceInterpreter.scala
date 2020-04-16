@@ -8,13 +8,20 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, InstanceName, MachineTypeName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  InstanceName,
+  MachineTypeName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
@@ -227,12 +234,15 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
                                         InstanceName(runtime.runtimeName.asString),
                                         machineType)
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
+  override def deleteRuntime(
+    params: DeleteRuntimeParams
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
     if (params.runtime.asyncRuntimeFields.isDefined)
       googleComputeService
         .deleteInstance(params.runtime.googleProject,
                         config.gceConfig.zoneName,
-                        InstanceName(params.runtime.runtimeName.asString)).map(x => Some(x))
+                        InstanceName(params.runtime.runtimeName.asString))
+        .map(x => Some(x))
     else Async[F].pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =

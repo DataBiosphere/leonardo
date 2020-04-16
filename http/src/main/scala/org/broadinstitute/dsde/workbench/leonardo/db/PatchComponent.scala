@@ -40,7 +40,8 @@ object patchQuery extends TableQuery(new PatchTable(_)) {
     patchQuery
       .filter(_.clusterId === runtimeId)
       .filter(_.inProgress === true)
-      .result.headOption
+      .result
+      .headOption
       .map { recordOpt =>
         recordOpt match {
           case Some(record) => record.masterMachineType
@@ -56,14 +57,13 @@ object patchQuery extends TableQuery(new PatchTable(_)) {
 
   def isInprogress(runtimeId: Long)(implicit ec: ExecutionContext): DBIO[Boolean] =
     patchQuery
-      .filter { _.clusterId === runtimeId }
+      .filter(_.clusterId === runtimeId)
       .result
       .headOption
-      .map {
-        recOpt =>
+      .map { recOpt =>
         recOpt match {
           case Some(r) => r.inProgress
-          case None => false
+          case None    => false
         }
       }
 

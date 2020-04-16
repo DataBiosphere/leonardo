@@ -463,7 +463,9 @@ class LeoPubsubMessageSubscriberSpec
 
   "LeoPubsubCodec" should "encode/decode a StopUpdate message" in isolatedDbTest {
     val originalMessage =
-      StopUpdateMessage(defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8")), 1, None)
+      StopUpdateMessage(defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8")),
+                        1,
+                        None)
     val json = originalMessage.asJson
     val actualJsonString = json.noSpaces
 
@@ -517,8 +519,7 @@ class LeoPubsubMessageSubscriberSpec
   def makeLeoSubscriber() = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](googleSubscriber,
-                                       MockGceRuntimeMonitor)
+    new LeoPubsubMessageSubscriber[IO](googleSubscriber, MockGceRuntimeMonitor)
   }
 
 }

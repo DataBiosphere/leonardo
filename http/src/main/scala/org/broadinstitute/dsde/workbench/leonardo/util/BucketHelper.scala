@@ -82,26 +82,32 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl, traceId = Some(ctx))
     } yield ()
 
-  def storeObject(bucketName: GcsBucketName,
-                  objectName: GcsBlobName,
-                  objectContents: Array[Byte],
-                  objectType: String)(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
+  def storeObject(bucketName: GcsBucketName, objectName: GcsBlobName, objectContents: Array[Byte], objectType: String)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): Stream[F, Unit] =
     for {
       traceId <- Stream.eval(ev.ask)
-      _ <- google2StorageDAO.createBlob(bucketName, objectName, objectContents, objectType, traceId = Some(traceId)).void
+      _ <- google2StorageDAO
+        .createBlob(bucketName, objectName, objectContents, objectType, traceId = Some(traceId))
+        .void
     } yield ()
 
-  def deleteInitBucket(googleProject: GoogleProject, initBucketName: GcsBucketName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+  def deleteInitBucket(googleProject: GoogleProject,
+                       initBucketName: GcsBucketName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
-      _ <- google2StorageDAO.deleteBucket(googleProject, initBucketName, isRecursive = true, traceId = Some(traceId)).compile.drain
+      _ <- google2StorageDAO
+        .deleteBucket(googleProject, initBucketName, isRecursive = true, traceId = Some(traceId))
+        .compile
+        .drain
     } yield ()
-  }
 
-  def initializeBucketObjects(initBucketName: GcsBucketName,
-                              serviceAccountKey: Option[ServiceAccountKey],
-                              templateValues: RuntimeTemplateValues,
-                              customClusterEnvironmentVariables: Map[String, String])(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] = {
+  def initializeBucketObjects(
+    initBucketName: GcsBucketName,
+    serviceAccountKey: Option[ServiceAccountKey],
+    templateValues: RuntimeTemplateValues,
+    customClusterEnvironmentVariables: Map[String, String]
+  )(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = templateValues.toMap
 

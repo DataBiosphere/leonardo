@@ -306,7 +306,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def listMonitoredGce(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterQuery
-      .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
+      .filter(_.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString))
       .join(runtimeConfigs)
       .on(_.runtimeConfigId === _.id)
       .filter {
@@ -314,15 +314,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           runtimeConfig.cloudService.asColumnOf[String] === CloudService.GCE.asString
       }
       .result map { recs =>
-      recs.map(
-        rec =>
-          unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
+      recs.map(rec =>
+        unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
       )
     }
 
   def listMonitoredDataproc(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
     clusterQuery
-      .filter { _.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString) }
+      .filter(_.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString))
       .join(runtimeConfigs)
       .on(_.runtimeConfigId === _.id)
       .filter {
@@ -330,9 +329,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           runtimeConfig.cloudService.asColumnOf[String] === CloudService.Dataproc.asString
       }
       .result map { recs =>
-      recs.map(
-        rec =>
-          unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
+      recs.map(rec =>
+        unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
       )
     }
 
@@ -564,9 +562,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Running, Some(hostIp), dateAccessed)
 
-  def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] = {
+  def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Stopping, None, dateAccessed)
-  }
 
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.

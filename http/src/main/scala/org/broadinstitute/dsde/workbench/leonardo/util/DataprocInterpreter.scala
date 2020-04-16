@@ -215,7 +215,9 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         clusterStatusOpt.fold[RuntimeStatus](RuntimeStatus.Deleted)(RuntimeStatus.fromDataprocClusterStatus)
     }
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
+  override def deleteRuntime(
+    params: DeleteRuntimeParams
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       // Delete the notebook service account key in Google, if present
       keyIdOpt <- dbRef.inTransaction {
@@ -440,11 +442,13 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       } yield ()
     }
 
-  private def cleanUpGoogleResourcesOnError(googleProject: GoogleProject,
-                                            clusterName: RuntimeName,
-                                            initBucketName: GcsBucketName,
-                                            serviceAccountInfo: ServiceAccountInfo,
-                                            serviceAccountKeyOpt: Option[ServiceAccountKey])(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+  private def cleanUpGoogleResourcesOnError(
+    googleProject: GoogleProject,
+    clusterName: RuntimeName,
+    initBucketName: GcsBucketName,
+    serviceAccountInfo: ServiceAccountInfo,
+    serviceAccountKeyOpt: Option[ServiceAccountKey]
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
     // Clean up resources in Google
     val deleteBucket = bucketHelper.deleteInitBucket(googleProject, initBucketName).attempt.flatMap {
       case Left(e) =>
