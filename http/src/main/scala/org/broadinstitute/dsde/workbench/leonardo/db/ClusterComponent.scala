@@ -51,7 +51,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def clusterName = column[RuntimeName]("clusterName", O.Length(254))
   def googleId = column[Option[GoogleId]]("googleId")
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
-  def clusterServiceAccount = column[WorkbenchEmail]("clusterServiceAccount", O.Length(254))
+  def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
   def operationName = column[Option[String]]("operationName", O.Length(254))
   def status = column[String]("status", O.Length(254))
   def hostIp = column[Option[String]]("hostIp", O.Length(254))
@@ -93,7 +93,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       jupyterStartUserScriptUri,
       initBucket,
       (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
-      clusterServiceAccount,
+      serviceAccount,
       stagingBucket,
       autopauseThreshold,
       defaultClientId,
@@ -334,7 +334,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
     clusterQuery
-      .filter(_.clusterServiceAccount === clusterServiceAccount)
+      .filter(_.serviceAccount === clusterServiceAccount)
       .filter(_.status inSetBind RuntimeStatus.activeStatuses.map(_.toString))
       .length
       .result
