@@ -266,15 +266,7 @@ trait LeonardoTestUtils
         .withPermit(IO(Leonardo.cluster.create(googleProject, clusterName, clusterRequest)))
         .unsafeRunSync()
     )
-    logger.info(s"Time it took to get cluster create response with: ${clusterTimeResult.duration}")
-
-    // We will verify the create cluster response.
-    verifyCluster(clusterTimeResult.result,
-                  googleProject,
-                  clusterName,
-                  List(ClusterStatus.Creating),
-                  clusterRequest,
-                  false)
+    logger.info(s"Time it took to get cluster create response with: ${clusterTimeResult.duration.toMillis} millis")
 
     // verify with get()
     val creatingCluster = eventually {
@@ -351,7 +343,6 @@ trait LeonardoTestUtils
     }
     // Save the cluster init log file whether or not the cluster created successfully
     saveDataprocLogFiles(creatingCluster.stagingBucket, googleProject, clusterName).timeout(5.minutes).unsafeRunSync()
-
     // If the cluster is running, grab the jupyter.log and welder.log files for debugging.
     runningOrErroredCluster.foreach { cluster =>
       if (cluster.status == ClusterStatus.Running) {
@@ -918,7 +909,6 @@ trait LeonardoTestUtils
             path = new File(logDir, s"${googleProject.value}-${clusterName.asString}-${shortName}.log").toPath
             _ <- storage.downloadObject(blob.getBlobId, path)
           } yield shortName
-
           downloadLogs.compile.toList
         }
         .flatMap {

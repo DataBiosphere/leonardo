@@ -95,7 +95,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    logger.info("beforeAll")
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
@@ -121,6 +120,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
           )
           Either.catchNonFatal(createNewCluster(GoogleProject(billingProject), request = request)(ronAuthToken)).handleError { e =>
             clusterCreationFailureMsg = e.getMessage
+            println(s"111 ${e}")
             null
           }.map(c => ronCluster = c).void
         case None =>
@@ -131,11 +131,11 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   }
 
   override def afterAll(): Unit = {
-    logger.info("afterAll")
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) =>
-          deleteCluster(GoogleProject(billingProject), ronCluster.clusterName, false)(ronAuthToken)
+          if(ronCluster != null)
+            deleteCluster(GoogleProject(billingProject), ronCluster.clusterName, false)(ronAuthToken)
         case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
     }
