@@ -219,7 +219,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
-      _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccountInfo)
+      _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
     } yield ()
 
@@ -301,7 +301,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     (for {
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
-      _ <- createClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccountInfo)
+      _ <- createClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
 
       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = true)
 
@@ -321,7 +321,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
         // resize the cluster we need to revoke it manually here
         for {
-          _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccountInfo)
+          _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
           // Remove member from the Google Group that has the IAM role to pull the Dataproc image
           _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
           _ <- Logger[F].error(gjre)(s"Could not successfully update cluster ${params.runtime.projectNameString}")

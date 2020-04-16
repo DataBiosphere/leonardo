@@ -182,7 +182,7 @@ object CommonTestData {
       runtimeName = clusterName,
       internalId = internalId,
       googleProject = project,
-      serviceAccountInfo = clusterServiceAccount,
+      serviceAccount = clusterServiceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
@@ -212,7 +212,7 @@ object CommonTestData {
     runtimeName = name1,
     internalId = internalId,
     googleProject = project,
-    serviceAccountInfo = clusterServiceAccount,
+    serviceAccount = clusterServiceAccount,
     asyncRuntimeFields = Some(
       AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
     ),

@@ -89,14 +89,14 @@ class LeoPubsubMessageSubscriberSpec
   implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val runningCluster = makeCluster(1).copy(
-    serviceAccountInfo = clusterServiceAccount,
+    serviceAccount = clusterServiceAccount,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Running,
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val stoppedCluster = makeCluster(2).copy(
-    serviceAccountInfo = clusterServiceAccount,
+    serviceAccount = clusterServiceAccount,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Stopped
   )
@@ -132,7 +132,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       runtime <- IO(
         makeCluster(1)
-          .copy(asyncRuntimeFields = None, status = RuntimeStatus.Creating, serviceAccountInfo = clusterServiceAccount)
+          .copy(asyncRuntimeFields = None, status = RuntimeStatus.Creating, serviceAccount = clusterServiceAccount)
           .save()
       )
       tr <- traceId.ask

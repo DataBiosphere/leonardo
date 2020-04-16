@@ -568,7 +568,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.jupyterStartUserScriptUri,
       initBucket,
       runtime.auditInfo,
-      runtime.serviceAccountInfo,
+      runtime.serviceAccount,
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
       runtime.autopauseThreshold,
       runtime.defaultClientId,

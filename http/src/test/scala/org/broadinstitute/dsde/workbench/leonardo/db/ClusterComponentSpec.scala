@@ -39,7 +39,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val cluster2 = makeCluster(2).copy(status = RuntimeStatus.Creating)
 
     val cluster3 = makeCluster(3).copy(
-      serviceAccountInfo = serviceAccountEmail,
+      serviceAccount = serviceAccountEmail,
       status = RuntimeStatus.Running
     )
 

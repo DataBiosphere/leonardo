@@ -73,7 +73,7 @@ class ClusterMonitorSpec
     with Eventually { testKit =>
 
   val creatingCluster = makeCluster(1).copy(
-    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
+    serviceAccount = clusterServiceAccountFromProject(project).get,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Creating,
     userJupyterExtensionConfig = Some(userExtConfig),
@@ -81,37 +81,37 @@ class ClusterMonitorSpec
   )
 
   val deletingCluster = makeCluster(2).copy(
-    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
+    serviceAccount = clusterServiceAccountFromProject(project).get,
     status = RuntimeStatus.Deleting,
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val stoppingCluster = makeCluster(3).copy(
-    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
+    serviceAccount = clusterServiceAccountFromProject(project).get,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Stopping
   )
 
   val startingCluster = makeCluster(4).copy(
-    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
+    serviceAccount = clusterServiceAccountFromProject(project).get,
     status = RuntimeStatus.Starting,
     runtimeImages = Set(RuntimeImage(RuntimeImageType.RStudio, "rstudio_image", Instant.now()),
                         RuntimeImage(RuntimeImageType.Jupyter, "jupyter_image", Instant.now()))
   )
   val runningCluster = makeCluster(1).copy(
-    serviceAccountInfo = clusterServiceAccount,
+    serviceAccount = clusterServiceAccount,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Running,
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
   val errorCluster = makeCluster(5).copy(
-    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
+    serviceAccount = clusterServiceAccountFromProject(project).get,
     status = RuntimeStatus.Error
   )
 
   val stoppedCluster = makeCluster(6).copy(
-    serviceAccountInfo = clusterServiceAccountFromProject(project).get,
+    serviceAccount = clusterServiceAccountFromProject(project).get,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Stopped,
     runtimeImages = Set(RuntimeImage(RuntimeImageType.RStudio, "rstudio_image", Instant.now()))

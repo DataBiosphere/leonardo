@@ -565,7 +565,7 @@ object RuntimeServiceInterp {
       internalId = clusterInternalId,
       runtimeName = runtimeName,
       googleProject = googleProject,
-      serviceAccountInfo = serviceAccountInfo,
+      serviceAccount = serviceAccountInfo,
       asyncRuntimeFields = None,
       auditInfo = AuditInfo(userInfo.userEmail, now, None, now, None),
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, labels),

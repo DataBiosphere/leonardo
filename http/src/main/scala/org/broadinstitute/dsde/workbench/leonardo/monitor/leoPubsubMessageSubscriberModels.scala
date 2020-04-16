@@ -87,7 +87,7 @@ object LeoPubsubMessage {
       CreateRuntimeMessage(
         runtime.id,
         RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-        runtime.serviceAccountInfo,
+        runtime.serviceAccount,
         runtime.asyncRuntimeFields,
         runtime.auditInfo,
         runtime.jupyterExtensionUri,
