@@ -193,7 +193,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
         "clusterName" -> obj.clusterName.asString.toJson,
         "googleId" -> obj.asyncRuntimeFields.map(_.googleId.value).toJson,
         "googleProject" -> obj.googleProject.toJson,
-        "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
+        "googleServiceAccount" -> obj.serviceAccountInfo.toJson,
         "machineConfig" -> obj.runtimeConfig.toJson,
         "clusterUrl" -> obj.clusterUrl.toString.toJson,
         "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,

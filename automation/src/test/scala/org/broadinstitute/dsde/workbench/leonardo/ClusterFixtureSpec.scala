@@ -93,52 +93,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     }
   }
 
-  /**
-   * Create new cluster by Ron with all default settings
-   */
-  def createRonCluster(billingProject: GoogleProject): Unit = {
-    logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    ronCluster = createNewCluster(billingProject, request = getRuntimeRequest())(ronAuthToken)
-  }
-
-  def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): ClusterRequest = {
-
-    val machineConfig = cloudService match {
-      case CloudService.GCE =>
-        RuntimeConfigRequest.GceConfig(
-          machineType = Some("n1-standard-4"),
-          diskSize = Some(500)
-        )
-      case CloudService.Dataproc =>
-        RuntimeConfigRequest.DataprocConfig(
-          numberOfWorkers = Some(0),
-          masterDiskSize = Some(500),
-          masterMachineType = Some("n1-standard-8"),
-          workerMachineType = Some("n1-standard-8"),
-          workerDiskSize = None,
-          numberOfWorkerLocalSSDs = None,
-          numberOfPreemptibleWorkers = None,
-          properties = Map.empty
-        )
-
-    }
-
-    ClusterRequest(
-      machineConfig = Some(machineConfig),
-      enableWelder = Some(enableWelder),
-      toolDockerImage = toolDockerImage,
-      autopause = Some(false)
-    )
-  }
-
-  /**
-   * Delete cluster without monitoring that's owned by Ron
-   */
-  def deleteRonCluster(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
-    logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    deleteCluster(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken)
-  }
-
   override def beforeAll(): Unit = {
     super.beforeAll()
     logger.info("beforeAll")
@@ -147,10 +101,28 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
           clusterCreationFailureMsg = msg
         case Some(billingProject) =>
-          Either.catchNonFatal(createRonCluster(GoogleProject(billingProject))).handleError { e =>
+          logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
+
+          val runtimeConfig = RuntimeConfigRequest.DataprocConfig(
+            numberOfWorkers = Some(0),
+            masterDiskSize = Some(500),
+            masterMachineType = Some("n1-standard-8"),
+            workerMachineType = Some("n1-standard-8"),
+            workerDiskSize = None,
+            numberOfWorkerLocalSSDs = None,
+            numberOfPreemptibleWorkers = None,
+            properties = Map.empty
+          )
+          val request = ClusterRequest(
+            machineConfig = Some(runtimeConfig),
+            enableWelder = Some(enableWelder),
+            toolDockerImage = toolDockerImage,
+            autopause = Some(false)
+          )
+          Either.catchNonFatal(createNewCluster(GoogleProject(billingProject), request = request)(ronAuthToken)).handleError { e =>
             clusterCreationFailureMsg = e.getMessage
-            ronCluster = null
-          }
+            null
+          }.map(c => ronCluster = c).void
         case None =>
           clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
       }
@@ -162,7 +134,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     logger.info("afterAll")
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
-        case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))
+        case Some(billingProject) =>
+          deleteCluster(GoogleProject(billingProject), ronCluster.clusterName, false)(ronAuthToken)
         case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
     }

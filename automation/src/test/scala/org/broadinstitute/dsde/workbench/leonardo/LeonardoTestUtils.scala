@@ -157,14 +157,13 @@ trait LeonardoTestUtils
       googleProject,
       creator,
       Some(dummyClusterSa),
-      Some(dummyNotebookSa),
       clusterRequest.jupyterExtensionUri,
       clusterRequest.jupyterUserScriptUri,
       clusterRequest.jupyterStartUserScriptUri,
       clusterRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter")
     ).toMap ++ jupyterExtensions
 
-    (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
+    (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
 
   def gceLabelCheck(seen: LabelMap,
@@ -178,7 +177,6 @@ trait LeonardoTestUtils
     // TODO: check for these values after tests are agnostic to ServiceAccountProvider ?
 
     val dummyClusterSa = WorkbenchEmail("dummy-cluster")
-    val dummyNotebookSa = WorkbenchEmail("dummy-notebook")
     val jupyterExtensions = runtimeRequest.userJupyterExtensionConfig match {
       case Some(x) => x.nbExtensions ++ x.combinedExtensions ++ x.serverExtensions ++ x.labExtensions
       case None    => Map()
@@ -189,14 +187,13 @@ trait LeonardoTestUtils
       googleProject,
       creator,
       Some(dummyClusterSa),
-      Some(dummyNotebookSa),
       runtimeRequest.jupyterExtensionUri,
       runtimeRequest.jupyterUserScriptUri,
       runtimeRequest.jupyterStartUserScriptUri,
       runtimeRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter")
     ).toMap ++ jupyterExtensions
 
-    (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
+    (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
 
   }
 
@@ -208,17 +205,14 @@ trait LeonardoTestUtils
                     bucketCheck: Boolean = true): ClusterCopy = {
     // Always log cluster errors
     if (cluster.errors.nonEmpty) {
-      logger.warn(s"ClusterCopy ${cluster.projectNameString} returned the following errors: ${cluster.errors}")
+      logger.warn(s"Runtime ${cluster.projectNameString} returned the following errors: ${cluster.errors}")
     }
-    withClue(s"ClusterCopy ${cluster.projectNameString}: ") {
+    withClue(s"Runtime ${cluster.projectNameString}: ") {
       expectedStatuses should contain(cluster.status)
     }
 
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
-
-    val expectedStopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false)
-    cluster.stopAfterCreation shouldBe expectedStopAfterCreation
 
     labelCheck(cluster.labels, expectedName, expectedProject, cluster.creator, clusterRequest)
 
@@ -267,9 +261,6 @@ trait LeonardoTestUtils
                     clusterName: RuntimeName,
                     clusterRequest: ClusterRequest,
                     monitor: Boolean)(implicit token: AuthToken): ClusterCopy = {
-    // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
-    Thread sleep Random.nextInt(30000)
-
     val clusterTimeResult = time(
       concurrentClusterCreationPermits
         .withPermit(IO(Leonardo.cluster.create(googleProject, clusterName, clusterRequest)))

@@ -316,7 +316,7 @@ object RuntimeUI {
 case class DefaultLabels(runtimeName: RuntimeName,
                          googleProject: GoogleProject,
                          creator: WorkbenchEmail,
-                         clusterServiceAccount: WorkbenchEmail,
+                         serviceAccount: WorkbenchEmail,
                          notebookUserScript: Option[UserScriptPath],
                          notebookStartUserScript: Option[UserScriptPath],
                          tool: Option[RuntimeImageType]) {
@@ -326,7 +326,7 @@ case class DefaultLabels(runtimeName: RuntimeName,
       "clusterName" -> runtimeName.asString, //TODO: potentially deprecate this once clients moves away from using this label (deprecated 3/5/2020)
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
-      "clusterServiceAccount" -> clusterServiceAccount.value,
+      "clusterServiceAccount" -> serviceAccount.value,
       "notebookUserScript" -> notebookUserScript.map(_.asString).getOrElse(null),
       "notebookStartUserScript" -> notebookStartUserScript.map(_.asString).getOrElse(null),
       "tool" -> tool.map(_.toString).getOrElse(null)
