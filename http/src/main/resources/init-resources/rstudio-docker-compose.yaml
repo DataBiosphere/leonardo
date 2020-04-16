@@ -16,8 +16,10 @@ services:
       WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
+    privileged: true
     volumes:
       - /work:/home/rstudio
+      - /etc/rsp-broad-institute-trial-2020-05-21.lic:/etc/rstudio-server/license.lic:ro  # TODO repace with template
     env_file:
       - /etc/google_application_credentials.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints

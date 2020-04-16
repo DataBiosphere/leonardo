@@ -155,6 +155,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
     gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
+    #TODO replace with template
+    gsutil cp gs://rtitle_test/rsp-broad-institute-trial-2020-05-21.lic /etc
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache

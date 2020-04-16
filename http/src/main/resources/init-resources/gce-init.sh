@@ -161,6 +161,8 @@ if [[ "$RUNTIME_OPERATION" == 'creating' ]]; then
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
     gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
+    #TODO replace with template
+    gsutil cp gs://rtitle_test/rsp-broad-institute-trial-2020-05-21.lic /etc
 
     # Not all images have the directory used for Stackdriver configs. If so, create it
     mkdir -p /etc/google-fluentd/config.d
