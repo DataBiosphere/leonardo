@@ -107,7 +107,7 @@ object LeonardoServiceDbQueries {
             RuntimeInternalId(clusterRec.internalId),
             clusterRec.clusterName,
             clusterRec.googleProject,
-            clusterRec.serviceAccountInfo.clusterServiceAccount,
+            clusterRec.serviceAccountInfo,
             dataprocInfo,
             clusterRec.auditInfo,
             runTimeConfigRecOpt

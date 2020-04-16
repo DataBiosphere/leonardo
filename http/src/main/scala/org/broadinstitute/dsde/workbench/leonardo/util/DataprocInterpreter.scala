@@ -210,12 +210,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     params: DeleteRuntimeParams
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
-      // Delete the notebook service account key in Google, if present
-      keyIdOpt <- dbRef.inTransaction {
-        clusterQuery.getServiceAccountKeyId(params.runtime.googleProject, params.runtime.runtimeName)
-      }
-      hasDataprocInfo = params.runtime.asyncRuntimeFields.isDefined
-      _ <- if (hasDataprocInfo)
+      _ <- if (params.runtime.asyncRuntimeFields.isDefined) //check if runtime has been created
         Async[F].liftIO(
           IO.fromFuture(IO(gdDAO.deleteCluster(params.runtime.googleProject, params.runtime.runtimeName)))
         )
@@ -370,10 +365,6 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: WorkbenchEmail): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = false)
-
-  def generateServiceAccountKey(googleProject: GoogleProject,
-                                serviceAccountEmail: WorkbenchEmail): F[ServiceAccountKey] =
-    Async[F].liftIO(IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, serviceAccountEmail))))
 
   def setupDataprocImageGoogleGroup(): F[Unit] =
     createDataprocImageUserGoogleGroupIfItDoesntExist() >>
