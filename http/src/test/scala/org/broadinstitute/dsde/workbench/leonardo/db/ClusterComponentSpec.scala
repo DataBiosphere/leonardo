@@ -277,7 +277,9 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
   it should "list monitored Dataproc or Gce runtimes only" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).copy(status = RuntimeStatus.Starting).save()
     makeCluster(2).copy(status = RuntimeStatus.Deleted).save()
-    val savedCluster3 = makeCluster(3).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(runtimeConfig = defaultGceRuntimeConfig)
+    val savedCluster3 = makeCluster(3)
+      .copy(status = RuntimeStatus.Starting)
+      .saveWithRuntimeConfig(runtimeConfig = defaultGceRuntimeConfig)
 
     dbFutureValue(clusterQuery.listMonitoredDataproc).toSet shouldBe Set(savedCluster1)
       .map(stripFieldsForListCluster)

@@ -234,25 +234,24 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "traceId"
-    )(
-      x =>
-        (x.messageType,
-         x.runtimeId,
-         x.runtimeProjectAndName,
-         x.serviceAccountInfo,
-         x.asyncRuntimeFields,
-         x.auditInfo,
-         x.jupyterExtensionUri,
-         x.jupyterUserScriptUri,
-         x.jupyterStartUserScriptUri,
-         x.userJupyterExtensionConfig,
-         x.defaultClientId,
-         x.runtimeImages,
-         x.scopes,
-         x.welderEnabled,
-         x.customEnvironmentVariables,
-         x.runtimeConfig,
-         x.traceId)
+    )(x =>
+      (x.messageType,
+       x.runtimeId,
+       x.runtimeProjectAndName,
+       x.serviceAccountInfo,
+       x.asyncRuntimeFields,
+       x.auditInfo,
+       x.jupyterExtensionUri,
+       x.jupyterUserScriptUri,
+       x.jupyterStartUserScriptUri,
+       x.userJupyterExtensionConfig,
+       x.defaultClientId,
+       x.runtimeImages,
+       x.scopes,
+       x.welderEnabled,
+       x.customEnvironmentVariables,
+       x.runtimeConfig,
+       x.traceId)
     )
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =

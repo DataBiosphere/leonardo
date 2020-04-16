@@ -13,9 +13,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.duration._
 
 /**
-  * Monitor for runtime status transition: Starting, Creating, Deleting, Stopping
-  * It doesn't trigger any of the action but only responsible for monitoring the progress and make necessary cleanup when the transition is done
-  */
+ * Monitor for runtime status transition: Starting, Creating, Deleting, Stopping
+ * It doesn't trigger any of the action but only responsible for monitoring the progress and make necessary cleanup when the transition is done
+ */
 trait GceRuntimeMonitor[F[_]] {
   def process(runtimeId: Long)(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit]
 

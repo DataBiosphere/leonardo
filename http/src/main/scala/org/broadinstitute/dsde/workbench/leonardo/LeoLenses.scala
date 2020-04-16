@@ -35,29 +35,28 @@ object LeoLenses {
   val statusRuntimeAndRuntimeConfig: Lens[RuntimeAndRuntimeConfig, RuntimeStatus] =
     GenLens[RuntimeAndRuntimeConfig](x => x.runtime.status)
 
-  val createRuntimeRespToListRuntimeResp = Lens[CreateRuntimeResponse, ListRuntimeResponse](
-    x =>
-      ListRuntimeResponse(
-        x.id,
-        x.internalId,
-        x.clusterName,
-        x.googleProject,
-        x.serviceAccountInfo,
-        x.asyncRuntimeFields,
-        x.auditInfo,
-        x.runtimeConfig,
-        x.clusterUrl,
-        x.status,
-        x.labels,
-        x.jupyterExtensionUri,
-        x.jupyterUserScriptUri,
-        x.dataprocInstances,
-        x.autopauseThreshold,
-        x.defaultClientId,
-        x.stopAfterCreation,
-        x.welderEnabled,
-        x.patchInProgress
-      )
+  val createRuntimeRespToListRuntimeResp = Lens[CreateRuntimeResponse, ListRuntimeResponse](x =>
+    ListRuntimeResponse(
+      x.id,
+      x.internalId,
+      x.clusterName,
+      x.googleProject,
+      x.serviceAccountInfo,
+      x.asyncRuntimeFields,
+      x.auditInfo,
+      x.runtimeConfig,
+      x.clusterUrl,
+      x.status,
+      x.labels,
+      x.jupyterExtensionUri,
+      x.jupyterUserScriptUri,
+      x.dataprocInstances,
+      x.autopauseThreshold,
+      x.defaultClientId,
+      x.stopAfterCreation,
+      x.welderEnabled,
+      x.patchInProgress
+    )
   )(x =>
     c =>
       c.copy(

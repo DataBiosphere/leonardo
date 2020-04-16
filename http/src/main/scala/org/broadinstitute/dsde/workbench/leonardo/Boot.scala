@@ -211,19 +211,19 @@ object Boot extends IOApp {
 
           // only needed for backleo
           val pubsubSubscriber =
-            new LeoPubsubMessageSubscriber[IO](appDependencies.subscriber,
-                                               gceRuntimeMonitor)
+            new LeoPubsubMessageSubscriber[IO](appDependencies.subscriber, gceRuntimeMonitor)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
             appDependencies.jupyterDAO,
             appDependencies.publisherQueue
           )
-          List(pubsubSubscriber.process,
-               Stream.eval(appDependencies.subscriber.start),
-               zombieClusterMonitor.process, // mark runtimes that are no long active in google as zombie periodically
-               monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
-               autopauseMonitor.process // check database to autopause runtimes periodically
+          List(
+            pubsubSubscriber.process,
+            Stream.eval(appDependencies.subscriber.start),
+            zombieClusterMonitor.process, // mark runtimes that are no long active in google as zombie periodically
+            monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
+            autopauseMonitor.process // check database to autopause runtimes periodically
           )
         } else List.empty[Stream[IO, Unit]]
 
@@ -256,7 +256,7 @@ object Boot extends IOApp {
 
   private def createDependencies[F[_]: StructuredLogger: ContextShift: ConcurrentEffect: Timer](
     pathToCredentialJson: String
-  )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
+  )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
@@ -339,7 +339,6 @@ object Boot extends IOApp {
       publisherQueue,
       subscriber
     )
-  }
 
   private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
     val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")

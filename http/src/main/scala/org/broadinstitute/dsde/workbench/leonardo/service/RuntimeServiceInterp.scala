@@ -19,14 +19,19 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Pro
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateRuntime2Request, ListRuntimeResponse2, UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateRuntime2Request,
+  ListRuntimeResponse2,
+  UpdateRuntimeConfigRequest,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, google}
+import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
 
@@ -73,10 +78,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     s"Skipping validation of bucket objects in the cluster request."
                 ) as None
             }
-            clusterImages <- getRuntimeImages(petToken,
-                                              context.now,
-                                              req.toolDockerImage,
-                                              req.welderDockerImage)
+            clusterImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
             runtime <- F.fromEither(
               convertToRuntime(userInfo,
                                serviceAccountInfo,
@@ -313,9 +315,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
       // Updating the runtime config will potentially generate a PubSub message
-      _ <- req.updatedRuntimeConfig.traverse_(
-        update =>
-          processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
+      _ <- req.updatedRuntimeConfig.traverse_(update =>
+        processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
       )
     } yield ()
 
@@ -372,9 +373,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
         val res = for {
-          blob <- googleStorageService.getBlob(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), credential = Some(credentials), Some(traceId), retryPolicy)
-              .compile
-              .last
+          blob <- googleStorageService
+            .getBlob(gcsPath.bucketName,
+                     GcsBlobName(gcsPath.objectName.value),
+                     credential = Some(credentials),
+                     Some(traceId),
+                     retryPolicy)
+            .compile
+            .last
           _ <- if (blob.isDefined) F.unit else F.raiseError[Unit](BucketObjectException(gcsUri))
         } yield ()
 

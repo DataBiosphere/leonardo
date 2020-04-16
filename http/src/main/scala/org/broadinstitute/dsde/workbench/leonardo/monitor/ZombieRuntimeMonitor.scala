@@ -42,7 +42,9 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   private[monitor] val zombieCheck: F[Unit] =
     for {
       start <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
-      implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](TraceId(s"fromZombieCheck_${start}"))
+      implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](
+        TraceId(s"fromZombieCheck_${start}")
+      )
       startInstant = Instant.ofEpochMilli(start)
       semaphore <- Semaphore[F](config.concurrency)
 
@@ -124,10 +126,13 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     }
   }
 
-  private def handleZombieRuntime(runtime: PotentialZombieRuntime, now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  private def handleZombieRuntime(runtime: PotentialZombieRuntime,
+                                  now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
-      _ <- logger.info(s"${traceId.asString} | Deleting zombie cluster: ${runtime.googleProject} / ${runtime.runtimeName}") //TODO: do we need to delete sam resource as well?
+      _ <- logger.info(
+        s"${traceId.asString} | Deleting zombie cluster: ${runtime.googleProject} / ${runtime.runtimeName}"
+      ) //TODO: do we need to delete sam resource as well?
       _ <- metrics.incrementCounter("numOfZombieRuntimes")
       _ <- dbRef.inTransaction {
         for {

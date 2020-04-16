@@ -12,9 +12,16 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery, labelQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, Runtime, RuntimeConfig, RuntimeImage, RuntimeOperation, WelderAction}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  Runtime,
+  RuntimeConfig,
+  RuntimeImage,
+  RuntimeOperation,
+  WelderAction
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
@@ -39,7 +46,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
-  final override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
+  final override def stopRuntime(
+    params: StopRuntimeParams
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
     for {
       // Flush the welder cache to disk
       _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {

@@ -89,11 +89,13 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Runtime =
       dbFutureValue {
         clusterQuery.save(
-          SaveCluster(cluster,
-                      Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
-                      serviceAccountKeyId,
-                      CommonTestData.defaultDataprocRuntimeConfig,
-                      Instant.now)
+          SaveCluster(
+            cluster,
+            Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
+            serviceAccountKeyId,
+            CommonTestData.defaultDataprocRuntimeConfig,
+            Instant.now
+          )
         )
       }
 

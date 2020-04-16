@@ -77,9 +77,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         }
       } yield ()
 
-      res.handleErrorWith { e =>
-        logger.error(e)("Fail to process pubsub message") >> F.delay(event.consumer.ack())
-      }
+      res.handleErrorWith(e => logger.error(e)("Fail to process pubsub message") >> F.delay(event.consumer.ack()))
     }
   }
 
@@ -245,13 +243,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         DeleteRuntimeParams(runtime)
       )
       _ <- op match {
-        case Some(o) => F.runAsync(
-          gceRuntimeMonitor.pollCheck(runtime.googleProject,
-            RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-            o,
-            RuntimeStatus.Deleting)
-        )(logError(runtime.projectNameString))
-          .to[F]
+        case Some(o) =>
+          F.runAsync(
+              gceRuntimeMonitor.pollCheck(runtime.googleProject,
+                                          RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                                          o,
+                                          RuntimeStatus.Deleting)
+            )(logError(runtime.projectNameString))
+            .to[F]
         case None => F.unit // in the case of dataproc, monitoring will be triggered by ClusterMonitorActor
       }
     } yield ()
@@ -274,14 +273,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now)
       )
       _ <- op match {
-        case Some(o) => F.runAsync(
-          gceRuntimeMonitor.pollCheck(
-            runtime.googleProject,
-            RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-            o,
-            RuntimeStatus.Stopping)
-        )(logError(runtime.projectNameString))
-          .to[F]
+        case Some(o) =>
+          F.runAsync(
+              gceRuntimeMonitor.pollCheck(runtime.googleProject,
+                                          RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                                          o,
+                                          RuntimeStatus.Stopping)
+            )(logError(runtime.projectNameString))
+            .to[F]
         case None =>
           F.unit //dataproc will be monitored by ClusterMonitorActor
       }
@@ -350,24 +349,35 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             _ <- dbRef.inTransaction(clusterQuery.setToStopping(msg.runtimeId, now))
             operation <- runtimeConfig.cloudService.interpreter
               .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
-           _ <- operation match {
-             case Some(op) =>
-               F.runAsync(gceRuntimeMonitor.pollCheck(runtime.googleProject, RuntimeAndRuntimeConfig(runtime, runtimeConfig), op, RuntimeStatus.Stopping)) {
-                 cb =>
-                   cb match {
-                     case Left(e) => F.toIO(logger.error(e)(s"fail to stop runtime ${runtime.projectNameString} for updating machine type"))
-                     case Right(_) =>
-                       val res = for {
-                         now <- nowInstant
-                         implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](AppContext(tid, now))
-                         _ <- updateRuntimeAfterStopAndStarting(runtime, m)
-                         _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction
-                       } yield ()
-                       F.toIO(res)
-                   }
-               }.to[F]
-             case None => F.unit
-           }
+            _ <- operation match {
+              case Some(op) =>
+                F.runAsync(
+                    gceRuntimeMonitor.pollCheck(runtime.googleProject,
+                                                RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                                                op,
+                                                RuntimeStatus.Stopping)
+                  ) { cb =>
+                    cb match {
+                      case Left(e) =>
+                        F.toIO(
+                          logger
+                            .error(e)(s"fail to stop runtime ${runtime.projectNameString} for updating machine type")
+                        )
+                      case Right(_) =>
+                        val res = for {
+                          now <- nowInstant
+                          implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+                            AppContext(tid, now)
+                          )
+                          _ <- updateRuntimeAfterStopAndStarting(runtime, m)
+                          _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction
+                        } yield ()
+                        F.toIO(res)
+                    }
+                  }
+                  .to[F]
+              case None => F.unit
+            }
           } yield ()
         } else {
           for {
@@ -379,23 +389,24 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     } yield ()
 
   private def updateRuntimeAfterStopAndStarting(
-                                                 runtime: Runtime,
-                                     targetMachineType: MachineTypeName
-                                    )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = for {
-    ctx <- ev.ask
-    runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-    _ <- runtimeConfig.cloudService.interpreter
-      .updateMachineType(UpdateMachineTypeParams(runtime, targetMachineType, ctx.now))
-    _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, ctx.now))
-    _ <- dbRef.inTransaction {
-      clusterQuery.updateClusterStatus(
-        runtime.id,
-        RuntimeStatus.Starting,
-        ctx.now
-      )
-    }
-    _ <- gceRuntimeMonitor.process(runtime.id).compile.drain
-  } yield ()
+    runtime: Runtime,
+    targetMachineType: MachineTypeName
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig.cloudService.interpreter
+        .updateMachineType(UpdateMachineTypeParams(runtime, targetMachineType, ctx.now))
+      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, ctx.now))
+      _ <- dbRef.inTransaction {
+        clusterQuery.updateClusterStatus(
+          runtime.id,
+          RuntimeStatus.Starting,
+          ctx.now
+        )
+      }
+      _ <- gceRuntimeMonitor.process(runtime.id).compile.drain
+    } yield ()
 
   private def logError(projectAndName: String)(cb: Either[Throwable, Unit]): IO[Unit] = cb match {
     case Left(t)  => F.toIO(logger.error(t)(s"Fail to monitor ${projectAndName}"))

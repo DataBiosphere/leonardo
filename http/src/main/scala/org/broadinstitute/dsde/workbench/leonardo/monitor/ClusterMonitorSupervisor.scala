@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleSt
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{RStudioDAO, ToolDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterSupervisorMessage._
@@ -263,19 +263,19 @@ class ClusterMonitorSupervisor(
         case Right(clusters) =>
           val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
           clustersNotAlreadyBeingMonitored.toList.traverse_ {
-                case c if c.status == RuntimeStatus.Deleting => IO(self ! ClusterDeleted(c))
+            case c if c.status == RuntimeStatus.Deleting => IO(self ! ClusterDeleted(c))
 
-                case c if c.status == RuntimeStatus.Stopping => IO(self ! ClusterStopped(c))
+            case c if c.status == RuntimeStatus.Stopping => IO(self ! ClusterStopped(c))
 
-                case c if c.status == RuntimeStatus.Starting => IO(self ! ClusterStarted(c))
+            case c if c.status == RuntimeStatus.Starting => IO(self ! ClusterStarted(c))
 
-                case c if c.status == RuntimeStatus.Updating => IO(self ! ClusterUpdated(c))
+            case c if c.status == RuntimeStatus.Updating => IO(self ! ClusterUpdated(c))
 
-                case c if c.status == RuntimeStatus.Creating && c.asyncRuntimeFields.isDefined =>
-                  IO(self ! ClusterCreated(c, c.stopAfterCreation))
+            case c if c.status == RuntimeStatus.Creating && c.asyncRuntimeFields.isDefined =>
+              IO(self ! ClusterCreated(c, c.stopAfterCreation))
 
-                case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))
-              }
+            case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))
+          }
         case Left(e) =>
           IO(logger.error("Error starting cluster monitor", e))
       }

@@ -795,10 +795,11 @@ trait LeonardoTestUtils
     val hailUploadFile = ResourceFile("bucket-tests/invalid_user_script.sh")
 
     withResourceFileInBucket(googleProject, hailUploadFile, "text/plain") { bucketPath =>
-      val request = if(isUserStartupScript)
-        RuntimeRequest(jupyterStartUserScriptUri = Some(bucketPath.toUri))
-      else
-        RuntimeRequest(jupyterUserScriptUri = Some(bucketPath.toUri))
+      val request =
+        if (isUserStartupScript)
+          RuntimeRequest(jupyterStartUserScriptUri = Some(bucketPath.toUri))
+        else
+          RuntimeRequest(jupyterUserScriptUri = Some(bucketPath.toUri))
 
       val testResult: Try[T] = Try {
 
@@ -806,10 +807,14 @@ trait LeonardoTestUtils
 
         runtime.status shouldBe ClusterStatus.Error
         runtime.errors should have size 1
-        if(isUserStartupScript)
-          runtime.errors.head.errorMessage should include(s"user startup script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/startscript_output")
+        if (isUserStartupScript)
+          runtime.errors.head.errorMessage should include(
+            s"user startup script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/startscript_output"
+          )
         else
-          runtime.errors.head.errorMessage should include(s"user script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/userscript_output.txt failed")
+          runtime.errors.head.errorMessage should include(
+            s"user script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/userscript_output.txt failed"
+          )
 
         testCode(runtime)
       }

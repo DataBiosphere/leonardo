@@ -44,7 +44,8 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
             if (!isIdle) {
               val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
                 case Some(attemptedDate) =>
-                  val maxBusyLimitReached = now.toEpochMilli - attemptedDate.toEpochMilli > config.maxKernelBusyLimit.toMillis
+                  val maxBusyLimitReached =
+                    now.toEpochMilli - attemptedDate.toEpochMilli > config.maxKernelBusyLimit.toMillis
                   F.pure(maxBusyLimitReached)
                 case None =>
                   clusterQuery
@@ -55,13 +56,17 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
 
               maxKernelActiveTimeExceeded.ifM(
                 metrics.incrementCounter("autoPause/maxKernelActiveTimeExceeded") >>
-                    logger.info(
+                  logger
+                    .info(
                       s"Auto pausing ${cluster.googleProject}/${cluster.runtimeName} due to exceeded max kernel active time"
-                    ).as(true),
+                    )
+                    .as(true),
                 metrics.incrementCounter("autoPause/activeKernelClusters") >>
-                  logger.info(
-                    s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.runtimeName} due to active kernels"
-                  ).as(false)
+                  logger
+                    .info(
+                      s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.runtimeName} due to active kernels"
+                    )
+                    .as(false)
               )
             } else F.pure(isIdle)
         }
@@ -78,7 +83,14 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
 }
 
 object AutopauseMonitor {
-  def apply[F[_]: Timer: ContextShift](config: AutoFreezeConfig, jupyterDAO: JupyterDAO[F], publisherQueue: InspectableQueue[F, LeoPubsubMessage])
-                 (implicit F: Async[F], metrics: OpenTelemetryMetrics[F], logger: Logger[F], dbRef: DbReference[F], ec: ExecutionContext): AutopauseMonitor[F] =
+  def apply[F[_]: Timer: ContextShift](config: AutoFreezeConfig,
+                                       jupyterDAO: JupyterDAO[F],
+                                       publisherQueue: InspectableQueue[F, LeoPubsubMessage])(
+    implicit F: Async[F],
+    metrics: OpenTelemetryMetrics[F],
+    logger: Logger[F],
+    dbRef: DbReference[F],
+    ec: ExecutionContext
+  ): AutopauseMonitor[F] =
     new AutopauseMonitor(config, jupyterDAO, publisherQueue)
 }
