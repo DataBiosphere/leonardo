@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import java.io.File
+import java.nio.file.Path
 
 import cats.effect._
 import fs2._
@@ -10,9 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ClusterResourcesConfig
 object TemplateHelper {
 
   def templateFile[F[_]: ContextShift: Sync](replacementMap: Map[String, String],
-                                             file: File,
+                                             path: Path,
                                              blocker: Blocker): Stream[F, Byte] =
-    fileStream(file, blocker)
+    fileStream(path, blocker)
       .through(text.utf8Decode)
       .through(text.lines)
       .map(template(replacementMap))
@@ -29,8 +29,8 @@ object TemplateHelper {
       .intersperse("\n")
       .through(text.utf8Encode)
 
-  def fileStream[F[_]: ContextShift: Sync](file: File, blocker: Blocker): Stream[F, Byte] =
-    io.file.readAll[F](file.toPath, blocker, 4096)
+  def fileStream[F[_]: ContextShift: Sync](path: Path, blocker: Blocker): Stream[F, Byte] =
+    io.file.readAll[F](path, blocker, 4096)
 
   def resourceStream[F[_]: ContextShift: Sync](clusterResource: RuntimeResource, blocker: Blocker): Stream[F, Byte] = {
     val inputStream =

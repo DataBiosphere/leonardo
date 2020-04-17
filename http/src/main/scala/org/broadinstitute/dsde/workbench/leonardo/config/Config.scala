@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
 
-import java.io.File
 import java.nio.file.{Path, Paths}
 
 import com.google.pubsub.v1.ProjectTopicName
@@ -185,12 +184,12 @@ object Config {
   }
 
   implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
-    val baseDir = config.getString("configFolderPath")
     ClusterFilesConfig(
-      new File(baseDir, config.getString("jupyterServerCrt")),
-      new File(baseDir, config.getString("jupyterServerKey")),
-      new File(baseDir, config.getString("jupyterRootCaPem")),
-      new File(baseDir, config.getString("jupyterRootCaKey"))
+      config.as[Path]("proxyServerCrt"),
+      config.as[Path]("proxyServerKey"),
+      config.as[Path]("proxyRootCaPem"),
+      config.as[Path]("proxyRootCaKey"),
+      config.as[Path]("rstudioLicenseFile")
     )
   }
 
@@ -324,7 +323,6 @@ object Config {
 
   implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
-  implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
   implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
   implicit val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
   implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
