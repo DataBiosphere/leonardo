@@ -120,7 +120,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
           )
           Either.catchNonFatal(createNewCluster(GoogleProject(billingProject), request = request)(ronAuthToken)).handleError { e =>
             clusterCreationFailureMsg = e.getMessage
-            println(s"111 ${e}")
             null
           }.map(c => ronCluster = c).void
         case None =>

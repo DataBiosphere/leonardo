@@ -17,7 +17,7 @@ class ClusterPatchSpec extends ClusterFixtureSpec with LeonardoTestUtils {
         cloudService = CloudService.Dataproc.asString,
         Some(0),
         masterMachineType = Some(newMasterMachineType),
-        Some(150),
+        Some(100),
         workerMachineType = None,
         workerDiskSize = None,
         numberOfWorkerLocalSSDs = None,
