@@ -104,9 +104,9 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
           val runtimeConfig = RuntimeConfigRequest.DataprocConfig(
             numberOfWorkers = Some(0),
-            masterDiskSize = Some(500),
-            masterMachineType = Some("n1-standard-8"),
-            workerMachineType = Some("n1-standard-8"),
+            masterDiskSize = Some(100),
+            masterMachineType = Some("n1-standard-4"),
+            workerMachineType = Some("n1-standard-4"),
             workerDiskSize = None,
             numberOfWorkerLocalSSDs = None,
             numberOfPreemptibleWorkers = None,

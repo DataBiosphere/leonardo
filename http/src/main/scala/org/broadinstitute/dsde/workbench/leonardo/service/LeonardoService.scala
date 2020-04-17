@@ -597,7 +597,7 @@ class LeonardoService(
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.diskSize), targetMachineSize)
 
     // Note: GCE allows you to increase a persistent disk, but not decrease. Throw an exception if the user tries to decrease their disk.
-    val diskSizeIncreased = (newSize: DiskSize) => existingRuntimeConfig.diskSize.gb < newSize.gb
+    def diskSizeIncreased(newSize: DiskSize): Boolean = existingRuntimeConfig.diskSize.gb < newSize.gb
 
     updatedMasterDiskSizeOpt match {
       case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>
