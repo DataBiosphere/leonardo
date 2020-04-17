@@ -19,7 +19,7 @@ services:
     privileged: true
     volumes:
       - /work:/home/rstudio
-      - /etc/rsp-broad-institute-trial-2020-05-21.lic:/etc/rstudio-server/license.lic:ro  # TODO repace with template
+      - /etc/rstudio-license-file.lic:/etc/rstudio-server/license.lic:ro
     env_file:
       - /etc/google_application_credentials.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints

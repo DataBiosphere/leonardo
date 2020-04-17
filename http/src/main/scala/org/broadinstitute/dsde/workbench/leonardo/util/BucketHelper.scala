@@ -119,13 +119,14 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     val uploadRawFiles = for {
       f <- Stream.emits(
         Seq(
-          config.clusterFilesConfig.jupyterServerCrt,
-          config.clusterFilesConfig.jupyterServerKey,
-          config.clusterFilesConfig.jupyterRootCaPem
+          config.clusterFilesConfig.proxyServerCrt,
+          config.clusterFilesConfig.proxyServerKey,
+          config.clusterFilesConfig.proxyRootCaPem,
+          config.clusterFilesConfig.rstudioLicenseFile
         )
       )
       bytes <- Stream.eval(TemplateHelper.fileStream[F](f, blocker).compile.to(Array))
-      _ <- storeObject(initBucketName, GcsBlobName(f.getName), bytes, "text/plain")
+      _ <- storeObject(initBucketName, GcsBlobName(f.getFileName.toString), bytes, "text/plain")
     } yield ()
 
     val uploadRawResources = for {

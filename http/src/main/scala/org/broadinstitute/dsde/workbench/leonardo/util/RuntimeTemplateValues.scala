@@ -16,8 +16,8 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           rstudioDockerImage: String,
                                           proxyDockerImage: String,
                                           welderDockerImage: String,
-                                          jupyterServerCrt: String,
-                                          jupyterServerKey: String,
+                                          proxyServerCrt: String,
+                                          proxyServerKey: String,
                                           rootCaPem: String,
                                           jupyterDockerCompose: String,
                                           jupyterDockerComposeGce: String,
@@ -50,7 +50,8 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           runtimeOperation: String,
                                           deployWelder: String,
                                           updateWelder: String,
-                                          disableDelocalization: String) {
+                                          disableDelocalization: String,
+                                          rstudioLicenseFile: String) {
 
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
@@ -159,13 +160,13 @@ object RuntimeTemplateValues {
       config.runtimeImages.find(_.imageType == Proxy).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == Welder).map(_.imageUrl).getOrElse(""),
       config.initBucketName
-        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.jupyterServerCrt.getName)).toUri)
+        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.proxyServerCrt.getFileName.toString)).toUri)
         .getOrElse(""),
       config.initBucketName
-        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.jupyterServerKey.getName)).toUri)
+        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.proxyServerKey.getFileName.toString)).toUri)
         .getOrElse(""),
       config.initBucketName
-        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.jupyterRootCaPem.getName)).toUri)
+        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.proxyRootCaPem.getFileName.toString)).toUri)
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerCompose.asString)).toUri)
@@ -224,7 +225,10 @@ object RuntimeTemplateValues {
       config.runtimeOperation.asString,
       (config.welderAction == Some(DeployWelder)).toString,
       (config.welderAction == Some(UpdateWelder)).toString,
-      (config.welderAction == Some(DisableDelocalization)).toString
+      (config.welderAction == Some(DisableDelocalization)).toString,
+      config.initBucketName
+        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.rstudioLicenseFile.getFileName.toString)).toUri)
+        .getOrElse("")
     )
 
   def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =

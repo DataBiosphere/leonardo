@@ -117,8 +117,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export MEM_LIMIT=$(memLimit)
     export WELDER_MEM_LIMIT=$(welderMemLimit)
 
-    SERVER_CRT=$(jupyterServerCrt)
-    SERVER_KEY=$(jupyterServerKey)
+    SERVER_CRT=$(proxyServerCrt)
+    SERVER_KEY=$(proxyServerKey)
     ROOT_CA=$(rootCaPem)
     JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
@@ -137,6 +137,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
+    RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
 
     STEP_TIMINGS+=($(date +%s))
 
@@ -155,8 +156,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
     gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
-    #TODO replace with template
-    gsutil cp gs://rtitle_test/rsp-broad-institute-trial-2020-05-21.lic /etc
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
@@ -210,6 +209,14 @@ END
       echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
     else
       echo "" > /etc/google_application_credentials.env
+    fi
+
+    # Install RStudio license file, if specified
+    if [ ! -z ${RSTUDIO_LICENSE_FILE} ] ; then
+      echo "Using RStudio license file $RSTUDIO_LICENSE_FILE"
+      gsutil cp ${RSTUDIO_LICENSE_FILE} /etc/rstudio-license-file.lic
+    else
+      echo "" > /etc/rstudio-license-file.lic
     fi
 
     # If any image is hosted in a GCR registry (detected by regex) then
