@@ -15,7 +15,7 @@ case class GoogleServiceAccount(string: String) extends AnyVal with StringValueC
 
 case class ClusterCopy(clusterName: RuntimeName,
                        googleProject: GoogleProject,
-                       serviceAccountInfo: ServiceAccountInfo,
+                       serviceAccountInfo: WorkbenchEmail,
                        machineConfig: RuntimeConfig,
                        status: ClusterStatus,
                        creator: WorkbenchEmail,
@@ -100,8 +100,7 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
 case class DefaultLabelsCopy(runtimeName: RuntimeName,
                              googleProject: GoogleProject,
                              creator: WorkbenchEmail,
-                             clusterServiceAccount: Option[WorkbenchEmail],
-                             notebookServiceAccount: Option[WorkbenchEmail],
+                             serviceAccount: Option[WorkbenchEmail],
                              notebookExtension: Option[String],
                              notebookUserScript: Option[String],
                              notebookStartUserScript: Option[String],
@@ -118,11 +117,8 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
     val startScr: Map[String, String] = notebookStartUserScript map { startScr =>
       Map("notebookStartUserScript" -> startScr)
     } getOrElse Map.empty
-    val clusterSa: Map[String, String] = clusterServiceAccount map { sa =>
+    val clusterSa: Map[String, String] = serviceAccount map { sa =>
       Map("clusterServiceAccount" -> sa.value)
-    } getOrElse Map.empty
-    val notebookSa: Map[String, String] = notebookServiceAccount map { sa =>
-      Map("notebookServiceAccount" -> sa.value)
     } getOrElse Map.empty
 
     Map(
@@ -131,7 +127,7 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "tool" -> tool
-    ) ++ ext ++ userScr ++ startScr ++ clusterSa ++ notebookSa
+    ) ++ ext ++ userScr ++ startScr ++ clusterSa
   }
 }
 

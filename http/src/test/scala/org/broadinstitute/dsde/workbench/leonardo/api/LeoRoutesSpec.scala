@@ -66,12 +66,10 @@ class LeoRoutesSpec
 
       val responseCluster = responseAs[GetClusterResponseTest]
       responseCluster.clusterName.asString shouldEqual clusterName.asString
-      responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider
+      responseCluster.serviceAccountInfo shouldEqual serviceAccountProvider
         .getClusterServiceAccount(defaultUserInfo, googleProject)
         .unsafeRunSync()
-      responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider
-        .getNotebookServiceAccount(defaultUserInfo, googleProject)
-        .unsafeRunSync()
+        .get
       responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
 
       //validateCookie { header[`Set-Cookie`] }
@@ -181,8 +179,7 @@ class LeoRoutesSpec
       responseClusters should have size 10
       responseClusters foreach { cluster =>
         cluster.googleProject shouldEqual googleProject
-        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
-        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
+        cluster.serviceAccountInfo shouldEqual clusterServiceAccountFromProject(googleProject).get
         cluster.labels shouldEqual Map(
           "clusterName" -> cluster.clusterName.asString,
           "runtimeName" -> cluster.clusterName.asString,
@@ -216,8 +213,7 @@ class LeoRoutesSpec
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual RuntimeName("test-cluster-6")
-      cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
-      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
+      cluster.serviceAccountInfo shouldEqual clusterServiceAccountFromProject(googleProject).get
       cluster.labels shouldEqual Map(
         "clusterName" -> "test-cluster-6",
         "runtimeName" -> "test-cluster-6",
@@ -240,8 +236,7 @@ class LeoRoutesSpec
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual RuntimeName("test-cluster-4")
-      cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
-      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
+      cluster.serviceAccountInfo shouldEqual clusterServiceAccountFromProject(googleProject).get
       cluster.labels shouldEqual Map(
         "clusterName" -> "test-cluster-4",
         "runtimeName" -> "test-cluster-4",
@@ -283,8 +278,7 @@ class LeoRoutesSpec
       responseClusters should have size 10
       responseClusters foreach { cluster =>
         cluster.googleProject shouldEqual googleProject
-        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccountFromProject(googleProject)
-        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccountFromProject(googleProject)
+        cluster.serviceAccountInfo shouldEqual clusterServiceAccountFromProject(googleProject).get
         cluster.labels shouldEqual Map(
           "clusterName" -> cluster.clusterName.asString,
           "runtimeName" -> cluster.clusterName.asString,
@@ -392,6 +386,6 @@ class LeoRoutesSpec
 final case class GetClusterResponseTest(
   id: Long,
   clusterName: RuntimeName,
-  serviceAccountInfo: ServiceAccountInfo,
+  serviceAccountInfo: WorkbenchEmail,
   jupyterExtensionUri: Option[GcsPath]
 )

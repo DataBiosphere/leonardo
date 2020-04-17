@@ -22,7 +22,7 @@ final case class Runtime(id: Long,
                          internalId: RuntimeInternalId,
                          runtimeName: RuntimeName,
                          googleProject: GoogleProject,
-                         serviceAccountInfo: ServiceAccountInfo,
+                         serviceAccount: WorkbenchEmail,
                          asyncRuntimeFields: Option[AsyncRuntimeFields],
                          auditInfo: AuditInfo,
                          proxyUrl: URL,
@@ -209,10 +209,6 @@ object RuntimeConfig {
   }
 }
 
-/** Information about service accounts used by the runtime */
-final case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
-                                    notebookServiceAccount: Option[WorkbenchEmail])
-
 /** Runtime user script */
 sealed trait UserScriptPath extends Product with Serializable {
   def asString: String
@@ -320,8 +316,7 @@ object RuntimeUI {
 case class DefaultLabels(runtimeName: RuntimeName,
                          googleProject: GoogleProject,
                          creator: WorkbenchEmail,
-                         clusterServiceAccount: Option[WorkbenchEmail],
-                         notebookServiceAccount: Option[WorkbenchEmail],
+                         serviceAccount: WorkbenchEmail,
                          notebookUserScript: Option[UserScriptPath],
                          notebookStartUserScript: Option[UserScriptPath],
                          tool: Option[RuntimeImageType]) {
@@ -331,8 +326,7 @@ case class DefaultLabels(runtimeName: RuntimeName,
       "clusterName" -> runtimeName.asString, //TODO: potentially deprecate this once clients moves away from using this label (deprecated 3/5/2020)
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
-      "clusterServiceAccount" -> clusterServiceAccount.map(_.value).getOrElse(null),
-      "notebookServiceAccount" -> notebookServiceAccount.map(_.value).getOrElse(null),
+      "clusterServiceAccount" -> serviceAccount.value,
       "notebookUserScript" -> notebookUserScript.map(_.asString).getOrElse(null),
       "notebookStartUserScript" -> notebookStartUserScript.map(_.asString).getOrElse(null),
       "tool" -> tool.map(_.toString).getOrElse(null)

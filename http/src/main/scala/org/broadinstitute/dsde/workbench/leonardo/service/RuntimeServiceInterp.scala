@@ -60,9 +60,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
-      notebookServiceAccountOpt <- serviceAccountProvider
-        .getNotebookServiceAccount(userInfo, googleProject)
-      serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
+      petSA <- F.fromEither(
+        clusterServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
+      )
 
       clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
 
@@ -81,7 +81,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             clusterImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
             runtime <- F.fromEither(
               convertToRuntime(userInfo,
-                               serviceAccountInfo,
+                               petSA,
                                googleProject,
                                runtimeName,
                                internalId,
@@ -506,7 +506,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
 object RuntimeServiceInterp {
   private def convertToRuntime(userInfo: UserInfo,
-                               serviceAccountInfo: ServiceAccountInfo,
+                               serviceAccountInfo: WorkbenchEmail,
                                googleProject: GoogleProject,
                                runtimeName: RuntimeName,
                                clusterInternalId: RuntimeInternalId,
@@ -519,8 +519,7 @@ object RuntimeServiceInterp {
       runtimeName,
       googleProject,
       userInfo.userEmail,
-      serviceAccountInfo.clusterServiceAccount,
-      serviceAccountInfo.notebookServiceAccount,
+      serviceAccountInfo,
       req.jupyterUserScriptUri,
       req.jupyterStartUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
@@ -566,7 +565,7 @@ object RuntimeServiceInterp {
       internalId = clusterInternalId,
       runtimeName = runtimeName,
       googleProject = googleProject,
-      serviceAccountInfo = serviceAccountInfo,
+      serviceAccount = serviceAccountInfo,
       asyncRuntimeFields = None,
       auditInfo = AuditInfo(userInfo.userEmail, now, None, now, None),
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, labels),

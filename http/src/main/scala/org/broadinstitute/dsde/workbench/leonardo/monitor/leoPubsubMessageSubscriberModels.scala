@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, trac
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
 
 sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Product {
@@ -64,7 +64,7 @@ object LeoPubsubMessage {
 
   final case class CreateRuntimeMessage(runtimeId: Long,
                                         runtimeProjectAndName: RuntimeProjectAndName,
-                                        serviceAccountInfo: ServiceAccountInfo,
+                                        serviceAccountInfo: WorkbenchEmail,
                                         asyncRuntimeFields: Option[AsyncRuntimeFields],
                                         auditInfo: AuditInfo,
                                         jupyterExtensionUri: Option[GcsPath],
@@ -87,7 +87,7 @@ object LeoPubsubMessage {
       CreateRuntimeMessage(
         runtime.id,
         RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-        runtime.serviceAccountInfo,
+        runtime.serviceAccount,
         runtime.asyncRuntimeFields,
         runtime.auditInfo,
         runtime.jupyterExtensionUri,

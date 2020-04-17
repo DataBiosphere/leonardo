@@ -39,7 +39,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val cluster2 = makeCluster(2).copy(status = RuntimeStatus.Creating)
 
     val cluster3 = makeCluster(3).copy(
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      serviceAccount = serviceAccountEmail,
       status = RuntimeStatus.Running
     )
 
@@ -92,15 +92,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     dbFutureValue(clusterQuery.getClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)
     dbFutureValue(clusterQuery.getClusterById(savedCluster3.id)) shouldEqual Some(savedCluster3)
 
-    dbFutureValue(clusterQuery.getServiceAccountKeyId(cluster1.googleProject, cluster1.runtimeName)) shouldEqual None
-    dbFutureValue(clusterQuery.getServiceAccountKeyId(cluster2.googleProject, cluster2.runtimeName)) shouldEqual Some(
-      serviceAccountKey.id
-    )
-    dbFutureValue(clusterQuery.getServiceAccountKeyId(cluster3.googleProject, cluster3.runtimeName)) shouldEqual Some(
-      serviceAccountKey.id
-    )
-
-    dbFutureValue(clusterQuery.countActiveByClusterServiceAccount(clusterServiceAccount.get)) shouldEqual 2
+    dbFutureValue(clusterQuery.countActiveByClusterServiceAccount(clusterServiceAccount)) shouldEqual 2
     dbFutureValue(clusterQuery.countActiveByProject(project)) shouldEqual 3
 
     // (project, name) unique key test

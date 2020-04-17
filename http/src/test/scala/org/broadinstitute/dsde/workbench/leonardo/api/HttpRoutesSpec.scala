@@ -293,7 +293,7 @@ object HttpRoutesSpec {
       RuntimeInternalId(""),
       clusterName,
       googleProject,
-      ServiceAccountInfo(Some(serviceAccount), None),
+      serviceAccount,
       asyncRuntimeFields,
       auditInfo,
       runtimeConfig,

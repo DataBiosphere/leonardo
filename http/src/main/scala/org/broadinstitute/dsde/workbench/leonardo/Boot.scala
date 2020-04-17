@@ -78,9 +78,7 @@ object Boot extends IOApp {
         clusterResourcesConfig
       )
       val bucketHelper = new BucketHelper(bucketHelperConfig,
-                                          appDependencies.googleComputeService,
                                           appDependencies.google2StorageDao,
-                                          appDependencies.googleProjectDAO,
                                           appDependencies.serviceAccountProvider,
                                           appDependencies.blocker)
       val vpcInterp =

@@ -41,17 +41,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     JsObject(presentFields)
   }
 
-  implicit val serviceAccountInfoWriter: RootJsonWriter[ServiceAccountInfo] = (obj: ServiceAccountInfo) => {
-    val allFields = Map(
-      "clusterServiceAccount" -> obj.clusterServiceAccount.toJson,
-      "notebookServiceAccount" -> obj.notebookServiceAccount.toJson
-    )
-
-    val presentFields = allFields.filter(_._2 != JsNull)
-
-    JsObject(presentFields)
-  }
-
   implicit val dataprocInstanceKeyWriter: RootJsonWriter[DataprocInstanceKey] = (obj: DataprocInstanceKey) => {
     val allFields = Map(
       "name" -> obj.name.value.toJson,
@@ -89,7 +78,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "clusterName" -> obj.clusterName.asString.toJson,
       "googleId" -> obj.asyncRuntimeFields.map(_.googleId.value.toJson).getOrElse(JsNull),
       "googleProject" -> obj.googleProject.toJson,
-      "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
+      "googleServiceAccount" -> obj.serviceAccountInfo.toJson,
       "machineConfig" -> obj.machineConfig.toJson,
       "clusterUrl" -> obj.clusterUrl.toString.toJson,
       "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value.toJson).getOrElse(JsNull),
@@ -163,7 +152,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "clusterName" -> obj.clusterName.asString.toJson,
       "googleId" -> obj.asyncRuntimeFields.map(_.googleId.value).toJson,
       "googleProject" -> obj.googleProject.toJson,
-      "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
+      "googleServiceAccount" -> obj.serviceAccountInfo.toJson,
       "machineConfig" -> obj.runtimeConfig.toJson,
       "clusterUrl" -> obj.clusterUrl.toString.toJson,
       "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,
@@ -204,7 +193,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
         "clusterName" -> obj.clusterName.asString.toJson,
         "googleId" -> obj.asyncRuntimeFields.map(_.googleId.value).toJson,
         "googleProject" -> obj.googleProject.toJson,
-        "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
+        "googleServiceAccount" -> obj.serviceAccountInfo.toJson,
         "machineConfig" -> obj.runtimeConfig.toJson,
         "clusterUrl" -> obj.clusterUrl.toString.toJson,
         "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,
@@ -245,7 +234,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "clusterName" -> obj.clusterName.asString.toJson,
       "googleId" -> obj.asyncRuntimeFields.map(_.googleId.value).toJson,
       "googleProject" -> obj.googleProject.toJson,
-      "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
+      "googleServiceAccount" -> obj.serviceAccountInfo.toJson,
       "machineConfig" -> obj.runtimeConfig.toJson, //Note, for this response, we're still encoding runtimeConfig as machineConfig
       "clusterUrl" -> obj.clusterUrl.toString.toJson,
       "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,

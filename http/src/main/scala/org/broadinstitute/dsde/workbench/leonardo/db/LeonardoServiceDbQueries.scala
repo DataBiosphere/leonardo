@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   ListRuntimeResponse,
   RuntimeNotFoundException
 }
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
 import scala.concurrent.ExecutionContext
@@ -99,10 +98,6 @@ object LeonardoServiceDbQueries {
                                  clusterRec.hostIp map IP)
           }
 
-          val serviceAccountInfo = ServiceAccountInfo(
-            clusterRec.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
-            clusterRec.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
-          )
           val patchInProgress = patchRecOpt match {
             case Some(patchRec) => patchRec.inProgress
             case None           => false
@@ -112,7 +107,7 @@ object LeonardoServiceDbQueries {
             RuntimeInternalId(clusterRec.internalId),
             clusterRec.clusterName,
             clusterRec.googleProject,
-            serviceAccountInfo,
+            clusterRec.serviceAccountInfo,
             dataprocInfo,
             clusterRec.auditInfo,
             runTimeConfigRecOpt

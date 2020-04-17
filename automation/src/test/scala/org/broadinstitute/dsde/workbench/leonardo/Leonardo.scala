@@ -34,7 +34,7 @@ object Leonardo extends RestClient with LazyLogging {
         r <- json.as[ClusterCopy]
       } yield r
 
-      res.getOrElse(throw new Exception("Failed to parse list of clusters response"))
+      res.fold(e => throw new Exception(s"Failed to parse createCluster response due to ${e.getMessage}"), identity)
     }
 
     def handleClusterSeqResponse(response: String): List[ClusterCopy] = {
@@ -43,7 +43,7 @@ object Leonardo extends RestClient with LazyLogging {
         r <- json.as[List[ClusterCopy]]
       } yield r
 
-      res.getOrElse(throw new Exception("Failed to parse list of clusters response"))
+      res.fold(e => throw new Exception(s"Failed to parse list of clusters response ${e}"), identity)
     }
 
     def handleListRuntimeResponse(response: String): List[ListRuntimeResponseCopy] = {
@@ -86,7 +86,7 @@ object Leonardo extends RestClient with LazyLogging {
       val path = s"api/google/v1/runtimes/${googleProject.value}?includeDeleted=true"
       logger.info(s"Listing runtimes including deleted in project: GET /$path")
       val parsedRequest = parseResponse(getRequest(s"$url/$path"))
-      handleListRuntimeResponse(parseResponse(getRequest(s"$url/$path")))
+      handleListRuntimeResponse(parsedRequest)
     }
 
     def create(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: ClusterRequest)(
@@ -202,7 +202,7 @@ object AutomationTestJsonCodec {
     Decoder.forProduct13[ClusterCopy,
                          RuntimeName,
                          GoogleProject,
-                         ServiceAccountInfo,
+                         WorkbenchEmail,
                          RuntimeConfig,
                          ClusterStatus,
                          WorkbenchEmail,
@@ -215,7 +215,7 @@ object AutomationTestJsonCodec {
                          Boolean](
       "clusterName",
       "googleProject",
-      "serviceAccountInfo",
+      "googleServiceAccount",
       "machineConfig",
       "status",
       "creator",

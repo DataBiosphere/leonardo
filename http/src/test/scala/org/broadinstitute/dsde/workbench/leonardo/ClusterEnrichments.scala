@@ -63,7 +63,7 @@ object ClusterEnrichments extends Matchers {
     c.internalId shouldBe createCluster.internalId
     c.runtimeName shouldBe createCluster.clusterName
     c.googleProject shouldBe createCluster.googleProject
-    c.serviceAccountInfo shouldBe createCluster.serviceAccountInfo
+    c.serviceAccount shouldBe createCluster.serviceAccountInfo
     c.asyncRuntimeFields shouldBe createCluster.asyncRuntimeFields
     c.auditInfo shouldBe createCluster.auditInfo
     c.proxyUrl shouldBe createCluster.clusterUrl

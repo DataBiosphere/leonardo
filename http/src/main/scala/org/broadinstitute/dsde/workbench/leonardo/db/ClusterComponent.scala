@@ -36,7 +36,7 @@ final case class ClusterRecord(id: Long,
                                jupyterStartUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfo,
-                               serviceAccountInfo: ServiceAccountInfoRecord,
+                               serviceAccountInfo: WorkbenchEmail,
                                stagingBucket: Option[String],
                                autopauseThreshold: Int,
                                defaultClientId: Option[String],
@@ -45,18 +45,13 @@ final case class ClusterRecord(id: Long,
                                customClusterEnvironmentVariables: Map[String, String],
                                runtimeConfigId: RuntimeConfigId)
 
-final case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
-                                          notebookServiceAccount: Option[String],
-                                          serviceAccountKeyId: Option[String])
-
 class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
   def internalId = column[String]("internalId", O.Length(254))
   def clusterName = column[RuntimeName]("clusterName", O.Length(254))
   def googleId = column[Option[GoogleId]]("googleId")
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
-  def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
-  def notebookServiceAccount = column[Option[String]]("notebookServiceAccount", O.Length(254))
+  def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
   def operationName = column[Option[String]]("operationName", O.Length(254))
   def status = column[String]("status", O.Length(254))
   def hostIp = column[Option[String]]("hostIp", O.Length(254))
@@ -67,7 +62,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def jupyterUserScriptUri = column[Option[UserScriptPath]]("jupyterUserScriptUri", O.Length(1024))
   def jupyterStartUserScriptUri = column[Option[UserScriptPath]]("jupyterStartUserScriptUri", O.Length(1024))
   def initBucket = column[Option[String]]("initBucket", O.Length(1024))
-  def serviceAccountKeyId = column[Option[String]]("serviceAccountKeyId", O.Length(254))
   def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def autopauseThreshold = column[Int]("autopauseThreshold")
@@ -99,7 +93,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       jupyterStartUserScriptUri,
       initBucket,
       (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId),
+      serviceAccount,
       stagingBucket,
       autopauseThreshold,
       defaultClientId,
@@ -149,7 +143,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             auditInfo._4,
             auditInfo._5
           ),
-          ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
+          serviceAccountInfo,
           stagingBucket,
           autopauseThreshold,
           defaultClientId,
@@ -159,7 +153,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           runtimeConfigId
         )
     }, { c: ClusterRecord =>
-      def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       def ai(_ai: AuditInfo) = (
         _ai.creator,
         _ai.createdDate,
@@ -182,7 +175,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.jupyterStartUserScriptUri,
           c.initBucket,
           ai(c.auditInfo),
-          sa(c.serviceAccountInfo),
+          c.serviceAccountInfo,
           c.stagingBucket,
           c.autopauseThreshold,
           c.defaultClientId,
@@ -341,7 +334,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
     clusterQuery
-      .filter(_.clusterServiceAccount === Option(clusterServiceAccount.value))
+      .filter(_.serviceAccount === clusterServiceAccount)
       .filter(_.status inSetBind RuntimeStatus.activeStatuses.map(_.toString))
       .length
       .result
@@ -439,15 +432,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       // staging bucket is saved as a bucket name rather than a path
       .map(recs => recs.headOption.flatten.flatMap(head => parseGcsPath("gs://" + head + "/").toOption))
 
-  def getServiceAccountKeyId(project: GoogleProject,
-                             name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[ServiceAccountKeyId]] =
-    clusterQuery
-      .filter(_.googleProject === project)
-      .filter(_.clusterName === name)
-      .map(_.serviceAccountKeyId)
-      .result
-      .map(recs => recs.headOption.flatten.map(ServiceAccountKeyId))
-
   def getClusterStatus(id: Long)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] =
     findByIdQuery(id).map(_.status).result.headOption map { statusOpt =>
       statusOpt flatMap RuntimeStatus.withNameInsensitiveOption
@@ -492,11 +476,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def updateAsyncClusterCreationFields(updateAsyncClusterCreationFields: UpdateAsyncClusterCreationFields): DBIO[Int] =
     findByIdQuery(updateAsyncClusterCreationFields.clusterId)
-      .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
+      .map(c => (c.initBucket, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
       .update(
         (
           updateAsyncClusterCreationFields.initBucket.map(_.toUri),
-          updateAsyncClusterCreationFields.serviceAccountKey.map(_.id.value),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.googleId),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.operationName.value),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.stagingBucket.value),
@@ -506,8 +489,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def clearAsyncClusterCreationFields(cluster: Runtime, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(cluster.id)
-      .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
-      .update((None, None, None, None, None, dateAccessed))
+      .map(c => (c.initBucket, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
+      .update((None, None, None, None, dateAccessed))
 
   def updateClusterStatus(id: Long, newStatus: RuntimeStatus, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update((newStatus.toString, dateAccessed))
@@ -585,11 +568,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.jupyterStartUserScriptUri,
       initBucket,
       runtime.auditInfo,
-      ServiceAccountInfoRecord(
-        runtime.serviceAccountInfo.clusterServiceAccount.map(_.value),
-        runtime.serviceAccountInfo.notebookServiceAccount.map(_.value),
-        serviceAccountKeyId.map(_.value)
-      ),
+      runtime.serviceAccount,
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
       runtime.autopauseThreshold,
       runtime.defaultClientId,
@@ -711,10 +690,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                patch: List[PatchRecord]): Runtime = {
     val name = clusterRecord.clusterName
     val project = clusterRecord.googleProject
-    val serviceAccountInfo = ServiceAccountInfo(
-      clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
-      clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail)
-    )
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
         AsyncRuntimeFields(googleId,
@@ -733,7 +708,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       RuntimeInternalId(clusterRecord.internalId),
       name,
       project,
-      serviceAccountInfo,
+      clusterRecord.serviceAccountInfo,
       dataprocInfo,
       clusterRecord.auditInfo,
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),

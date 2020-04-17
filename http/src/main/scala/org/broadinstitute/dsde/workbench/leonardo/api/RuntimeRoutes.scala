@@ -354,7 +354,7 @@ object RuntimeRoutes {
       x.id,
       x.clusterName,
       x.googleProject,
-      x.serviceAccountInfo.clusterServiceAccount.get,
+      x.serviceAccountInfo,
       x.asyncRuntimeFields,
       x.auditInfo,
       x.runtimeConfig,

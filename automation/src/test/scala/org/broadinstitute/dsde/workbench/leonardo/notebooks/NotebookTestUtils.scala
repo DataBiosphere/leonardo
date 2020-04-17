@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.StorageRole.ObjectAdmin
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, RemoveObjectResult, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.openqa.selenium.WebDriver
@@ -28,49 +27,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
     case _: KernelNotReadyException => true
     case _                          => false
-  }
-
-  def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
-    // verify google-auth
-    notebookPage.executeCell("import google.auth") shouldBe None
-    notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
-    notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(expectedEmail.value)
-
-    // verify FISS
-    notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
-    notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
-    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some(expectedEmail.value)
-
-    // verify Spark
-    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some(
-      "true"
-    )
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some(
-      "/etc/service-account-credentials.json"
-    )
-    val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
-    nbEmail shouldBe 'defined
-    nbEmail.get should include(expectedEmail.value)
-  }
-
-  // TODO: is there a way to check the cluster credentials on the metadata server?
-  def verifyNoNotebookCredentials(notebookPage: NotebookPage): Unit = {
-    // verify google-authn
-    notebookPage.executeCell("import google.auth") shouldBe None
-    notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
-    notebookPage.executeCell("print(credentials.service_account_email)") shouldBe Some("default")
-
-    // verify FISS
-    notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
-    notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
-    notebookPage.executeCell("print(fiss_credentials.service_account_email)") shouldBe Some("default")
-
-    // verify Spark
-    //TODO: re-enable with spark image
-//    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-//    notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.enable'))") shouldBe Some("None")
-//    notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.json.keyfile'))") shouldBe Some("None")
   }
 
   def withNotebooksListPage[T](cluster: ClusterCopy)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,

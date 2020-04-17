@@ -81,12 +81,7 @@ trait TestLeoRoutes {
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig,
-                         MockGoogleComputeService,
-                         mockGoogle2StorageDAO,
-                         mockGoogleProjectDAO,
-                         serviceAccountProvider,
-                         blocker)
+    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
   val dataprocInterp =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,

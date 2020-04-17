@@ -212,23 +212,23 @@ class LeonardoService(
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
       // Grab the service accounts from serviceAccountProvider for use later
-      clusterServiceAccountOpt <- serviceAccountProvider
+      clusterServiceAccount <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
-      notebookServiceAccountOpt <- serviceAccountProvider
-        .getNotebookServiceAccount(userInfo, googleProject)
-      serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
+      petSA <- IO.fromEither(
+        clusterServiceAccount.toRight(new Exception(s"no user ${userInfo.userEmail.value} PET SA found"))
+      )
       clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
 
       cluster <- clusterOpt.fold(
-        internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, runtimeName, request)
+        internalCreateCluster(userInfo.userEmail, petSA, googleProject, runtimeName, request)
       )(c => IO.raiseError(RuntimeAlreadyExistsException(googleProject, runtimeName, c.status)))
 
     } yield cluster
 
   private def internalCreateCluster(
     userEmail: WorkbenchEmail,
-    serviceAccountInfo: ServiceAccountInfo,
+    serviceAccountInfo: WorkbenchEmail,
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     request: CreateRuntimeRequest
@@ -597,7 +597,7 @@ class LeonardoService(
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.diskSize), targetMachineSize)
 
     // Note: GCE allows you to increase a persistent disk, but not decrease. Throw an exception if the user tries to decrease their disk.
-    val diskSizeIncreased = (newSize: DiskSize) => existingRuntimeConfig.diskSize.gb < newSize.gb
+    def diskSizeIncreased(newSize: DiskSize): Boolean = existingRuntimeConfig.diskSize.gb < newSize.gb
 
     updatedMasterDiskSizeOpt match {
       case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>
@@ -919,7 +919,7 @@ object LeonardoService {
       case None => Right(params)
     }
 
-  private[service] def augmentCreateRuntimeRequest(serviceAccountInfo: ServiceAccountInfo,
+  private[service] def augmentCreateRuntimeRequest(serviceAccountInfo: WorkbenchEmail,
                                                    googleProject: GoogleProject,
                                                    clusterName: RuntimeName,
                                                    userEmail: WorkbenchEmail,
@@ -961,7 +961,7 @@ object LeonardoService {
         else Math.max(autoPauseOffValue, autopauseThreshold.get)
     }
 
-  private[service] def addClusterLabels(serviceAccountInfo: ServiceAccountInfo,
+  private[service] def addClusterLabels(serviceAccountInfo: WorkbenchEmail,
                                         googleProject: GoogleProject,
                                         clusterName: RuntimeName,
                                         creator: WorkbenchEmail,
@@ -972,8 +972,7 @@ object LeonardoService {
       clusterName,
       googleProject,
       creator,
-      serviceAccountInfo.clusterServiceAccount,
-      serviceAccountInfo.notebookServiceAccount,
+      serviceAccountInfo,
       request.jupyterUserScriptUri,
       request.jupyterStartUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption

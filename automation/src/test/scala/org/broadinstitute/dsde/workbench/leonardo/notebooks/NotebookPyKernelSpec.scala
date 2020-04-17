@@ -197,19 +197,5 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         }
       }
     }
-
-    "should use pet credentials" in { runtimeFixture =>
-      val petEmail = getAndVerifyPet(runtimeFixture.runtime.googleProject)
-      // cluster should have been created with the pet service account
-
-      runtimeFixture.runtime.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
-
-      withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          // should not have notebook credentials because Leo is not configured to use a notebook service account
-          verifyNoNotebookCredentials(notebookPage)
-        }
-      }
-    }
   }
 }
