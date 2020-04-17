@@ -58,7 +58,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       implicit val appContext = ApplicativeAsk.const[F, AppContext](AppContext(traceId, now))
       val res = for {
         res <- messageResponder(event.msg, now)
-          .timeout(55 seconds)
+          .timeout(config.timeout)
           .attempt // set timeout to 55 seconds because subscriber's ack deadline is 1 minute
         _ <- res match {
           case Left(e) =>
@@ -448,4 +448,4 @@ object PubsubHandleMessageError {
   }
 }
 
-final case class LeoPubsubMessageSubscriberConfig(concurrency: Int)
+final case class LeoPubsubMessageSubscriberConfig(concurrency: Int, timeout: FiniteDuration)

@@ -353,7 +353,8 @@ object Config {
   implicit val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
     ValueReader.relative { config =>
       LeoPubsubMessageSubscriberConfig(
-        config.getInt("concurrency")
+        config.getInt("concurrency"),
+        toScalaDuration(config.getDuration("timeout"))
       )
     }
 
@@ -422,12 +423,14 @@ object Config {
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val vpcConfig = config.as[VPCConfig]("vpc")
+  val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
-  val topicName = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
-  val subscriberConfig: SubscriberConfig =
-    SubscriberConfig(applicationConfig.leoServiceAccountJsonFile.toString, topicName, 1 minute, None)
+  val subscriberConfig: SubscriberConfig = SubscriberConfig(
+    applicationConfig.leoServiceAccountJsonFile.toString,
+    topic,
+    1 minute,
+    None)
 
-  private val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
   val publisherConfig: PublisherConfig =
     PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic, retryConfig)
