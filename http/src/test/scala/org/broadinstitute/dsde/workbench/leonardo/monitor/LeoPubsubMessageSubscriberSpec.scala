@@ -512,7 +512,7 @@ class LeoPubsubMessageSubscriberSpec
   def makeLeoSubscriber() = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](googleSubscriber, MockGceRuntimeMonitor)
+    new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(1), googleSubscriber, MockGceRuntimeMonitor)
   }
 
 }

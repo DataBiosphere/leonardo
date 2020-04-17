@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.GceMonitorConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{GceMonitorConfig, LeoPubsubMessageSubscriberConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -350,6 +350,12 @@ object Config {
   implicit val styleSrcReader: ValueReader[StyleSrc] = traversableReader[List, String].map(StyleSrc)
   implicit val connectSrcReader: ValueReader[ConnectSrc] = traversableReader[List, String].map(ConnectSrc)
   implicit val objectSrcReader: ValueReader[ObjectSrc] = traversableReader[List, String].map(ObjectSrc)
+  implicit val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
+    ValueReader.relative { config =>
+      LeoPubsubMessageSubscriberConfig(
+        config.getInt("concurrency")
+      )
+    }
 
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
@@ -445,4 +451,6 @@ object Config {
                                                   clusterFilesConfig,
                                                   monitorConfig)
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
+
+  val leoPubsubMessageSubscriberConfig = config.as[LeoPubsubMessageSubscriberConfig]("pubsub.subscriber")
 }
