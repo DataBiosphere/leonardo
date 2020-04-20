@@ -132,27 +132,6 @@ class LeonardoServiceSpec
     super.afterAll()
   }
 
-  lazy val serviceAccountCredentialFile = notebookServiceAccountFromProject(project)
-    .map(_ => List(RuntimeTemplateValues.serviceAccountCredentialsFilename))
-    .getOrElse(List.empty)
-
-  lazy val configFiles = List(
-    clusterResourcesConfig.jupyterDockerCompose.asString,
-    clusterResourcesConfig.rstudioDockerCompose.asString,
-    clusterResourcesConfig.proxyDockerCompose.asString,
-    clusterResourcesConfig.welderDockerCompose.asString,
-    clusterResourcesConfig.initActionsScript.asString,
-    clusterFilesConfig.jupyterServerCrt.getName,
-    clusterFilesConfig.jupyterServerKey.getName,
-    clusterFilesConfig.jupyterRootCaPem.getName,
-    clusterResourcesConfig.proxySiteConf.asString,
-    clusterResourcesConfig.jupyterNotebookConfigUri.asString,
-    clusterResourcesConfig.jupyterNotebookFrontendConfigUri.asString,
-    clusterResourcesConfig.customEnvVarsConfigUri.asString
-  )
-
-  lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
-
   "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
