@@ -51,7 +51,8 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           deployWelder: String,
                                           updateWelder: String,
                                           disableDelocalization: String,
-                                          rstudioLicenseFile: String) {
+                                          rstudioLicenseFile: String,
+                                          proxyServerHostName: String) {
 
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
@@ -228,7 +229,8 @@ object RuntimeTemplateValues {
       (config.welderAction == Some(DisableDelocalization)).toString,
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.rstudioLicenseFile.getFileName.toString)).toUri)
-        .getOrElse("")
+        .getOrElse(""),
+      config.proxyConfig.getProxyServerHostName
     )
 
   def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =

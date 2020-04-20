@@ -116,6 +116,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export NOTEBOOKS_DIR=$(notebooksDir)
     export MEM_LIMIT=$(memLimit)
     export WELDER_MEM_LIMIT=$(welderMemLimit)
+    export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)
