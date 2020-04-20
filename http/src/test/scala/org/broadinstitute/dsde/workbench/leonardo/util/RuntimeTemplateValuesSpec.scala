@@ -46,9 +46,9 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with FlatSpecLike {
                                                        GcsObjectName("jupyter_notebook_config.py")).toUri
       result.jupyterNotebookFrontendConfigUri shouldBe GcsPath(CommonTestData.initBucketName,
                                                                GcsObjectName("notebook.json")).toUri
-      result.jupyterServerCrt shouldBe GcsPath(CommonTestData.initBucketName, GcsObjectName("test-server.crt")).toUri
+      result.proxyServerCrt shouldBe GcsPath(CommonTestData.initBucketName, GcsObjectName("test-server.crt")).toUri
       result.jupyterServerExtensions shouldBe ""
-      result.jupyterServerKey shouldBe GcsPath(CommonTestData.initBucketName, GcsObjectName("test-server.key")).toUri
+      result.proxyServerKey shouldBe GcsPath(CommonTestData.initBucketName, GcsObjectName("test-server.key")).toUri
       result.jupyterServerName shouldBe "jupyter-server"
       result.jupyterServiceAccountCredentials shouldBe ""
       result.jupyterStartUserScriptOutputUri shouldBe RuntimeTemplateValues
@@ -70,6 +70,8 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with FlatSpecLike {
       result.rstudioDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                    GcsObjectName("test-rstudio-docker-compose.yaml")).toUri
       result.rstudioDockerImage shouldBe ""
+      result.rstudioLicenseFile shouldBe GcsPath(CommonTestData.initBucketName,
+                                                 GcsObjectName("rstudio-license-file.lic")).toUri
       result.rstudioServerName shouldBe "rstudio-server"
       result.runtimeOperation shouldBe RuntimeOperation.Restarting.asString
       result.stagingBucketName shouldBe CommonTestData.stagingBucketName.value
