@@ -127,6 +127,7 @@ if [[ "$RUNTIME_OPERATION" == 'creating' ]]; then
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export MEM_LIMIT=$(memLimit)
     export WELDER_MEM_LIMIT=$(welderMemLimit)
+    export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)

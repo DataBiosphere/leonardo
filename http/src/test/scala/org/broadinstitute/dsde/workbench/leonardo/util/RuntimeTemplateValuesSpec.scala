@@ -47,6 +47,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with FlatSpecLike {
       result.jupyterNotebookFrontendConfigUri shouldBe GcsPath(CommonTestData.initBucketName,
                                                                GcsObjectName("notebook.json")).toUri
       result.proxyServerCrt shouldBe GcsPath(CommonTestData.initBucketName, GcsObjectName("test-server.crt")).toUri
+      result.proxyServerHostName shouldBe "https://leo"
       result.jupyterServerExtensions shouldBe ""
       result.proxyServerKey shouldBe GcsPath(CommonTestData.initBucketName, GcsObjectName("test-server.key")).toUri
       result.jupyterServerName shouldBe "jupyter-server"
