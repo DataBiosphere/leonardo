@@ -214,8 +214,9 @@ END
 
     # Install RStudio license file, if specified
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-      gsutil -q stat ${RSTUDIO_LICENSE_FILE}
-      if [ $? == 0 ] ; then
+      STAT_EXIT_CODE=0
+      gsutil -q stat ${RSTUDIO_LICENSE_FILE} || STAT_EXIT_CODE=$?
+      if [ $STAT_EXIT_CODE -eq 0 ] ; then
         echo "Using RStudio license file $RSTUDIO_LICENSE_FILE"
         gsutil cp ${RSTUDIO_LICENSE_FILE} /etc/rstudio-license-file.lic
       else
