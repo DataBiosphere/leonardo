@@ -213,11 +213,14 @@ END
     fi
 
     # Install RStudio license file, if specified
-    if [ ! -z ${RSTUDIO_LICENSE_FILE} ] ; then
-      echo "Using RStudio license file $RSTUDIO_LICENSE_FILE"
-      gsutil cp ${RSTUDIO_LICENSE_FILE} /etc/rstudio-license-file.lic
-    else
-      echo "" > /etc/rstudio-license-file.lic
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      gsutil -q stat ${RSTUDIO_LICENSE_FILE}
+      if [ $? == 0 ] ; then
+        echo "Using RStudio license file $RSTUDIO_LICENSE_FILE"
+        gsutil cp ${RSTUDIO_LICENSE_FILE} /etc/rstudio-license-file.lic
+      else
+        echo "" > /etc/rstudio-license-file.lic
+      fi
     fi
 
     # If any image is hosted in a GCR registry (detected by regex) then
