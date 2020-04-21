@@ -14,6 +14,6 @@ case class ProxyConfig(proxyDomain: String,
                        internalIdCacheMaxSize: Int) {
   def getProxyServerHostName: String = {
     val url = new URL(proxyUrlBase)
-    url.getProtocol + "://" + url.getHost
+    s"${url.getProtocol}://${url.getHost}" + (if (url.getPort == -1) "" else s":${url.getPort.toString}")
   }
 }
