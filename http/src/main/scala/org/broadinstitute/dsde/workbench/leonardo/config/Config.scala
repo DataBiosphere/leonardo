@@ -354,7 +354,7 @@ object Config {
     ValueReader.relative { config =>
       LeoPubsubMessageSubscriberConfig(
         config.getInt("concurrency"),
-        toScalaDuration(config.getDuration("timeout"))
+        config.as[FiniteDuration]("timeout")
       )
     }
 
@@ -428,7 +428,7 @@ object Config {
   val subscriberConfig: SubscriberConfig = SubscriberConfig(
     applicationConfig.leoServiceAccountJsonFile.toString,
     topic,
-    1 minute,
+    config.as[FiniteDuration]("pubsub.ackDeadLine"),
     None)
 
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
