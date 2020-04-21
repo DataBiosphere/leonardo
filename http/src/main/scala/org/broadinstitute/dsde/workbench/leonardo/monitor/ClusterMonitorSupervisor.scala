@@ -274,7 +274,7 @@ class ClusterMonitorSupervisor(
             case c if c.status == RuntimeStatus.Creating && c.asyncRuntimeFields.isDefined =>
               IO(self ! ClusterCreated(c, c.stopAfterCreation))
 
-            case c => IO(logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor"))
+            case c => IO(logger.warn(s"${c.projectNameString} unhandled status(${c.status}). Not going to monitor"))
           }
         case Left(e) =>
           IO(logger.error("Error starting cluster monitor", e))

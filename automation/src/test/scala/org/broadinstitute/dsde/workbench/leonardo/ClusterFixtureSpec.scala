@@ -118,10 +118,14 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
             toolDockerImage = toolDockerImage,
             autopause = Some(false)
           )
-          Either.catchNonFatal(createNewCluster(GoogleProject(billingProject), request = request)(ronAuthToken)).handleError { e =>
-            clusterCreationFailureMsg = e.getMessage
-            null
-          }.map(c => ronCluster = c).void
+          Either
+            .catchNonFatal(createNewCluster(GoogleProject(billingProject), request = request)(ronAuthToken))
+            .handleError { e =>
+              clusterCreationFailureMsg = e.getMessage
+              null
+            }
+            .map(c => ronCluster = c)
+            .void
         case None =>
           clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
       }
@@ -133,9 +137,9 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) =>
-          if(ronCluster != null)
+          if (ronCluster != null)
             deleteCluster(GoogleProject(billingProject), ronCluster.clusterName, false)(ronAuthToken)
-        case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
+        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
     }
     super.afterAll()

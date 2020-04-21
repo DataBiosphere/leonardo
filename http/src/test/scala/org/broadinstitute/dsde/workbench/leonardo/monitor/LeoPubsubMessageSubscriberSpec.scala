@@ -36,6 +36,7 @@ import org.scalatest.concurrent._
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Left
 
@@ -512,7 +513,7 @@ class LeoPubsubMessageSubscriberSpec
   def makeLeoSubscriber() = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](googleSubscriber, MockGceRuntimeMonitor)
+    new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(1, 30 seconds), googleSubscriber, MockGceRuntimeMonitor)
   }
 
 }

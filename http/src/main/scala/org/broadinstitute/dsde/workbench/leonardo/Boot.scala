@@ -209,7 +209,9 @@ object Boot extends IOApp {
 
           // only needed for backleo
           val pubsubSubscriber =
-            new LeoPubsubMessageSubscriber[IO](appDependencies.subscriber, gceRuntimeMonitor)
+            new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
+                                               appDependencies.subscriber,
+                                               gceRuntimeMonitor)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,

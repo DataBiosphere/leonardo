@@ -10,7 +10,6 @@ import cats.mtl.ApplicativeAsk
 import fs2.{Pipe, Stream}
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Starting, Stopped}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.subscriberConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -19,10 +18,13 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
+import cats.effect.implicits._
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
+  config: LeoPubsubMessageSubscriberConfig,
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   gceRuntimeMonitor: GceRuntimeMonitor[F]
 )(implicit executionContext: ExecutionContext,
@@ -52,11 +54,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {
     in.evalMap { event =>
       val traceId = event.traceId.getOrElse(TraceId("None"))
-
       val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
       implicit val appContext = ApplicativeAsk.const[F, AppContext](AppContext(traceId, now))
       val res = for {
-        res <- messageResponder(event.msg, now).attempt
+        res <- messageResponder(event.msg, now)
+          .timeout(config.timeout)
+          .attempt // set timeout to 55 seconds because subscriber's ack deadline is 1 minute
         _ <- res match {
           case Left(e) =>
             e match {
@@ -81,9 +84,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     }
   }
 
-  val process: Stream[F, Unit] =
-    (Stream.eval(logger.info(s"starting subscriber ${subscriberConfig.projectTopicName}")) ++ (subscriber.messages through messageHandler))
-      .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
+  val process: Stream[F, Unit] = (subscriber.messages through messageHandler)
+    .chunkLimit(config.concurrency)
+    .map(c => Stream.chunk(c).covary[F])
+    .parJoin(config.concurrency)
+    .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] =
     logger.info(s"acking message: ${event}") >> F.delay(
@@ -212,7 +217,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     createCluster.handleErrorWith {
       case e =>
         for {
-          _ <- logger.error(e)(s"Failed to create cluster ${msg.runtimeProjectAndName} in Google")
+          _ <- logger.error(e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
           errorMessage = e match {
             case leoEx: LeoException =>
               ErrorReport.loggableString(leoEx.toErrorReport)
@@ -442,3 +447,5 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 }
+
+final case class LeoPubsubMessageSubscriberConfig(concurrency: Int, timeout: FiniteDuration)
