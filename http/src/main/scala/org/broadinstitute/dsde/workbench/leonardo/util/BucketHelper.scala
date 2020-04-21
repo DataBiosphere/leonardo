@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 
 import _root_.io.chrisdavenport.log4cats.Logger
 import cats.data.NonEmptyList
@@ -116,15 +117,26 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       case (memo, (key, value)) => memo + s"$key=$value\n"
     })
 
+    // Check if rstudioLicenseFile exists to allow the Leonardo PR to merge before the
+    // actual license file is added to firecloud-develop.
+    // TODO: remove once firecloud-develop has been updated to render the license file
+    val rstudioLicenseFile = Stream
+      .eval(
+        Async[F].delay(Files.exists(config.clusterFilesConfig.rstudioLicenseFile)) map {
+          case true  => Some(config.clusterFilesConfig.rstudioLicenseFile)
+          case false => None
+        }
+      )
+      .unNone
+
     val uploadRawFiles = for {
       f <- Stream.emits(
         Seq(
           config.clusterFilesConfig.proxyServerCrt,
           config.clusterFilesConfig.proxyServerKey,
-          config.clusterFilesConfig.proxyRootCaPem,
-          config.clusterFilesConfig.rstudioLicenseFile
+          config.clusterFilesConfig.proxyRootCaPem
         )
-      )
+      ) ++ rstudioLicenseFile
       bytes <- Stream.eval(TemplateHelper.fileStream[F](f, blocker).compile.to(Array))
       _ <- storeObject(initBucketName, GcsBlobName(f.getFileName.toString), bytes, "text/plain")
     } yield ()
