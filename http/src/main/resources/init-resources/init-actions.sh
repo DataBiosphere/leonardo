@@ -214,6 +214,8 @@ END
 
     # Install RStudio license file, if specified
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      # TODO: remove the gsutil stat command when https://github.com/broadinstitute/firecloud-develop/pull/2105
+      # is merged because then we'll expect the license file to always be present.
       STAT_EXIT_CODE=0
       gsutil -q stat ${RSTUDIO_LICENSE_FILE} || STAT_EXIT_CODE=$?
       if [ $STAT_EXIT_CODE -eq 0 ] ; then

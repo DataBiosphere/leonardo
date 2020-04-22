@@ -14,6 +14,8 @@ case class ProxyConfig(proxyDomain: String,
                        internalIdCacheMaxSize: Int) {
   def getProxyServerHostName: String = {
     val url = new URL(proxyUrlBase)
-    s"${url.getProtocol}://${url.getHost}" + (if (url.getPort == -1) "" else s":${url.getPort.toString}")
+    // The port is specified in fiabs, but generally unset otherwise
+    val portStr = if (url.getPort == -1) "" else s":${url.getPort.toString}"
+    s"${url.getProtocol}://${url.getHost}${portStr}"
   }
 }

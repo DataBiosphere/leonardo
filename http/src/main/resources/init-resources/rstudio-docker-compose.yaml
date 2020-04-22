@@ -15,8 +15,8 @@ services:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
+      RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
-    privileged: true
     volumes:
       - /work:/home/rstudio
       - /etc/rstudio-license-file.lic:/etc/rstudio-server/license.lic:ro

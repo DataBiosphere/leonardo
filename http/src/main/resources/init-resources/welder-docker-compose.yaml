@@ -19,6 +19,7 @@ services:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       STAGING_BUCKET: "${STAGING_BUCKET}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
+      RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
       # shared with jupyter
