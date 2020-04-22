@@ -179,6 +179,91 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       }
     } yield ()
 
+  //Notifications that Leo has created/destroyed persistent disks. Allows the auth provider to register things.
+  /**
+    * Leo calls this method to notify the auth provider that a new persistent disk has been created.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Returning a failed Future will prevent the disk from being created, and will call notifyPersistentDiskDeleted for the same disk.
+    * Leo will wait, so be timely!
+    *
+    * @param internalId     The internal ID for the disk (i.e. used for Sam resources)
+    * @param creatorEmail   The email address of the user in question
+    * @param googleProject  The Google project the disk was created in
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  def createPersistentDiskResource(internalId: PersistentDiskInternalId,
+                                   creatorEmail: WorkbenchEmail,
+                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    for {
+      traceId <- ev.ask
+      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
+        _.fold(
+          Effect[F].raiseError[String](
+            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}")
+          )
+        )(s => Effect[F].pure(s))
+      )
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+      _ <- logger.info(
+        s"${traceId} | creating persistent-disk resource in sam for ${googleProject}/${internalId}"
+      )
+      _ <- httpClient.fetch[Unit](
+        Request[F](
+          method = Method.POST,
+          uri = config.samUri
+            .withPath(s"/api/resources/v1/${ResourceTypeName.PersistentDisk.toString}/${internalId.asString}"),
+          headers = Headers.of(authHeader)
+        )
+      ) { resp =>
+        if (resp.status.isSuccess)
+          Effect[F].unit
+        else
+          onError(resp).flatMap(Effect[F].raiseError)
+      }
+    } yield ()
+
+  /**
+    * Leo calls this method to notify the auth provider that a persistent disk has been deleted.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Leo will wait, so be timely!
+    *
+    * @param internalId      The internal ID for the disk (i.e. used for Sam resources)
+    * @param userEmail       The email address of the user in question
+    * @param creatorEmail    The email address of the creator of the disk
+    * @param googleProject   The Google project the disk was created in
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
+                                   userEmail: WorkbenchEmail,
+                                   creatorEmail: WorkbenchEmail,
+                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    for {
+      traceId <- ev.ask
+      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
+        _.fold(
+          Effect[F].raiseError[String](
+            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}")
+          )
+        )(s => Effect[F].pure(s))
+      )
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+      _ <- httpClient.fetch[Unit](
+        Request[F](
+          method = Method.DELETE,
+          uri = config.samUri
+            .withPath(s"/api/resources/v1/${ResourceTypeName.PersistentDisk.toString}/${internalId.asString}"),
+          headers = Headers.of(authHeader)
+        )
+      ) { resp =>
+        resp.status match {
+          case Status.NotFound =>
+            logger.info(s"Fail to delete ${googleProject}/${internalId} because persistent disk doesn't exist in SAM")
+          case s if (s.isSuccess) => Effect[F].unit
+          case _                  => onError(resp).flatMap(Effect[F].raiseError)
+        }
+      }
+    } yield ()
+
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
@@ -309,6 +394,7 @@ object AccessPolicyName {
 
 }
 final case class SamNotebookClusterPolicy(accessPolicyName: AccessPolicyName, internalId: RuntimeInternalId)
+final case class SamPersistentDiskPolicy(accessPolicyName: AccessPolicyName, internalId: PersistentDiskInternalId)
 final case class SamProjectPolicy(accessPolicyName: AccessPolicyName, googleProject: GoogleProject)
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
@@ -319,6 +405,10 @@ object ResourceTypeName {
   final case object NotebookCluster extends ResourceTypeName {
     override def toString: String = "notebook-cluster"
     override type ResourcePolicy = SamNotebookClusterPolicy
+  }
+  final case object PersistentDisk extends ResourceTypeName {
+    override def toString: String = "persistent-disk"
+    override type ResourcePolicy = SamPersistentDiskPolicy
   }
   final case object BillingProject extends ResourceTypeName {
     override def toString: String = "billing-project"

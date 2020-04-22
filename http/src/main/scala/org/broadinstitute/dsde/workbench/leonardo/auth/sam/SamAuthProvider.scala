@@ -14,7 +14,8 @@ import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
+import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.{CreateClusters, CreatePersistentDisk}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -72,12 +73,25 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
         )
       )
 
+  private def getPersistentDiskActionString(action: LeoAuthAction): Either[Throwable, String] =
+    persistentDiskActionMap
+      .get(action)
+      .toRight(
+        UnknownLeoAuthAction(
+          s"SamAuthProvider has no mapping for persistent-disk authorization action ${action.toString}, and is therefore probably out of date."
+        )
+      )
+
   private val projectActionMap: Map[LeoAuthAction, String] = Map(
     GetClusterStatus -> "list_notebook_cluster",
     CreateClusters -> "launch_notebook_cluster",
     SyncDataToCluster -> "sync_notebook_cluster",
     DeleteCluster -> "delete_notebook_cluster",
-    StopStartCluster -> "stop_start_notebook_cluster"
+    StopStartCluster -> "stop_start_notebook_cluster",
+    CreatePersistentDisk -> "create_persistent_disk",
+    ModifyPersistentDisk -> "modify_persistent_disk",
+    DeletePersistentDisk -> "delete_persistent_disk"
+
   )
 
   private val notebookActionMap: Map[LeoAuthAction, String] = Map(
@@ -87,6 +101,13 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     DeleteCluster -> "delete",
     ModifyCluster -> "modify",
     StopStartCluster -> "stop_start"
+  )
+
+  private val persistentDiskActionMap: Map[LeoAuthAction, String] = Map(
+    ReadPersistentDisk -> "read",
+    AttachPersistentDisk -> "attach",
+    ModifyPersistentDisk -> "modify",
+    DeletePersistentDisk -> "delete"
   )
 
   /**
@@ -137,6 +158,25 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     }
   }
 
+  /**
+    * Leo calls this method to verify if the user has permission to perform the given action on a specific persistent disk.
+    * Return Future.successful(false) if the specified persistent disk does not exist.
+    *
+    * @param userInfo      The user in question
+    * @param action        The persistent-disk action (above) the user is requesting
+    * @param googleProject The Google project the persistent disk was created in
+    * @return If the userEmail has permission on this individual persistent disk to perform this action
+    */
+  override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
+                                           userInfo: UserInfo,
+                                           action: PersistentDiskActions.PersistentDiskAction,
+                                           googleProject: GoogleProject
+                                         )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
+    val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    // can add check to cache here if necessary
+    checkPersistentDiskPermissionWithProjectFallback(internalId, authorization, action, googleProject)
+  }
+
   private def checkNotebookClusterPermissionWithProjectFallback(
     internalId: RuntimeInternalId,
     authorization: Authorization,
@@ -156,6 +196,28 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
             case e =>
               Logger[F]
                 .info(e)(s"${traceId} | $action is not allowed at notebook-cluster level, nor project level")
+                .as(false)
+          }
+      }
+    } yield res
+
+  private def checkPersistentDiskPermissionWithProjectFallback(internalId: PersistentDiskInternalId,
+                                                               authorization: Authorization,
+                                                               action: PersistentDiskActions.PersistentDiskAction,
+                                                               googleProject: GoogleProject
+                                                              )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
+    for {
+      traceId <- ev.ask
+      hasPersistentDiskAction <- hasPersistentDiskPermissionInternal(internalId, action, authorization)
+      res <- if (action == AttachPersistentDisk) Sync[F].pure(hasPersistentDiskAction)
+      else {
+        if (hasPersistentDiskAction)
+          Sync[F].pure(true)
+        else
+          hasProjectPermissionInternal(googleProject, action, authorization).recoverWith {
+            case e =>
+              Logger[F]
+                .info(e)(s"${traceId} | $action is not allowed at persistent-disk level, nor project level")
                 .as(false)
           }
       }
@@ -185,6 +247,18 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                           actionString,
                                           ResourceTypeName.NotebookCluster,
                                           authHeader)
+    } yield res
+
+  private def hasPersistentDiskPermissionInternal(persistentDiskInternalId: PersistentDiskInternalId,
+                                                  action: LeoAuthAction,
+                                                  authHeader: Authorization
+                                                )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
+    for {
+      actionString <- Effect[F].fromEither(getPersistentDiskActionString(action))
+      res <- samDao.hasResourcePermission(persistentDiskInternalId.asString,
+        actionString,
+        ResourceTypeName.PersistentDisk,
+        authHeader)
     } yield res
 
   /**
@@ -250,6 +324,39 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                     googleProject: GoogleProject,
                                     clusterName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteClusterResource(internalId, userEmail, creatorEmail, googleProject, clusterName)
+
+  /**
+    * Leo calls this method to notify the auth provider that a new persistent disk has been created.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Returning a failed Future will prevent the disk from being created, and will call notifyPersistentDiskDeleted for the same disk.
+    * Leo will wait, so be timely!
+    *
+    * @param internalId      The internal ID for the disk (i.e. used for Sam resources)
+    * @param creatorEmail    The email address of the user in question
+    * @param googleProject   The Google project the disk was created in
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    samDao.createPersistentDiskResource(internalId, creatorEmail, googleProject)
+
+  /**
+    * Leo calls this method to notify the auth provider that a persistent disk has been deleted.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Leo will wait, so be timely!
+    *
+    * @param internalId      The internal ID for the disk (i.e. used for Sam resources)
+    * @param userEmail       The email address of the user in question
+    * @param creatorEmail    The email address of the creator of the disk
+    * @param googleProject   The Google project the disk was created in
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
+                                           userEmail: WorkbenchEmail,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    samDao.deletePersistentDiskResource(internalId, userEmail, creatorEmail, googleProject)
 }
 final case class SamAuthProviderConfig(notebookAuthCacheEnabled: Boolean,
                                        notebookAuthCacheMaxSize: Int = 1000,

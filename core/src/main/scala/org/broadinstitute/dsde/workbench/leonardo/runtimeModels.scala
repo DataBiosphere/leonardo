@@ -379,6 +379,8 @@ final case class OperationName(value: String) extends ValueObject
 final case class GoogleOperation(name: OperationName, id: GoogleId)
 final case class GoogleId(value: String) extends AnyVal
 
+final case class PersistentDiskInternalId(asString: String) extends AnyVal
+
 sealed trait RuntimeOperation extends Product with Serializable {
   def asString: String
   final override def toString = asString

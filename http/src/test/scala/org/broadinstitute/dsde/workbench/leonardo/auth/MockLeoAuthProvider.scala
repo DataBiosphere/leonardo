@@ -17,6 +17,8 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     (ProjectActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
   val clusterPermissions: Map[NotebookClusterActions.NotebookClusterAction, Boolean] =
     (NotebookClusterActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
+  val diskPermissions: Map[PersistentDiskActions.PersistentDiskAction, Boolean] =
+    (PersistentDiskActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
 
   val canSeeClustersInAllProjects = authConfig.as[Option[Boolean]]("canSeeClustersInAllProjects").getOrElse(false)
   val canSeeAllClustersIn = authConfig.as[Option[Seq[String]]]("canSeeAllClustersIn").getOrElse(Seq.empty)
@@ -36,6 +38,14 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     clusterName: RuntimeName
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     IO.pure(clusterPermissions(action))
+
+  override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
+                                           userInfo: UserInfo,
+                                           action: PersistentDiskActions.PersistentDiskAction,
+                                           googleProject: GoogleProject,
+                                           diskName: PersistentDiskName
+                                          )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
+    IO.pure(diskPermissions(action))
 
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
@@ -68,6 +78,19 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
                                     clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    notifyInternal
+
+  override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject,
+                                           diskName: PersistentDiskName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    notifyInternal
+
+  override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
+                                           userEmail: WorkbenchEmail,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject,
+                                           diskName: PersistentDiskName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
 }

@@ -7,6 +7,7 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
+import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskActions.PersistentDiskAction
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.ProjectAction
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -44,6 +45,19 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     googleProject: GoogleProject,
     runtimeName: RuntimeName
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
+    checkWhitelist(userInfo)
+
+  /**
+    * @param internalId     The internal ID for the disk (i.e. used for Sam resources)
+    * @param userInfo The user in question
+    * @param action   The disk-level action (above) the user is requesting
+    * @return If the userEmail has permission on this individual persistent disk to perform this action
+    */
+  override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
+                                           userInfo: UserInfo,
+                                           action: PersistentDiskAction,
+                                           googleProject: GoogleProject,
+                                          )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     checkWhitelist(userInfo)
 
   /**
@@ -99,6 +113,38 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
                            creatorEmail: WorkbenchEmail,
                            googleProject: GoogleProject,
                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+
+  /**
+    * Leo calls this method to notify the auth provider that a new persistent disk has been created.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Leo will wait, so be timely!
+    *
+    * @param internalId     The internal ID for the disk (i.e. used for Sam resources)
+    * @param creatorEmail   The email address of the user in question
+    * @param googleProject  The Google project the disk was created in
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject,
+                                          )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+
+  /**
+    * Leo calls this method to notify the auth provider that a persistent disk has been deleted.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Leo will wait, so be timely!
+    *
+    * @param internalId     The internal ID for the disk (i.e. used for Sam resources)
+    * @param userEmail      The email address of the user in question
+    * @param creatorEmail   The email address of the creator of the disk
+    * @param googleProject  The Google project the disk was created in
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
+                                           userEmail: WorkbenchEmail,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject,
+                                          )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 }
