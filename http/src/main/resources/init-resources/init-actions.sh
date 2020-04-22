@@ -101,6 +101,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # The following values are populated by Leo when a cluster is created.
     export CLUSTER_NAME=$(clusterName)
+    export RUNTIME_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)
     export STAGING_BUCKET=$(stagingBucketName)
     export OWNER_EMAIL=$(loginHint)
@@ -116,9 +117,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export NOTEBOOKS_DIR=$(notebooksDir)
     export MEM_LIMIT=$(memLimit)
     export WELDER_MEM_LIMIT=$(welderMemLimit)
+    export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 
-    SERVER_CRT=$(jupyterServerCrt)
-    SERVER_KEY=$(jupyterServerKey)
+    SERVER_CRT=$(proxyServerCrt)
+    SERVER_KEY=$(proxyServerKey)
     ROOT_CA=$(rootCaPem)
     JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
@@ -137,6 +139,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
+    RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
 
     STEP_TIMINGS+=($(date +%s))
 
@@ -208,6 +211,20 @@ END
       echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
     else
       echo "" > /etc/google_application_credentials.env
+    fi
+
+    # Install RStudio license file, if specified
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      # TODO: remove the gsutil stat command when https://github.com/broadinstitute/firecloud-develop/pull/2105
+      # is merged because then we'll expect the license file to always be present.
+      STAT_EXIT_CODE=0
+      gsutil -q stat ${RSTUDIO_LICENSE_FILE} || STAT_EXIT_CODE=$?
+      if [ $STAT_EXIT_CODE -eq 0 ] ; then
+        echo "Using RStudio license file $RSTUDIO_LICENSE_FILE"
+        gsutil cp ${RSTUDIO_LICENSE_FILE} /etc/rstudio-license-file.lic
+      else
+        echo "" > /etc/rstudio-license-file.lic
+      fi
     fi
 
     # If any image is hosted in a GCR registry (detected by regex) then
