@@ -42,8 +42,7 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
   override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
                                            userInfo: UserInfo,
                                            action: PersistentDiskActions.PersistentDiskAction,
-                                           googleProject: GoogleProject,
-                                           diskName: PersistentDiskName
+                                           googleProject: GoogleProject
                                           )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     IO.pure(diskPermissions(action))
 
@@ -82,15 +81,13 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
 
   override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
                                            creatorEmail: WorkbenchEmail,
-                                           googleProject: GoogleProject,
-                                           diskName: PersistentDiskName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
   override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
                                            userEmail: WorkbenchEmail,
                                            creatorEmail: WorkbenchEmail,
-                                           googleProject: GoogleProject,
-                                           diskName: PersistentDiskName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
 }
