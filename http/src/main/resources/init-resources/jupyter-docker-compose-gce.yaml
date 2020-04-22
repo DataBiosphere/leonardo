@@ -19,7 +19,7 @@ services:
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
-      CLUSTER_NAME: "${CLUSTER_NAME}"
+      CLUSTER_NAME: "${RUNTIME_NAME}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
       # Value must be the string "true" to enable.

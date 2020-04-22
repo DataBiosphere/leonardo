@@ -95,6 +95,7 @@ JUPYTER_HOME=/etc/jupyter
 log "Running GCE VM init script in $RUNTIME_OPERATION mode..."
 
 export CLUSTER_NAME=$(clusterName)
+export RUNTIME_NAME=$(clusterName)
 export GOOGLE_PROJECT=$(googleProject)
 export STAGING_BUCKET=$(stagingBucketName)
 export OWNER_EMAIL=$(loginHint)

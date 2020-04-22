@@ -47,6 +47,7 @@ function log() {
 # Templated values
 export GOOGLE_PROJECT=$(googleProject)
 export CLUSTER_NAME=$(clusterName)
+export RUNTIME_NAME=$(clusterName)
 export OWNER_EMAIL=$(loginHint)
 export JUPYTER_SERVER_NAME=$(jupyterServerName)
 export WELDER_SERVER_NAME=$(welderServerName)
