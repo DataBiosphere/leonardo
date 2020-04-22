@@ -87,6 +87,17 @@ class StatusRoutesSpec
                                          clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         ???
 
+      override def createPersistentDiskResource(internalId: PersistentDiskInternalId,
+                                                creatorEmail: WorkbenchEmail,
+                                                googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+        ???
+
+      override def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
+                                                userEmail: WorkbenchEmail,
+                                                creatorEmail: WorkbenchEmail,
+                                                googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+        ???
+
       override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[WorkbenchEmail]] = ???

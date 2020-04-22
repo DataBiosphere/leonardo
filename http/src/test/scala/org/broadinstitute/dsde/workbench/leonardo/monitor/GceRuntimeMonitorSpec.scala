@@ -17,30 +17,13 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, Instance
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  LeoAuthProvider,
-  NotebookClusterActions,
-  ProjectActions,
-  ServiceAccountProvider
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterActions, PersistentDiskActions, ProjectActions, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GoogleProject}
 import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory.makePublisherQueue
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  CreateRuntimeParams,
-  CreateRuntimeResponse,
-  DeleteRuntimeParams,
-  FinalizeDeleteParams,
-  GetRuntimeStatusParams,
-  ResizeClusterParams,
-  RuntimeAlgebra,
-  StartRuntimeParams,
-  StopRuntimeParams,
-  UpdateDiskSizeParams,
-  UpdateMachineTypeParams
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.{CreateRuntimeParams, CreateRuntimeResponse, DeleteRuntimeParams, FinalizeDeleteParams, GetRuntimeStatusParams, ResizeClusterParams, RuntimeAlgebra, StartRuntimeParams, StopRuntimeParams, UpdateDiskSizeParams, UpdateMachineTypeParams}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 
@@ -714,6 +697,10 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     googleProject: GoogleProject,
     runtimeName: RuntimeName
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
+  override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
+                                           userInfo: UserInfo,
+                                           action: PersistentDiskActions.PersistentDiskAction,
+                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[(GoogleProject, RuntimeInternalId)]] = ???
@@ -725,8 +712,14 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
                                     userEmail: WorkbenchEmail,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
-                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO.unit
+                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+  override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
+                                           userEmail: WorkbenchEmail,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
 }
 
 object GceInterp extends RuntimeAlgebra[IO] {
