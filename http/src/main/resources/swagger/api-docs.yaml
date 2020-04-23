@@ -1574,6 +1574,7 @@ components:
         - runtimeName
         - googleProject
         - serviceAccount
+        - auditInfo
         - runtimeConfig
         - status
         - labels
@@ -1582,8 +1583,8 @@ components:
         - scopes
       properties:
         id:
-          type: string
-          description: The internally-referenced ID of the runtime
+          type: long
+          description: The leonardo ID of the runtime
         runtimeName:
           type: string
           description: The user-supplied name for the runtime
@@ -1593,19 +1594,61 @@ components:
         serviceAccount:
           type: string
           description: The Google Service Account used to create the runtime
+        asyncRuntimeFields:
+          $ref: "#/components/schemas/AsyncRuntimeFields"
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
         runtimeConfig:
           $ref: "#/components/schemas/MachineConfig"
+        proxyUrl:
+          type: string
+          description: The URL to access a tool on the runtime
         status:
           $ref: "#/components/schemas/ClusterStatus"
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
+        jupyterExtensionUri:
+          type: string
+          description: Deprecated. Please use userJupyterExtensionConfig.
+        jupyterUserScriptUri:
+          type: string
+          description: >
+            Optional GCS object URI to a bash script the user wishes to run
+            inside their jupyter
+
+            docker. This script runs exactly once when the cluster is first initialized. Logs from
+
+            this script can be found in the Leo staging bucket for the cluster. Script is run as root
+
+            and docker --privileged.
+        jupyterStartUserScriptUri:
+          type: string
+          description: >
+            Optional GCS object URI to a bash script the user wishes to run on
+            cluster start inside
+
+            the jupyter docker. In contrast to jupyterUserScriptUri, this always runs before starting
+
+            Jupyter, both on initial cluster creation and on cluster resume (jupyterUserScriptUri runs
+
+            once on cluster creation). This script may be used to launch background processes which
+
+            would not otherwise survive a cluster stop/start.
+
+            The script is pulled once at cluster creation time; subsequent client changes to the user
+
+            script at this URI do not affect the cluster. Timestamped logs for this script can be
+
+            found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
         errors:
           type: array
           description: The list of errors that were encountered on runtime create. Each
             error consists of the error message, code and timestamp
           items:
             $ref: "#/components/schemas/ClusterError"
+        userJupyterExtensionConfig:
+          $ref: "#/components/schemas/UserJupyterExtensionConfig"
         autopauseThreshold:
           type: integer
           description: The number of minutes of idle time to elapse before the runtime is
@@ -1614,6 +1657,11 @@ components:
         defaultClientId:
           type: string
           description: The default Google Client ID.
+        runtimeImages:
+          type: array
+          description: The docker images on the runtime
+          items:
+            $ref: '#/components/schemas/RuntimeImage'
         scopes:
           type: array
           items:
@@ -2053,6 +2101,49 @@ components:
         timestamp:
           type: string
           description: timestamp for error in ISO 8601 format
+    AsyncRuntimeFields:
+      description: Fields populated asynchronously to the runtime's creation
+      type: object
+      required:
+        - googleId
+        - operationName
+        - stagingBucket
+      properties:
+        googleId:
+          type: string
+          description: Google's UUID for the runtime
+        operationName:
+          type: string
+          description: The google operation name for creating this runtime. This is globally unique among operation names in google.
+        stagingBucket:
+          type: string
+          description: The staging bucket associated with this user's runtime. Used for various logs associated with runtime creation. Useful if creation fails.
+        hostIp:
+          type: string
+          description: optional. The hostIP associated with this runtime.
+    AuditInfo:
+      description: Fields associated with the audit trail for this runtime
+      type: object
+      required:
+        - creator
+        - createdDate
+        - dateAccessed
+      properties:
+        creator:
+          type: string
+          description: The email for the user that created this runtime
+        createdDate:
+          type: string
+          description: timestamp for the date this runtime was created in ISO 8601 format
+        destroyedDate:
+          type: string
+          description: timestamp for the date this runtime was deleted in ISO 8601 format. This is null if it has not been deleted yet.
+        dateAccessed:
+          type: string
+          description: timestamp for the date this runtime was last accessed in ISO 8601 format. This is null if it has not been deleted yet.
+        kernelFoundBusyDate:
+          type: string
+          description: timestamp for the date the kernel for the tool (i.e. Jupyter) in this runtime was last found busy, aka in use, in ISO 8601 format.
     LeonardoVersion:
       type: object
       properties:
@@ -2066,12 +2157,29 @@ components:
         cloudService:
           type: string
           enum: [gce, dataproc]
+    RuntimeImage:
+      type: object
+      properties:
+        imageType:
+          description: "The container this image supports. Ex Jupyter, Proxy, VM"
+          type: string
+        imageUrl:
+          description: "The place this image can be pulled from"
+          type: string
+        timestamp:
+          type: string
+          description: timestamp for image addition to the runtime in ISO 8601 format
     GceConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
       - $ref: '#/components/schemas/RuntimeConfig'
       - type: object
         properties:
+          diskSize:
+            type: integer
+            description: >
+              Optional, the size in gigabytes of the disk on the GCE VM.
+              Minimum size is 50GB. If unspecified, default size is 100GB.
           machineType:
             type: string
             description: >
@@ -2105,7 +2213,7 @@ components:
             type: integer
             description: >
               Optional, the size in gigabytes of the disk on the master node.
-              Minimum size is 10GB. If unspecified, default size is 100GB.
+              Minimum size is 50GB. If unspecified, default size is 100GB.
           workerMachineType:
             type: string
             description: >
