@@ -190,7 +190,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     implicit traceId: ApplicativeAsk[F, AppContext]
   ): F[Unit] = {
     val createCluster = for {
-      _ <- logger.info(s"Attempting to create cluster ${msg.runtimeProjectAndName} in Google...")
       clusterResult <- msg.runtimeConfig.cloudService.interpreter
         .createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
       updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
@@ -222,7 +221,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             case leoEx: LeoException =>
               ErrorReport.loggableString(leoEx.toErrorReport)
             case _ =>
-              s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.toString}"
+              s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}"
           }
           _ <- (clusterErrorQuery.save(msg.runtimeId, RuntimeError(errorMessage, -1, now)) >>
             clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
