@@ -1742,47 +1742,36 @@ components:
     ListRuntimeResponse:
       description: ""
       required:
+        - id
         - runtimeName
         - googleProject
         - serviceAccount
-        - machineConfig
+        - runtimeConfig
         - status
         - labels
-        - autopauseThreshold
-        - defaultClientId
       properties:
-        internalId:
-          type: string
-          description: Internal resource ID of the runtime
+        id:
+          type: long
+          description: Internal Leonardo ID of the runtime
         runtimeName:
           type: string
           description: The user-supplied name for the runtime
-        googleId:
-          type: string
-          description: Google's UUID for the cluster
         googleProject:
           type: string
           description: The Google Project used to create the runtime
-        serviceAccount:
-          type: string
-          description: The Google Service Account used to create the runtime
         runtimeConfig:
           $ref: "#/components/schemas/MachineConfig"
+        proxyUrl:
+          type: string
+          description: The URL to access a tool on the runtime
         status:
           $ref: "#/components/schemas/ClusterStatus"
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
-        autopauseThreshold:
-          type: integer
-          description: The number of minutes of idle time to elapse before the runtime is
-            autopaused. A value of 0 is equivalent to autopause being turned
-            off.
-        jupyterUserScriptUri:
-          type: string
-        defaultClientId:
-          type: string
-          description: The default Google Client ID.
+        patchInProgress:
+          type: boolean
+          description: Whether there is a patch in progress on the runtime. Is used to indicate updates that require status transitions.
     InstanceKey:
       description: ""
       required:
