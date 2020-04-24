@@ -41,7 +41,7 @@ object GceMonitorState {
 }
 
 final case class MonitorContext(start: Instant, runtimeId: Long, traceId: TraceId) {
-  override def toString: String = s"runtimeId(${runtimeId}, traceId(${traceId.asString}))"
+  override def toString: String = s"runtimeId(${runtimeId}), traceId(${traceId.asString}))"
 }
 
 final case class GceMonitorConfig(initialDelay: FiniteDuration,
