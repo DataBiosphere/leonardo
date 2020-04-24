@@ -17,8 +17,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
-
 import cats.effect.implicits._
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
@@ -219,12 +219,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           _ <- logger.error(e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
           errorMessage = e match {
             case leoEx: LeoException =>
-              ErrorReport.loggableString(leoEx.toErrorReport)
+              Some(ErrorReport.loggableString(leoEx.toErrorReport))
+            case ee: com.google.api.gax.rpc.AbortedException if ee.getStatusCode().getCode == 409 && ee.getMessage().contains("already exists") =>
+              None //this could happen when pubsub redelivers an event unexpectedly
             case _ =>
-              s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}"
+              Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
           }
-          _ <- (clusterErrorQuery.save(msg.runtimeId, RuntimeError(errorMessage, -1, now)) >>
-            clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
+          _ <- errorMessage.traverse(m => (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, now)) >>
+            clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F])
         } yield ()
     }
   }

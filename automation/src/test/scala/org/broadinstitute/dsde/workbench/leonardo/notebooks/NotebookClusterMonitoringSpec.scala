@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEnt
 import org.broadinstitute.dsde.workbench.service.Sam
 
 import org.scalatest.tagobjects.Retryable
-import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
