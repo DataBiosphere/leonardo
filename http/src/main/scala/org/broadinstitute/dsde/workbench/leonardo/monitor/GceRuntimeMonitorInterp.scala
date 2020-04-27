@@ -459,14 +459,14 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
             case Some(x) =>
               logger
                 .info(
-                  s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s tools(${toolsToCheck}) is not ready yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${config.pollingInterval}. ${message
+                  s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s tools(${toolsToCheck}) is not ready yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${config.pollingInterval}. ${message
                     .getOrElse("")}"
                 )
                 .as(((), Some(CheckTools(x, runtimeAndRuntimeConfig, toolsToCheck))))
             case None =>
               logger
                 .info(
-                  s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${config.pollingInterval}. ${message
+                  s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${config.pollingInterval}. ${message
                     .getOrElse("")}"
                 )
                 .as(((), Some(Check(runtimeAndRuntimeConfig))))
