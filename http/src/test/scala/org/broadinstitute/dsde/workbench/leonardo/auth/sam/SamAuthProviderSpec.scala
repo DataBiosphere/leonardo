@@ -9,8 +9,8 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.{CreateClusters, CreatePersistentDisk}
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction.{DeleteCluster, SyncDataToCluster}
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction.{CreateClusters, CreatePersistentDisk}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
 import org.http4s.HttpApp
@@ -18,7 +18,7 @@ import org.http4s.client.Client
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskActions.{AttachPersistentDisk, DeletePersistentDisk}
+import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.{AttachPersistentDisk, DeletePersistentDisk}
 
 import scala.concurrent.duration._
 

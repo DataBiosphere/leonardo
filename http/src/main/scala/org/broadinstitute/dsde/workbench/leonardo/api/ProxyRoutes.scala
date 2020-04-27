@@ -17,7 +17,7 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.stream.Materializer
 import cats.effect.{ContextShift, IO}
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction.ConnectToCluster
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport

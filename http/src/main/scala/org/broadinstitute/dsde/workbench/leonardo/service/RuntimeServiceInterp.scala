@@ -28,6 +28,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -55,7 +57,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
-      hasPermission <- authProvider.hasProjectPermission(userInfo, ProjectActions.CreateClusters, googleProject)
+      hasPermission <- authProvider.hasProjectPermission(userInfo, CreateClusters, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccountOpt <- serviceAccountProvider
@@ -142,7 +144,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       hasPermission <- authProvider.hasNotebookClusterPermission(resp.internalId,
                                                                  userInfo,
-                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
@@ -178,14 +180,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
-                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no DeleteCluster permission
       hasDeletePermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                        userInfo,
-                                                                       NotebookClusterActions.DeleteCluster,
+                                                                       DeleteCluster,
                                                                        googleProject,
                                                                        runtimeName)
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
@@ -221,14 +223,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
-                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no StopStartCluster permission
       hasStopPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                      userInfo,
-                                                                     NotebookClusterActions.StopStartCluster,
+                                                                     StopStartCluster,
                                                                      googleProject,
                                                                      runtimeName)
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
@@ -254,14 +256,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
-                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no StopStartCluster permission
       hasStartPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                       userInfo,
-                                                                      NotebookClusterActions.StopStartCluster,
+                                                                      StopStartCluster,
                                                                       googleProject,
                                                                       runtimeName)
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
@@ -291,14 +293,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                  userInfo,
-                                                                 NotebookClusterActions.GetClusterStatus,
+                                                                 GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no ModifyCluster permission
       hasModifyPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                        userInfo,
-                                                                       NotebookClusterActions.ModifyCluster,
+                                                                       ModifyCluster,
                                                                        googleProject,
                                                                        runtimeName)
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))

@@ -25,8 +25,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition._
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage

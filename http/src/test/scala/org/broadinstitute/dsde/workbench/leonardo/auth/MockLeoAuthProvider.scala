@@ -14,11 +14,11 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
   //behaviour defined in test\...\reference.conf
   val projectPermissions: Map[ProjectAction, Boolean] =
-    (ProjectActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
+    (ProjectAction.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
   val clusterPermissions: Map[NotebookClusterAction, Boolean] =
-    (NotebookClusterActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
+    (NotebookClusterAction.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
   val diskPermissions: Map[PersistentDiskAction, Boolean] =
-    (PersistentDiskActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
+    (PersistentDiskAction.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
 
   val canSeeResourcesInAllProjects = authConfig.as[Option[Boolean]]("canSeeResourcesInAllProjects").getOrElse(false)
   val canSeeAllResourcesIn = authConfig.as[Option[Seq[String]]]("canSeeAllResourcesIn").getOrElse(Seq.empty)
@@ -55,7 +55,7 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
       IO.pure(clusters.filter {
         case (googleProject, _) =>
           canSeeAllResourcesIn.contains(googleProject.value) || clusterPermissions(
-            NotebookClusterActions.GetClusterStatus
+            NotebookClusterAction.GetClusterStatus
           )
       })
     }
@@ -68,7 +68,7 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     } else {
       IO.pure(disks.filter {
         case (googleProject, _) =>
-          canSeeAllResourcesIn.contains(googleProject.value) || diskPermissions(PersistentDiskActions.ReadPersistentDisk)
+          canSeeAllResourcesIn.contains(googleProject.value) || diskPermissions(PersistentDiskAction.ReadPersistentDisk)
       })
     }
 
