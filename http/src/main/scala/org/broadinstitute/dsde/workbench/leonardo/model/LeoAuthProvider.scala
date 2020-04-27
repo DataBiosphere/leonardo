@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
+import ca.mrvisser.sealerate
+
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -8,30 +10,30 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 sealed trait LeoAuthAction extends Product with Serializable
 
 sealed trait ProjectAction extends LeoAuthAction
-object ProjectActions {
+object ProjectAction {
   case object CreateClusters extends ProjectAction
   case object CreatePersistentDisk extends ProjectAction
-  val allActions = Seq(CreateClusters, CreatePersistentDisk)
+  val allActions = sealerate.values[ProjectAction]
 }
 
 sealed trait NotebookClusterAction extends LeoAuthAction
-object NotebookClusterActions {
+object NotebookClusterAction {
   case object GetClusterStatus extends NotebookClusterAction
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction
   case object DeleteCluster extends NotebookClusterAction
   case object ModifyCluster extends NotebookClusterAction
   case object StopStartCluster extends NotebookClusterAction
-  val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster, StopStartCluster)
+  val allActions = sealerate.values[NotebookClusterAction]
 }
 
 sealed trait PersistentDiskAction extends LeoAuthAction
-object PersistentDiskActions {
+object PersistentDiskAction {
   case object ReadPersistentDisk extends PersistentDiskAction
   case object AttachPersistentDisk extends PersistentDiskAction
   case object ModifyPersistentDisk extends PersistentDiskAction
   case object DeletePersistentDisk extends PersistentDiskAction
-  val allActions = Seq(ReadPersistentDisk, AttachPersistentDisk, ModifyPersistentDisk, DeletePersistentDisk)
+  val allActions = sealerate.values[PersistentDiskAction]
 }
 
 abstract class LeoAuthProvider[F[_]] {
