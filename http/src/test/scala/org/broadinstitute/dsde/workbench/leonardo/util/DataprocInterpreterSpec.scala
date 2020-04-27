@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, MockGoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.monitor.FakeGoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -71,9 +70,11 @@ class DataprocInterpreterSpec
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     mockGoogleDirectoryDAO
-      .createGroup(dataprocImageProjectGroupName,
-                   dataprocImageProjectGroupEmail,
-                   Option(mockGoogleDirectoryDAO.lockedDownGroupSettings))
+      .createGroup(
+        Config.googleGroupsConfig.dataprocImageProjectGroupName,
+        Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
+        Option(mockGoogleDirectoryDAO.lockedDownGroupSettings)
+      )
       .futureValue
 
   "DataprocInterpreter" should "create a google cluster" in isolatedDbTest {
@@ -208,7 +209,7 @@ class DataprocInterpreterSpec
         .futureValue
     exception shouldBe a[GoogleJsonResponseException]
 
-    erroredDataprocDAO.invocationCount shouldBe 7
+    erroredDataprocDAO.invocationCount shouldBe 5
   }
 
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {

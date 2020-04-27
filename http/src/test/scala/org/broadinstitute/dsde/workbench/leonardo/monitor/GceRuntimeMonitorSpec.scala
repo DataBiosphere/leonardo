@@ -4,53 +4,24 @@ package monitor
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
-import com.google.cloud.compute.v1.{Items, Metadata, Operation}
-import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
-import org.broadinstitute.dsde.workbench.leonardo.db.clusterErrorQuery
-import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
-import org.broadinstitute.dsde.workbench.model.google.GcsPath
-import org.scalatest.EitherValues
 import cats.mtl.ApplicativeAsk
-import com.google.cloud.compute.v1.Instance
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, ZoneName}
+import com.google.cloud.compute.v1._
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GoogleComputeService, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  LeoAuthProvider,
-  NotebookClusterAction,
-  PersistentDiskAction,
-  ProjectAction,
-  ServiceAccountProvider
-}
-import org.broadinstitute.dsde.workbench.model
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GoogleProject}
-import org.scalatest.{FlatSpec, Matchers}
-import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory.makePublisherQueue
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  CreateRuntimeParams,
-  CreateRuntimeResponse,
-  DeleteRuntimeParams,
-  FinalizeDeleteParams,
-  GetRuntimeStatusParams,
-  ResizeClusterParams,
-  RuntimeAlgebra,
-  StartRuntimeParams,
-  StopRuntimeParams,
-  UpdateDiskSizeParams,
-  UpdateMachineTypeParams
-}
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, nowInstant, userScriptStartupOutputUriMetadataKey}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
+import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.{model, DoneCheckable}
+import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.scalatest.{EitherValues, FlatSpec, Matchers}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.http.nowInstant
-
 import scala.concurrent.duration._
-import GceRuntimeMonitorInterp._
 
 class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent with LeonardoTestSuite with EitherValues {
   implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
@@ -170,7 +141,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -223,7 +194,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -252,7 +223,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
         val runningInstance = readyInstance
 
         for {
-          now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
           res <- if (now - start < 5000)
             IO.pure(beforeInstance)
           else IO.pure(Some(runningInstance))
@@ -264,7 +235,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -290,7 +261,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
         val beforeInstance = Instance.newBuilder().setStatus("TERMINATED").build()
 
         for {
-          now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
           res <- if (now - start < 5000)
             IO.pure(Some(beforeInstance))
           else IO.pure(Some(readyInstance))
@@ -302,7 +273,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -352,7 +323,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -377,7 +348,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     val savedRuntime = runtime.save()
     val res = for {
       now <- nowInstant[IO]
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -400,7 +371,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     val savedRuntime = runtime.save()
     val res = for {
       now <- nowInstant[IO]
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -427,12 +398,11 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
         IO.pure(Some(instance))
       }
     }
-    val queue = makePublisherQueue()
-    val monitor = gceRuntimeMonitor(queue = queue, googleComputeService = computeService)
+    val monitor = gceRuntimeMonitor(googleComputeService = computeService)
     val savedRuntime = runtime.save()
     val res = for {
       now <- nowInstant[IO]
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -458,7 +428,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
           computeService(start.toEpochMilli, Some(GceInstanceStatus.Running), Some(GceInstanceStatus.Terminated))
       )
       savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -481,7 +451,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     val savedRuntime = runtime.save()
     val res = for {
       now <- nowInstant[IO]
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -507,7 +477,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
         val runningInstance = Instance.newBuilder().setStatus("Running").build()
 
         for {
-          now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
           res <- if (now - start < 5000)
             IO.pure(Some(runningInstance))
           else IO.pure(None)
@@ -519,7 +489,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id).compile.drain //start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
 
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -542,6 +512,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
     val op = com.google.cloud.compute.v1.Operation.newBuilder().build()
     val monitor = gceRuntimeMonitor()
     val res = for {
+      _ <- IO(runtime.save())
       r <- monitor
         .pollCheck(
           runtime.googleProject,
@@ -574,7 +545,7 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
         val afterOperation = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("DONE").build()
 
         val res = for {
-          now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
           res <- if (now - start < 4000)
             IO.pure(operation)
           else IO.pure(afterOperation)
@@ -647,12 +618,11 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
   implicit val toolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = _ => MockToolDAO(true)
 
   def gceRuntimeMonitor(
-    queue: fs2.concurrent.InspectableQueue[IO, LeoPubsubMessage] = makePublisherQueue(),
     googleComputeService: GoogleComputeService[IO] = MockGoogleComputeService
-  ): GceRuntimeMonitorInterp[IO] = {
+  ): GceRuntimeMonitor[IO] = {
     val config =
       Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollingInterval = 1 seconds, pollCheckMaxAttempts = 5)
-    new GceRuntimeMonitorInterp[IO](
+    new GceRuntimeMonitor[IO](
       config,
       googleComputeService,
       MockAuthProvider,
@@ -671,61 +641,13 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
       val afterInstance = afterStatus.map(s => Instance.newBuilder().setStatus(s.toString).build())
 
       for {
-        now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+        now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
         res <- if (now - start < 5000)
           IO.pure(beforeInstance)
         else IO.pure(afterInstance)
       } yield res
     }
   }
-}
-
-object MockAuthProvider extends LeoAuthProvider[IO] {
-  override def serviceAccountProvider: ServiceAccountProvider[IO] = ???
-  override def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Boolean] = ???
-  override def hasNotebookClusterPermission(
-    internalId: RuntimeInternalId,
-    userInfo: UserInfo,
-    action: NotebookClusterAction,
-    googleProject: GoogleProject,
-    runtimeName: RuntimeName
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-  override def hasPersistentDiskPermission(
-    internalId: DiskSamResourceId,
-    userInfo: UserInfo,
-    action: PersistentDiskAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, RuntimeInternalId)]] = ???
-  override def filterUserVisiblePersistentDisks(
-    userInfo: UserInfo,
-    clusters: List[(GoogleProject, DiskSamResourceId)]
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, DiskSamResourceId)]] = ???
-  override def notifyClusterCreated(internalId: RuntimeInternalId,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject,
-                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
-  override def notifyClusterDeleted(internalId: RuntimeInternalId,
-                                    userEmail: WorkbenchEmail,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject,
-                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO.unit
-  override def notifyPersistentDiskCreated(
-    internalId: DiskSamResourceId,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
-  override def notifyPersistentDiskDeleted(
-    internalId: DiskSamResourceId,
-    userEmail: WorkbenchEmail,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
 }
 
 object GceInterp extends RuntimeAlgebra[IO] {

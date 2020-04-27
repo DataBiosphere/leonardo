@@ -6,16 +6,19 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
+import cats.effect.concurrent.Deferred
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
+import fs2.concurrent.InspectableQueue
 import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -30,6 +33,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   ClusterInvalidState,
   ClusterNotStopped
 }
+import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -116,7 +120,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val patchDetails = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
 
-    dbRef
+    testDbRef
       .inTransaction(
         patchQuery.getPatchAction(patchDetails.runtimeId)
       )
@@ -258,11 +262,13 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and stop the cluster when there's a machine type change" in isolatedDbTest {
-    val monitor = new MockGceRuntimeMonitor {
-      override def pollCheck(googleProject: GoogleProject,
-                             runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                             operation: com.google.cloud.compute.v1.Operation,
-                             action: RuntimeStatus)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.never
+    val monitor = new MockRuntimeMonitor {
+      override def pollCheck(a: CloudService)(
+        googleProject: GoogleProject,
+        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+        operation: com.google.cloud.compute.v1.Operation,
+        action: RuntimeStatus
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.never
     }
     val leoSubscriber = makeLeoSubscriber(monitor)
 
@@ -292,7 +298,9 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and go through a stop-start transition" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
+    val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
     val res = for {
       now <- IO(Instant.now)
@@ -304,7 +312,7 @@ class LeoPubsubMessageSubscriberSpec
         now
       )
 
-      _ <- IO(eventually(timeout(30.seconds)) {
+      assert = IO(eventually(timeout(30.seconds)) {
         val assertion = for {
           updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
           updatedRuntimeConfig <- updatedRuntime.traverse(r =>
@@ -320,6 +328,14 @@ class LeoPubsubMessageSubscriberSpec
         }
         assertion.unsafeRunSync()
       })
+      _ <- Deferred[IO, Unit].flatMap { signalToStop =>
+        val assertStream = Stream.eval(assert) ++ Stream.eval(signalToStop.complete(()))
+        Stream(assertStream, asyncTaskProcessor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))))
+          .covary[IO]
+          .parJoin(2)
+          .compile
+          .drain
+      }
     } yield ()
 
     res.unsafeRunSync()
@@ -368,11 +384,11 @@ class LeoPubsubMessageSubscriberSpec
     val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
     val message = RuntimeTransitionMessage(patchKey, None)
 
-    val preStorage = dbRef.inTransaction(patchQuery.getPatchAction(patchKey.runtimeId)).unsafeRunSync()
+    val preStorage = testDbRef.inTransaction(patchQuery.getPatchAction(patchKey.runtimeId)).unsafeRunSync()
     preStorage shouldBe None
 
     //save follow-up details in DB
-    dbRef
+    testDbRef
       .inTransaction(
         patchQuery.save(patchKey, Some(newMasterMachineType))
       )
@@ -395,15 +411,14 @@ class LeoPubsubMessageSubscriberSpec
     val consumer = mock[AckReplyConsumer]
     Mockito.doNothing().when(consumer).ack()
 
-    dbRef
+    testDbRef
       .inTransaction(
         patchQuery.save(patchKey, Some(newMasterMachineType))
       )
       .unsafeRunSync()
 
-    val process =
-      fs2.Stream(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance, consumer)) through leoSubscriber.messageHandler
-    val res = process.compile.drain
+    val res =
+      leoSubscriber.messageHandler(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance, consumer))
 
     res.attempt.unsafeRunSync().isRight shouldBe true //messageHandler will never throw exception
   }
@@ -418,7 +433,7 @@ class LeoPubsubMessageSubscriberSpec
     val message = StopUpdateMessage(newMachineConfig, clusterId, None)
     val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopping)
 
-    dbRef
+    testDbRef
       .inTransaction(patchQuery.getPatchAction(patchKey.runtimeId))
       .unsafeRunSync() shouldBe None
 
@@ -426,7 +441,7 @@ class LeoPubsubMessageSubscriberSpec
       leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
     }
 
-    dbRef
+    testDbRef
       .inTransaction(patchQuery.getPatchAction(patchKey.runtimeId))
       .unsafeRunSync() shouldBe None
 
@@ -442,7 +457,7 @@ class LeoPubsubMessageSubscriberSpec
     val patchDetails = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
 
     //subscriber has a follow-up when the cluster is stopped
-    dbRef
+    testDbRef
       .inTransaction(
         patchQuery.save(patchDetails, Some(newMachineType))
       )
@@ -453,7 +468,7 @@ class LeoPubsubMessageSubscriberSpec
       RuntimeTransitionMessage(RuntimePatchDetails(clusterId, RuntimeStatus.Creating), None)
 
     leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
-    val postStorage = dbRef.inTransaction(patchQuery.getPatchAction(patchDetails.runtimeId)).unsafeRunSync()
+    val postStorage = testDbRef.inTransaction(patchQuery.getPatchAction(patchDetails.runtimeId)).unsafeRunSync()
     postStorage shouldBe Some(newMachineType)
 
     val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
@@ -479,14 +494,13 @@ class LeoPubsubMessageSubscriberSpec
 
   //handle transition finished message with follow-up action saved
   "LeoPubsubMessageSubscriber" should "perform an update when follow-up action is present and the cluster is stopped" in isolatedDbTest {
-    val savedStoppedCluster = stoppedCluster.save()
-    val cluster = savedStoppedCluster
+    val cluster = stoppedCluster.save()
     val newMachineType = MachineTypeName("n1-standard-8")
     val leoSubscriber = makeLeoSubscriber()
 
     val patchDetails = RuntimePatchDetails(cluster.id, RuntimeStatus.Stopped)
 
-    dbRef
+    testDbRef
       .inTransaction(patchQuery.save(patchDetails, Some(newMachineType)))
       .unsafeRunSync()
 
@@ -561,12 +575,14 @@ class LeoPubsubMessageSubscriberSpec
     decodedMessage.right.get shouldBe originalMessage
   }
 
-  def makeLeoSubscriber(gceRuntimeMonitor: GceRuntimeMonitor[IO] = MockGceRuntimeMonitor) = {
-    val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
+  def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
+                        asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
+                          InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync) = {
+    val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
+    implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
     new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(1, 30 seconds),
                                        googleSubscriber,
-                                       gceRuntimeMonitor)
+                                       asyncTaskQueue)
   }
-
 }

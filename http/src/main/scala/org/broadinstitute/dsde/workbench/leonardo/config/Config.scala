@@ -30,7 +30,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{GceMonitorConfig, LeoPubsubMessageSubscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{DateAccessedUpdaterConfig, LeoPubsubMessageSubscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -47,7 +48,7 @@ import scala.concurrent.duration._
 object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
-  implicit val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
+  implicit private val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
     ApplicationConfig(
       config.getString("applicationName"),
       config.as[GoogleProject]("leoGoogleProject"),
@@ -56,27 +57,28 @@ object Config {
     )
   }
 
-  implicit val dataprocRuntimeConfigReader: ValueReader[RuntimeConfig.DataprocConfig] = ValueReader.relative { config =>
-    RuntimeConfig.DataprocConfig(
-      config.getInt("numberOfWorkers"),
-      config.as[MachineTypeName]("masterMachineType"),
-      config.as[DiskSize]("masterDiskSize"),
-      config.getAs[String]("workerMachineType").map(MachineTypeName),
-      config.getAs[DiskSize]("workerDiskSize"),
-      config.getAs[Int]("numberOfWorkerLocalSSDs"),
-      config.getAs[Int]("numberOfPreemptibleWorkers"),
-      Map.empty
-    )
+  implicit private val dataprocRuntimeConfigReader: ValueReader[RuntimeConfig.DataprocConfig] = ValueReader.relative {
+    config =>
+      RuntimeConfig.DataprocConfig(
+        config.getInt("numberOfWorkers"),
+        config.as[MachineTypeName]("masterMachineType"),
+        config.as[DiskSize]("masterDiskSize"),
+        config.getAs[String]("workerMachineType").map(MachineTypeName),
+        config.getAs[DiskSize]("workerDiskSize"),
+        config.getAs[Int]("numberOfWorkerLocalSSDs"),
+        config.getAs[Int]("numberOfPreemptibleWorkers"),
+        Map.empty
+      )
   }
 
-  implicit val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
+  implicit private val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
     RuntimeConfig.GceConfig(
       config.as[MachineTypeName]("machineType"),
       config.as[DiskSize]("diskSize")
     )
   }
 
-  implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
+  implicit private val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.as[RegionName]("region"),
       config.getAs[ZoneName]("zone"),
@@ -88,7 +90,7 @@ object Config {
     )
   }
 
-  implicit val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
+  implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
       config.as[GceCustomImage]("customGceImage"),
       config.as[RegionName]("region"),
@@ -99,14 +101,14 @@ object Config {
     )
   }
 
-  implicit val allowedConfigReader: ValueReader[Allowed] = ValueReader.relative { config =>
+  implicit private val allowedConfigReader: ValueReader[Allowed] = ValueReader.relative { config =>
     Allowed(
       config.as[String]("protocol"),
       config.as[Option[String]]("port")
     )
   }
 
-  implicit val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
+  implicit private val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
     FirewallRuleConfig(
       config.as[FirewallRuleName]("name"),
       config.as[List[IpRange]]("sourceRanges"),
@@ -114,7 +116,7 @@ object Config {
     )
   }
 
-  implicit val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
+  implicit private val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
     VPCConfig(
       config.as[NetworkLabel]("highSecurityProjectNetworkLabel"),
       config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
@@ -131,7 +133,7 @@ object Config {
     )
   }
 
-  implicit val googleGroupConfigReader: ValueReader[GoogleGroupsConfig] = ValueReader.relative { config =>
+  implicit private val googleGroupConfigReader: ValueReader[GoogleGroupsConfig] = ValueReader.relative { config =>
     GoogleGroupsConfig(
       config.as[WorkbenchEmail]("subEmail"),
       config.getString("dataprocImageProjectGroupName"),
@@ -139,7 +141,7 @@ object Config {
     )
   }
 
-  implicit val imageConfigReader: ValueReader[ImageConfig] = ValueReader.relative { config =>
+  implicit private val imageConfigReader: ValueReader[ImageConfig] = ValueReader.relative { config =>
     ImageConfig(
       config.as[ContainerImage]("welderImage"),
       config.as[ContainerImage]("jupyterImage"),
@@ -155,7 +157,7 @@ object Config {
     )
   }
 
-  implicit val welderConfigReader: ValueReader[WelderConfig] = ValueReader.relative { config =>
+  implicit private val welderConfigReader: ValueReader[WelderConfig] = ValueReader.relative { config =>
     WelderConfig(
       Paths.get(config.getString("welderEnabledNotebooksDir")),
       Paths.get(config.getString("welderDisabledNotebooksDir")),
@@ -166,25 +168,26 @@ object Config {
     )
   }
 
-  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
-    ClusterResourcesConfig(
-      config.as[RuntimeResource]("initActionsScript"),
-      config.as[RuntimeResource]("gceInitScript"),
-      config.as[RuntimeResource]("startupScript"),
-      config.as[RuntimeResource]("shutdownScript"),
-      config.as[RuntimeResource]("jupyterDockerCompose"),
-      config.as[RuntimeResource]("jupyterDockerComposeGce"),
-      config.as[RuntimeResource]("rstudioDockerCompose"),
-      config.as[RuntimeResource]("proxyDockerCompose"),
-      config.as[RuntimeResource]("welderDockerCompose"),
-      config.as[RuntimeResource]("proxySiteConf"),
-      config.as[RuntimeResource]("jupyterNotebookConfigUri"),
-      config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),
-      config.as[RuntimeResource]("customEnvVarsConfigUri")
-    )
+  implicit private val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative {
+    config =>
+      ClusterResourcesConfig(
+        config.as[RuntimeResource]("initActionsScript"),
+        config.as[RuntimeResource]("gceInitScript"),
+        config.as[RuntimeResource]("startupScript"),
+        config.as[RuntimeResource]("shutdownScript"),
+        config.as[RuntimeResource]("jupyterDockerCompose"),
+        config.as[RuntimeResource]("jupyterDockerComposeGce"),
+        config.as[RuntimeResource]("rstudioDockerCompose"),
+        config.as[RuntimeResource]("proxyDockerCompose"),
+        config.as[RuntimeResource]("welderDockerCompose"),
+        config.as[RuntimeResource]("proxySiteConf"),
+        config.as[RuntimeResource]("jupyterNotebookConfigUri"),
+        config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),
+        config.as[RuntimeResource]("customEnvVarsConfigUri")
+      )
   }
 
-  implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
+  implicit private val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
     ClusterFilesConfig(
       config.as[Path]("proxyServerCrt"),
       config.as[Path]("proxyServerKey"),
@@ -194,22 +197,23 @@ object Config {
     )
   }
 
-  implicit val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative { config =>
-    ClusterDnsCacheConfig(
-      toScalaDuration(config.getDuration("cacheExpiryTime")),
-      config.getInt("cacheMaxSize")
-    )
+  implicit private val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative {
+    config =>
+      ClusterDnsCacheConfig(
+        toScalaDuration(config.getDuration("cacheExpiryTime")),
+        config.getInt("cacheMaxSize")
+      )
   }
 
-  implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
+  implicit private val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
     LiquibaseConfig(config.as[String]("changelog"), config.as[Boolean]("initWithLiquibase"))
   }
 
-  implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
+  implicit private val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
     SamConfig(config.getString("server"))
   }
 
-  implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
+  implicit private val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
     ProxyConfig(
       config.getString("proxyDomain"),
       config.getString("proxyUrlBase"),
@@ -222,8 +226,8 @@ object Config {
     )
   }
 
-  implicit val contentSecurityPolicyConfigReader: ValueReader[ContentSecurityPolicyConfig] = ValueReader.relative {
-    config =>
+  implicit private val contentSecurityPolicyConfigReader: ValueReader[ContentSecurityPolicyConfig] =
+    ValueReader.relative { config =>
       ContentSecurityPolicyConfig(
         config.as[FrameAncestors]("frameAncestors"),
         config.as[ScriptSrc]("scriptSrc"),
@@ -232,31 +236,16 @@ object Config {
         config.as[ObjectSrc]("objectSrc"),
         config.as[ReportUri]("reportUri")
       )
-  }
+    }
 
-  implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
+  implicit private val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
       config.getString("googleClientId"),
       config.getString("realm")
     )
   }
 
-  implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
-    val statusTimeouts = config.getConfig("statusTimeouts")
-    val timeoutMap: Map[RuntimeStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
-      for {
-        status <- RuntimeStatus.withNameInsensitiveOption(e.getKey)
-        duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
-      } yield (status, duration)
-    }.toMap
-
-    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")),
-                  config.getInt("maxRetries"),
-                  config.getBoolean("recreateCluster"),
-                  timeoutMap)
-  }
-
-  implicit val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
+  implicit private val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
     PubsubConfig(
       GoogleProject(config.getString("pubsubGoogleProject")),
       config.getString("topicName"),
@@ -264,7 +253,7 @@ object Config {
     )
   }
 
-  implicit val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
+  implicit private val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
     AutoFreezeConfig(
       config.getBoolean("enableAutoFreeze"),
       toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
@@ -282,38 +271,41 @@ object Config {
     )
   }
 
-  implicit val clusterToolConfigValueReader: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
+  implicit private val clusterToolConfigValueReader: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
     ClusterToolConfig(
       toScalaDuration(config.getDuration("pollPeriod"))
     )
   }
 
-  implicit val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = ValueReader.relative { config =>
-    LeoExecutionModeConfig(
-      config.getBoolean("backLeo")
-    )
+  implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = ValueReader.relative {
+    config =>
+      LeoExecutionModeConfig(
+        config.getBoolean("backLeo")
+      )
   }
 
-  implicit val clusterBucketConfigValueReader: ValueReader[RuntimeBucketConfig] = ValueReader.relative { config =>
-    RuntimeBucketConfig(
-      toScalaDuration(config.getDuration("stagingBucketExpiration"))
-    )
+  implicit private val clusterBucketConfigValueReader: ValueReader[RuntimeBucketConfig] = ValueReader.relative {
+    config =>
+      RuntimeBucketConfig(
+        toScalaDuration(config.getDuration("stagingBucketExpiration"))
+      )
   }
-  implicit val clusterUIConfigValueReader: ValueReader[ClusterUIConfig] = ValueReader.relative { config =>
+  implicit private val clusterUIConfigValueReader: ValueReader[ClusterUIConfig] = ValueReader.relative { config =>
     ClusterUIConfig(
       config.getString("terraLabel"),
       config.getString("allOfUsLabel")
     )
   }
-  implicit val samAuthConfigConfigValueReader: ValueReader[SamAuthProviderConfig] = ValueReader.relative { config =>
-    SamAuthProviderConfig(
-      config.getOrElse("notebookAuthCacheEnabled", true),
-      config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
-      config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
-    )
+  implicit private val samAuthConfigConfigValueReader: ValueReader[SamAuthProviderConfig] = ValueReader.relative {
+    config =>
+      SamAuthProviderConfig(
+        config.getOrElse("notebookAuthCacheEnabled", true),
+        config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
+        config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
+      )
   }
 
-  implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
+  implicit private val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
     ValueReader.relative { config =>
       ServiceAccountProviderConfig(
         config.as[Path]("leoServiceAccountJsonFile"),
@@ -321,7 +313,7 @@ object Config {
       )
     }
 
-  implicit val httpSamDao2ConfigValueReader: ValueReader[HttpSamDaoConfig] = ValueReader.relative { config =>
+  implicit private val httpSamDao2ConfigValueReader: ValueReader[HttpSamDaoConfig] = ValueReader.relative { config =>
     HttpSamDaoConfig(
       Uri.unsafeFromString(config.as[String]("samServer")),
       config.getOrElse("petTokenCacheEnabled", true),
@@ -331,39 +323,57 @@ object Config {
     )
   }
 
-  implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
-  implicit val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
-  implicit val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
-  implicit val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
-  implicit val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
-  implicit val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
-  implicit val dataprocCustomImageReader: ValueReader[DataprocCustomImage] = stringValueReader.map(DataprocCustomImage)
-  implicit val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
-  implicit val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(s =>
+  implicit private val dateAccessUpdaterConfigReader: ValueReader[DateAccessedUpdaterConfig] = ValueReader.relative {
+    config =>
+      DateAccessedUpdaterConfig(
+        config.as[FiniteDuration]("interval"),
+        config.as[Int]("maxUpdate"),
+        config.as[Int]("queueSize")
+      )
+  }
+
+  implicit private val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
+  implicit private val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
+  implicit private val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
+  implicit private val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
+  implicit private val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
+  implicit private val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
+  implicit private val dataprocCustomImageReader: ValueReader[DataprocCustomImage] =
+    stringValueReader.map(DataprocCustomImage)
+  implicit private val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
+  implicit private val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(s =>
     ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )
-  implicit val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
-  implicit val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
+  implicit private val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
+  implicit private val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
-  implicit val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
-  implicit val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
-  implicit val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
-  implicit val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
-  implicit val firewallRuleNameValueReader: ValueReader[FirewallRuleName] = stringValueReader.map(FirewallRuleName)
-  implicit val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
-  implicit val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
-  implicit val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
-  implicit val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
+  implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
+  implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
+  implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
+  implicit private val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
+  implicit private val firewallRuleNameValueReader: ValueReader[FirewallRuleName] =
+    stringValueReader.map(FirewallRuleName)
+  implicit private val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
+  implicit private val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
+  implicit private val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
+  implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
     DiskType.withNameInsensitiveOption(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
-  implicit val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
-  implicit val frameAncestorsReader: ValueReader[FrameAncestors] = traversableReader[List, String].map(FrameAncestors)
-  implicit val scriptSrcReader: ValueReader[ScriptSrc] = traversableReader[List, String].map(ScriptSrc)
-  implicit val styleSrcReader: ValueReader[StyleSrc] = traversableReader[List, String].map(StyleSrc)
-  implicit val connectSrcReader: ValueReader[ConnectSrc] = traversableReader[List, String].map(ConnectSrc)
-  implicit val objectSrcReader: ValueReader[ObjectSrc] = traversableReader[List, String].map(ObjectSrc)
-  implicit val reportUriReader: ValueReader[ReportUri] = traversableReader[List, String].map(ReportUri)
-  implicit val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
+  implicit private val frameAncestorsReader: ValueReader[FrameAncestors] =
+    traversableReader[List, String].map(FrameAncestors)
+  implicit private val scriptSrcReader: ValueReader[ScriptSrc] = traversableReader[List, String].map(ScriptSrc)
+  implicit private val styleSrcReader: ValueReader[StyleSrc] = traversableReader[List, String].map(StyleSrc)
+  implicit private val connectSrcReader: ValueReader[ConnectSrc] = traversableReader[List, String].map(ConnectSrc)
+  implicit private val objectSrcReader: ValueReader[ObjectSrc] = traversableReader[List, String].map(ObjectSrc)
+  implicit private val reportUriReader: ValueReader[ReportUri] = traversableReader[List, String].map(ReportUri)
+  implicit private val asyncTaskProcessorConfigReader: ValueReader[AsyncTaskProcessor.Config] = ValueReader.relative {
+    c =>
+      AsyncTaskProcessor.Config(
+        c.getInt("queue-bound"),
+        c.getInt("max-concurrent-tasks")
+      )
+  }
+  implicit private val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
     ValueReader.relative { config =>
       LeoPubsubMessageSubscriberConfig(
         config.getInt("concurrency"),
@@ -371,6 +381,7 @@ object Config {
       )
     }
 
+  val dateAccessUpdaterConfig = config.as[DateAccessedUpdaterConfig]("dateAccessedUpdater")
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
 
@@ -381,14 +392,13 @@ object Config {
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val monitorConfig = config.as[MonitorConfig]("monitor")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val persistentDiskConfig = config.as[PersistentDiskConfig]("persistentDisk")
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
 
-  implicit val zombieRuntimeConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
+  implicit private val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>
       ZombieRuntimeMonitorConfig(
         config.getBoolean("enableZombieRuntimeMonitor"),
@@ -427,7 +437,29 @@ object Config {
     )
   }
 
+  implicit val dataprocMonitorConfigReader: ValueReader[DataprocMonitorConfig] = ValueReader.relative { config =>
+    val statusTimeouts = config.getConfig("statusTimeouts")
+    val timeoutMap: Map[RuntimeStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
+      for {
+        status <- RuntimeStatus.withNameInsensitiveOption(e.getKey)
+        duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
+      } yield (status, duration)
+    }.toMap
+
+    DataprocMonitorConfig(
+      config.as[FiniteDuration]("initialDelay"),
+      config.as[FiniteDuration]("pollingInterval"),
+      config.as[Int]("pollCheckMaxAttempts"),
+      config.as[FiniteDuration]("checkToolsDelay"),
+      clusterBucketConfig,
+      timeoutMap,
+      imageConfig,
+      dataprocConfig.regionName
+    )
+  }
+
   val gceMonitorConfig = config.as[GceMonitorConfig]("gce.monitor")
+  val dataprocMonitorConfig = config.as[DataprocMonitorConfig]("dataproc.monitor")
   val uiConfig = config.as[ClusterUIConfig]("ui")
   val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
@@ -449,25 +481,34 @@ object Config {
   val publisherConfig: PublisherConfig =
     PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic, retryConfig)
 
-  val dataprocInterpreterConfig = DataprocInterpreterConfig(dataprocConfig,
-                                                            googleGroupsConfig,
-                                                            welderConfig,
-                                                            imageConfig,
-                                                            proxyConfig,
-                                                            vpcConfig,
-                                                            clusterResourcesConfig,
-                                                            clusterFilesConfig,
-                                                            monitorConfig)
+  val dataprocInterpreterConfig = DataprocInterpreterConfig(
+    dataprocConfig,
+    googleGroupsConfig,
+    welderConfig,
+    imageConfig,
+    proxyConfig,
+    vpcConfig,
+    clusterResourcesConfig,
+    clusterFilesConfig,
+    dataprocMonitorConfig.monitorStatusTimeouts
+      .get(RuntimeStatus.Creating)
+      .getOrElse(throw new Exception("Missing dataproc.monitor.statusTimeouts.creating"))
+  )
 
-  val gceInterpreterConfig = GceInterpreterConfig(gceConfig,
-                                                  welderConfig,
-                                                  imageConfig,
-                                                  proxyConfig,
-                                                  vpcConfig,
-                                                  clusterResourcesConfig,
-                                                  clusterFilesConfig,
-                                                  monitorConfig)
+  val gceInterpreterConfig = GceInterpreterConfig(
+    gceConfig,
+    welderConfig,
+    imageConfig,
+    proxyConfig,
+    vpcConfig,
+    clusterResourcesConfig,
+    clusterFilesConfig,
+    gceMonitorConfig.monitorStatusTimeouts
+      .get(RuntimeStatus.Creating)
+      .getOrElse(throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
+  )
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 
   val leoPubsubMessageSubscriberConfig = config.as[LeoPubsubMessageSubscriberConfig]("pubsub.subscriber")
+  val asyncTaskProcessorConfig = config.as[AsyncTaskProcessor.Config]("async-task-processor")
 }

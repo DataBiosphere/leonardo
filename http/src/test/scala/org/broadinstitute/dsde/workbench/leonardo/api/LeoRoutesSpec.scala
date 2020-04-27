@@ -8,15 +8,18 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
+import cats.effect.IO
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import fs2.concurrent.InspectableQueue
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, ListRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.scalatest.FlatSpec
+import org.scalatest.{Assertion, FlatSpec}
 import slick.dbio.DBIO
 
 import scala.concurrent.duration._
@@ -293,6 +296,9 @@ class LeoRoutesSpec
 
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = defaultClusterRequest
+    val publisherQueue = InspectableQueue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()
+    val leo = makeLeonardoService(publisherQueue)
+    val timedLeoRoutes = new LeoRoutes(leo, timedUserInfoDirectives)
 
     Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -322,13 +328,18 @@ class LeoRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    // starting a stopping cluster should also return 202
-    Post(s"/cluster/${googleProject.value}/${clusterName.asString}/start") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-
-      //validateCookie { header[`Set-Cookie`] }
-      validateRawCookie(header("Set-Cookie"))
+    val validateStatus = withLeoPublisher(publisherQueue) {
+      // starting a stopping cluster should also return 202
+      IO {
+        Post(s"/cluster/${googleProject.value}/${clusterName.asString}/start") ~> timedLeoRoutes.route ~> check {
+          //validateCookie { header[`Set-Cookie`] }
+          validateRawCookie(header("Set-Cookie"))
+          status shouldEqual StatusCodes.Accepted
+        }
+      }
     }
+
+    validateStatus.unsafeRunSync()
   }
 
   it should "404 when stopping a cluster that does not exist" in {
@@ -381,6 +392,13 @@ class LeoRoutesSpec
         Map("notebookServiceAccount" -> sa.value)
       } getOrElse Map.empty
     )
+
+  private def withLeoPublisher(
+    publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, FakeGooglePublisher)
+    withInfiniteStream(leoPublisher.process, validations)
+  }
 }
 
 final case class GetClusterResponseTest(

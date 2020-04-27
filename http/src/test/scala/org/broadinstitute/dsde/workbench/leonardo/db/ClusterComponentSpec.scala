@@ -9,7 +9,9 @@ import java.util.UUID
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
 import org.scalatest.FlatSpecLike
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -262,20 +264,27 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
       newDiskSize
   }
 
-  it should "list monitored Dataproc or Gce runtimes only" in isolatedDbTest {
+  it should "list monitored only" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).copy(status = RuntimeStatus.Starting).save()
     makeCluster(2).copy(status = RuntimeStatus.Deleted).save()
     val savedCluster3 = makeCluster(3)
-      .copy(status = RuntimeStatus.Starting)
+      .copy(status = RuntimeStatus.Updating)
+      .saveWithRuntimeConfig(runtimeConfig = defaultGceRuntimeConfig)
+    val savedCluster4 = makeCluster(4)
+      .copy(status = RuntimeStatus.Creating)
       .saveWithRuntimeConfig(runtimeConfig = defaultGceRuntimeConfig)
 
-    dbFutureValue(clusterQuery.listMonitoredDataproc).toSet shouldBe Set(savedCluster1)
-      .map(stripFieldsForListCluster)
-      .map(_.copy(labels = Map.empty))
+    patchQuery
+      .save(RuntimePatchDetails(savedCluster4.id, savedCluster4.status), Some(MachineTypeName("machineType")))
+      .transaction
+      .unsafeRunSync()
 
-    dbFutureValue(clusterQuery.listMonitoredGce).toSet shouldBe Set(savedCluster3)
-      .map(stripFieldsForListCluster)
-      .map(_.copy(labels = Map.empty))
+    val expectedRuntimeToMonitor = List(
+      RuntimeToMonitor(savedCluster1.id, CloudService.Dataproc, RuntimeStatus.Starting, false),
+      RuntimeToMonitor(savedCluster3.id, CloudService.GCE, RuntimeStatus.Updating, false),
+      RuntimeToMonitor(savedCluster4.id, CloudService.GCE, RuntimeStatus.Creating, true)
+    )
+    dbFutureValue(clusterQuery.listMonitored) should contain theSameElementsAs expectedRuntimeToMonitor
   }
 
   it should "persist custom environment variables" in isolatedDbTest {

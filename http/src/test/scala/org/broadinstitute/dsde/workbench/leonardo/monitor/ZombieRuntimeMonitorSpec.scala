@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import akka.actor.ActorSystem
-import akka.testkit.TestKit
 import cats.effect.IO
 import cats.effect.concurrent.Deferred
 import cats.mtl.ApplicativeAsk
@@ -15,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, Moc
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
@@ -24,18 +23,17 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito.verify
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
-import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
+import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{eq => mockitoEq}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class ZombieRuntimeMonitorSpec
-    extends TestKit(ActorSystem("leonardotest"))
-    with FlatSpecLike
+    extends FlatSpec
     with BeforeAndAfterAll
     with LeonardoTestSuite
     with TestComponent
@@ -46,17 +44,16 @@ class ZombieRuntimeMonitorSpec
   val testCluster2 = makeCluster(2).copy(status = RuntimeStatus.Running)
   val testCluster3 = makeCluster(3).copy(status = RuntimeStatus.Running)
 
-  val deletedRuntime1 = makeCluster(4).copy(status = RuntimeStatus.Deleted,
-                                            auditInfo = olderRuntimeAuditInfo,
-                                            labels = Map(zombieMonitorConfig.deletionConfirmationLabelKey -> "false"))
-  val deletedRuntime2 = makeCluster(5).copy(status = RuntimeStatus.Deleted,
-                                            auditInfo = olderRuntimeAuditInfo,
-                                            labels = Map(zombieMonitorConfig.deletionConfirmationLabelKey -> "false"))
-
-  override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
-  }
+  val deletedRuntime1 = makeCluster(4).copy(
+    status = RuntimeStatus.Deleted,
+    auditInfo = olderRuntimeAuditInfo,
+    labels = Map(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey -> "false")
+  )
+  val deletedRuntime2 = makeCluster(5).copy(
+    status = RuntimeStatus.Deleted,
+    auditInfo = olderRuntimeAuditInfo,
+    labels = Map(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey -> "false")
+  )
 
   "ZombieRuntimeMonitor" should "detect zombie clusters when the project is inactive" in isolatedDbTest {
     // create 2 running clusters in the same project
@@ -175,7 +172,7 @@ class ZombieRuntimeMonitorSpec
 
         c2.status shouldBe RuntimeStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
-        c2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
+        c2.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
         c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
@@ -223,8 +220,8 @@ class ZombieRuntimeMonitorSpec
         val c1 = dbFutureValue(clusterQuery.getClusterById(savedDeletedRuntime1.id)).get
         val c2 = dbFutureValue(clusterQuery.getClusterById(savedDeletedRuntime2.id)).get
 
-        c1.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("true")
-        c2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
+        c1.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("true")
+        c2.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
       }
       verify(gdDAO, times(1)).deleteCluster(mockitoEq(deletedRuntime2.googleProject),
                                             RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
@@ -253,7 +250,7 @@ class ZombieRuntimeMonitorSpec
 
         c1.status shouldBe RuntimeStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
-        c1.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
+        c1.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c1.errors.size shouldBe 1
         c1.errors.head.errorCode shouldBe -1
         c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
@@ -297,8 +294,8 @@ class ZombieRuntimeMonitorSpec
         val r1 = dbFutureValue(clusterQuery.getClusterById(savedTestInstance1.id)).get
         val r2 = dbFutureValue(clusterQuery.getClusterById(savedTestInstance2.id)).get
 
-        r1.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("true")
-        r2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
+        r1.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("true")
+        r2.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
       }
     }
   }
@@ -319,7 +316,8 @@ class ZombieRuntimeMonitorSpec
         Future.successful(None)
     }
 
-    val shouldHangAfter: Span = zombieMonitorConfig.creationHangTolerance.plus(zombieMonitorConfig.zombieCheckPeriod)
+    val shouldHangAfter: Span =
+      Config.zombieRuntimeMonitorConfig.creationHangTolerance.plus(Config.zombieRuntimeMonitorConfig.zombieCheckPeriod)
 
     // cluster2 should be active when it's still within hang tolerance
     withZombieMonitor(gdDAO = gdDAO) { () =>
@@ -357,7 +355,8 @@ class ZombieRuntimeMonitorSpec
     val savedTestCluster2 = creatingTestCluster.save()
     savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual creatingTestCluster
 
-    val shouldNotHangBefore = zombieMonitorConfig.creationHangTolerance.minus(zombieMonitorConfig.zombieCheckPeriod)
+    val shouldNotHangBefore =
+      Config.zombieRuntimeMonitorConfig.creationHangTolerance.minus(Config.zombieRuntimeMonitorConfig.zombieCheckPeriod)
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
       override def getClusterStatus(googleProject: GoogleProject,
@@ -435,7 +434,7 @@ class ZombieRuntimeMonitorSpec
     val gceInterp = new GceInterpreter(gceInterpreterConfig, null, null, gce, null, blocker)
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
-    val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieMonitorConfig, googleProjectDAO)
+    val zombieClusterMonitor = ZombieRuntimeMonitor[IO](Config.zombieRuntimeMonitorConfig, googleProjectDAO)
     val process = Stream.eval(Deferred[IO, A]).flatMap { signalToStop =>
       val signal = Stream.eval(IO(validations())).evalMap(r => signalToStop.complete(r))
       val p = Stream(zombieClusterMonitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)

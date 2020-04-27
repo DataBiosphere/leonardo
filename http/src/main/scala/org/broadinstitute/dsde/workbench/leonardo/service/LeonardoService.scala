@@ -32,6 +32,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateRuntimeMessage,
+  DeleteRuntimeMessage,
   StartRuntimeMessage,
   StopRuntimeMessage,
   StopUpdateMessage
@@ -665,36 +666,25 @@ class LeonardoService(
       _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
       else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
 
-      _ <- internalDeleteCluster(userInfo.userEmail, cluster)
+      _ <- internalDeleteCluster(cluster)
     } yield ()
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(userEmail: WorkbenchEmail,
-                            cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  def internalDeleteCluster(cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     if (cluster.status.isDeletable) {
       val hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
       for {
-        // Delete the cluster in Google
-        _ <- CloudService.Dataproc.interpreter
-          .deleteRuntime(DeleteRuntimeParams(cluster.googleProject, cluster.runtimeName, cluster.asyncRuntimeFields))
-        // Change the cluster status to Deleting in the database
-        // Note this also changes the instance status to Deleting
+        ctx <- ev.ask
         now <- nowInstant
-        _ <- if (hasDataprocInfo) clusterQuery.markPendingDeletion(cluster.id, now).transaction
+        _ <- if (hasDataprocInfo)
+          clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.PreDeleting, now).transaction >> publisherQueue
+            .enqueue1(
+              DeleteRuntimeMessage(cluster.id, Some(ctx))
+            )
         else clusterQuery.completeDeletion(cluster.id, now).transaction
-        // save label for zombie monitor actor to confirm deletion of google runtime in the future
         _ <- labelQuery
           .save(cluster.id, LabelResourceType.Runtime, zombieRuntimeMonitorConfig.deletionConfirmationLabelKey, "false")
           .transaction
-        _ <- if (hasDataprocInfo)
-          IO.unit //When dataprocInfo is defined, there's async deletion from google happening and we don't want to delete sam resource immediately
-        else
-          authProvider
-            .notifyClusterDeleted(cluster.internalId,
-                                  cluster.auditInfo.creator,
-                                  cluster.auditInfo.creator,
-                                  cluster.googleProject,
-                                  cluster.runtimeName)
       } yield ()
     } else if (cluster.status == RuntimeStatus.Creating) {
       IO.raiseError(RuntimeCannotBeDeletedException(cluster.googleProject, cluster.runtimeName))
@@ -723,12 +713,10 @@ class LeonardoService(
       else
         IO.raiseError[Unit](RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
-      // Update the cluster status to Stopping in the DB
-      now <- nowInstant
-      _ <- clusterQuery.setToStopping(cluster.id, now).transaction
-
       // stop the runtime
       traceId <- ev.ask
+      now <- nowInstant
+      _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.PreStopping, now).transaction
       _ <- publisherQueue.enqueue1(StopRuntimeMessage(cluster.id, Some(traceId)))
     } yield ()
 
@@ -755,12 +743,10 @@ class LeonardoService(
       else
         IO.raiseError[Unit](RuntimeCannotBeStartedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
-      // Update the cluster status to Starting in the DB
-      now <- nowInstant
-      _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Starting, now).transaction
-
       // start the runtime
       traceId <- ev.ask
+      now <- nowInstant
+      _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.PreStarting, now).transaction
       _ <- publisherQueue.enqueue1(StartRuntimeMessage(cluster.id, Some(traceId)))
     } yield ()
 

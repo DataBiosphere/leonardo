@@ -6,7 +6,7 @@ import java.time.Instant
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.SecondaryWorker
+import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
@@ -70,13 +70,18 @@ object Runtime {
 }
 
 /** Runtime status enum */
-sealed trait RuntimeStatus extends EnumEntry
+sealed trait RuntimeStatus extends EnumEntry with Product with Serializable
 object RuntimeStatus extends Enum[RuntimeStatus] {
   val values = findValues
   // Leonardo defined runtime statuses.
 
+  // These statuses exist when we save a runtime during an API request, but we haven't published the even to back leo
+  case object PreCreating extends RuntimeStatus
+  case object PreDeleting extends RuntimeStatus
+  case object PreStarting extends RuntimeStatus
+  case object PreStopping extends RuntimeStatus
+
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  // transition statuses
   case object Creating extends RuntimeStatus
   case object Updating extends RuntimeStatus //only for dataproc status
   case object Deleting extends RuntimeStatus
@@ -379,7 +384,10 @@ final case class RunningRuntime(googleProject: GoogleProject,
 final case class RuntimeInternalId(asString: String) extends AnyVal
 final case class RuntimeName(asString: String) extends AnyVal
 final case class RuntimeError(errorMessage: String, errorCode: Int, timestamp: Instant)
-final case class RuntimeErrorDetails(code: Int, message: Option[String])
+final case class RuntimeErrorDetails(longMessage: String,
+                                     code: Option[Int] = None,
+                                     shortMessage: Option[String] = None,
+                                     labels: Map[String, String] = Map.empty)
 final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName: RuntimeName) {
   override def toString: String = s"${googleProject.value}/${runtimeName.asString}"

@@ -25,7 +25,6 @@ import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.google2.{InstanceName, RegionName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
@@ -132,19 +131,6 @@ class HttpGoogleDataprocDAO(
     transformed.value.handleGoogleException(googleProject, clusterName)
   }
 
-  override def getClusterInstances(googleProject: GoogleProject,
-                                   clusterName: RuntimeName): Future[Map[DataprocRole, Set[DataprocInstanceKey]]] = {
-    val transformed = for {
-      cluster <- OptionT(getCluster(googleProject, clusterName))
-      instanceNames <- OptionT.fromOption[Future](getAllInstanceNames(cluster))
-      clusterZone <- OptionT.fromOption[Future](getZone(cluster))
-    } yield {
-      instanceNames.mapValues(_.map(name => DataprocInstanceKey(googleProject, clusterZone, name)))
-    }
-
-    transformed.value.map(_.getOrElse(Map.empty)).handleGoogleException(googleProject, clusterName)
-  }
-
   override def getClusterStagingBucket(googleProject: GoogleProject,
                                        clusterName: RuntimeName): Future[Option[GcsBucketName]] = {
     // If an expression might be null, need to use `OptionT.fromOption(Option(expr))`.
@@ -164,7 +150,9 @@ class HttpGoogleDataprocDAO(
       operation <- OptionT(getOperation(operationName)) if operation.getDone
       error <- OptionT.fromOption[Future](Option(operation.getError))
       code <- OptionT.fromOption[Future](Option(error.getCode))
-    } yield RuntimeErrorDetails(code, Option(error.getMessage))
+    } yield RuntimeErrorDetails(Option(error.getDetails).map(_.asScala.mkString(",")).getOrElse(""),
+                                Some(code),
+                                Option(error.getMessage))
 
     errorOpt.value.handleGoogleException(GoogleProject(""), operationName.map(_.value))
   }
@@ -390,19 +378,6 @@ class HttpGoogleDataprocDAO(
       instanceNames <- Option(masterConfig.getInstanceNames)
       masterInstance <- instanceNames.asScala.headOption
     } yield InstanceName(masterInstance)
-
-  private def getAllInstanceNames(cluster: DataprocCluster): Option[Map[DataprocRole, Set[InstanceName]]] = {
-    def getFromGroup(key: DataprocRole)(group: InstanceGroupConfig): Option[Map[DataprocRole, Set[InstanceName]]] =
-      Option(group.getInstanceNames).map(_.asScala.toSet.map(InstanceName)).map(ins => Map(key -> ins))
-
-    Option(cluster.getConfig).flatMap { config =>
-      val masters = Option(config.getMasterConfig).flatMap(getFromGroup(Master))
-      val workers = Option(config.getWorkerConfig).flatMap(getFromGroup(Worker))
-      val secondaryWorkers = Option(config.getSecondaryWorkerConfig).flatMap(getFromGroup(SecondaryWorker))
-
-      masters |+| workers |+| secondaryWorkers
-    }
-  }
 
   /**
    * Gets the zone (not to be confused with region) of a dataproc cluster, with error handling.

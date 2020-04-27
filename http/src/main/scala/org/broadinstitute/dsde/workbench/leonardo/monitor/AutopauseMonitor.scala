@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.util.UUID
+
 import cats.effect.{Async, ContextShift, Timer}
 import cats.implicits._
 import fs2.Stream
@@ -35,7 +37,7 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
     for {
       clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
       now <- nowInstant
-      traceId = TraceId(s"fromAutopause_${now.toEpochMilli}")
+      traceId = TraceId(s"fromAutopause_${UUID.randomUUID().toString}")
       pauseableClusters <- clusters.toList.filterA { cluster =>
         jupyterDAO.isAllKernelsIdle(cluster.googleProject, cluster.runtimeName).attempt.flatMap {
           case Left(t) =>

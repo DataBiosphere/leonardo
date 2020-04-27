@@ -116,7 +116,7 @@ class StatusRoutesSpec
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =
-      new StatusService(badDataproc, badSam, dbRef, applicationConfig, pollInterval = 1.second)
+      new StatusService(badDataproc, badSam, testDbRef, applicationConfig, pollInterval = 1.second)
     val statusRoute = new StatusRoutes(statusService) with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
     }

@@ -19,7 +19,7 @@ object Dependencies {
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
   val workbenchGoogleV = "0.21-2a218f3"
-  val workbenchGoogle2V = "0.8-e08439a"
+  val workbenchGoogle2V = "0.9-8051635"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchOpenTelemetryV = "0.1-73d6a64"
 
@@ -66,7 +66,6 @@ object Dependencies {
   val httpClient: ModuleID =      "org.apache.httpcomponents"   % "httpclient"      % "4.5.5" // upgrading a transitive dependency to avoid security warnings
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.5.13"
 
-  val akkaActor: ModuleID =         "com.typesafe.akka" %% "akka-actor"           % akkaV excludeAll (excludeTypesafeSslConfig)
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV excludeAll (excludeAkkaActor)
   val akkaHttpSprayJson: ModuleID = "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV
@@ -147,9 +146,7 @@ object Dependencies {
     scalaLogging,
     swaggerUi,
     ficus,
-    httpClient,
     enumeratum,
-    akkaActor,
     akkaSlf4j,
     akkaHttp,
     akkaHttpSprayJson,

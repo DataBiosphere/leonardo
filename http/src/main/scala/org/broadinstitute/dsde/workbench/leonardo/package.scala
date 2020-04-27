@@ -10,7 +10,9 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import slick.dbio.DBIO
 
@@ -45,4 +47,22 @@ package object http {
     Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
 
   val userScriptStartupOutputUriMetadataKey = "user-startup-script-output-url"
+  implicit def cloudServiceSyntax[F[_], A](
+    a: A
+  )(implicit ev: RuntimeMonitor[F, A]): CloudServiceMonitorOps[F, A] =
+    CloudServiceMonitorOps[F, A](a)
+}
+
+final case class CloudServiceMonitorOps[F[_], A](a: A)(
+  implicit monitor: RuntimeMonitor[F, A]
+) {
+  def process(runtimeId: Long, action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
+    monitor.process(a)(runtimeId, action)
+
+  // Function used for transitions that we can get an Operation
+  def pollCheck(googleProject: GoogleProject,
+                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                operation: com.google.cloud.compute.v1.Operation,
+                action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    monitor.pollCheck(a)(googleProject, runtimeAndRuntimeConfig, operation, action)
 }

@@ -11,16 +11,20 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.leonardo.db.patchQuery
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimeTransitionMessage
+import org.broadinstitute.dsde.workbench.leonardo.http.cloudServiceSyntax
 
 import scala.concurrent.ExecutionContext
 
 class MonitorAtBoot[F[_]](
-  gceRuntimeMonitor: GceRuntimeMonitor[F],
   publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage]
-)(implicit F: Async[F], dbRef: DbReference[F], logger: Logger[F], ec: ExecutionContext) {
+)(implicit F: Async[F],
+  dbRef: DbReference[F],
+  logger: Logger[F],
+  ec: ExecutionContext,
+  monitor: RuntimeMonitor[F, CloudService]) {
   val process: Stream[F, Unit] = {
     implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId("BootMonitoring"))
-    val res = clusterQuery.listMonitoredGce
+    val res = clusterQuery.listMonitored
       .transaction[F]
       .attempt
       .flatMap {
@@ -28,7 +32,7 @@ class MonitorAtBoot[F[_]](
           clusters.toList.traverse_ {
             case c if c.status.isMonitored && c.status != RuntimeStatus.Unknown =>
               val r = for {
-                _ <- gceRuntimeMonitor.process(c.id).compile.drain
+                _ <- c.cloudService.process(c.id, c.status).compile.drain
                 patchInProgress <- patchQuery.isInprogress(c.id).transaction
                 _ <- if (patchInProgress) {
                   for {
@@ -41,7 +45,7 @@ class MonitorAtBoot[F[_]](
                   } yield ()
                 } else F.unit
               } yield ()
-              r.handleErrorWith(e => logger.error(e)(s"Error transitioning ${c.projectNameString}"))
+              r.handleErrorWith(e => logger.error(e)(s"Error transitioning ${c.id}"))
           }
         case Left(e) => logger.error(e)("Error starting retrieve runtimes that need to be monitored during startup")
       }
@@ -49,3 +53,10 @@ class MonitorAtBoot[F[_]](
     Stream.eval(res)
   }
 }
+
+final case class RuntimeToMonitor(
+  id: Long,
+  cloudService: CloudService,
+  status: RuntimeStatus,
+  patchInProgress: Boolean
+)

@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Creat
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
+import scala.concurrent.duration.FiniteDuration
+
 /**
  * Defines an algebra for manipulating Leo Runtimes.
  * Currently has interpreters for Dataproc and GCE.
@@ -85,7 +87,7 @@ sealed trait RuntimeInterpreterConfig {
   def proxyConfig: ProxyConfig
   def clusterResourcesConfig: ClusterResourcesConfig
   def clusterFilesConfig: ClusterFilesConfig
-  def monitorConfig: MonitorConfig
+  def runtimeCreationTimeout: FiniteDuration
 }
 object RuntimeInterpreterConfig {
   final case class DataprocInterpreterConfig(dataprocConfig: DataprocConfig,
@@ -96,7 +98,7 @@ object RuntimeInterpreterConfig {
                                              vpcConfig: VPCConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: ClusterFilesConfig,
-                                             monitorConfig: MonitorConfig)
+                                             runtimeCreationTimeout: FiniteDuration)
       extends RuntimeInterpreterConfig
 
   final case class GceInterpreterConfig(gceConfig: GceConfig,
@@ -106,6 +108,6 @@ object RuntimeInterpreterConfig {
                                         vpcConfig: VPCConfig,
                                         clusterResourcesConfig: ClusterResourcesConfig,
                                         clusterFilesConfig: ClusterFilesConfig,
-                                        monitorConfig: MonitorConfig)
+                                        runtimeCreationTimeout: FiniteDuration)
       extends RuntimeInterpreterConfig
 }

@@ -325,6 +325,16 @@ object RuntimeRoutes {
     } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes))
   }
 
+  implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap { x =>
+    x match {
+      case RuntimeStatus.PreCreating => RuntimeStatus.Creating.toString
+      case RuntimeStatus.PreStarting => RuntimeStatus.Starting.toString
+      case RuntimeStatus.PreStopping => RuntimeStatus.Stopping.toString
+      case RuntimeStatus.PreDeleting => RuntimeStatus.Deleting.toString
+      case _                         => x.toString
+    }
+  }
+
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
   implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct19(

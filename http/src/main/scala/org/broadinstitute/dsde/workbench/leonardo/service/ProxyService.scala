@@ -5,7 +5,7 @@ package service
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
@@ -17,6 +17,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
@@ -26,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
+import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -61,7 +62,7 @@ class ProxyService(
   gdDAO: GoogleDataprocDAO,
   clusterDnsCache: ClusterDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
-  clusterDateAccessedActor: ActorRef,
+  dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
   blocker: Blocker
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -196,11 +197,11 @@ class ProxyService(
     )
     getTargetHost(googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
-        clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, now)
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
         // The presence of this header distinguishes WebSocket from http requests.
         val res = for {
+          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(clusterName, googleProject, now))
           response <- request.header[UpgradeToWebSocket] match {
             case Some(upgrade) =>
               IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))

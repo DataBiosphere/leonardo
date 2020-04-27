@@ -4,7 +4,7 @@ import java.time.Instant
 
 import ca.mrvisser.sealerate
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 /** An instance in a Dataproc cluster */
@@ -15,16 +15,6 @@ case class DataprocInstance(key: DataprocInstanceKey,
                             ip: Option[IP],
                             dataprocRole: DataprocRole,
                             createdDate: Instant)
-
-/** Dataproc Role (master, worker, secondary worker) */
-sealed trait DataprocRole extends EnumEntry with Product with Serializable
-object DataprocRole extends Enum[DataprocRole] {
-  val values = findValues
-
-  case object Master extends DataprocRole
-  case object Worker extends DataprocRole
-  case object SecondaryWorker extends DataprocRole
-}
 
 /**
  * Dataproc properties

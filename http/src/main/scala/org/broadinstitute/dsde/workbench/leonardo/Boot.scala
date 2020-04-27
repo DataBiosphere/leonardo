@@ -6,8 +6,6 @@ import akka.http.scaladsl.Http
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
-import com.google.protobuf.ByteString
-import com.google.pubsub.v1.PubsubMessage
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
 import com.typesafe.sslconfig.ssl.{
   ConfigSSLContextBuilder,
@@ -15,11 +13,10 @@ import com.typesafe.sslconfig.ssl.{
   DefaultTrustManagerFactoryWrapper,
   SSLConfigFactory
 }
+import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import fs2.{Pipe, Stream}
+import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import io.chrisdavenport.log4cats.{Logger, StructuredLogger}
-import io.circe.syntax._
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
 import org.broadinstitute.dsde.workbench.google.{
@@ -32,10 +29,12 @@ import org.broadinstitute.dsde.workbench.google.{
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
   GoogleComputeService,
+  GoogleDataprocService,
   GooglePublisher,
   GoogleStorageService,
   GoogleSubscriber
 }
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -117,13 +116,13 @@ object Boot extends IOApp {
                                                 bucketHelper,
                                                 appDependencies.dockerDAO,
                                                 appDependencies.publisherQueue)
-      val clusterDateAccessedActor =
-        system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
+      val dateAccessedUpdater =
+        new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(proxyConfig,
                                           appDependencies.googleDataprocDAO,
                                           appDependencies.clusterDnsCache,
                                           appDependencies.authProvider,
-                                          clusterDateAccessedActor,
+                                          appDependencies.dateAccessedUpdaterQueue,
                                           appDependencies.blocker)
       val statusService = new StatusService(appDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
@@ -177,29 +176,8 @@ object Boot extends IOApp {
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,
                                          appDependencies.rStudioDAO)
-          system.actorOf(
-            ClusterMonitorSupervisor.props(
-              monitorConfig,
-              dataprocConfig,
-              gceConfig,
-              imageConfig,
-              clusterBucketConfig,
-              appDependencies.googleDataprocDAO,
-              appDependencies.googleComputeService,
-              appDependencies.google2StorageDao,
-              appDependencies.authProvider,
-              appDependencies.rStudioDAO,
-              appDependencies.welderDAO,
-              appDependencies.publisherQueue
-            )
-          )
-          system.actorOf(
-            ClusterToolMonitor.props(clusterToolMonitorConfig,
-                                     appDependencies.dbReference,
-                                     appDependencies.openTelemetryMetrics)
-          )
 
-          val gceRuntimeMonitor = new GceRuntimeMonitorInterp[IO](
+          val gceRuntimeMonitor = new GceRuntimeMonitor[IO](
             gceMonitorConfig,
             appDependencies.googleComputeService,
             appDependencies.authProvider,
@@ -207,13 +185,28 @@ object Boot extends IOApp {
             gceInterp
           )
 
-          val monitorAtBoot = new MonitorAtBoot[IO](gceRuntimeMonitor, appDependencies.publisherQueue)
+          val dataprocRuntimeMonitor =
+            new DataprocRuntimeMonitor[IO](
+              dataprocMonitorConfig,
+              appDependencies.googleComputeService,
+              appDependencies.authProvider,
+              appDependencies.google2StorageDao,
+              dataprocInterp,
+              appDependencies.googleDataproc
+            )
+
+          implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
+            new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
+
+          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue)
 
           // only needed for backleo
+          val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
+
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
                                                appDependencies.subscriber,
-                                               gceRuntimeMonitor)
+                                               appDependencies.asyncTasksQueue)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -221,16 +214,17 @@ object Boot extends IOApp {
             appDependencies.publisherQueue
           )
           List(
+            asyncTasks.process,
             pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
             zombieClusterMonitor.process, // mark runtimes that are no long active in google as zombie periodically
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitor.process // check database to autopause runtimes periodically
           )
-        } else List.empty[Stream[IO, Unit]]
+        } else List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
 
         List(
-          appDependencies.publisherStream, //start the publisher queue .dequeue
+          appDependencies.leoPublisher.process, //start the publisher queue .dequeue
           Stream.eval[IO, Unit](httpServer) //start http server
         ) ++ extra
       }
@@ -243,18 +237,6 @@ object Boot extends IOApp {
         .drain
     }
   }
-
-  private def convertToPubsubMessagePipe[F[_]]: Pipe[F, LeoPubsubMessage, PubsubMessage] =
-    in =>
-      in.map { msg =>
-        val stringMessage = msg.asJson.noSpaces
-        val byteString = ByteString.copyFromUtf8(stringMessage)
-        PubsubMessage
-          .newBuilder()
-          .setData(byteString)
-          .putAttributes("traceId", msg.traceId.map(_.asString).getOrElse("null"))
-          .build()
-      }
 
   private def createDependencies[F[_]: StructuredLogger: ContextShift: ConcurrentEffect: Timer](
     pathToCredentialJson: String
@@ -273,7 +255,7 @@ object Boot extends IOApp {
 
       samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
       concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
-      dbRef <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
+      implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig, blocker)
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
@@ -310,13 +292,23 @@ object Boot extends IOApp {
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
+      dataAccessedUpdater <- Resource.liftF(
+        InspectableQueue.bounded[F, UpdateDateAccessMessage](dateAccessUpdaterConfig.queueSize)
+      )
 
-      publisherStream = Stream.eval(Logger[F].info(s"Initializing publisher for ${publisherConfig.projectTopicName}")) ++ (publisherQueue.dequeue through convertToPubsubMessagePipe through googlePublisher.publishNative)
+      leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
       googleComputeService <- GoogleComputeService.resource(pathToCredentialJson, blocker, semaphore)
+      dataprocService <- GoogleDataprocService.resource(
+        pathToCredentialJson,
+        blocker,
+        semaphore,
+        dataprocConfig.regionName
+      )
+      asyncTasksQueue <- Resource.liftF(InspectableQueue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
     } yield AppDependencies(
       storage,
       dbRef,
@@ -327,6 +319,7 @@ object Boot extends IOApp {
       googleDirectoryDAO,
       googleIamDAO,
       gdDAO,
+      dataprocService,
       samDao,
       welderDao,
       dockerDao,
@@ -337,9 +330,11 @@ object Boot extends IOApp {
       openTelemetry,
       blocker,
       semaphore,
-      publisherStream,
+      leoPublisher,
       publisherQueue,
-      subscriber
+      dataAccessedUpdater,
+      subscriber,
+      asyncTasksQueue
     )
 
   private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
@@ -359,25 +354,30 @@ object Boot extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }
 
-final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F],
-                                       dbReference: DbReference[F],
-                                       clusterDnsCache: ClusterDnsCache[F],
-                                       petGoogleStorageDAO: String => GoogleStorageDAO,
-                                       googleComputeService: GoogleComputeService[F],
-                                       googleProjectDAO: HttpGoogleProjectDAO,
-                                       googleDirectoryDAO: HttpGoogleDirectoryDAO,
-                                       googleIamDAO: HttpGoogleIamDAO,
-                                       googleDataprocDAO: HttpGoogleDataprocDAO,
-                                       samDAO: HttpSamDAO[F],
-                                       welderDAO: HttpWelderDAO[F],
-                                       dockerDAO: HttpDockerDAO[F],
-                                       jupyterDAO: HttpJupyterDAO[F],
-                                       rStudioDAO: RStudioDAO[F],
-                                       serviceAccountProvider: ServiceAccountProvider[F],
-                                       authProvider: LeoAuthProvider[F],
-                                       openTelemetryMetrics: OpenTelemetryMetrics[F],
-                                       blocker: Blocker,
-                                       semaphore: Semaphore[F],
-                                       publisherStream: Stream[F, Unit],
-                                       publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
-                                       subscriber: GoogleSubscriber[F, LeoPubsubMessage])
+final case class AppDependencies[F[_]](
+  google2StorageDao: GoogleStorageService[F],
+  dbReference: DbReference[F],
+  clusterDnsCache: ClusterDnsCache[F],
+  petGoogleStorageDAO: String => GoogleStorageDAO,
+  googleComputeService: GoogleComputeService[F],
+  googleProjectDAO: HttpGoogleProjectDAO,
+  googleDirectoryDAO: HttpGoogleDirectoryDAO,
+  googleIamDAO: HttpGoogleIamDAO,
+  googleDataprocDAO: HttpGoogleDataprocDAO,
+  googleDataproc: GoogleDataprocService[F],
+  samDAO: HttpSamDAO[F],
+  welderDAO: HttpWelderDAO[F],
+  dockerDAO: HttpDockerDAO[F],
+  jupyterDAO: HttpJupyterDAO[F],
+  rStudioDAO: RStudioDAO[F],
+  serviceAccountProvider: ServiceAccountProvider[F],
+  authProvider: LeoAuthProvider[F],
+  openTelemetryMetrics: OpenTelemetryMetrics[F],
+  blocker: Blocker,
+  semaphore: Semaphore[F],
+  leoPublisher: LeoPublisher[F],
+  publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
+  dateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, UpdateDateAccessMessage],
+  subscriber: GoogleSubscriber[F, LeoPubsubMessage],
+  asyncTasksQueue: InspectableQueue[F, Task[F]]
+)

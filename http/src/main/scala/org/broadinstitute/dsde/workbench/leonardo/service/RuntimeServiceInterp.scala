@@ -33,9 +33,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -175,9 +175,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     }
 
   override def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
+      ctx <- ev.ask
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
@@ -201,11 +202,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (runtime.status.isDeletable) F.unit
       else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
       // delete the runtime
-      ctx <- as.ask
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
-        clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction.void >> publisherQueue.enqueue1(
-          DeleteRuntimeMessage(runtime.id, Some(ctx.traceId))
-        )
+        clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreDeleting, ctx.now).transaction >> publisherQueue
+          .enqueue1(
+            DeleteRuntimeMessage(runtime.id, Some(ctx.traceId))
+          )
       } else {
         clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyClusterDeleted(
           runtime.internalId,
@@ -227,6 +228,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
+      ctx <- as.ask
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
@@ -251,8 +253,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       else
         F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
       // stop the runtime
-      ctx <- as.ask
-      _ <- clusterQuery.setToStopping(runtime.id, ctx.now).transaction
+      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
       _ <- publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
     } yield ()
 
@@ -285,7 +286,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         F.raiseError[Unit](RuntimeCannotBeStartedException(runtime.googleProject, runtime.runtimeName, runtime.status))
       // start the runtime
       ctx <- as.ask
-      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Starting, ctx.now).transaction
+      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStarting, ctx.now).transaction
       _ <- publisherQueue.enqueue1(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
     } yield ()
 
@@ -569,7 +570,7 @@ object RuntimeServiceInterp {
       auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
       kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, labels),
-      status = RuntimeStatus.Creating,
+      status = RuntimeStatus.PreCreating,
       labels = labels,
       jupyterUserScriptUri = req.jupyterUserScriptUri,
       jupyterStartUserScriptUri = req.jupyterStartUserScriptUri,

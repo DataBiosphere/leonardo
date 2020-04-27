@@ -5,8 +5,8 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import org.broadinstitute.dsde.workbench.google2.{InstanceName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, SecondaryWorker, Worker}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.model.google._
@@ -82,14 +82,6 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
       if (clusters.contains(clusterName))
         Some(DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName("master-instance")))
       else None
-    }
-
-  override def getClusterInstances(googleProject: GoogleProject,
-                                   clusterName: RuntimeName): Future[Map[DataprocRole, Set[DataprocInstanceKey]]] =
-    Future.successful {
-      if (clusters.contains(clusterName))
-        instances.getOrElse(clusterName, mutable.Map[DataprocRole, Set[DataprocInstanceKey]]()).toMap
-      else Map.empty
     }
 
   override def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[RuntimeErrorDetails]] =

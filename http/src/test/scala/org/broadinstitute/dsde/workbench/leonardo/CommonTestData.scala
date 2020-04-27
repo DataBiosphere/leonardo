@@ -13,6 +13,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
   DiskName,
   InstanceName,
   MachineTypeName,
@@ -23,7 +24,6 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
@@ -88,30 +88,25 @@ object CommonTestData {
   val blockSize = BlockSize(4096)
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
-  val applicationConfig = config.as[ApplicationConfig]("application")
-  val dataprocImageProjectGroupName = config.getString("groups.dataprocImageProjectGroupName")
-  val dataprocImageProjectGroupEmail = WorkbenchEmail(config.getString("groups.dataprocImageProjectGroupEmail"))
+  val applicationConfig = Config.applicationConfig
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
   val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
-  val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
-  val dataprocConfig = config.as[DataprocConfig]("dataproc")
-  val gceConfig = config.as[GceConfig]("gce")
-  val vpcConfig = config.as[VPCConfig]("vpc")
-  val imageConfig = config.as[ImageConfig]("image")
-  val persistentDiskConfig = Config.persistentDiskConfig
-  val welderConfig = config.as[WelderConfig]("welder")
-  val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
-  val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val proxyConfig = config.as[ProxyConfig]("proxy")
-  val swaggerConfig = config.as[SwaggerConfig]("swagger")
-  val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-  val zombieMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
-  val clusterToolConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
-  val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
+  // Let's not use this pattern and directly use `Config.???` going forward :)
+  // By using Config.xxx, we'll be actually testing our Config.scala code as well
+  val dataprocConfig = Config.dataprocConfig
+  val vpcConfig = Config.vpcConfig
+  val imageConfig = Config.imageConfig
+  val welderConfig = Config.welderConfig
+  val clusterFilesConfig = Config.clusterFilesConfig
+  val clusterResourcesConfig = Config.clusterResourcesConfig
+  val proxyConfig = Config.proxyConfig
+  val swaggerConfig = Config.swaggerConfig
+  val autoFreezeConfig = Config.autoFreezeConfig
+  val clusterToolConfig = Config.clusterToolMonitorConfig
+  val dnsCacheConfig = Config.clusterDnsCacheConfig
   val proxyUrlBase = proxyConfig.proxyUrlBase
-  val monitorConfig = config.as[MonitorConfig]("monitor")
-  val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
-  val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
+  val clusterBucketConfig = Config.clusterBucketConfig
+  val contentSecurityPolicy = Config.contentSecurityPolicy
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),
@@ -225,7 +220,7 @@ object CommonTestData {
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
       allowStop = false,
-      runtimeImages = Set(jupyterImage),
+      runtimeImages = Set(jupyterImage, welderImage),
       scopes = defaultScopes,
       welderEnabled = false,
       customEnvironmentVariables = Map.empty,

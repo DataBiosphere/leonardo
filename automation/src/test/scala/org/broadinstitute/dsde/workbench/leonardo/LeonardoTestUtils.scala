@@ -745,7 +745,8 @@ trait LeonardoTestUtils
   }
 
   def withNewErroredCluster[T](
-    googleProject: GoogleProject
+    googleProject: GoogleProject,
+    cloudService: CloudService = CloudService.GCE
   )(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
     val name = RuntimeName(s"automation-test-a${makeRandomId()}z")
     // Fail a cluster by providing a user script which returns exit status 1
@@ -757,7 +758,12 @@ trait LeonardoTestUtils
         cluster.status shouldBe ClusterStatus.Error
         cluster.errors should have size 1
         cluster.errors.head.errorMessage should include("gs://")
-        cluster.errors.head.errorMessage should include("Userscript failed.")
+        cloudService match {
+          case CloudService.GCE =>
+            cluster.errors.head.errorMessage should include("Userscript failed.")
+          case CloudService.Dataproc =>
+            cluster.errors.head.errorMessage should include("Initialization action failed")
+        }
         cluster.errors.head.errorCode should be(3)
         testCode(cluster)
       }

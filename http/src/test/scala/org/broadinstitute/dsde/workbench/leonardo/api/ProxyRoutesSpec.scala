@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockProxyService, TestProxy}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
@@ -21,7 +21,10 @@ import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec}
 import scala.collection.immutable
 import scala.concurrent.duration._
 import CommonTestData._
+import cats.effect.IO
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 
 /**
  * Created by rtitle on 8/10/17.
@@ -139,9 +142,18 @@ class ProxyRoutesSpec
   }
 
   it should s"pass through paths ($prefix)" in {
+    val queue = InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync
+    val proxyService =
+      new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache, Some(queue))
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
+                                            Some(runtimeInternalId))
+    val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
     Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Data].path shouldEqual s"/$prefix/$googleProject/$clusterName"
+      val message = queue.tryDequeue1.unsafeRunSync().get
+      message.googleProject.value shouldBe googleProject
+      message.runtimeName.asString shouldBe clusterName
     }
   }
 

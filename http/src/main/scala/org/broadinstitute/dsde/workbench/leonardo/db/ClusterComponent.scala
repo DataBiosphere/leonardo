@@ -20,7 +20,8 @@ import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits.cloudServiceMappedColumnType
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor
+
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -299,34 +300,23 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       recs => unmarshalMinimalCluster(recs)
     }
 
-  def listMonitoredGce(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
+  def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[RuntimeToMonitor]] =
     clusterQuery
       .filter(_.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString))
       .join(runtimeConfigs)
       .on(_.runtimeConfigId === _.id)
-      .filter {
-        case (_, runtimeConfig) =>
-          runtimeConfig.cloudService.asColumnOf[String] === CloudService.GCE.asString
-      }
+      .joinLeft(patchQuery)
+      .on(_._1.id === _.clusterId)
       .result map { recs =>
-      recs.map(rec =>
-        unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
-      )
-    }
-
-  def listMonitoredDataproc(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
-    clusterQuery
-      .filter(_.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString))
-      .join(runtimeConfigs)
-      .on(_.runtimeConfigId === _.id)
-      .filter {
-        case (_, runtimeConfig) =>
-          runtimeConfig.cloudService.asColumnOf[String] === CloudService.Dataproc.asString
+      recs.map { rec =>
+        val runtimeStatus = RuntimeStatus
+          .withNameInsensitiveOption(rec._1._1.status)
+          .getOrElse(throw new Exception(s"unexpected runtime status ${rec._1._1.status} from database"))
+        RuntimeToMonitor(rec._1._1.id,
+                         rec._1._2.runtimeConfig.cloudService,
+                         runtimeStatus,
+                         rec._2.map(_.inProgress).getOrElse(false))
       }
-      .result map { recs =>
-      recs.map(rec =>
-        unmarshalCluster(rec._1, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
-      )
     }
 
   def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =

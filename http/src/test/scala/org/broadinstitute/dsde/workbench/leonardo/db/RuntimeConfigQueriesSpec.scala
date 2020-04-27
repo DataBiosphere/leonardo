@@ -23,7 +23,7 @@ class RuntimeConfigQueriesSpec extends FlatSpecLike with TestComponent with Leon
       properties = Map("spark:spark.executor.memory" -> "10g")
     )
     val res = for {
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+      now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, Instant.ofEpochMilli(now)).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction
     } yield {
