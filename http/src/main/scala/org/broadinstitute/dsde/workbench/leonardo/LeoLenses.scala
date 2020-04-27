@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.time.Instant
+
 import monocle.{Lens, Optional}
 import monocle.macros.GenLens
 import org.broadinstitute.dsde.workbench.leonardo.db.GetClusterKey
@@ -9,6 +11,8 @@ object LeoLenses {
   val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
 
   val runtimeToAuditInfo: Lens[Runtime, AuditInfo] = GenLens[Runtime](_.auditInfo)
+
+  val diskToDateAccessed: Lens[PersistentDisk, Instant] = GenLens[PersistentDisk](_.auditInfo.dateAccessed)
 
   val runtimeToRuntimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 

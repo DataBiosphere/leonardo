@@ -7,6 +7,7 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -21,7 +22,7 @@ final case class PersistentDiskRecord(id: Long,
                                       status: DiskStatus,
                                       creator: WorkbenchEmail,
                                       createdDate: Instant,
-                                      destroyedDate: Option[Instant],
+                                      destroyedDate: Instant,
                                       dateAccessed: Instant,
                                       size: DiskSize,
                                       diskType: DiskType,
@@ -37,7 +38,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def status = column[DiskStatus]("status", O.Length(255))
   def creator = column[WorkbenchEmail]("creator", O.Length(255))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
-  def destroyedDate = column[Option[Instant]]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
+  def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def size = column[DiskSize]("sizeGb")
   def diskType = column[DiskType]("type", O.Length(255))
@@ -63,6 +64,9 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
 object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   private[db] def findByIdQuery(id: Long) = persistentDiskQuery.filter(_.id === id)
 
+  private[db] def findActiveByNameQuery(googleProject: GoogleProject, name: DiskName) =
+    persistentDiskQuery.filter(_.googleProject === googleProject).filter(_.name === name)
+
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     baseQuery joinLeft persistentDiskLabelQuery on (_.id === _.diskId)
 
@@ -72,13 +76,17 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def getById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
 
+  def getActiveByName(googleProject: GoogleProject,
+                      name: DiskName)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
+    joinLabelQuery(findActiveByNameQuery(googleProject, name)).result.map(aggregateLabels).map(_.headOption)
+
   def updateStatus(id: Long, newStatus: DiskStatus, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
 
   def delete(id: Long, destroyedDate: Instant) =
     findByIdQuery(id)
       .map(d => (d.status, d.destroyedDate, d.dateAccessed))
-      .update((DiskStatus.Deleted, Some(destroyedDate), destroyedDate))
+      .update((DiskStatus.Deleted, destroyedDate, destroyedDate))
 
   // TODO add other queries as needed
 
@@ -93,7 +101,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       disk.status,
       disk.auditInfo.creator,
       disk.auditInfo.createdDate,
-      disk.auditInfo.destroyedDate,
+      disk.auditInfo.destroyedDate.getOrElse(dummyDate),
       disk.auditInfo.dateAccessed,
       disk.size,
       disk.diskType,
@@ -128,7 +136,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       DiskAuditInfo(
         rec.creator,
         rec.createdDate,
-        rec.destroyedDate,
+        unmarshalDestroyedDate(rec.destroyedDate),
         rec.dateAccessed
       ),
       rec.size,

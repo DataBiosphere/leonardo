@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="persistent-disk-table">
+        <createTable tableName="PERSISTENT_DISK">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="googleProject" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="zone" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleId" type="VARCHAR(255)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="samResourceId" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="creator" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="createdDate" type="TIMESTAMP(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destroyedDate" type="TIMESTAMP(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sizeGb" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="blockSizeBytes" type="INT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint columnNames="googleProject, name, destroyedDate" constraintName="IDX_PERSISTENT_DISK_UNIQUE" tableName="PERSISTENT_DISK"/>
+        <createIndex indexName="IDX_PERSISTENT_DISK_STATUS" tableName="PERSISTENT_DISK">
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="persistent-disk-label-table">
+        <createTable tableName="PERSISTENT_DISK_LABEL">
+            <column name="persistentDiskId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="value" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="FK_PERSISTENT_DISK_ID" tableName="PERSISTENT_DISK_LABEL">
+            <column name="persistentDiskId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="persistentDiskId" baseTableName="PERSISTENT_DISK_LABEL" constraintName="FK_PERSISTENT_DISK_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="PERSISTENT_DISK"/>
+        <addUniqueConstraint columnNames="persistentDiskId, key" constraintName="IDX_PERSISTENT_DISK_LABEL_UNIQUE" tableName="PERSISTENT_DISK_LABEL"/>
+    </changeSet>
+</databaseChangeLog>

@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
@@ -65,6 +65,10 @@ object CommonTestData {
     "https://www.googleapis.com/auth/bigquery",
     "https://www.googleapis.com/auth/source.read_only"
   )
+  val zone = ZoneName("us-central1-a")
+  val diskName = DiskName("disk-1")
+  val googleId = GoogleId("google-id")
+  val diskSamResourceId = DiskSamResourceId("disk-resource-id")
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = config.as[ApplicationConfig]("application")
@@ -288,6 +292,21 @@ object CommonTestData {
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
   def modifyInstanceKey(instanceKey: DataprocInstanceKey): DataprocInstanceKey =
     instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
+
+  def makePersistentDisk(id: Int): PersistentDisk = PersistentDisk(
+    id,
+    project,
+    zone,
+    diskName,
+    Some(googleId),
+    diskSamResourceId,
+    DiskStatus.Ready,
+    DiskAuditInfo(userEmail, Instant.now, None, Instant.now),
+    DiskSize(500),
+    DiskType.Standard,
+    BlockSize(4096),
+    Map.empty
+  )
 }
 
 trait GcsPathUtils {
