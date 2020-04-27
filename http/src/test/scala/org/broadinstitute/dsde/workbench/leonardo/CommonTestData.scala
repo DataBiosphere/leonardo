@@ -33,7 +33,8 @@ object CommonTestData {
   val name1 = RuntimeName("clustername1")
   val name2 = RuntimeName("clustername2")
   val name3 = RuntimeName("clustername3")
-  val internalId = RuntimeInternalId("067e2867-5d4a-47f3-a53c-fd711529b287")
+  val runtimeInternalId = RuntimeInternalId("067e2867-5d4a-47f3-a53c-fd711529b287")
+  val diskInternalId = PersistentDiskInternalId("067e2867-5d4a-47f3-a53c-fd711529b289")
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
@@ -180,7 +181,7 @@ object CommonTestData {
     Runtime(
       id = -1,
       runtimeName = clusterName,
-      internalId = internalId,
+      internalId = runtimeInternalId,
       googleProject = project,
       serviceAccount = clusterServiceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
@@ -210,7 +211,7 @@ object CommonTestData {
   val testCluster = new Runtime(
     id = -1,
     runtimeName = name1,
-    internalId = internalId,
+    internalId = runtimeInternalId,
     googleProject = project,
     serviceAccount = clusterServiceAccount,
     asyncRuntimeFields = Some(

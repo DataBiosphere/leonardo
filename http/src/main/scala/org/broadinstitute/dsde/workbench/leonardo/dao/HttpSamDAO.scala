@@ -344,7 +344,7 @@ object HttpSamDAO {
 
   implicit val accessPolicyNameDecoder: Decoder[AccessPolicyName] =
     Decoder.decodeString.map(s => AccessPolicyName.stringToAccessPolicyName.getOrElse(s, AccessPolicyName.Other(s)))
-  implicit val samResourcePolicyDecoder: Decoder[SamNotebookClusterPolicy] = Decoder.instance { c =>
+  implicit val samClusterPolicyDecoder: Decoder[SamNotebookClusterPolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
       runtimeInternalId <- c.downField("resourceId").as[RuntimeInternalId]
@@ -355,6 +355,12 @@ object HttpSamDAO {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
       project <- c.downField("resourceId").as[GoogleProject]
     } yield SamProjectPolicy(policyName, project)
+  }
+  implicit val samPersistentDiskPolicyDecoder: Decoder[SamPersistentDiskPolicy] = Decoder.instance { c =>
+    for {
+      policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
+      diskInternalId <- c.downField("resourceId").as[PersistentDiskInternalId]
+    } yield SamPersistentDiskPolicy(policyName, diskInternalId)
   }
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
     for {

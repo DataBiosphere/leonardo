@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterActions, PersistentDiskActions, ProjectActions, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterAction, PersistentDiskAction, ProjectAction, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GoogleProject}
 import org.scalatest.{FlatSpec, Matchers}
@@ -685,25 +685,26 @@ class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent wi
 
 object MockAuthProvider extends LeoAuthProvider[IO] {
   override def serviceAccountProvider: ServiceAccountProvider[IO] = ???
-  override def hasProjectPermission(
-    userInfo: UserInfo,
-    action: ProjectActions.ProjectAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-  override def hasNotebookClusterPermission(
-    internalId: RuntimeInternalId,
-    userInfo: UserInfo,
-    action: NotebookClusterActions.NotebookClusterAction,
-    googleProject: GoogleProject,
-    runtimeName: RuntimeName
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
+  override def hasProjectPermission(userInfo: UserInfo,
+                                    action: ProjectAction,
+                                    googleProject: GoogleProject
+                                   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
+  override def hasNotebookClusterPermission(internalId: RuntimeInternalId,
+                                            userInfo: UserInfo,
+                                            action: NotebookClusterAction,
+                                            googleProject: GoogleProject,
+                                            runtimeName: RuntimeName
+                                           )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
   override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
                                            userInfo: UserInfo,
-                                           action: PersistentDiskActions.PersistentDiskAction,
+                                           action: PersistentDiskAction,
                                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, RuntimeInternalId)]] = ???
+  override def filterUserVisibleClusters(userInfo: UserInfo,
+                                         clusters: List[(GoogleProject, RuntimeInternalId)]
+                                        )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, RuntimeInternalId)]] = ???
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
+                                                clusters: List[(GoogleProject, PersistentDiskInternalId)]
+                                               )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, PersistentDiskInternalId)]] = ???
   override def notifyClusterCreated(internalId: RuntimeInternalId,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,

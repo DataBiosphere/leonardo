@@ -7,15 +7,15 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 sealed trait LeoAuthAction extends Product with Serializable
 
+sealed trait ProjectAction extends LeoAuthAction
 object ProjectActions {
-  sealed trait ProjectAction extends LeoAuthAction
   case object CreateClusters extends ProjectAction
   case object CreatePersistentDisk extends ProjectAction
   val allActions = Seq(CreateClusters, CreatePersistentDisk)
 }
 
+sealed trait NotebookClusterAction extends LeoAuthAction
 object NotebookClusterActions {
-  sealed trait NotebookClusterAction extends LeoAuthAction
   case object GetClusterStatus extends NotebookClusterAction
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction
@@ -25,8 +25,8 @@ object NotebookClusterActions {
   val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster, StopStartCluster)
 }
 
+sealed trait PersistentDiskAction extends LeoAuthAction
 object PersistentDiskActions {
-  sealed trait PersistentDiskAction extends LeoAuthAction
   case object ReadPersistentDisk extends PersistentDiskAction
   case object AttachPersistentDisk extends PersistentDiskAction
   case object ModifyPersistentDisk extends PersistentDiskAction
@@ -43,7 +43,7 @@ abstract class LeoAuthProvider[F[_]] {
    * @param googleProject The Google project to check in
    * @return If the given user has permissions in this project to perform the specified action.
    */
-  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(
+  def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Boolean]
 
@@ -59,7 +59,7 @@ abstract class LeoAuthProvider[F[_]] {
    */
   def hasNotebookClusterPermission(internalId: RuntimeInternalId,
                                    userInfo: UserInfo,
-                                   action: NotebookClusterActions.NotebookClusterAction,
+                                   action: NotebookClusterAction,
                                    googleProject: GoogleProject,
                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
@@ -74,7 +74,7 @@ abstract class LeoAuthProvider[F[_]] {
     */
   def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
                                   userInfo: UserInfo,
-                                  action: PersistentDiskActions.PersistentDiskAction,
+                                  action: PersistentDiskAction,
                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
   /**
@@ -88,6 +88,18 @@ abstract class LeoAuthProvider[F[_]] {
   def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[(GoogleProject, RuntimeInternalId)]]
+
+  /**
+    * Leo calls this method when it receives a "list persistent disks" API call, passing in all non-deleted disks from the database.
+    * It should return a list of disks that the user can see according to their authz.
+    *
+    * @param userInfo The user in question
+    * @param disks    All non-deleted disks from the database
+    * @return         Filtered list of disks that the user is allowed to see
+    */
+  def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskInternalId)])(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[List[(GoogleProject, PersistentDiskInternalId)]]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 

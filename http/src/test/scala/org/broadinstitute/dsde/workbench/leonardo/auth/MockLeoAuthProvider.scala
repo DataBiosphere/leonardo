@@ -13,19 +13,19 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     extends LeoAuthProvider[IO] {
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
   //behaviour defined in test\...\reference.conf
-  val projectPermissions: Map[ProjectActions.ProjectAction, Boolean] =
+  val projectPermissions: Map[ProjectAction, Boolean] =
     (ProjectActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
-  val clusterPermissions: Map[NotebookClusterActions.NotebookClusterAction, Boolean] =
+  val clusterPermissions: Map[NotebookClusterAction, Boolean] =
     (NotebookClusterActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
-  val diskPermissions: Map[PersistentDiskActions.PersistentDiskAction, Boolean] =
+  val diskPermissions: Map[PersistentDiskAction, Boolean] =
     (PersistentDiskActions.allActions map (action => action -> authConfig.getBoolean(action.toString))).toMap
 
-  val canSeeClustersInAllProjects = authConfig.as[Option[Boolean]]("canSeeClustersInAllProjects").getOrElse(false)
-  val canSeeAllClustersIn = authConfig.as[Option[Seq[String]]]("canSeeAllClustersIn").getOrElse(Seq.empty)
+  val canSeeResourcesInAllProjects = authConfig.as[Option[Boolean]]("canSeeResourcesInAllProjects").getOrElse(false)
+  val canSeeAllResourcesIn = authConfig.as[Option[Seq[String]]]("canSeeAllResourcesIn").getOrElse(Seq.empty)
 
   override def hasProjectPermission(
     userInfo: UserInfo,
-    action: ProjectActions.ProjectAction,
+    action: ProjectAction,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     IO.pure(projectPermissions(action))
@@ -33,7 +33,7 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
   override def hasNotebookClusterPermission(
     internalId: RuntimeInternalId,
     userInfo: UserInfo,
-    action: NotebookClusterActions.NotebookClusterAction,
+    action: NotebookClusterAction,
     googleProject: GoogleProject,
     clusterName: RuntimeName
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
@@ -41,7 +41,7 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
 
   override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
                                            userInfo: UserInfo,
-                                           action: PersistentDiskActions.PersistentDiskAction,
+                                           action: PersistentDiskAction,
                                            googleProject: GoogleProject
                                           )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     IO.pure(diskPermissions(action))
@@ -49,14 +49,26 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[(GoogleProject, RuntimeInternalId)]] =
-    if (canSeeClustersInAllProjects) {
+    if (canSeeResourcesInAllProjects) {
       IO.pure(clusters)
     } else {
       IO.pure(clusters.filter {
         case (googleProject, _) =>
-          canSeeAllClustersIn.contains(googleProject.value) || clusterPermissions(
+          canSeeAllResourcesIn.contains(googleProject.value) || clusterPermissions(
             NotebookClusterActions.GetClusterStatus
           )
+      })
+    }
+
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskInternalId)])(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[(GoogleProject, PersistentDiskInternalId)]] =
+    if (canSeeResourcesInAllProjects) {
+      IO.pure(disks)
+    } else {
+      IO.pure(disks.filter {
+        case (googleProject, _) =>
+          canSeeAllResourcesIn.contains(googleProject.value) || diskPermissions(PersistentDiskActions.ReadPersistentDisk)
       })
     }
 
