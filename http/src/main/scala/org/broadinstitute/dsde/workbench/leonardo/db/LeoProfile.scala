@@ -5,7 +5,7 @@ import java.time.Instant
 
 import io.circe.Printer
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
@@ -83,6 +83,17 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[GoogleId, String](_.value, GoogleId.apply)
     implicit val diskSizeMappedColumnType: BaseColumnType[DiskSize] =
       MappedColumnType.base[DiskSize, Int](_.gb, DiskSize.apply)
-
+    implicit val zoneNameMappedColumnType: BaseColumnType[ZoneName] =
+      MappedColumnType.base[ZoneName, String](_.value, ZoneName.apply)
+    implicit val diskNameMappedColumnType: BaseColumnType[DiskName] =
+      MappedColumnType.base[DiskName, String](_.value, DiskName.apply)
+    implicit val diskSamResourceIdMappedColumnType: BaseColumnType[DiskSamResourceId] =
+      MappedColumnType.base[DiskSamResourceId, String](_.asString, DiskSamResourceId.apply)
+    implicit val diskStatusMappedColumnType: BaseColumnType[DiskStatus] =
+      MappedColumnType.base[DiskStatus, String](_.entryName, DiskStatus.withName)
+    implicit val diskTypeMappedColumnType: BaseColumnType[DiskType] =
+      MappedColumnType.base[DiskType, String](_.entryName, DiskType.withName)
+    implicit val blockSizeMappedColumnType: BaseColumnType[BlockSize] =
+      MappedColumnType.base[BlockSize, Int](_.bytes, BlockSize.apply)
   }
 }

@@ -40,6 +40,7 @@ object JsonCodec {
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val diskSizeEncoder: Encoder[DiskSize] = Encoder.encodeInt.contramap(_.gb)
+  implicit val blockSizeEncoder: Encoder[BlockSize] = Encoder.encodeInt.contramap(_.bytes)
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
     "numberOfWorkers",
     "masterMachineType",
@@ -112,6 +113,14 @@ object JsonCodec {
     "errorCode",
     "timestamp"
   )(x => RuntimeError.unapply(x).get)
+  implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.toString)
+  implicit val diskAuditInfoEncoder: Encoder[DiskAuditInfo] = Encoder.forProduct4(
+    "creator",
+    "createdDate",
+    "destroyedDate",
+    "dateAccessed"
+  )(x => DiskAuditInfo.unapply(x).get)
+  implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.entryName)
 
   // Decoders
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
@@ -137,6 +146,8 @@ object JsonCodec {
     Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
   implicit val diskSizeDecoder: Decoder[DiskSize] =
     Decoder.decodeInt.emap(d => if (d < 50) Left("Minimum required disk size is 50GB") else Right(DiskSize(d)))
+  implicit val blockSizeDecoder: Decoder[BlockSize] =
+    Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
@@ -210,5 +221,10 @@ object JsonCodec {
 
   implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
-
+  implicit val diskStatusDecoder: Decoder[DiskStatus] =
+    Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
+  implicit val diskAuditInfoDecoder: Decoder[DiskAuditInfo] =
+    Decoder.forProduct4("creator", "createdDate", "destroyedDate", "dateAccesed")(DiskAuditInfo.apply)
+  implicit val diskTypeDecoder: Decoder[DiskType] =
+    Decoder.decodeString.emap(x => DiskType.withNameOption(x).toRight(s"Invalid disk type: $x"))
 }
