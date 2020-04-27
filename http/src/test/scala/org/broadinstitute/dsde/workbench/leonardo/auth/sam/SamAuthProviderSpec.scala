@@ -231,6 +231,8 @@ class SamAuthProviderSpec
     samAuthProvider
       .filterUserVisibleClusters(fakeUserInfo, List(project -> cluster1, project -> cluster2))
       .unsafeRunSync() shouldBe List(project -> cluster1, project -> cluster2)
+
+    mockSam.projectOwners.remove(fakeUserAuthorization)
   }
 
   "should add and delete a persistent-disk resource with correct actions for the user when a disk is created and then destroyed" in {
@@ -298,7 +300,7 @@ class SamAuthProviderSpec
     mockSam.persistentDisks shouldBe empty
     samAuthProvider.notifyPersistentDiskCreated(diskInternalId, fakeUserInfo.userEmail, project).unsafeRunSync()
     mockSam.persistentDisks.toList should contain(
-      (diskInternalId, fakeUserAuthorization) -> Set("read", "attach", "modify", "delete")
+      (diskInternalId, fakeUserAuthorization) -> Set("read", "read_policies", "attach", "modify", "delete")
     )
     mockSam.persistentDisks.remove((diskInternalId, fakeUserAuthorization))
   }
@@ -340,6 +342,8 @@ class SamAuthProviderSpec
     samAuthProvider
       .filterUserVisiblePersistentDisks(fakeUserInfo, List(project -> disk1, project -> disk2))
       .unsafeRunSync() shouldBe List(project -> disk1, project -> disk2)
+
+    mockSam.projectOwners.remove(fakeUserAuthorization)
   }
 }
 
