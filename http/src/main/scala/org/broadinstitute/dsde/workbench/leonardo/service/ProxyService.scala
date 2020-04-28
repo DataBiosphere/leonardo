@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject

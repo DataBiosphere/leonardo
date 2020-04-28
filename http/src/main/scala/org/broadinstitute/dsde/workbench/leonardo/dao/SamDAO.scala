@@ -32,6 +32,15 @@ trait SamDAO[F[_]] {
                             googleProject: GoogleProject,
                             runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
+  def createPersistentDiskResource(internalId: PersistentDiskInternalId,
+                                   creatorEmail: WorkbenchEmail,
+                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+
+  def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
+                                   userEmail: WorkbenchEmail,
+                                   creatorEmail: WorkbenchEmail,
+                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[WorkbenchEmail]]

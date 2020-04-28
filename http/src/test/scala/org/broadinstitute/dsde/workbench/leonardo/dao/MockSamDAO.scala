@@ -18,8 +18,10 @@ import scala.collection.mutable
 class MockSamDAO extends SamDAO[IO] {
   val billingProjects: mutable.Map[(GoogleProject, Authorization), Set[String]] = new TrieMap()
   val notebookClusters: mutable.Map[(RuntimeInternalId, Authorization), Set[String]] = new TrieMap()
+  val persistentDisks: mutable.Map[(PersistentDiskInternalId, Authorization), Set[String]] = new TrieMap()
   val projectOwners: mutable.Map[Authorization, Set[SamProjectPolicy]] = new TrieMap()
   val clusterCreators: mutable.Map[Authorization, Set[SamNotebookClusterPolicy]] = new TrieMap()
+  val diskCreators: mutable.Map[Authorization, Set[SamPersistentDiskPolicy]] = new TrieMap()
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
@@ -40,6 +42,12 @@ class MockSamDAO extends SamDAO[IO] {
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
           .getOrElse(false) //unpack the resulting option and handle the project never having existed
         IO.pure(res)
+      case ResourceTypeName.PersistentDisk =>
+        val res = persistentDisks
+          .get((PersistentDiskInternalId(resourceId), authHeader)) //look it up: Option[Set]
+          .map(_.contains(action)) //open the option to peek the set: Option[Bool]
+          .getOrElse(false) //unpack the resulting option and handle the project never having existed
+        IO.pure(res)
     }
 
   override def getResourcePolicies[A](
@@ -51,6 +59,8 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(clusterCreators.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
       case ResourceTypeName.BillingProject =>
         IO.pure(projectOwners.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
+      case ResourceTypeName.PersistentDisk =>
+        IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
     }
 
   override def createClusterResource(internalId: RuntimeInternalId,
@@ -71,6 +81,21 @@ class MockSamDAO extends SamDAO[IO] {
                                      googleProject: GoogleProject,
                                      clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO(notebookClusters.remove((internalId, userEmailToAuthorization(userEmail))))
+
+  override def createPersistentDiskResource(internalId: PersistentDiskInternalId,
+                                            creatorEmail: WorkbenchEmail,
+                                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    IO(persistentDisks += (internalId, userEmailToAuthorization(creatorEmail)) -> Set("read",
+                                                                                      "attach",
+                                                                                      "modify",
+                                                                                      "delete",
+                                                                                      "read_policies"))
+
+  override def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
+                                            userEmail: WorkbenchEmail,
+                                            creatorEmail: WorkbenchEmail,
+                                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    IO(persistentDisks.remove((internalId, userEmailToAuthorization(userEmail))))
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[IO, TraceId]

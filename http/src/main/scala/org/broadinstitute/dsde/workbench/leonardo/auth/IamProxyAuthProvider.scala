@@ -13,8 +13,9 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Token
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, HttpGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.auth.IamProxyAuthProvider.{CacheKey, ProjectAuthCacheKey}
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.ProjectAction
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction
+import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, IamPermission}
@@ -81,24 +82,11 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
       checkUserAccessFromIam(userInfo.userEmail, userInfo.accessToken, googleProject)
     }
 
-  /**
-   * @param userInfo The user in question
-   * @param action The project-level action (above) the user is requesting
-   * @param googleProject The Google project to check in
-   * @return If the given user has permissions in this project to perform the specified action.
-   */
   override def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[Future, TraceId]
   ): Future[Boolean] =
     checkUserAccess(userInfo, googleProject)
 
-  /**
-   * @param internalId     The internal ID for the runtime (i.e. used for Sam resources)
-   * @param userInfo The user in question
-   * @param action   The cluster-level action (above) the user is requesting
-   * @param runtimeName The user-provided name of the Dataproc cluster
-   * @return If the userEmail has permission on this individual notebook cluster to perform this action
-   */
   override def hasNotebookClusterPermission(
     internalId: RuntimeInternalId,
     userInfo: UserInfo,
@@ -108,14 +96,13 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean] =
     checkUserAccess(userInfo, googleProject)
 
-  /**
-   * Leo calls this method when it receives a "list clusters" API call, passing in all non-deleted clusters from the database.
-   * It should return a list of clusters that the user can see according to their authz.
-   *
-   * @param userInfo The user in question
-   * @param clusters All non-deleted clusters from the database
-   * @return         Filtered list of clusters that the user is allowed to see
-   */
+  override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
+                                           userInfo: UserInfo,
+                                           action: PersistentDiskAction,
+                                           googleProject: GoogleProject,
+                                           )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean] =
+    checkUserAccessFromIam(userInfo.userEmail, userInfo.accessToken, googleProject)
+
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
     implicit ev: ApplicativeAsk[Future, TraceId]
   ): Future[List[(GoogleProject, RuntimeInternalId)]] = {
@@ -130,42 +117,41 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
     }
   }
 
-  /**
-   * Leo calls this method to notify the auth provider that a new notebook cluster has been created.
-   * The returned future should complete once the provider has finished doing any associated work.
-   * Leo will wait, so be timely!
-   *
-   * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
-   * @param creatorEmail     The email address of the user in question
-   * @param googleProject The Google project the cluster was created in
-   * @param runtimeName   The user-provided name of the Dataproc cluster
-   * @return A Future that will complete when the auth provider has finished doing its business.
-   */
-  override def notifyClusterCreated(
-    internalId: RuntimeInternalId,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject,
-    runtimeName: RuntimeName
-  )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskInternalId)])(
+    implicit ev: ApplicativeAsk[Future, TraceId]
+  ): Future[List[(GoogleProject, PersistentDiskInternalId)]] = {
+    // Check each project for user-access exactly once, then filter by project.
+    val projects = disks.map(lv => lv._1).toSet
+    val projectAccess = projects.map(p => p.value -> checkUserAccess(userInfo, p)).toMap
+    disks.traverseFilter { c =>
+      projectAccess(c._1.value).map {
+        case true  => Some(c)
+        case false => None
+      }
+    }
+  }
 
-  /**
-   * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
-   * The returned future should complete once the provider has finished doing any associated work.
-   * Leo will wait, so be timely!
-   *
-   * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
-   * @param userEmail     The email address of the user in question
-   * @param creatorEmail     The email address of the creator of the cluster
-   * @param googleProject The Google project the cluster was created in
-   * @param runtimeName   The user-provided name of the Dataproc cluster
-   * @return A Future that will complete when the auth provider has finished doing its business.
-   */
-  override def notifyClusterDeleted(
-    internalId: RuntimeInternalId,
-    userEmail: WorkbenchEmail,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject,
-    runtimeName: RuntimeName
-  )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+  override def notifyClusterCreated(internalId: RuntimeInternalId,
+                                    creatorEmail: WorkbenchEmail,
+                                    googleProject: GoogleProject,
+                                    runtimeName: RuntimeName
+                                   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
+  override def notifyClusterDeleted(internalId: RuntimeInternalId,
+                                    userEmail: WorkbenchEmail,
+                                    creatorEmail: WorkbenchEmail,
+                                    googleProject: GoogleProject,
+                                    runtimeName: RuntimeName
+                                   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+
+  override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject,
+                                          )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+
+  override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
+                                           userEmail: WorkbenchEmail,
+                                           creatorEmail: WorkbenchEmail,
+                                           googleProject: GoogleProject,
+                                         )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 }

@@ -123,6 +123,7 @@ object JsonCodec {
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
   implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
   implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
+  implicit val persistentDiskInternalIdDecoder: Decoder[PersistentDiskInternalId] = Decoder.decodeString.map(PersistentDiskInternalId)
   implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
     if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
   )
