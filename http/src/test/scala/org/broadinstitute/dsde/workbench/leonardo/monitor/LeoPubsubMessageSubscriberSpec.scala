@@ -31,13 +31,15 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   ClusterNotStopped
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito
 import org.scalatest.concurrent._
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
 
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 import scala.util.Left
 
 class LeoPubsubMessageSubscriberSpec
@@ -256,7 +258,13 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and stop the cluster when there's a machine type change" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
+    val monitor = new MockGceRuntimeMonitor {
+      override def pollCheck(googleProject: GoogleProject,
+                             runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                             operation: com.google.cloud.compute.v1.Operation,
+                             action: RuntimeStatus)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.never
+    }
+    val leoSubscriber = makeLeoSubscriber(monitor)
 
     val res = for {
       now <- IO(Instant.now)
@@ -268,15 +276,56 @@ class LeoPubsubMessageSubscriberSpec
         now
       )
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      updatedRuntimeConfig <- updatedRuntime.traverse(r =>
+        RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+      )
     } yield {
+      // runtime should be Stopping
       updatedRuntime shouldBe 'defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
+      // machine type should not be updated yet
+      updatedRuntimeConfig shouldBe 'defined
+      updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-standard-4")
     }
 
     res.unsafeRunSync()
   }
 
-  it should "handle UpdateRuntimeMessage and update the runtime config in the database" in isolatedDbTest {
+  it should "handle UpdateRuntimeMessage and go through a stop-start transition" in isolatedDbTest {
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res = for {
+      now <- IO(Instant.now)
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(
+        UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, None, None, None, Some(tr)),
+        now
+      )
+
+      _ <- IO(eventually(timeout(30.seconds)) {
+        val assertion = for {
+          updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+          updatedRuntimeConfig <- updatedRuntime.traverse(r =>
+            RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+          )
+        } yield {
+          // runtime should be Starting after having gone through a stop -> update -> start
+          updatedRuntime shouldBe 'defined
+          updatedRuntime.get.status shouldBe RuntimeStatus.Starting
+          // machine type should be updated
+          updatedRuntimeConfig shouldBe 'defined
+          updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
+        }
+        assertion.unsafeRunSync()
+      })
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle UpdateRuntimeMessage without going through a stop-start transition" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
@@ -297,8 +346,10 @@ class LeoPubsubMessageSubscriberSpec
         RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
       )
     } yield {
+      // runtime should still be Stopped
       updatedRuntime shouldBe 'defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopped
+      // machine type and disk size should be updated
       updatedRuntimeConfig shouldBe 'defined
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
       updatedRuntimeConfig.get.diskSize shouldBe DiskSize(1024)
@@ -510,10 +561,12 @@ class LeoPubsubMessageSubscriberSpec
     decodedMessage.right.get shouldBe originalMessage
   }
 
-  def makeLeoSubscriber() = {
+  def makeLeoSubscriber(gceRuntimeMonitor: GceRuntimeMonitor[IO] = MockGceRuntimeMonitor) = {
     val googleSubscriber = mock[GoogleSubscriber[IO, LeoPubsubMessage]]
 
-    new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(1, 30 seconds), googleSubscriber, MockGceRuntimeMonitor)
+    new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(1, 30 seconds),
+                                       googleSubscriber,
+                                       gceRuntimeMonitor)
   }
 
 }

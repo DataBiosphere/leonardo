@@ -220,13 +220,16 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           errorMessage = e match {
             case leoEx: LeoException =>
               Some(ErrorReport.loggableString(leoEx.toErrorReport))
-            case ee: com.google.api.gax.rpc.AbortedException if ee.getStatusCode().getCode == 409 && ee.getMessage().contains("already exists") =>
+            case ee: com.google.api.gax.rpc.AbortedException
+                if ee.getStatusCode().getCode == 409 && ee.getMessage().contains("already exists") =>
               None //this could happen when pubsub redelivers an event unexpectedly
             case _ =>
               Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
           }
-          _ <- errorMessage.traverse(m => (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, now)) >>
-            clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F])
+          _ <- errorMessage.traverse(m =>
+            (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, now)) >>
+              clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
+          )
         } yield ()
     }
   }
@@ -386,10 +389,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             }
           } yield ()
         } else {
-          for {
-            _ <- runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
-            _ <- RuntimeConfigQueries.updateMachineType(runtime.runtimeConfigId, m, now).transaction
-          } yield ()
+          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
         }
       }
     } yield ()

@@ -423,11 +423,10 @@ object Config {
   val vpcConfig = config.as[VPCConfig]("vpc")
   val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
-  val subscriberConfig: SubscriberConfig = SubscriberConfig(
-    applicationConfig.leoServiceAccountJsonFile.toString,
-    topic,
-    config.as[FiniteDuration]("pubsub.ackDeadLine"),
-    None)
+  val subscriberConfig: SubscriberConfig = SubscriberConfig(applicationConfig.leoServiceAccountJsonFile.toString,
+                                                            topic,
+                                                            config.as[FiniteDuration]("pubsub.ackDeadLine"),
+                                                            None)
 
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
   val publisherConfig: PublisherConfig =
