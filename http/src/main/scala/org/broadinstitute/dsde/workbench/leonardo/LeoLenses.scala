@@ -12,8 +12,6 @@ object LeoLenses {
 
   val runtimeToAuditInfo: Lens[Runtime, AuditInfo] = GenLens[Runtime](_.auditInfo)
 
-  val diskToDateAccessed: Lens[PersistentDisk, Instant] = GenLens[PersistentDisk](_.auditInfo.dateAccessed)
-
   val runtimeToRuntimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 
   val runtimeAndRuntimeConfigToRuntime: Lens[RuntimeAndRuntimeConfig, Runtime] =
@@ -84,4 +82,6 @@ object LeoLenses {
         patchInProgress = x.patchInProgress
       )
   )
+
+  val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
 }

@@ -40,6 +40,18 @@ object ClusterEnrichments extends Matchers {
     }
   }
 
+  implicit val diskEq = {
+    new Equality[PersistentDisk] {
+      private val FixedId = 0
+
+      def areEqual(a: PersistentDisk, b: Any): Boolean =
+        b match {
+          case c: PersistentDisk => a.copy(id = FixedId) == c.copy(id = FixedId)
+          case _                 => false
+        }
+    }
+  }
+
   // Equivalence means clusters have the same fields when ignoring the id field
   private def isEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
     val DummyId = 0

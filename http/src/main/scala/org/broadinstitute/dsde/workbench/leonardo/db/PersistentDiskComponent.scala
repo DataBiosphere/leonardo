@@ -42,7 +42,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def size = column[DiskSize]("sizeGb")
   def diskType = column[DiskType]("type", O.Length(255))
-  def blockSize = column[BlockSize]("blockSize")
+  def blockSize = column[BlockSize]("blockSizeBytes")
 
   override def * =
     (id,
@@ -65,13 +65,16 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   private[db] def findByIdQuery(id: Long) = persistentDiskQuery.filter(_.id === id)
 
   private[db] def findActiveByNameQuery(googleProject: GoogleProject, name: DiskName) =
-    persistentDiskQuery.filter(_.googleProject === googleProject).filter(_.name === name)
+    persistentDiskQuery
+      .filter(_.googleProject === googleProject)
+      .filter(_.name === name)
+      .filter(_.destroyedDate === dummyDate)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     baseQuery joinLeft persistentDiskLabelQuery on (_.id === _.diskId)
 
-  def save(disk: PersistentDisk) =
-    persistentDiskQuery += marshalPersistentDisk(disk)
+  def save(disk: PersistentDisk): DBIO[Long] =
+    (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
 
   def getById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)

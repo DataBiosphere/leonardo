@@ -32,6 +32,9 @@
             <column name="destroyedDate" type="TIMESTAMP(6)">
                 <constraints nullable="false"/>
             </column>
+            <column name="dateAccessed" type="TIMESTAMP(6)">
+                <constraints nullable="false"/>
+            </column>
             <column name="sizeGb" type="INT">
                 <constraints nullable="false"/>
             </column>

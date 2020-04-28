@@ -297,7 +297,7 @@ object CommonTestData {
     id,
     project,
     zone,
-    diskName,
+    DiskName(diskName.value + id),
     Some(googleId),
     diskSamResourceId,
     DiskStatus.Ready,
