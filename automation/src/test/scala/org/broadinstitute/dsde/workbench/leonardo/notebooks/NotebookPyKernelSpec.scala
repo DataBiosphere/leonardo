@@ -192,7 +192,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     "should be able to install python libraries with C bindings" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          notebookPage.executeCell("! pip install Cython").get should include("Successfully installed Cython")
+          notebookPage.executeCell("! pip show Cython").get should include("Name: Cython")
           notebookPage.executeCell("! pip install POT").get should include("Successfully installed POT")
         }
       }
