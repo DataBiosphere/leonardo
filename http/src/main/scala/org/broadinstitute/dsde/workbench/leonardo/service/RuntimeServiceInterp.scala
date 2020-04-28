@@ -99,17 +99,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               .getOrElse(List.empty) ++ req.jupyterUserScriptUri.map(_.asString) ++ req.jupyterStartUserScriptUri.map(
               _.asString
             )
-            _ <- petToken.traverse(t =>
-              gcsObjectUrisToValidate
-                .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
-            )
-            _ <- authProvider
-              .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
-              .handleErrorWith { t =>
-                log.error(t)(
-                  s"[${context.traceId}] Failed to notify the AuthProvider for creation of cluster ${runtime.projectNameString}"
-                ) >> F.raiseError(t)
-              }
 
             gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
             runtimeCofig = req.runtimeConfig
@@ -124,6 +113,24 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
                       dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
                   }
+              }
+//            _ <- petToken match {
+//              case Some(petToken): petToken.traverse(t =>
+//                            gcsObjectUrisToValidate
+//                              .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
+//                          )
+//              case None:
+//            }
+            _ <- petToken.traverse(t =>
+              gcsObjectUrisToValidate
+                .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
+            )
+            _ <- authProvider
+              .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
+              .handleErrorWith { t =>
+                log.error(t)(
+                  s"[${context.traceId}] Failed to notify the AuthProvider for creation of cluster ${runtime.projectNameString}"
+                ) >> F.raiseError(t)
               }
 
             saveCluster = SaveCluster(cluster = runtime, runtimeConfig = runtimeCofig, now = context.now)
@@ -352,6 +359,18 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
     } yield Set(toolImage, welderImage, proxyImage)
 
+  private[service] def validateCreateRuntimeRequest(userEmail: WorkbenchEmail,
+                                                    userToken: String,
+                                                    gscUri: String,
+                                                    traceId: TraceId,
+                                                    diskSize: DiskSize) : F[Unit] = {
+    // Validate bucket object uri
+    validateBucketObjectUri(userEmail, userToken, gscUri, traceId)
+
+    // Validate minimum disk size
+    validateMinimumDiskSize(diskSize)
+  }
+
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,
                                                gcsUri: String,
@@ -393,6 +412,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             log.warn(e)(s"Could not validate object [${gcsUri}] as user [${userEmail.value}]")
         }
     }
+  }
+
+  private[service] def validateMinimumDiskSize(diskSize: DiskSize): F[Unit] = {
+    if (diskSize.gb < 50) F.raiseError(MinimumDiskSizeException(diskSize))
+    else F.unit
   }
 
   /**
@@ -611,3 +635,9 @@ final case class WrongCloudServiceException(runtimeCloudService: CloudService, u
       s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
       StatusCodes.Conflict
     )
+
+final case class MinimumDiskSizeException(diskSize: DiskSize)
+  extends LeoException(
+    s"${diskSize.gb} is lower than the minimum disk size. Minimum disk size is 50GB.",
+    StatusCodes.NotAcceptable
+  )
