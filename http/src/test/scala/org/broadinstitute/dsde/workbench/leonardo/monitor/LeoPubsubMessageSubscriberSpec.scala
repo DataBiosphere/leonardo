@@ -276,9 +276,16 @@ class LeoPubsubMessageSubscriberSpec
         now
       )
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      updatedRuntimeConfig <- updatedRuntime.traverse(r =>
+        RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+      )
     } yield {
+      // runtime should be Stopping
       updatedRuntime shouldBe 'defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
+      // machine type should not be updated yet
+      updatedRuntimeConfig shouldBe 'defined
+      updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-standard-4")
     }
 
     res.unsafeRunSync()
@@ -304,8 +311,10 @@ class LeoPubsubMessageSubscriberSpec
             RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
           )
         } yield {
+          // runtime should be Starting after having gone through a stop -> update -> start
           updatedRuntime shouldBe 'defined
           updatedRuntime.get.status shouldBe RuntimeStatus.Starting
+          // machine type should be updated
           updatedRuntimeConfig shouldBe 'defined
           updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
         }
@@ -337,8 +346,10 @@ class LeoPubsubMessageSubscriberSpec
         RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
       )
     } yield {
+      // runtime should still be Stopped
       updatedRuntime shouldBe 'defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopped
+      // machine type and disk size should be updated
       updatedRuntimeConfig shouldBe 'defined
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
       updatedRuntimeConfig.get.diskSize shouldBe DiskSize(1024)
@@ -555,7 +566,7 @@ class LeoPubsubMessageSubscriberSpec
 
     new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(1, 30 seconds),
                                        googleSubscriber,
-                                       MockGceRuntimeMonitor)
+                                       gceRuntimeMonitor)
   }
 
 }

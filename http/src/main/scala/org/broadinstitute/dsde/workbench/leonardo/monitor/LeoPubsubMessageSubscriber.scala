@@ -389,10 +389,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             }
           } yield ()
         } else {
-          for {
-            _ <- runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
-            _ <- RuntimeConfigQueries.updateMachineType(runtime.runtimeConfigId, m, now).transaction
-          } yield ()
+          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
         }
       }
     } yield ()
