@@ -90,15 +90,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                req,
                                context.now)
             )
-            gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
-              .map(config =>
-                (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values)
-                  .filter(_.startsWith("gs://"))
-                  .toList
-              )
-              .getOrElse(List.empty) ++ req.jupyterUserScriptUri.map(_.asString) ++ req.jupyterStartUserScriptUri.map(
-              _.asString
-            )
 
             gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
             runtimeCofig = req.runtimeConfig
@@ -114,17 +105,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
                   }
               }
-//            _ <- petToken match {
-//              case Some(petToken): petToken.traverse(t =>
-//                            gcsObjectUrisToValidate
-//                              .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
-//                          )
-//              case None:
-//            }
-            _ <- petToken.traverse(t =>
-              gcsObjectUrisToValidate
-                .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
-            )
+
+            _ <- validateCreateRuntimeRequest(runtime,req, petToken, userInfo.userEmail, context.traceId, runtimeCofig.diskSize)
+
             _ <- authProvider
               .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
               .handleErrorWith { t =>
@@ -359,16 +342,33 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
     } yield Set(toolImage, welderImage, proxyImage)
 
-  private[service] def validateCreateRuntimeRequest(userEmail: WorkbenchEmail,
-                                                    userToken: String,
-                                                    gscUri: String,
+  private[service] def validateCreateRuntimeRequest(runtime: Runtime,
+                                                    req: CreateRuntime2Request,
+                                                    petToken: Option[String],
+                                                    userEmail: WorkbenchEmail,
                                                     traceId: TraceId,
                                                     diskSize: DiskSize) : F[Unit] = {
-    // Validate bucket object uri
-    validateBucketObjectUri(userEmail, userToken, gscUri, traceId)
+    for {
+      // Validate minimum disk size
+      _ <- validateMinimumDiskSize(diskSize)
 
-    // Validate minimum disk size
-    validateMinimumDiskSize(diskSize)
+      gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
+        .map(config =>
+          (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values)
+            .filter(_.startsWith("gs://"))
+            .toList
+        )
+        .getOrElse(List.empty) ++ req.jupyterUserScriptUri.map(_.asString) ++ req.jupyterStartUserScriptUri.map(
+        _.asString
+      )
+
+      // Validate bucket object uri
+      _ <- petToken.traverse(t =>
+        gcsObjectUrisToValidate
+          .parTraverse(s => validateBucketObjectUri(userEmail, t, s, traceId))
+      )
+
+    } yield ()
   }
 
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
