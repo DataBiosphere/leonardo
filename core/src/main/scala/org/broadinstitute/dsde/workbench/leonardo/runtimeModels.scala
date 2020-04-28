@@ -100,8 +100,8 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
       case DataprocClusterStatus.Updating => Updating
     }
 
-  def fromGceInstanceStatus(dataprocClusterStatus: GceInstanceStatus): RuntimeStatus =
-    dataprocClusterStatus match {
+  def fromGceInstanceStatus(gceInstanceStatus: GceInstanceStatus): RuntimeStatus =
+    gceInstanceStatus match {
       case GceInstanceStatus.Provisioning => Creating
       case GceInstanceStatus.Staging      => Creating
       case GceInstanceStatus.Running      => Running
@@ -111,6 +111,19 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
       case GceInstanceStatus.Suspended    => Stopped
       case GceInstanceStatus.Terminated   => Stopped
     }
+
+  //TODO: it is yet to be seen whether this will be used. It could be useful though
+  def fromKubernetesClusterStatus(kubernetesClusterStatus: KubernetesClusterStatus): RuntimeStatus =
+    kubernetesClusterStatus match {
+      case KubernetesClusterStatus.Status_Unspecified => Unknown
+      case KubernetesClusterStatus.Provisioning => Creating
+      case KubernetesClusterStatus.Running => Running
+      case KubernetesClusterStatus.Reconciling => Updating
+      case KubernetesClusterStatus.Degraded => Error
+      case KubernetesClusterStatus.Error => Error
+      case KubernetesClusterStatus.Stopping => Deleting
+    }
+
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[RuntimeStatus] =
     Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)

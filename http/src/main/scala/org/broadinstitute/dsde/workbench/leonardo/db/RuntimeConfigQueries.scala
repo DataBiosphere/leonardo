@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeonardoServiceDbQueries.Cl
 
 import scala.concurrent.ExecutionContext
 
-object RuntimeConfigQueries {
+object  RuntimeConfigQueries {
   type ClusterJoinLabelJoinRuntimeConfigJoinPatch =
     Query[(((ClusterTable, Rep[Option[LabelTable]]), Rep[Option[RuntimeConfigTable]]), Rep[Option[PatchTable]]),
           (((ClusterRecord, Option[LabelRecord]), Option[RuntimeConfigRecord]), Option[PatchRecord]),

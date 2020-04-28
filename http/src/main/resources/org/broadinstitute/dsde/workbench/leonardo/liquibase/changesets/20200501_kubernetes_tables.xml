@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="jcanas" id="kubernetes_cluster_table">
+        <createTable tableName="KUBERNETES_CLUSTER">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="googleProject" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="clusterName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="location" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(254)" defaultValue="Status_Unspecified">
+                <constraints nullable="false"/>
+            </column>
+            <column name="serviceAccountInfo" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="samResourceId" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="creator" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="apiServerIp" type="VARCHAR(254)"/>
+            <column name="networkName" type="VARCHAR(254)"/>
+            <column name="subNetworkName" type="VARCHAR(254)"/>
+            <column name="subNetworkIpRange" type="VARCHAR(254)"/>
+        </createTable>
+        <createIndex indexName="IDX_KUBERNETES_CLUSTER_ID" tableName="KUBERNETES_CLUSTER">
+            <column name="id"/>
+        </createIndex>
+        <addUniqueConstraint columnNames="googleProject, clusterName, destroyedDate" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE" tableName="KUBERNETES_CLUSTER"/>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo"  id="nodepool_table" author="jcanas">
+        <createTable tableName="NODEPOOL">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="clusterId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="nodepoolName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(254)" defaultValue="Status_Unspecified">
+                <constraints nullable="false"/>
+            </column>
+            <column name="creator" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="machineType" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="numNodes" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="autoScalingEnabled" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+            <column name="autoScalingMin" type="INT"/>
+            <column name="autoScalingMax" type="INT"/>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="NODEPOOL" constraintName="FK_NODEPOOL_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="KUBERNETES_CLUSTER"/>
+        <createIndex indexName="IDX_NODEPOOL_ID" tableName="NODEPOOL">
+            <column name="id"/>
+        </createIndex>
+        <addUniqueConstraint columnNames="clusterId, nodepoolName" constraintName="IDX_NODEPOOL_UNIQUE" tableName="NODEPOOL"/>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo"  id="namespace_table" author="jcanas">
+        <createTable tableName="NAMESPACE">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="clusterId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="namespaceName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="NAMESPACE" constraintName="FK_NAMESPACE_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="KUBERNETES_CLUSTER"/>
+        <createIndex indexName="IDX_NAMESPACE_ID" tableName="NAMESPACE">
+            <column name="id"/>
+        </createIndex>
+        <addUniqueConstraint columnNames="clusterId, namespaceName" constraintName="IDX_NAMESPACE_UNIQUE" tableName="NAMESPACE"/>
+    </changeSet>
+</databaseChangeLog>

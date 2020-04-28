@@ -4,6 +4,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeResp
 import org.scalactic.Equality
 import org.scalatest.{Assertion, Matchers}
 
+//TODO: rename before merge
 object ClusterEnrichments extends Matchers {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
   // while comparing clusters as we typically don't care about the database assigned id field
@@ -16,6 +17,37 @@ object ClusterEnrichments extends Matchers {
         b match {
           case c: Runtime => a.copy(id = FixedId) == c.copy(id = FixedId)
           case _          => false
+        }
+    }
+  }
+
+  //these are not applied recursively, hence the need to dig into the nodepool Ids
+  implicit val kubeClusterEq = {
+    new Equality[KubernetesCluster] {
+      private val FixedId = KubernetesClusterLeoId(0)
+      private val FixedNodePoolId = NodepoolLeoId(0)
+      def areEqual(a: KubernetesCluster, b: Any) : Boolean =
+        b match {
+          case c: KubernetesCluster =>
+            a.copy(id = FixedId, nodepools = a.nodepools.map(
+              n => n.copy(id = FixedNodePoolId, clusterId = FixedId)
+            )) ===
+              c.copy(id = FixedId, nodepools = c.nodepools.map(
+                n => n.copy(id = FixedNodePoolId, clusterId = FixedId)
+              ))
+          case _ => false
+        }
+    }
+  }
+
+  implicit val nodepoolEq = {
+    new Equality[Nodepool] {
+      private val FixedId = NodepoolLeoId(0)
+
+      def areEqual(a: Nodepool, b: Any): Boolean =
+        b match {
+          case c: Nodepool => a.copy(id = FixedId) == c.copy(id = FixedId)
+          case _ => false
         }
     }
   }

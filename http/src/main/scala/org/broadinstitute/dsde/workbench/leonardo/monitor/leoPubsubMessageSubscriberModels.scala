@@ -26,7 +26,8 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object TransitionFinished extends LeoPubsubMessageType {
     val asString = "transitionFinished"
   }
-  final case object CreateRuntime extends LeoPubsubMessageType {
+  final case object
+  CreateRuntime extends LeoPubsubMessageType {
     val asString = "createRuntime"
   }
   final case object DeleteRuntime extends LeoPubsubMessageType {
