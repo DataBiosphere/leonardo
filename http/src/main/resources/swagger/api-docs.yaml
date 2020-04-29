@@ -426,6 +426,7 @@ paths:
 
   /api/clusters:
     get:
+      deprecated: true
       summary: List all active clusters
       description: List all active clusters, optionally filtering on a set of labels
       operationId: listClusters
@@ -483,6 +484,7 @@ paths:
             - profile
   "/api/clusters/{googleProject}":
     get:
+      deprecated: true
       summary: List all active clusters within the given Google project
       description: List all active clusters within the given Google project, optionally
         filtering on a set of labels
@@ -548,6 +550,7 @@ paths:
 
   "/api/cluster/v2/{googleProject}/{clusterName}":
     put:
+      deprecated: true
       summary: Creates a new Dataproc cluster in the given project with the given name.
       description: >
         * The request is completed without waiting for the initiation of the
@@ -605,6 +608,7 @@ paths:
             - profile
   "/api/cluster/{googleProject}/{clusterName}":
     patch:
+      deprecated: true
       summary: Updates the configuration of a cluster.
       description: In order to update the configuration of a cluster, it must first be running or paused
       operationId: updateCluster
@@ -714,6 +718,7 @@ paths:
             - email
             - profile
     get:
+      deprecated: true
       summary: Get details of a Dataproc cluster
       description: Returns information about an existing Dataproc cluster managed by Leo.
         Poll this to find out when your cluster has finished starting up.
@@ -760,6 +765,7 @@ paths:
             - email
             - profile
     delete:
+      deprecated: true
       summary: Deletes an existing Dataproc cluster in the given project
       description: deletes a Dataproc cluster
       operationId: deleteCluster
@@ -797,6 +803,7 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
   "/api/cluster/{googleProject}/{clusterName}/stop":
     post:
+      deprecated: true
       summary: Stops a Dataproc cluster
       description: >
         Stops the instances of a Dataproc cluster, but retains any data
@@ -844,6 +851,7 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
   "/api/cluster/{googleProject}/{clusterName}/start":
     post:
+      deprecated: true
       summary: Starts a Dataproc cluster
       description: |
         Starts the instances of a stopped Dataproc cluster.
@@ -949,6 +957,7 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
   "/notebooks/{googleProject}/{clusterName}/api/localize":
     post:
+      deprecated: true
       summary: Localize files to/from a Jupyter notebook server
       description: >
         Sends a command to a Jupyter notebook server to localize files to/from
