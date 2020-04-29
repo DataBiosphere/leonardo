@@ -134,7 +134,7 @@ object JsonCodec {
   implicit val urlDecoder: Decoder[URL] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
   implicit val diskSizeDecoder: Decoder[DiskSize] =
-    Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(DiskSize(d)))
+    Decoder.decodeInt.emap(d => if (d < 50) Left("Minimum disk size is 50GB.") else Right(DiskSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
