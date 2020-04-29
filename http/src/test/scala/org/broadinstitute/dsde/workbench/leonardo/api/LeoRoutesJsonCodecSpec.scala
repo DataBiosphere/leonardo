@@ -53,7 +53,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
     decodeResult shouldBe Left(negativeNumberDecodingFailure)
   }
 
-  it should "fail with negativeNumberDecodingFailure when masterDiskSize is negative" in {
+  it should "fail with minimumDiskSizeDecodingFailure when masterDiskSize is negative" in {
     val inputString =
       """
         |{
@@ -67,7 +67,24 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       json <- io.circe.parser.parse(inputString)
       r <- json.as[RuntimeConfigRequest.DataprocConfig]
     } yield r
-    decodeResult.leftMap(_.getMessage) shouldBe Left("Negative number is not allowed: DownField(masterDiskSize)")
+    decodeResult.leftMap(_.getMessage) shouldBe Left("Minimum required disk size is 50GB: DownField(masterDiskSize)")
+  }
+
+  it should "fail with minimumDiskSizeDecodingFailure when masterDiskSize is less than 50" in {
+    val inputString =
+      """
+        |{
+        |   "numberOfWorkers": 10,
+        |   "masterMachineType": "n1-standard-8",
+        |   "masterDiskSize": 35
+        |}
+        |""".stripMargin
+
+    val decodeResult = for {
+      json <- io.circe.parser.parse(inputString)
+      r <- json.as[RuntimeConfigRequest.DataprocConfig]
+    } yield r
+    decodeResult.leftMap(_.getMessage) shouldBe Left("Minimum required disk size is 50GB: DownField(masterDiskSize)")
   }
 
   it should "fail with oneWorkerSpecifiedDecodingFailure when numberOfPreemptibleWorkers is negative" in {

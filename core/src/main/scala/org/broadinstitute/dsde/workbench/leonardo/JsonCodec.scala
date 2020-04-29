@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
 object JsonCodec {
   // Errors
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)
+  val minimumDiskSizeDecodingFailure = DecodingFailure("Minimum required disk size is 50GB", List.empty)
   val oneWorkerSpecifiedDecodingFailure = DecodingFailure(
     "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more.",
     List.empty
@@ -134,7 +135,7 @@ object JsonCodec {
   implicit val urlDecoder: Decoder[URL] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
   implicit val diskSizeDecoder: Decoder[DiskSize] =
-    Decoder.decodeInt.emap(d => if (d < 50) Left("Minimum disk size is 50GB.") else Right(DiskSize(d)))
+    Decoder.decodeInt.emap(d => if (d < 50) Left("Minimum required disk size is 50GB") else Right(DiskSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
