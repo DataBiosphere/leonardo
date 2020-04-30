@@ -2,8 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.scalatest.{FlatSpecLike, Matchers}
 import JsonCodec._
+import io.circe.CursorOp.DownField
+import io.circe.DecodingFailure
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+
+import scala.util.Either.LeftProjection
 
 class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
   "JsonCodec" should "decode DataprocConfig properly" in {
@@ -48,5 +52,35 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
       DiskSize(500)
     )
     res shouldBe (Right(expected))
+  }
+
+  it should "fail with minimumDiskSizeDecodingFailure when GCE diskSize is less than 50" in {
+    val inputString =
+      """
+        |{
+        |   "machineType": "n1-standard-8",
+        |   "diskSize": 35,
+        |   "cloudService": "GCE"
+        |}
+        |""".stripMargin
+
+    val res = decode[RuntimeConfig](inputString)
+    res.left shouldBe LeftProjection(Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("diskSize")))))
+  }
+
+  it should "fail with minimumDiskSizeDecodingFailure when Dataproc diskSize is less than 50" in {
+    val inputString =
+      """
+        |{
+        |   "numberOfWorkers": 10,
+        |   "masterMachineType": "n1-standard-8",
+        |   "masterDiskSize": 49,
+        |   "numberOfPreemptibleWorkers": -1,
+        |   "cloudService": "DATAPROC"
+        |}
+        |""".stripMargin
+
+    val res = decode[RuntimeConfig](inputString)
+    res.left shouldBe LeftProjection(Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("masterDiskSize")))))
   }
 }
