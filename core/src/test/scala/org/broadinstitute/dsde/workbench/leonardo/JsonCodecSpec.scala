@@ -83,4 +83,9 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
     val res = decode[RuntimeConfig](inputString)
     res.left shouldBe LeftProjection(Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("masterDiskSize")))))
   }
+
+  it should "fail with minimumDiskSizeDecodingFailure when decoding a disk size of 10" in {
+    val res = decode[DiskSize]("10")
+    res.left shouldBe LeftProjection(Left(DecodingFailure("Minimum required disk size is 50GB", List())))
+  }
 }
