@@ -17,7 +17,7 @@ import scala.concurrent.duration._
 class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
-  val expectedHailVersion = "0.2.38"
+  val expectedHailVersion = "0.2.39"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
 
