@@ -181,16 +181,16 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 
   //Notifications that Leo has created/destroyed persistent disks. Allows the auth provider to register things.
   /**
-    * Leo calls this method to notify the auth provider that a new persistent disk has been created.
-    * The returned future should complete once the provider has finished doing any associated work.
-    * Returning a failed Future will prevent the disk from being created, and will call notifyPersistentDiskDeleted for the same disk.
-    * Leo will wait, so be timely!
-    *
-    * @param internalId     The internal ID for the disk (i.e. used for Sam resources)
-    * @param creatorEmail   The email address of the user in question
-    * @param googleProject  The Google project the disk was created in
-    * @return A Future that will complete when the auth provider has finished doing its business.
-    */
+   * Leo calls this method to notify the auth provider that a new persistent disk has been created.
+   * The returned future should complete once the provider has finished doing any associated work.
+   * Returning a failed Future will prevent the disk from being created, and will call notifyPersistentDiskDeleted for the same disk.
+   * Leo will wait, so be timely!
+   *
+   * @param internalId     The internal ID for the disk (i.e. used for Sam resources)
+   * @param creatorEmail   The email address of the user in question
+   * @param googleProject  The Google project the disk was created in
+   * @return A Future that will complete when the auth provider has finished doing its business.
+   */
   def createPersistentDiskResource(internalId: PersistentDiskInternalId,
                                    creatorEmail: WorkbenchEmail,
                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
@@ -223,16 +223,16 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     } yield ()
 
   /**
-    * Leo calls this method to notify the auth provider that a persistent disk has been deleted.
-    * The returned future should complete once the provider has finished doing any associated work.
-    * Leo will wait, so be timely!
-    *
-    * @param internalId      The internal ID for the disk (i.e. used for Sam resources)
-    * @param userEmail       The email address of the user in question
-    * @param creatorEmail    The email address of the creator of the disk
-    * @param googleProject   The Google project the disk was created in
-    * @return A Future that will complete when the auth provider has finished doing its business.
-    */
+   * Leo calls this method to notify the auth provider that a persistent disk has been deleted.
+   * The returned future should complete once the provider has finished doing any associated work.
+   * Leo will wait, so be timely!
+   *
+   * @param internalId      The internal ID for the disk (i.e. used for Sam resources)
+   * @param userEmail       The email address of the user in question
+   * @param creatorEmail    The email address of the creator of the disk
+   * @param googleProject   The Google project the disk was created in
+   * @return A Future that will complete when the auth provider has finished doing its business.
+   */
   def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
                                    userEmail: WorkbenchEmail,
                                    creatorEmail: WorkbenchEmail,

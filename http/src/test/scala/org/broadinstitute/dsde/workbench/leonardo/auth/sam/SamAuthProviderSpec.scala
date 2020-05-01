@@ -18,7 +18,10 @@ import org.http4s.client.Client
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.{AttachPersistentDisk, DeletePersistentDisk}
+import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.{
+  AttachPersistentDisk,
+  DeletePersistentDisk
+}
 
 import scala.concurrent.duration._
 
@@ -57,12 +60,15 @@ class SamAuthProviderSpec
     new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, blocker)
 
   "hasProjectPermission should return true if user has project permissions and false if they do not" in {
-    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("launch_notebook_cluster", "create_persistent_disk")
+    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("launch_notebook_cluster",
+                                                                       "create_persistent_disk")
     samAuthProvider.hasProjectPermission(fakeUserInfo, CreateClusters, project).unsafeRunSync() shouldBe true
     samAuthProvider.hasProjectPermission(fakeUserInfo, CreatePersistentDisk, project).unsafeRunSync() shouldBe true
 
     samAuthProvider.hasProjectPermission(unauthorizedUserInfo, CreateClusters, project).unsafeRunSync() shouldBe false
-    samAuthProvider.hasProjectPermission(unauthorizedUserInfo, CreatePersistentDisk, project).unsafeRunSync() shouldBe false
+    samAuthProvider
+      .hasProjectPermission(unauthorizedUserInfo, CreatePersistentDisk, project)
+      .unsafeRunSync() shouldBe false
     samAuthProvider
       .hasProjectPermission(fakeUserInfo, CreateClusters, GoogleProject("leo-fake-project"))
       .unsafeRunSync() shouldBe false
@@ -80,7 +86,10 @@ class SamAuthProviderSpec
     val defaultPermittedActions = List("status", "connect", "sync", "delete")
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(runtimeInternalId.asString, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
+        .hasResourcePermission(runtimeInternalId.asString,
+                               action,
+                               ResourceTypeName.NotebookCluster,
+                               fakeUserAuthorization)
         .unsafeRunSync() shouldBe false
     }
 
@@ -90,7 +99,10 @@ class SamAuthProviderSpec
     // check the resource exists for the user and actions
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(runtimeInternalId.asString, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
+        .hasResourcePermission(runtimeInternalId.asString,
+                               action,
+                               ResourceTypeName.NotebookCluster,
+                               fakeUserAuthorization)
         .unsafeRunSync() shouldBe true
     }
     // deleting a cluster would call notify
@@ -101,7 +113,10 @@ class SamAuthProviderSpec
     mockSam.notebookClusters shouldBe empty
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(runtimeInternalId.asString, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization)
+        .hasResourcePermission(runtimeInternalId.asString,
+                               action,
+                               ResourceTypeName.NotebookCluster,
+                               fakeUserAuthorization)
         .unsafeRunSync() shouldBe false
     }
 
@@ -150,11 +165,13 @@ class SamAuthProviderSpec
     samAuthProvider
       .notifyClusterDeleted(runtimeInternalId, userInfo.userEmail, userInfo.userEmail, project, name1)
       .unsafeRunSync()
-    mockSam.notebookClusters.toList should not contain ((runtimeInternalId, fakeUserAuthorization) -> Set("connect",
-                                                                                                          "read_policies",
-                                                                                                          "status",
-                                                                                                          "delete",
-                                                                                                          "sync"))
+    mockSam.notebookClusters.toList should not contain ((runtimeInternalId, fakeUserAuthorization) -> Set(
+      "connect",
+      "read_policies",
+      "status",
+      "delete",
+      "sync"
+    ))
   }
 
   "should cache hasNotebookClusterPermission results" in {
@@ -312,9 +329,9 @@ class SamAuthProviderSpec
       .notifyPersistentDiskDeleted(diskInternalId, userInfo.userEmail, userInfo.userEmail, project)
       .unsafeRunSync()
     mockSam.persistentDisks.toList should not contain ((diskInternalId, fakeUserAuthorization) -> Set("read",
-      "attach",
-      "modify",
-      "delete"))
+                                                                                                      "attach",
+                                                                                                      "modify",
+                                                                                                      "delete"))
   }
 
   "filterUserVisiblePersistentDisks should return disks that were created by the user or whose project is owned by the user" in {

@@ -65,7 +65,9 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res.left shouldBe LeftProjection(Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("diskSize")))))
+    res.left shouldBe LeftProjection(
+      Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("diskSize"))))
+    )
   }
 
   it should "fail with minimumDiskSizeDecodingFailure when Dataproc diskSize is less than 50" in {
@@ -81,7 +83,9 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res.left shouldBe LeftProjection(Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("masterDiskSize")))))
+    res.left shouldBe LeftProjection(
+      Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("masterDiskSize"))))
+    )
   }
 
   it should "fail with minimumDiskSizeDecodingFailure when decoding a disk size of 10" in {

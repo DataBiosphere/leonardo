@@ -90,7 +90,6 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     StopStartCluster -> "stop_start_notebook_cluster",
     CreatePersistentDisk -> "create_persistent_disk",
     DeletePersistentDisk -> "delete_persistent_disk"
-
   )
 
   private val notebookActionMap: Map[LeoAuthAction, String] = Map(
@@ -141,11 +140,12 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     }
   }
 
-  override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
-                                           userInfo: UserInfo,
-                                           action: PersistentDiskAction,
-                                           googleProject: GoogleProject
-                                         )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
+  override def hasPersistentDiskPermission(
+    internalId: PersistentDiskInternalId,
+    userInfo: UserInfo,
+    action: PersistentDiskAction,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     // can add check to cache here if necessary
     checkPersistentDiskPermissionWithProjectFallback(internalId, authorization, action, googleProject)
@@ -175,11 +175,12 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
       }
     } yield res
 
-  private def checkPersistentDiskPermissionWithProjectFallback(internalId: PersistentDiskInternalId,
-                                                               authorization: Authorization,
-                                                               action: PersistentDiskAction,
-                                                               googleProject: GoogleProject
-                                                              )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
+  private def checkPersistentDiskPermissionWithProjectFallback(
+    internalId: PersistentDiskInternalId,
+    authorization: Authorization,
+    action: PersistentDiskAction,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
       traceId <- ev.ask
       hasPersistentDiskAction <- hasPersistentDiskPermissionInternal(internalId, action, authorization)
@@ -224,16 +225,17 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                           authHeader)
     } yield res
 
-  private def hasPersistentDiskPermissionInternal(persistentDiskInternalId: PersistentDiskInternalId,
-                                                  action: LeoAuthAction,
-                                                  authHeader: Authorization
-                                                )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
+  private def hasPersistentDiskPermissionInternal(
+    persistentDiskInternalId: PersistentDiskInternalId,
+    action: LeoAuthAction,
+    authHeader: Authorization
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
       actionString <- Effect[F].fromEither(getPersistentDiskActionString(action))
       res <- samDao.hasResourcePermission(persistentDiskInternalId.asString,
-        actionString,
-        ResourceTypeName.PersistentDisk,
-        authHeader)
+                                          actionString,
+                                          ResourceTypeName.PersistentDisk,
+                                          authHeader)
     } yield res
 
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
@@ -254,7 +256,8 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     }
   }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskInternalId)])(
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
+                                                disks: List[(GoogleProject, PersistentDiskInternalId)])(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[(GoogleProject, PersistentDiskInternalId)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
@@ -285,15 +288,19 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                     clusterName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteClusterResource(internalId, userEmail, creatorEmail, googleProject, clusterName)
 
-  override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
-                                           creatorEmail: WorkbenchEmail,
-                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def notifyPersistentDiskCreated(
+    internalId: PersistentDiskInternalId,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.createPersistentDiskResource(internalId, creatorEmail, googleProject)
 
-  override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
-                                           userEmail: WorkbenchEmail,
-                                           creatorEmail: WorkbenchEmail,
-                                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def notifyPersistentDiskDeleted(
+    internalId: PersistentDiskInternalId,
+    userEmail: WorkbenchEmail,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deletePersistentDiskResource(internalId, userEmail, creatorEmail, googleProject)
 }
 final case class SamAuthProviderConfig(notebookAuthCacheEnabled: Boolean,
