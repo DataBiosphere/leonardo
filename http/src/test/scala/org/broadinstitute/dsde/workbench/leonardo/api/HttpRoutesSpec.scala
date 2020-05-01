@@ -138,7 +138,7 @@ class HttpRoutesSpec
 
   it should "update a runtime" in {
     val request = UpdateRuntimeRequest(
-      Some(UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), Some(DiskSize(20)))),
+      Some(UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), Some(DiskSize(50)))),
       true,
       Some(true),
       Some(5.minutes)
