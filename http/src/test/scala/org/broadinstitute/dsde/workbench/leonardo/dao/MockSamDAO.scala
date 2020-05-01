@@ -82,19 +82,25 @@ class MockSamDAO extends SamDAO[IO] {
                                      clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO(notebookClusters.remove((internalId, userEmailToAuthorization(userEmail))))
 
-  override def createPersistentDiskResource(internalId: PersistentDiskInternalId,
-                                            creatorEmail: WorkbenchEmail,
-                                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO(persistentDisks += (internalId, userEmailToAuthorization(creatorEmail)) -> Set("read",
-                                                                                      "attach",
-                                                                                      "modify",
-                                                                                      "delete",
-                                                                                      "read_policies"))
+  override def createPersistentDiskResource(
+    internalId: PersistentDiskInternalId,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    IO(
+      persistentDisks += (internalId, userEmailToAuthorization(creatorEmail)) -> Set("read",
+                                                                                     "attach",
+                                                                                     "modify",
+                                                                                     "delete",
+                                                                                     "read_policies")
+    )
 
-  override def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
-                                            userEmail: WorkbenchEmail,
-                                            creatorEmail: WorkbenchEmail,
-                                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def deletePersistentDiskResource(
+    internalId: PersistentDiskInternalId,
+    userEmail: WorkbenchEmail,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO(persistentDisks.remove((internalId, userEmailToAuthorization(userEmail))))
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(

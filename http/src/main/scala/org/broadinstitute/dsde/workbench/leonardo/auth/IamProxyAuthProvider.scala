@@ -96,11 +96,12 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean] =
     checkUserAccess(userInfo, googleProject)
 
-  override def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
-                                           userInfo: UserInfo,
-                                           action: PersistentDiskAction,
-                                           googleProject: GoogleProject,
-                                           )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean] =
+  override def hasPersistentDiskPermission(
+    internalId: PersistentDiskInternalId,
+    userInfo: UserInfo,
+    action: PersistentDiskAction,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean] =
     checkUserAccessFromIam(userInfo.userEmail, userInfo.accessToken, googleProject)
 
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
@@ -117,7 +118,8 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
     }
   }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskInternalId)])(
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
+                                                disks: List[(GoogleProject, PersistentDiskInternalId)])(
     implicit ev: ApplicativeAsk[Future, TraceId]
   ): Future[List[(GoogleProject, PersistentDiskInternalId)]] = {
     // Check each project for user-access exactly once, then filter by project.
@@ -131,27 +133,31 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
     }
   }
 
-  override def notifyClusterCreated(internalId: RuntimeInternalId,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject,
-                                    runtimeName: RuntimeName
-                                   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+  override def notifyClusterCreated(
+    internalId: RuntimeInternalId,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName
+  )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
-  override def notifyClusterDeleted(internalId: RuntimeInternalId,
-                                    userEmail: WorkbenchEmail,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject,
-                                    runtimeName: RuntimeName
-                                   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+  override def notifyClusterDeleted(
+    internalId: RuntimeInternalId,
+    userEmail: WorkbenchEmail,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName
+  )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
-  override def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
-                                           creatorEmail: WorkbenchEmail,
-                                           googleProject: GoogleProject,
-                                          )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+  override def notifyPersistentDiskCreated(
+    internalId: PersistentDiskInternalId,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
-  override def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
-                                           userEmail: WorkbenchEmail,
-                                           creatorEmail: WorkbenchEmail,
-                                           googleProject: GoogleProject,
-                                         )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
+  override def notifyPersistentDiskDeleted(
+    internalId: PersistentDiskInternalId,
+    userEmail: WorkbenchEmail,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 }

@@ -66,14 +66,14 @@ abstract class LeoAuthProvider[F[_]] {
                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
   /**
-    * Leo calls this method to verify if the user has permission to perform the given action on a specific persistent disk.
-    * Return Future.successful(false) if the specified persistent disk does not exist.
-    *
-    * @param userInfo       The user in question
-    * @param action         The persistent-disk action (above) the user is requesting
-    * @param googleProject  The Google project the persistent disk was created in
-    * @return If the userEmail has permission on this individual notebook cluster to perform this action
-    */
+   * Leo calls this method to verify if the user has permission to perform the given action on a specific persistent disk.
+   * Return Future.successful(false) if the specified persistent disk does not exist.
+   *
+   * @param userInfo       The user in question
+   * @param action         The persistent-disk action (above) the user is requesting
+   * @param googleProject  The Google project the persistent disk was created in
+   * @return If the userEmail has permission on this individual notebook cluster to perform this action
+   */
   def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
                                   userInfo: UserInfo,
                                   action: PersistentDiskAction,
@@ -92,13 +92,13 @@ abstract class LeoAuthProvider[F[_]] {
   ): F[List[(GoogleProject, RuntimeInternalId)]]
 
   /**
-    * Leo calls this method when it receives a "list persistent disks" API call, passing in all non-deleted disks from the database.
-    * It should return a list of disks that the user can see according to their authz.
-    *
-    * @param userInfo The user in question
-    * @param disks    All non-deleted disks from the database
-    * @return         Filtered list of disks that the user is allowed to see
-    */
+   * Leo calls this method when it receives a "list persistent disks" API call, passing in all non-deleted disks from the database.
+   * It should return a list of disks that the user can see according to their authz.
+   *
+   * @param userInfo The user in question
+   * @param disks    All non-deleted disks from the database
+   * @return         Filtered list of disks that the user is allowed to see
+   */
   def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskInternalId)])(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[(GoogleProject, PersistentDiskInternalId)]]
@@ -141,31 +141,31 @@ abstract class LeoAuthProvider[F[_]] {
                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
   /**
-    * Leo calls this method to notify the auth provider that a new persistent disk has been created.
-    * The returned future should complete once the provider has finished doing any associated work.
-    * Returning a failed Future will prevent the disk from being created, and will call notifyPersistentDiskDeleted for the same disk.
-    * Leo will wait, so be timely!
-    *
-    * @param internalId     The internal ID for the persistent disk (i.e. used for Sam resources)
-    * @param creatorEmail   The email address of the user in question
-    * @param googleProject  The Google project the disk was created in
-    * @return A Future that will complete when the auth provider has finished doing its business.
-    */
+   * Leo calls this method to notify the auth provider that a new persistent disk has been created.
+   * The returned future should complete once the provider has finished doing any associated work.
+   * Returning a failed Future will prevent the disk from being created, and will call notifyPersistentDiskDeleted for the same disk.
+   * Leo will wait, so be timely!
+   *
+   * @param internalId     The internal ID for the persistent disk (i.e. used for Sam resources)
+   * @param creatorEmail   The email address of the user in question
+   * @param googleProject  The Google project the disk was created in
+   * @return A Future that will complete when the auth provider has finished doing its business.
+   */
   def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
                                   creatorEmail: WorkbenchEmail,
                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
   /**
-    * Leo calls this method to notify the auth provider that a persistent disk has been deleted.
-    * The returned future should complete once the provider has finished doing any associated work.
-    * Leo will wait, so be timely!
-    *
-    * @param internalId    The internal ID for the persistent disk (i.e. used for Sam resources)
-    * @param userEmail     The email address of the user in question
-    * @param creatorEmail  The email address of the creator of the disk
-    * @param googleProject The Google project the disk was created in
-    * @return A Future that will complete when the auth provider has finished doing its business.
-    */
+   * Leo calls this method to notify the auth provider that a persistent disk has been deleted.
+   * The returned future should complete once the provider has finished doing any associated work.
+   * Leo will wait, so be timely!
+   *
+   * @param internalId    The internal ID for the persistent disk (i.e. used for Sam resources)
+   * @param userEmail     The email address of the user in question
+   * @param creatorEmail  The email address of the creator of the disk
+   * @param googleProject The Google project the disk was created in
+   * @return A Future that will complete when the auth provider has finished doing its business.
+   */
   def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
                                   userEmail: WorkbenchEmail,
                                   creatorEmail: WorkbenchEmail,
