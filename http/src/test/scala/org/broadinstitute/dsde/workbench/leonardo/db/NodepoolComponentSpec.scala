@@ -79,6 +79,6 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
     val newDestroyedDate = Instant.now()
     dbFutureValue(nodepoolQuery.updateDestroyedDate(savedNodepool1.id, newDestroyedDate)) shouldBe 1
 
-    dbFutureValue(nodepoolQuery.getById(savedNodepool1.id)) shouldEqual Some(savedNodepool1.copy(auditInfo = kubeAuditInfo.copy(destroyedDate = Some(newDestroyedDate))))
+    dbFutureValue(nodepoolQuery.getById(savedNodepool1.id)) shouldEqual Some(savedNodepool1.copy(auditInfo = savedNodepool1.auditInfo.copy(destroyedDate = Some(newDestroyedDate))))
   }
 }

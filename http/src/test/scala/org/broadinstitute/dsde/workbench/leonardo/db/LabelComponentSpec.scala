@@ -4,6 +4,7 @@ package db
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{labelQuery, LabelResourceType, TestComponent}
 import org.scalatest.FlatSpecLike
 
@@ -11,7 +12,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
 
-  List(LabelResourceType.Runtime, LabelResourceType.PersistentDisk).foreach { resourceType =>
+  List(LabelResourceType.Runtime, LabelResourceType.PersistentDisk, LabelResourceType.KubernetesCluster).foreach { resourceType =>
     it should s"save, get, update, and delete ${resourceType.asString} labels" in isolatedDbTest {
       for {
         id1 <- makeResource(1, resourceType)
@@ -64,5 +65,6 @@ class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUti
     lblType match {
       case LabelResourceType.Runtime        => IO(makeCluster(index).save()).map(_.id)
       case LabelResourceType.PersistentDisk => makePersistentDisk(DiskId(index)).save().map(_.id)
+      case LabelResourceType.KubernetesCluster => IO(makeKubeCluster(index).save()).map(_.id.id)
     }
 }

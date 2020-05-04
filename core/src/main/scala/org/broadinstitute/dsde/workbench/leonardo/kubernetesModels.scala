@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodePoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesMasterIP
@@ -14,7 +12,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
  *  see: https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters#Cluster.Status
  */
 
-//TODO: labels
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
                              clusterName: KubernetesClusterName,
@@ -22,7 +19,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              status: KubernetesClusterStatus,
                              serviceAccountInfo: WorkbenchEmail,
                              samResourceId: KubernetesClusterSamResource,
-                             auditInfo: KubernetesAuditInfo,
+                             auditInfo: AuditInfo,
                              asyncFields: KubernetesClusterAsyncFields,
                              namespaces: Set[KubernetesNamespaceName],
                              labels: LabelMap,
@@ -41,15 +38,11 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
                                  status: KubernetesClusterStatus,
                                  serviceAccountInfo: WorkbenchEmail,
                                  samResourceId: KubernetesClusterSamResource,
-                                 auditInfo: KubernetesAuditInfo,
+                                 auditInfo: AuditInfo,
                                  labels: LabelMap,
                                  initialNodepool: Nodepool) //the clusterId specified here isn't used, and will be replaced by the id of cluster saved beforehand
 
 case class KubernetesClusterSamResource(resourceId: String)
-
-case class KubernetesAuditInfo(creator: WorkbenchEmail,
-                               createdDate: Instant,
-                               destroyedDate: Option[Instant])
 
 case class KubernetesClusterAsyncFields(apiServerIp: Option[KubernetesMasterIP],
                                         networkInfo: Option[NetworkFields]
@@ -97,7 +90,7 @@ case class Nodepool(id: NodepoolLeoId,
                     clusterId: KubernetesClusterLeoId,
                     nodepoolName: NodePoolName,
                     status: NodepoolStatus,
-                    auditInfo: KubernetesAuditInfo,
+                    auditInfo: AuditInfo,
                     machineType: MachineTypeName,
                     numNodes: NumNodes,
                     autoScalingEnabled: Boolean,

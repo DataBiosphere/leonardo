@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
   AutoScalingMax,
   AutoScalingMin,
-  KubernetesAuditInfo,
+  AuditInfo,
   KubernetesClusterLeoId,
   Nodepool,
   NodepoolAutoscaling,
@@ -30,6 +30,7 @@ case class NodepoolRecord(
   creator: WorkbenchEmail,
   createdDate: Instant,
   destroyedDate: Instant,
+  dateAccessed: Instant,
   machineType: MachineTypeName,
   numNodes: NumNodes,
   autoScalingEnabled: Boolean,
@@ -45,6 +46,7 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
+  def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def machineType = column[MachineTypeName]("machineType", O.Length(254))
   def numNodes = column[NumNodes]("numNodes", O.Length(254))
   def autoScalingEnabled = column[Boolean]("autoScalingEnabled")
@@ -60,6 +62,7 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
      creator,
      createdDate,
      destroyedDate,
+      dateAccessed,
      machineType,
      numNodes,
      autoScalingEnabled,
@@ -97,6 +100,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
           n.auditInfo.creator,
           n.auditInfo.createdDate,
           dummyDate,
+          n.auditInfo.dateAccessed,
           n.machineType,
           n.numNodes,
           n.autoScalingEnabled,
@@ -127,10 +131,11 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       rec.clusterId,
       rec.nodepoolName,
       rec.status,
-      KubernetesAuditInfo(
+      AuditInfo(
         rec.creator,
         rec.createdDate,
-        unmarshalDestroyedDate(rec.destroyedDate)
+        unmarshalDestroyedDate(rec.destroyedDate),
+        rec.dateAccessed
       ),
       rec.machineType,
       rec.numNodes,

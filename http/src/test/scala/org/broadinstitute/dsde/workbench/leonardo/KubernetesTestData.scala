@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodePoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesMasterIP
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
@@ -15,8 +13,6 @@ object KubernetesTestData {
   val kubeClusterSamId = KubernetesClusterSamResource("067e2867-5d4a-47f3-a53c-fd711529b289")
   val location = Location("us-central1-a")
 
-  val testTime = Instant.now()
-  val kubeAuditInfo = KubernetesAuditInfo(userEmail, testTime, None)
   val apiServerIp = KubernetesMasterIP("0.0.0.0")
   val namespace0 = KubernetesNamespaceName("namespace00")
   val namespace1 = KubernetesNamespaceName("namespace01")
@@ -33,7 +29,7 @@ object KubernetesTestData {
       clusterId,
       name,
       NodepoolStatus.Status_Unspecified,
-      kubeAuditInfo,
+      auditInfo,
       MachineTypeName("n1-standard-4"),
       NumNodes(2),
       false,
@@ -51,7 +47,7 @@ object KubernetesTestData {
       KubernetesClusterStatus.Status_Unspecified,
       serviceAccountEmail,
       kubeClusterSamId,
-      kubeAuditInfo,
+      auditInfo,
       KubernetesClusterAsyncFields(None, None),
       Set(),
       Map(),

@@ -30,6 +30,7 @@ case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                    creator: WorkbenchEmail,
                                    createdDate: Instant,
                                    destroyedDate: Instant,
+                                   dateAccessed: Instant,
                                    apiServerIp: Option[KubernetesMasterIP],
                                    networkName: Option[NetworkName],
                                    subNetworkName: Option[SubnetworkName],
@@ -46,6 +47,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
+  def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def apiServerIp = column[Option[KubernetesMasterIP]]("apiServerIp", O.Length(254))
   def networkName = column[Option[NetworkName]]("networkName", O.Length(254))
   def subNetworkName = column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
@@ -64,6 +66,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      creator,
      createdDate,
      destroyedDate,
+      dateAccessed,
      apiServerIp,
      networkName,
      subNetworkName,
@@ -92,9 +95,10 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       nodepools <- clusterOpt.fold[DBIO[Set[Nodepool]]](DBIO.successful(Set()))(cluster =>
         nodepoolQuery.getAllForCluster(cluster.id)
       )
+      labels <- getLabelsById(clusterOpt.map(_.id))
     } yield {
       clusterOpt
-        .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools))
+        .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools, labels))
     }
 
   def getFullClusterById(id: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
@@ -106,12 +110,17 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       nodepools <- clusterOpt.fold[DBIO[Set[Nodepool]]](DBIO.successful(Set()))(cluster =>
         nodepoolQuery.getAllForCluster(cluster.id)
       )
+      labels <- getLabelsById(clusterOpt.map(_.id))
     } yield {
       clusterOpt
-        .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools))
+        .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools, labels))
     }
 
-  //TODO save labels
+  def getLabelsById(idOpt: Option[KubernetesClusterLeoId])
+                   (implicit ec: ExecutionContext): DBIO[LabelMap] =
+    idOpt.fold[DBIO[LabelMap]](DBIO.successful(Map()))(id =>
+        labelQuery.getAllForResource(id.id, LabelResourceType.KubernetesCluster))
+
   def save(saveCluster: SaveKubernetesCluster)(implicit ec: ExecutionContext): DBIO[KubernetesCluster] = {
     val clusterRecord = KubernetesClusterRecord(
       KubernetesClusterLeoId(0),
@@ -124,6 +133,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       saveCluster.auditInfo.creator,
       saveCluster.auditInfo.createdDate,
       dummyDate,
+      saveCluster.auditInfo.dateAccessed,
       None,
       None,
       None,
@@ -132,7 +142,8 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
     for {
       clusterId <- kubernetesClusterQuery returning kubernetesClusterQuery.map(_.id) += clusterRecord
       nodepool <- nodepoolQuery.saveForCluster(saveCluster.initialNodepool.copy(clusterId = clusterId))
-    } yield unmarshalKubernetesCluster(clusterRecord.copy(id = clusterId), Set(), Set(nodepool))
+      _ <- labelQuery.saveAllForResource(clusterId.id, LabelResourceType.KubernetesCluster, saveCluster.labels)
+    } yield unmarshalKubernetesCluster(clusterRecord.copy(id = clusterId), Set(), Set(nodepool), saveCluster.labels)
   }
 
   def updateStatus(id: KubernetesClusterLeoId, status: KubernetesClusterStatus): DBIO[Int] =
@@ -166,7 +177,8 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
   private def unmarshalKubernetesCluster(cr: KubernetesClusterRecord,
                                          namespaces: Set[KubernetesNamespaceName],
-                                         nodepools: Set[Nodepool]): KubernetesCluster =
+                                         nodepools: Set[Nodepool],
+                                         labels: LabelMap): KubernetesCluster =
     KubernetesCluster(
       cr.id,
       cr.googleProject,
@@ -175,17 +187,18 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       cr.status,
       cr.serviceAccountInfo,
       cr.samResourceId,
-      KubernetesAuditInfo(
+      AuditInfo(
         cr.creator,
         cr.createdDate,
-        unmarshalDestroyedDate(cr.destroyedDate)
+        unmarshalDestroyedDate(cr.destroyedDate),
+        cr.dateAccessed
       ),
       KubernetesClusterAsyncFields(
         cr.apiServerIp,
         unmarshalNetwork(cr)
       ),
       namespaces,
-      Map(), // TODO
+      labels,
       nodepools
     )
 

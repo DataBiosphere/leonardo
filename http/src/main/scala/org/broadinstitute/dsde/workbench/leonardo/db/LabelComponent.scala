@@ -52,6 +52,11 @@ object LabelResourceType {
   final case object PersistentDisk extends LabelResourceType {
     val asString = "persistentDisk"
   }
+
+  final case object KubernetesCluster extends LabelResourceType {
+    val asString = "kubernetesCluster"
+  }
+
   val stringToLabelResourceType: Map[String, LabelResourceType] =
     sealerate.collect[LabelResourceType].map(p => (p.asString, p)).toMap
 
