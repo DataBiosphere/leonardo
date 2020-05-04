@@ -96,16 +96,6 @@ case class Nodepool(id: NodepoolLeoId,
                     autoScalingEnabled: Boolean,
                     autoscalingConfig: Option[NodepoolAutoscaling])
 
-//TODO: remove?
-//case class SaveNodePool(clusterId: KubernetesClusterLeoId,
-//                    nodePoolName: NodePoolName,
-//                    status: NodePoolStatus,
-//                    auditInfo: KubernetesAuditInfo,
-//                    machineType: MachineTypeName,
-//                    numNodes: NumNodes,
-//                    autoScalingEnabled: Boolean,
-//                    autoscalingConfig: Option[NodePoolAutoscaling])
-
 case class NodepoolAutoscaling(autoScalingMin: AutoScalingMin,
                                autoScalingMax: AutoScalingMax)
 

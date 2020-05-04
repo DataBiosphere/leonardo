@@ -22,7 +22,7 @@ case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                    // the GKE API actually supports a location (e.g. us-central1 or us-central1-a)
                                    // If a zone is specified, it will be a single-zone cluster, otherwise it will span multiple zones in the region
                                    // Leo currently specifies a zone, e.g. "us-central1-a" and makes all clusters single-zone
-                                   // Location is exposed here unless we ever want to leverage the flexibility GKE provides
+                                   // Location is exposed here in case we ever want to leverage the flexibility GKE provides
                                    location: Location,
                                    status: KubernetesClusterStatus,
                                    serviceAccountInfo: WorkbenchEmail,
@@ -66,7 +66,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      creator,
      createdDate,
      destroyedDate,
-      dateAccessed,
+     dateAccessed,
      apiServerIp,
      networkName,
      subNetworkName,
@@ -116,10 +116,10 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
         .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools, labels))
     }
 
-  def getLabelsById(idOpt: Option[KubernetesClusterLeoId])
-                   (implicit ec: ExecutionContext): DBIO[LabelMap] =
+  def getLabelsById(idOpt: Option[KubernetesClusterLeoId])(implicit ec: ExecutionContext): DBIO[LabelMap] =
     idOpt.fold[DBIO[LabelMap]](DBIO.successful(Map()))(id =>
-        labelQuery.getAllForResource(id.id, LabelResourceType.KubernetesCluster))
+      labelQuery.getAllForResource(id.id, LabelResourceType.KubernetesCluster)
+    )
 
   def save(saveCluster: SaveKubernetesCluster)(implicit ec: ExecutionContext): DBIO[KubernetesCluster] = {
     val clusterRecord = KubernetesClusterRecord(

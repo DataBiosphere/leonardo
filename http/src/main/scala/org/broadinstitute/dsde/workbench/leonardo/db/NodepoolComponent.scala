@@ -5,9 +5,9 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodePoolName
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AuditInfo,
   AutoScalingMax,
   AutoScalingMin,
-  AuditInfo,
   KubernetesClusterLeoId,
   Nodepool,
   NodepoolAutoscaling,
@@ -62,7 +62,7 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
      creator,
      createdDate,
      destroyedDate,
-      dateAccessed,
+     dateAccessed,
      machineType,
      numNodes,
      autoScalingEnabled,
