@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{
   clusterEq,
   clusterSeqEq,
   stripFieldsForListCluster

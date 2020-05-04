@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config

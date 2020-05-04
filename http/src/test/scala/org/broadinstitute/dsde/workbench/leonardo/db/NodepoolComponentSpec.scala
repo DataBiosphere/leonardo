@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.{NodepoolStatus}
 import org.scalatest.FlatSpecLike
 

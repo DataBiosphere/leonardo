@@ -4,8 +4,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeResp
 import org.scalactic.Equality
 import org.scalatest.{Assertion, Matchers}
 
-//TODO: rename before merge
-object ClusterEnrichments extends Matchers {
+object TestUtils extends Matchers {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
   // while comparing clusters as we typically don't care about the database assigned id field
   // http://www.scalactic.org/user_guide/CustomEquality

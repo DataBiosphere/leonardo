@@ -15,7 +15,7 @@ import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config

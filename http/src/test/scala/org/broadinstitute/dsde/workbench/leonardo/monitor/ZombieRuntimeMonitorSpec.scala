@@ -13,7 +13,7 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
