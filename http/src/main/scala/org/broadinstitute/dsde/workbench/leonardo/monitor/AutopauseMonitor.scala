@@ -42,7 +42,7 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
             logger.error(s"Fail to get kernel status for ${cluster.projectNameString} due to $t").as(true)
           case Right(isIdle) =>
             if (!isIdle) {
-              val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
+              val maxKernelActiveTimeExceeded = cluster.kernelFoundBusyDate match {
                 case Some(attemptedDate) =>
                   val maxBusyLimitReached =
                     now.toEpochMilli - attemptedDate.toEpochMilli > config.maxKernelBusyLimit.toMillis

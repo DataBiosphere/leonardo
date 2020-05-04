@@ -114,9 +114,9 @@ class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComp
           .copy(
             status = RuntimeStatus.Running,
             auditInfo = auditInfo.copy(
-              dateAccessed = now.minus(25, ChronoUnit.HOURS),
-              kernelFoundBusyDate = Some(now.minus(25, ChronoUnit.HOURS))
-            )
+              dateAccessed = now.minus(25, ChronoUnit.HOURS)
+            ),
+            kernelFoundBusyDate = Some(now.minus(25, ChronoUnit.HOURS))
           )
           .save()
       )

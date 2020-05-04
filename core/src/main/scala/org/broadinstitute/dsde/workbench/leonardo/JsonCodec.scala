@@ -72,12 +72,11 @@ object JsonCodec {
     "combinedExtensions",
     "labExtensions"
   )(x => UserJupyterExtensionConfig.unapply(x).get)
-  implicit val auditInfoEncoder: Encoder[AuditInfo] = Encoder.forProduct5(
+  implicit val auditInfoEncoder: Encoder[AuditInfo] = Encoder.forProduct4(
     "creator",
     "createdDate",
     "destroyedDate",
-    "dateAccessed",
-    "kernelFoundBusyDate"
+    "dateAccessed"
   )(x => AuditInfo.unapply(x).get)
   implicit val runtimeImageTypeEncoder: Encoder[RuntimeImageType] = Encoder.encodeString.contramap(_.toString)
   implicit val containerImageEncoder: Encoder[ContainerImage] = Encoder.encodeString.contramap(_.imageUrl)
@@ -113,13 +112,8 @@ object JsonCodec {
     "errorCode",
     "timestamp"
   )(x => RuntimeError.unapply(x).get)
+  implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.id)
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.toString)
-  implicit val diskAuditInfoEncoder: Encoder[DiskAuditInfo] = Encoder.forProduct4(
-    "creator",
-    "createdDate",
-    "destroyedDate",
-    "dateAccessed"
-  )(x => DiskAuditInfo.unapply(x).get)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.entryName)
 
   // Decoders
@@ -157,12 +151,11 @@ object JsonCodec {
     "imageUrl",
     "timestamp"
   )(RuntimeImage.apply)
-  implicit val auditInfoDecoder: Decoder[AuditInfo] = Decoder.forProduct5(
+  implicit val auditInfoDecoder: Decoder[AuditInfo] = Decoder.forProduct4(
     "creator",
     "createdDate",
     "destroyedDate",
-    "dateAccessed",
-    "kernelFoundBusyDate"
+    "dateAccessed"
   )(AuditInfo.apply)
   implicit val rtDataprocConfigDecoder: Decoder[RuntimeConfig.DataprocConfig] = Decoder.instance { c =>
     for {
@@ -221,10 +214,10 @@ object JsonCodec {
 
   implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
+  implicit val diskIdDecoder: Decoder[DiskId] =
+    Decoder.decodeLong.map(DiskId)
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
-  implicit val diskAuditInfoDecoder: Decoder[DiskAuditInfo] =
-    Decoder.forProduct4("creator", "createdDate", "destroyedDate", "dateAccesed")(DiskAuditInfo.apply)
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.withNameOption(x).toRight(s"Invalid disk type: $x"))
 }

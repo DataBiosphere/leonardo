@@ -110,6 +110,7 @@ object LeonardoServiceDbQueries {
             clusterRec.serviceAccountInfo,
             dataprocInfo,
             clusterRec.auditInfo,
+            clusterRec.kernelFoundBusyDate,
             runTimeConfigRecOpt
               .getOrElse(
                 throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")

@@ -15,15 +15,15 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
 
   "PersistentDiskComponent" should "save and get records" in isolatedDbTest {
-    val disk1 = makePersistentDisk(1)
-    val disk2 = makePersistentDisk(2).copy(size = DiskSize(1000), blockSize = BlockSize(16384), diskType = SSD)
+    val disk1 = makePersistentDisk(DiskId(1))
+    val disk2 = makePersistentDisk(DiskId(2)).copy(size = DiskSize(1000), blockSize = BlockSize(16384), diskType = SSD)
 
     val res = for {
       id1 <- persistentDiskQuery.save(disk1).transaction
       id2 <- persistentDiskQuery.save(disk2).transaction
       d1 <- persistentDiskQuery.getById(id1).transaction
       d2 <- persistentDiskQuery.getById(id2).transaction
-      d3 <- persistentDiskQuery.getById(-1).transaction
+      d3 <- persistentDiskQuery.getById(DiskId(-1)).transaction
     } yield {
       d1.get shouldEqual disk1
       d2.get shouldEqual disk2
@@ -34,8 +34,8 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
   }
 
   it should "get by name" in isolatedDbTest {
-    val disk = makePersistentDisk(1)
-    val deletedDisk = LeoLenses.diskToDestroyedDate.modify(_ => Some(Instant.now))(makePersistentDisk(2))
+    val disk = makePersistentDisk(DiskId(1))
+    val deletedDisk = LeoLenses.diskToDestroyedDate.modify(_ => Some(Instant.now))(makePersistentDisk(DiskId(2)))
 
     val res = for {
       _ <- persistentDiskQuery.save(disk).transaction
@@ -51,7 +51,7 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
   }
 
   it should "update status" in isolatedDbTest {
-    val disk = makePersistentDisk(1)
+    val disk = makePersistentDisk(DiskId(1))
 
     val res = for {
       id <- persistentDiskQuery.save(disk).transaction
@@ -68,7 +68,7 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
   }
 
   it should "delete records" in isolatedDbTest {
-    val disk = makePersistentDisk(1)
+    val disk = makePersistentDisk(DiskId(1))
 
     val res = for {
       id <- persistentDiskQuery.save(disk).transaction

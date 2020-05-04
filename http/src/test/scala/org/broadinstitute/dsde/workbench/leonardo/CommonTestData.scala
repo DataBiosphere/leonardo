@@ -146,7 +146,7 @@ object CommonTestData {
 
   val clusterServiceAccount = WorkbenchEmail("testClusterServiceAccount@example.com")
 
-  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
+  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
   val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
@@ -190,6 +190,7 @@ object CommonTestData {
       serviceAccount = clusterServiceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
+      kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
@@ -221,7 +222,8 @@ object CommonTestData {
     asyncRuntimeFields = Some(
       AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
     ),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    kernelFoundBusyDate = None,
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
@@ -293,7 +295,7 @@ object CommonTestData {
   def modifyInstanceKey(instanceKey: DataprocInstanceKey): DataprocInstanceKey =
     instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
 
-  def makePersistentDisk(id: Int): PersistentDisk = PersistentDisk(
+  def makePersistentDisk(id: DiskId): PersistentDisk = PersistentDisk(
     id,
     project,
     zone,
@@ -301,7 +303,7 @@ object CommonTestData {
     Some(googleId),
     diskSamResourceId,
     DiskStatus.Ready,
-    DiskAuditInfo(userEmail, Instant.now, None, Instant.now),
+    AuditInfo(userEmail, Instant.now, None, Instant.now),
     DiskSize(500),
     DiskType.Standard,
     BlockSize(4096),

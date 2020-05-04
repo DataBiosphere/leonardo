@@ -36,6 +36,7 @@ final case class ClusterRecord(id: Long,
                                jupyterStartUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfo,
+                               kernelFoundBusyDate: Option[Instant],
                                serviceAccountInfo: WorkbenchEmail,
                                stagingBucket: Option[String],
                                autopauseThreshold: Int,
@@ -92,7 +93,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       jupyterUserScriptUri,
       jupyterStartUserScriptUri,
       initBucket,
-      (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
+      (creator, createdDate, destroyedDate, dateAccessed),
+      kernelFoundBusyDate,
       serviceAccount,
       stagingBucket,
       autopauseThreshold,
@@ -115,6 +117,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             jupyterStartUserScriptUri,
             initBucket,
             auditInfo,
+            kernelFoundBusyDate,
             serviceAccountInfo,
             stagingBucket,
             autopauseThreshold,
@@ -140,9 +143,9 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             auditInfo._1,
             auditInfo._2,
             LeoProfile.unmarshalDestroyedDate(auditInfo._3),
-            auditInfo._4,
-            auditInfo._5
+            auditInfo._4
           ),
+          kernelFoundBusyDate,
           serviceAccountInfo,
           stagingBucket,
           autopauseThreshold,
@@ -157,8 +160,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
         _ai.creator,
         _ai.createdDate,
         _ai.destroyedDate.getOrElse(dummyDate),
-        _ai.dateAccessed,
-        _ai.kernelFoundBusyDate
+        _ai.dateAccessed
       )
       Some(
         (
@@ -175,6 +177,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.jupyterStartUserScriptUri,
           c.initBucket,
           ai(c.auditInfo),
+          c.kernelFoundBusyDate,
           c.serviceAccountInfo,
           c.stagingBucket,
           c.autopauseThreshold,
@@ -568,6 +571,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.jupyterStartUserScriptUri,
       initBucket,
       runtime.auditInfo,
+      runtime.kernelFoundBusyDate,
       runtime.serviceAccount,
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
       runtime.autopauseThreshold,
@@ -711,6 +715,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterRecord.serviceAccountInfo,
       dataprocInfo,
       clusterRecord.auditInfo,
+      clusterRecord.kernelFoundBusyDate,
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),
       RuntimeStatus.withName(clusterRecord.status),
       labels,

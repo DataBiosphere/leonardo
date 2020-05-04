@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 
-final case class PersistentDiskRecord(id: Long,
+final case class PersistentDiskRecord(id: DiskId,
                                       googleProject: GoogleProject,
                                       zone: ZoneName,
                                       name: DiskName,
@@ -29,7 +29,7 @@ final case class PersistentDiskRecord(id: Long,
                                       blockSize: BlockSize)
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
-  def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+  def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
   def googleProject = column[GoogleProject]("googleProject", O.Length(255))
   def zone = column[ZoneName]("zone", O.Length(255))
   def name = column[DiskName]("name", O.Length(255))
@@ -62,7 +62,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
 }
 
 object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
-  private[db] def findByIdQuery(id: Long) = persistentDiskQuery.filter(_.id === id)
+  private[db] def findByIdQuery(id: DiskId) = persistentDiskQuery.filter(_.id === id)
 
   private[db] def findActiveByNameQuery(googleProject: GoogleProject, name: DiskName) =
     persistentDiskQuery
@@ -73,20 +73,20 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     baseQuery joinLeft persistentDiskLabelQuery on (_.id === _.diskId)
 
-  def save(disk: PersistentDisk): DBIO[Long] =
+  def save(disk: PersistentDisk): DBIO[DiskId] =
     (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
 
-  def getById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
+  def getById(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
 
   def getActiveByName(googleProject: GoogleProject,
                       name: DiskName)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(googleProject, name)).result.map(aggregateLabels).map(_.headOption)
 
-  def updateStatus(id: Long, newStatus: DiskStatus, dateAccessed: Instant) =
+  def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
 
-  def delete(id: Long, destroyedDate: Instant) =
+  def delete(id: DiskId, destroyedDate: Instant) =
     findByIdQuery(id)
       .map(d => (d.status, d.destroyedDate, d.dateAccessed))
       .update((DiskStatus.Deleted, destroyedDate, destroyedDate))
@@ -136,7 +136,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       rec.googleId,
       rec.samResourceId,
       rec.status,
-      DiskAuditInfo(
+      AuditInfo(
         rec.creator,
         rec.createdDate,
         unmarshalDestroyedDate(rec.destroyedDate),

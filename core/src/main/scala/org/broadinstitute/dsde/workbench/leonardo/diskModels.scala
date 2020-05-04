@@ -1,25 +1,23 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-final case class PersistentDisk(id: Long,
+final case class PersistentDisk(id: DiskId,
                                 googleProject: GoogleProject,
                                 zone: ZoneName,
                                 name: DiskName,
                                 googleId: Option[GoogleId],
                                 samResourceId: DiskSamResourceId,
                                 status: DiskStatus,
-                                auditInfo: DiskAuditInfo,
+                                auditInfo: AuditInfo,
                                 size: DiskSize,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
                                 labels: LabelMap)
 
+final case class DiskId(id: Long) extends AnyVal
 final case class DiskSamResourceId(asString: String) extends AnyVal
 
 // See https://cloud.google.com/compute/docs/reference/rest/v1/disks
@@ -34,11 +32,6 @@ object DiskStatus extends Enum[DiskStatus] {
   final case object Deleting extends DiskStatus
   final case object Deleted extends DiskStatus
 }
-
-final case class DiskAuditInfo(creator: WorkbenchEmail,
-                               createdDate: Instant,
-                               destroyedDate: Option[Instant],
-                               dateAccessed: Instant)
 
 // Disks are always specified in GB, it doesn't make sense to support other units
 final case class DiskSize(gb: Int) extends AnyVal {

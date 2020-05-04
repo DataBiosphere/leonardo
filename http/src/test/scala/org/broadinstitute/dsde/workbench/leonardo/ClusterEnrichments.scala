@@ -42,7 +42,7 @@ object ClusterEnrichments extends Matchers {
 
   implicit val diskEq = {
     new Equality[PersistentDisk] {
-      private val FixedId = 0
+      private val FixedId = DiskId(0)
 
       def areEqual(a: PersistentDisk, b: Any): Boolean =
         b match {

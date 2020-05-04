@@ -11,7 +11,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class PersistentDiskLabelComponentSpec extends FlatSpecLike with TestComponent {
 
   "PersistentDiskLabelComponent" should "save, list, and delete" in isolatedDbTest {
-    val disk = makePersistentDisk(1)
+    val disk = makePersistentDisk(DiskId(1))
     val labels = Map("k1" -> "v1", "k2" -> "v2", "k3" -> "v3")
 
     val res = for {
