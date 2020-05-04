@@ -15,13 +15,14 @@ object Dependencies {
   val http4sVersion = "0.21.0" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
+  val opencensusV = "0.26.0"
 
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
   val workbenchGoogleV = "0.21-2a218f3"
   val workbenchGoogle2V = "0.9-8051635"
   val workbenchMetricsV = "0.3-c5b80d2"
-  val workbenchOpenTelemetryV = "0.1-73d6a64"
+  val workbenchOpenTelemetryV = "0.1-c170737-SNAP"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = "akka-stream_2.12")
@@ -169,7 +170,12 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     mysql,
-    liquibase
+    liquibase,
+    "de.heikoseeberger" %% "akka-http-circe" % "1.31.0",
+    "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
+
+    // Dependent on the trace exporters you want to use add one or more of the following
+    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV
   )
 
   val serviceTestV = "0.16-e6493d5"

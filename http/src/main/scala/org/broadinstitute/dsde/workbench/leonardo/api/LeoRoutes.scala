@@ -3,14 +3,13 @@ package http
 package api
 
 import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.Materializer
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import LeoRoutesJsonCodec._
@@ -36,8 +35,11 @@ class LeoRoutes(
 )(implicit val system: ActorSystem,
   val materializer: Materializer,
   val executionContext: ExecutionContext,
-  val cs: ContextShift[IO])
+  val cs: ContextShift[IO],
+  timer: Timer[IO])
     extends LazyLogging {
+
+  import io.opencensus.scala.akka.http.TracingDirective._
 
   val route: Route =
     userInfoDirectives.requireUserInfo { userInfo =>
@@ -63,24 +65,15 @@ class LeoRoutes(
             pathPrefix(Segment / Segment) { (googleProject, clusterNameString) =>
               validateClusterNameDirective(clusterNameString) { clusterName =>
                 pathEndOrSingleSlash {
-                  patch {
+                  put {
                     entity(as[CreateRuntimeRequest]) { cluster =>
                       complete {
                         leonardoService
-                          .updateCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
-                          .map(cluster => StatusCodes.Accepted -> cluster)
+                          .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
+                          .map(cluster => StatusCodes.OK -> cluster)
                       }
                     }
                   } ~
-                    put {
-                      entity(as[CreateRuntimeRequest]) { cluster =>
-                        complete {
-                          leonardoService
-                            .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
-                            .map(cluster => StatusCodes.OK -> cluster)
-                        }
-                      }
-                    } ~
                     get {
                       complete {
                         leonardoService
@@ -97,20 +90,32 @@ class LeoRoutes(
                     }
                 } ~
                   path("stop") {
-                    post {
-                      complete {
-                        leonardoService
-                          .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
-                          .as(StatusCodes.Accepted)
+                    traceRequestForService(serviceData) { span => // Use `LABEL:service.name:leonardo` to find the span on stackdriver console
+                      post {
+                        complete {
+                          for {
+                            implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+                            res <- leonardoService
+                              .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
+                              .as(StatusCodes.Accepted)
+                            _ <- IO(span.end())
+                          } yield res
+                        }
                       }
                     }
                   } ~
                   path("start") {
-                    post {
-                      complete {
-                        leonardoService
-                          .startCluster(userInfo, GoogleProject(googleProject), clusterName)
-                          .as(StatusCodes.Accepted)
+                    traceRequestForService(serviceData) { span =>
+                      post {
+                        complete {
+                          for {
+                            implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+                            res <- leonardoService
+                              .startCluster(userInfo, GoogleProject(googleProject), clusterName)
+                              .as(StatusCodes.Accepted)
+                            _ <- IO(span.end())
+                          } yield res
+                        }
                       }
                     }
                   }

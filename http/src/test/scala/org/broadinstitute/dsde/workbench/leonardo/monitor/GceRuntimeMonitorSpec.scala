@@ -7,12 +7,11 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GoogleComputeService, InstanceName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, nowInstant, userScriptStartupOutputUriMetadataKey}
+import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.{model, DoneCheckable}
@@ -21,10 +20,31 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectN
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import scala.concurrent.duration._
 
 class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent with LeonardoTestSuite with EitherValues {
-  implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
+  val readyInstance = Instance
+    .newBuilder()
+    .setStatus("Running")
+    .setMetadata(
+      Metadata
+        .newBuilder()
+        .addItems(
+          Items.newBuilder
+            .setKey(userScriptStartupOutputUriMetadataKey)
+            .setValue("gs://success/object")
+            .build()
+        )
+        .build()
+    )
+    .addNetworkInterfaces(
+      NetworkInterface
+        .newBuilder()
+        .addAccessConfigs(AccessConfig.newBuilder().setNatIP("fakeIP").build())
+        .build()
+    )
+    .build()
 
   "validateUserScript" should "validate user script properly" in {
     val monitor = gceRuntimeMonitor()

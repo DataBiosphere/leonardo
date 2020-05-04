@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import java.nio.file.Paths
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.effect.concurrent.Semaphore
@@ -198,7 +200,7 @@ object Boot extends IOApp {
           implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
             new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue)
+          val monitorAtBoot = new MonitorAtBoot[IO]()
 
           // only needed for backleo
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
@@ -238,9 +240,9 @@ object Boot extends IOApp {
     }
   }
 
-  private def createDependencies[F[_]: StructuredLogger: ContextShift: ConcurrentEffect: Timer](
+  private def createDependencies[F[_]: StructuredLogger: ContextShift: Timer](
     pathToCredentialJson: String
-  )(implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] =
+  )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
@@ -309,6 +311,7 @@ object Boot extends IOApp {
         dataprocConfig.regionName
       )
       asyncTasksQueue <- Resource.liftF(InspectableQueue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
+      _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
     } yield AppDependencies(
       storage,
       dbRef,

@@ -9,35 +9,25 @@ import cats.effect.IO
 import cats.effect.concurrent.Deferred
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.cloud.pubsub.v1.AckReplyConsumer
-import com.google.protobuf.Timestamp
+import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.circe.parser.decode
-import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.{Event, MachineTypeName}
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, patchQuery, RuntimeConfigQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeConfigQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  ClusterInvalidState,
-  ClusterNotStopped
-}
-import fs2.Stream
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.Mockito
 import org.scalatest.concurrent._
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
@@ -63,8 +53,6 @@ class LeoPubsubMessageSubscriberSpec
   val projectDAO = new MockGoogleProjectDAO
   val authProvider = mock[LeoAuthProvider[IO]]
   val currentTime = Instant.now
-  implicit val appContext: ApplicativeAsk[IO, AppContext] =
-    ApplicativeAsk.const(AppContext.generate[IO].unsafeRunSync())
 
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     new MockGoogleStorageDAO
@@ -107,31 +95,6 @@ class LeoPubsubMessageSubscriberSpec
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
     status = RuntimeStatus.Stopped
   )
-
-  it should "handle StopUpdateMessage and stop cluster" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
-
-    val savedRunningCluster = runningCluster.save()
-    savedRunningCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual runningCluster
-
-    val clusterId = savedRunningCluster.id
-    val newMachineConfig = defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
-    val message = StopUpdateMessage(newMachineConfig, clusterId, None)
-
-    val patchDetails = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
-
-    testDbRef
-      .inTransaction(
-        patchQuery.getPatchAction(patchDetails.runtimeId)
-      )
-      .unsafeRunSync() shouldBe None
-
-    leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
-
-    eventually {
-      dbFutureValue(clusterQuery.getClusterById(clusterId)).get.status shouldBe RuntimeStatus.Stopping
-    }
-  }
 
   it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
@@ -372,207 +335,6 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     res.unsafeRunSync()
-  }
-
-  "LeoPubsubMessageSubscriber messageResponder" should "throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
-
-    val savedRunningCluster = runningCluster.save()
-
-    val clusterId = savedRunningCluster.id
-    val newMasterMachineType = MachineTypeName("n1-standard-8")
-    val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
-    val message = RuntimeTransitionMessage(patchKey, None)
-
-    val preStorage = testDbRef.inTransaction(patchQuery.getPatchAction(patchKey.runtimeId)).unsafeRunSync()
-    preStorage shouldBe None
-
-    //save follow-up details in DB
-    testDbRef
-      .inTransaction(
-        patchQuery.save(patchKey, Some(newMasterMachineType))
-      )
-      .unsafeRunSync()
-
-    the[ClusterNotStopped] thrownBy {
-      leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
-    }
-
-    dbFutureValue(clusterQuery.getClusterById(clusterId)).get.status shouldBe RuntimeStatus.Running
-  }
-
-  "LeoPubsubMessageSubscriber messageHandler" should "not throw an exception if it receives an incorrect cluster transition finished message and the database does not reflect the state in message" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
-    val savedRunningCluster = runningCluster.save()
-    val patchKey = RuntimePatchDetails(savedRunningCluster.id, RuntimeStatus.Stopped)
-    val message = RuntimeTransitionMessage(patchKey, None)
-    val newMasterMachineType = MachineTypeName("n1-standard-8")
-
-    val consumer = mock[AckReplyConsumer]
-    Mockito.doNothing().when(consumer).ack()
-
-    testDbRef
-      .inTransaction(
-        patchQuery.save(patchKey, Some(newMasterMachineType))
-      )
-      .unsafeRunSync()
-
-    val res =
-      leoSubscriber.messageHandler(Event[LeoPubsubMessage](message, None, Timestamp.getDefaultInstance, consumer))
-
-    res.attempt.unsafeRunSync().isRight shouldBe true //messageHandler will never throw exception
-  }
-
-  it should "throw an exception if it receives an incorrect StopUpdate message and the database does not reflect the state in message" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
-
-    val savedStoppedCluster = stoppedCluster.save()
-
-    val clusterId = savedStoppedCluster.id
-    val newMachineConfig = defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8"))
-    val message = StopUpdateMessage(newMachineConfig, clusterId, None)
-    val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopping)
-
-    testDbRef
-      .inTransaction(patchQuery.getPatchAction(patchKey.runtimeId))
-      .unsafeRunSync() shouldBe None
-
-    the[ClusterInvalidState] thrownBy {
-      leoSubscriber.messageResponder(message, currentTime).unsafeRunSync()
-    }
-
-    testDbRef
-      .inTransaction(patchQuery.getPatchAction(patchKey.runtimeId))
-      .unsafeRunSync() shouldBe None
-
-    dbFutureValue(clusterQuery.getClusterById(clusterId)).get.status shouldBe RuntimeStatus.Stopped
-  }
-
-  "LeoPubsubMessageSubscriber" should "perform a noop when it receives an irrelevant transition for a cluster which has a saved action for a different transition" in isolatedDbTest {
-    val savedRunningCluster = runningCluster.save()
-    val clusterId = savedRunningCluster.id
-    val newMachineType = MachineTypeName("n1-standard-8")
-    val leoSubscriber = makeLeoSubscriber()
-
-    val patchDetails = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
-
-    //subscriber has a follow-up when the cluster is stopped
-    testDbRef
-      .inTransaction(
-        patchQuery.save(patchDetails, Some(newMachineType))
-      )
-      .unsafeRunSync()
-
-    //we are notifying the subscriber the cluster has finished creating (aka, noise as far as its concerned)
-    val transitionFinishedMessage =
-      RuntimeTransitionMessage(RuntimePatchDetails(clusterId, RuntimeStatus.Creating), None)
-
-    leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
-    val postStorage = testDbRef.inTransaction(patchQuery.getPatchAction(patchDetails.runtimeId)).unsafeRunSync()
-    postStorage shouldBe Some(newMachineType)
-
-    val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
-    cluster.status shouldBe RuntimeStatus.Running
-    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultDataprocRuntimeConfig
-  }
-
-  //gracefully handle transition finished with no follow-up action saved
-  "LeoPubsubMessageSubscriber" should "perform a no-op when no follow-up action is present for a transition" in isolatedDbTest {
-    val savedStoppedCluster = stoppedCluster.save()
-    val clusterId = savedStoppedCluster.id
-    val leoSubscriber = makeLeoSubscriber()
-
-    val patchKey = RuntimePatchDetails(clusterId, RuntimeStatus.Stopped)
-    val transitionFinishedMessage = RuntimeTransitionMessage(patchKey, None)
-
-    leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
-
-    val cluster = dbFutureValue(clusterQuery.getClusterById(clusterId)).get
-    cluster.status shouldBe RuntimeStatus.Stopped
-    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultDataprocRuntimeConfig
-  }
-
-  //handle transition finished message with follow-up action saved
-  "LeoPubsubMessageSubscriber" should "perform an update when follow-up action is present and the cluster is stopped" in isolatedDbTest {
-    val cluster = stoppedCluster.save()
-    val newMachineType = MachineTypeName("n1-standard-8")
-    val leoSubscriber = makeLeoSubscriber()
-
-    val patchDetails = RuntimePatchDetails(cluster.id, RuntimeStatus.Stopped)
-
-    testDbRef
-      .inTransaction(patchQuery.save(patchDetails, Some(newMachineType)))
-      .unsafeRunSync()
-
-    val transitionFinishedMessage = RuntimeTransitionMessage(patchDetails, None)
-
-    leoSubscriber.messageResponder(transitionFinishedMessage, currentTime).unsafeRunSync()
-
-    //we should consume the followup data
-
-    eventually {
-      dbFutureValue(clusterQuery.getClusterById(cluster.id)).get.status shouldBe RuntimeStatus.Starting
-
-      dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId)) shouldBe defaultDataprocRuntimeConfig
-        .copy(
-          masterMachineType = newMachineType
-        )
-    }
-  }
-
-  "LeoPubsubCodec" should "encode/decode a StopUpdate message" in isolatedDbTest {
-    val originalMessage =
-      StopUpdateMessage(defaultDataprocRuntimeConfig.copy(masterMachineType = MachineTypeName("n1-standard-8")),
-                        1,
-                        None)
-    val json = originalMessage.asJson
-    val actualJsonString = json.noSpaces
-
-    val expectedJsonString =
-      s"""
-         |{
-         |  "messageType": "stopUpdate",
-         |  "updatedMachineConfig": {
-         |    "numberOfWorkers": 0,
-         |    "masterMachineType": "n1-standard-8",
-         |    "masterDiskSize": 500,
-         |    "workerMachineType": null,
-         |    "workerDiskSize": null,
-         |    "numberOfWorkerLocalSSDs": null,
-         |    "numberOfPreemptibleWorkers": null,
-         |     "cloudService": "DATAPROC"
-         |  },
-         |  "clusterId": 1
-         |}
-         |""".stripMargin
-
-    actualJsonString shouldBe expectedJsonString.filterNot(_.isWhitespace)
-
-    val decodedMessage = decode[StopUpdateMessage](expectedJsonString)
-    decodedMessage.right.get shouldBe originalMessage
-  }
-
-  "LeoPubsubCodec" should "encode/decode a ClusterTransitionFinished message" in isolatedDbTest {
-    val clusterPatchDetails = RuntimePatchDetails(1, RuntimeStatus.Stopping)
-    val originalMessage = RuntimeTransitionMessage(clusterPatchDetails, None)
-    val json = originalMessage.asJson
-    val actualJson = json.toString
-
-    val expectedJson =
-      s"""
-         |{
-         |  "messageType": "transitionFinished",
-         |  "clusterPatchDetails": {
-         |    "clusterId": 1,
-         |    "clusterStatus": "Stopping"
-         |  }
-         |}
-         |""".stripMargin
-
-    actualJson.filterNot(_.isWhitespace) shouldBe expectedJson.filterNot(_.isWhitespace)
-
-    val decodedMessage = decode[RuntimeTransitionMessage](expectedJson)
-    decodedMessage.right.get shouldBe originalMessage
   }
 
   def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,

@@ -1,6 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo
+package util
 
-import org.broadinstitute.dsde.workbench.leonardo.http.nowInstant
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite, RuntimeOperation, WelderAction}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.FlatSpecLike

@@ -64,18 +64,20 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- as.ask
       hasPermission <- authProvider.hasProjectPermission(userInfo, CreateClusters, googleProject)
+      _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
+      _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
       petSA <- F.fromEither(
         clusterServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
-      clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
-
+      clusterOpt <- RuntimeServiceDbQueries.getStatusByName(googleProject, runtimeName).transaction
+      _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))
       _ <- clusterOpt match {
-        case Some(c) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, c.status))
+        case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, status))
         case None =>
           for {
             internalId <- F.delay(RuntimeInternalId(UUID.randomUUID().toString))
@@ -86,7 +88,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     s"Skipping validation of bucket objects in the cluster request."
                 ) as None
             }
+            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
             clusterImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
+            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
             runtime <- F.fromEither(
               convertToRuntime(userInfo,
                                petSA,
@@ -111,6 +115,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               gcsObjectUrisToValidate
                 .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
             )
+            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
             _ <- authProvider
               .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
               .handleErrorWith { t =>
@@ -118,6 +123,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                   s"[${context.traceId}] Failed to notify the AuthProvider for creation of cluster ${runtime.projectNameString}"
                 ) >> F.raiseError(t)
               }
+            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
 
             gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
             runtimeCofig = req.runtimeConfig
@@ -160,10 +166,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]] =
     for {
+      ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
       clusters <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listCluster db query")))
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visiable clusters")))
     } yield {
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
@@ -181,6 +190,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- ev.ask
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done getActiveClusterByNameMinimal")))
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
@@ -190,6 +200,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                  GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done first hasNotebookClusterPermission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no DeleteCluster permission
       hasDeletePermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
@@ -197,6 +208,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                        DeleteCluster,
                                                                        googleProject,
                                                                        runtimeName)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done 2nd hasNotebookClusterPermission")))
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
@@ -231,6 +243,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Finish query for active runtime")))
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
@@ -240,6 +253,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                  GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no StopStartCluster permission
       hasStopPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
@@ -247,6 +261,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                      StopStartCluster,
                                                                      googleProject,
                                                                      runtimeName)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done 2nd sam hasNotebookClusterPermission check")))
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not stoppable
       _ <- if (runtime.status.isStoppable) F.unit
@@ -261,8 +276,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
+      ctx <- as.ask
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done query for active runtime")))
       runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
@@ -272,6 +289,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                  GetClusterStatus,
                                                                  googleProject,
                                                                  runtimeName)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
       // throw 403 if no StopStartCluster permission
       hasStartPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
@@ -279,6 +297,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                       StopStartCluster,
                                                                       googleProject,
                                                                       runtimeName)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done 2nd Sam call for cluster permission")))
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not startable
       _ <- if (runtime.status.isStartable) F.unit
@@ -310,7 +329,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                  googleProject,
                                                                  runtimeName)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
-      // throw 403 if no ModifyCluster permission
       hasModifyPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
                                                                        userInfo,
                                                                        ModifyCluster,

@@ -2,12 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package db
 
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
   labelQuery,
   LabelResourceType,
   RuntimeServiceDbQueries,
@@ -15,15 +17,32 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.scalatest.FlatSpecLike
-import org.scalatest.concurrent.ScalaFutures
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
+class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
   val maxElapsed = 5.seconds
 
-  "RuntimeServiceDbQueries" should "list runtimes" in isolatedDbTest {
+  it should "getStatusByName" in isolatedDbTest {
+    val r = makeCluster(1)
+    val res = for {
+      statusBeforeCreating <- getStatusByName(r.googleProject, r.runtimeName).transaction
+      runtime <- IO(r.save())
+      status <- getStatusByName(runtime.googleProject, runtime.runtimeName).transaction
+      _ <- clusterQuery.markPendingDeletion(runtime.id, Instant.now).transaction
+      statusAfterDeletion <- getStatusByName(runtime.googleProject, runtime.runtimeName).transaction
+    } yield {
+      statusBeforeCreating shouldBe None
+      runtime.status shouldBe (status.get)
+      statusAfterDeletion shouldBe Some(RuntimeStatus.Deleting)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "list runtimes" in isolatedDbTest {
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
