@@ -3,7 +3,7 @@
     <changeSet logicalFilePath="leonardo" author="rtitle" id="fix-label-table">
         <dropUniqueConstraint uniqueColumns="resourceId, resourceType, key" tableName="LABEL" constraintName="IDX_LABEL_UNIQUE" />
 
-        <sql>ALTER TABLE leotestdb.LABEL DROP INDEX FK_CLUSTER_ID</sql>
+        <dropIndex tableName="LABEL" indexName="FK_CLUSTER_ID" />
 
         <addNotNullConstraint columnName="resourceId" columnDataType="varchar(254)" tableName="LABEL"/>
 
