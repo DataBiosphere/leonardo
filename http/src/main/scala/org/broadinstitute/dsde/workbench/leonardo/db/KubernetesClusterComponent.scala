@@ -172,8 +172,9 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
     for {
       nodepool <- nodepoolQuery.deleteAllForCluster(id)
       namespace <- namespaceQuery.deleteAllForCluster(id)
+      label <- labelQuery.deleteAllForResource(id.id, LabelResourceType.KubernetesCluster)
       cluster <- findByIdQuery(id).delete
-    } yield nodepool + namespace + cluster
+    } yield nodepool + namespace + label + cluster
 
   private def unmarshalKubernetesCluster(cr: KubernetesClusterRecord,
                                          namespaces: Set[KubernetesNamespaceName],
