@@ -25,6 +25,7 @@ final case class Runtime(id: Long,
                          serviceAccount: WorkbenchEmail,
                          asyncRuntimeFields: Option[AsyncRuntimeFields],
                          auditInfo: AuditInfo,
+                         kernelFoundBusyDate: Option[Instant],
                          proxyUrl: URL,
                          status: RuntimeStatus,
                          labels: LabelMap,
@@ -293,8 +294,7 @@ final case class RuntimeImage(imageType: RuntimeImageType, imageUrl: String, tim
 final case class AuditInfo(creator: WorkbenchEmail,
                            createdDate: Instant,
                            destroyedDate: Option[Instant],
-                           dateAccessed: Instant,
-                           kernelFoundBusyDate: Option[Instant])
+                           dateAccessed: Instant)
 
 /** UIs that can be used to access a runtime */
 sealed trait RuntimeUI extends Product with Serializable {

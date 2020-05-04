@@ -44,4 +44,5 @@
     <include file="changesets/20200317_fix_custom_image_type.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200320_cluster_patch_in_progress.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200415_drop_notebookServiceAccount.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200427_create_persistent_disk_table.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

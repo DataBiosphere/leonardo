@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.time.Instant
+
 import monocle.{Lens, Optional}
 import monocle.macros.GenLens
 import org.broadinstitute.dsde.workbench.leonardo.db.GetClusterKey
@@ -44,6 +46,7 @@ object LeoLenses {
       x.serviceAccountInfo,
       x.asyncRuntimeFields,
       x.auditInfo,
+      x.kernelFoundBusyDate,
       x.runtimeConfig,
       x.clusterUrl,
       x.status,
@@ -67,6 +70,7 @@ object LeoLenses {
         serviceAccountInfo = x.serviceAccountInfo,
         asyncRuntimeFields = x.asyncRuntimeFields,
         auditInfo = x.auditInfo,
+        kernelFoundBusyDate = x.kernelFoundBusyDate,
         clusterUrl = x.clusterUrl,
         status = x.status,
         labels = x.labels,
@@ -80,4 +84,6 @@ object LeoLenses {
         patchInProgress = x.patchInProgress
       )
   )
+
+  val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
 }

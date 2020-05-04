@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
 import java.net.URL
+import java.time.Instant
 
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -275,6 +276,7 @@ object HttpRoutesSpec {
       serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
       asyncRuntimeFields <- x.downField("asyncRuntimeFields").as[Option[AsyncRuntimeFields]]
       auditInfo <- x.downField("auditInfo").as[AuditInfo]
+      kernelFoundBusyDate <- x.downField("kernelFoundBusyDate").as[Option[Instant]]
       runtimeConfig <- x.downField("runtimeConfig").as[RuntimeConfig]
       clusterUrl <- x.downField("proxyUrl").as[URL]
       status <- x.downField("status").as[RuntimeStatus]
@@ -296,6 +298,7 @@ object HttpRoutesSpec {
       serviceAccount,
       asyncRuntimeFields,
       auditInfo,
+      kernelFoundBusyDate,
       runtimeConfig,
       clusterUrl,
       status,

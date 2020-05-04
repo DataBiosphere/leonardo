@@ -23,7 +23,7 @@ object LeonardoServiceDbQueries {
 
   def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
     for {
-      (cluster, label) <- baseQuery.joinLeft(labelQuery).on(_.id === _.clusterId)
+      (cluster, label) <- baseQuery.joinLeft(labelQuery.runtimeLabels).on(_.id === _.resourceId)
     } yield (cluster, label)
 
   def getGetClusterResponse(googleProject: GoogleProject, clusterName: RuntimeName)(
@@ -61,9 +61,9 @@ object LeonardoServiceDbQueries {
     } else {
       clusterQueryJoinedWithLabel.filter {
         case (clusterRec, _) =>
-          labelQuery
+          labelQuery.runtimeLabels
             .filter {
-              _.clusterId === clusterRec.id
+              _.resourceId === clusterRec.id
             }
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
@@ -110,6 +110,7 @@ object LeonardoServiceDbQueries {
             clusterRec.serviceAccountInfo,
             dataprocInfo,
             clusterRec.auditInfo,
+            clusterRec.kernelFoundBusyDate,
             runTimeConfigRecOpt
               .getOrElse(
                 throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")
