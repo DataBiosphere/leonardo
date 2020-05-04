@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="fix-label-table">
+        <dropUniqueConstraint uniqueColumns="resourceId, resourceType, key" tableName="LABEL" constraintName="IDX_LABEL_UNIQUE" />
+
+        <dropIndex tableName="LABEL" indexName="FK_CLUSTER_ID" />
+
+        <addNotNullConstraint columnName="resourceId" columnDataType="varchar(254)" tableName="LABEL"/>
+
+        <sql>UPDATE LABEL SET resourceType = 'runtime'</sql>
+
+        <addUniqueConstraint tableName="LABEL" columnNames="resourceId, resourceType, key" constraintName="IDX_LABEL_UNIQUE" />
+    </changeSet>
+</databaseChangeLog>
