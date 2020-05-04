@@ -197,7 +197,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   //   left join label l on c.id = l.clusterId
   val clusterLabelQuery: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
     for {
-      (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
+      (cluster, label) <- clusterQuery joinLeft labelQuery.runtimeLabels on (_.id === _.resourceId)
     } yield (cluster, label)
   }
 
@@ -206,7 +206,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                     Seq] = {
     for {
       ((cluster, label), patch) <- clusterQuery joinLeft
-        labelQuery on (_.id === _.clusterId) joinLeft
+        labelQuery.runtimeLabels on (_.id === _.resourceId) joinLeft
         patchQuery on (_._1.id === _.clusterId)
     } yield (cluster, label, patch)
   }
@@ -258,7 +258,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       (((((((cluster, instance), error), label), extension), image), scopes), patch) <- baseClusterQuery joinLeft
         instanceQuery on (_.id === _.clusterId) joinLeft
         clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
-        labelQuery on (_._1._1.id === _.clusterId) joinLeft
+        labelQuery.runtimeLabels on (_._1._1.id === _.resourceId) joinLeft
         extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
         clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
         scopeQuery on (_._1._1._1._1._1.id === _.clusterId) joinLeft
@@ -277,7 +277,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
                                                                                    saveCluster.initBucket.map(_.toUri),
                                                                                    saveCluster.serviceAccountKeyId)
-      _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
+      _ <- labelQuery.saveAllForResource(clusterId, LabelResourceType.Runtime, cluster.labels)
       _ <- instanceQuery.saveAllForCluster(clusterId, cluster.dataprocInstances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
       _ <- clusterImageQuery.saveAllForCluster(clusterId, cluster.runtimeImages.toSeq)

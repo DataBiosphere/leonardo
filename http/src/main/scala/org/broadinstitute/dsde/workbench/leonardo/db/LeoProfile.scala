@@ -97,5 +97,10 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[DiskType, String](_.entryName, DiskType.withName)
     implicit val blockSizeMappedColumnType: BaseColumnType[BlockSize] =
       MappedColumnType.base[BlockSize, Int](_.bytes, BlockSize.apply)
+    implicit val labelResourceTypeColumnMapper: BaseColumnType[LabelResourceType] =
+      MappedColumnType.base[LabelResourceType, String](
+        _.asString,
+        x => LabelResourceType.stringToLabelResourceType.getOrElse(x, throw new Exception(s"Unknown resource type $x"))
+      )
   }
 }

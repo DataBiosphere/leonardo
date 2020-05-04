@@ -12,7 +12,13 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, DbReference, RuntimeConfigQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  labelQuery,
+  DbReference,
+  LabelResourceType,
+  RuntimeConfigQueries
+}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
@@ -74,7 +80,10 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         .traverse {
           case DeployWelder | UpdateWelder => updateWelder(params.runtime, params.now)
           case DisableDelocalization =>
-            labelQuery.save(params.runtime.id, "welderInstallFailed", "true").transaction.as(params.runtime)
+            labelQuery
+              .save(params.runtime.id, LabelResourceType.Runtime, "welderInstallFailed", "true")
+              .transaction
+              .as(params.runtime)
         }
         .map(_.getOrElse(params.runtime))
 

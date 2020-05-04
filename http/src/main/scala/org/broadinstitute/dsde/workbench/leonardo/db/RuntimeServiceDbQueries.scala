@@ -18,7 +18,7 @@ object RuntimeServiceDbQueries {
 
   def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
     for {
-      (cluster, label) <- baseQuery.joinLeft(labelQuery).on(_.id === _.clusterId)
+      (cluster, label) <- baseQuery.joinLeft(labelQuery.runtimeLabels).on(_.id === _.resourceId)
     } yield (cluster, label)
 
   // new runtime route return a lot less fields than legacy listCluster API
@@ -38,9 +38,9 @@ object RuntimeServiceDbQueries {
     } else {
       clusterQueryJoinedWithLabel.filter {
         case (clusterRec, _) =>
-          labelQuery
+          labelQuery.runtimeLabels
             .filter {
-              _.clusterId === clusterRec.id
+              _.resourceId === clusterRec.id
             }
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }

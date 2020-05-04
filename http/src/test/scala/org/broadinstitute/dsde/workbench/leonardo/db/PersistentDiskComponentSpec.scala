@@ -19,8 +19,8 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
     val disk2 = makePersistentDisk(DiskId(2)).copy(size = DiskSize(1000), blockSize = BlockSize(16384), diskType = SSD)
 
     val res = for {
-      id1 <- persistentDiskQuery.save(disk1).transaction
-      id2 <- persistentDiskQuery.save(disk2).transaction
+      id1 <- disk1.save()
+      id2 <- disk2.save()
       d1 <- persistentDiskQuery.getById(id1).transaction
       d2 <- persistentDiskQuery.getById(id2).transaction
       d3 <- persistentDiskQuery.getById(DiskId(-1)).transaction
@@ -38,8 +38,8 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
     val deletedDisk = LeoLenses.diskToDestroyedDate.modify(_ => Some(Instant.now))(makePersistentDisk(DiskId(2)))
 
     val res = for {
-      _ <- persistentDiskQuery.save(disk).transaction
-      _ <- persistentDiskQuery.save(deletedDisk).transaction
+      _ <- disk.save()
+      _ <- deletedDisk.save()
       d1 <- persistentDiskQuery.getActiveByName(disk.googleProject, disk.name).transaction
       d2 <- persistentDiskQuery.getActiveByName(deletedDisk.googleProject, deletedDisk.name).transaction
     } yield {
@@ -54,7 +54,7 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
     val disk = makePersistentDisk(DiskId(1))
 
     val res = for {
-      id <- persistentDiskQuery.save(disk).transaction
+      id <- disk.save()
       now <- nowInstant
       d1 <- persistentDiskQuery.updateStatus(id, DiskStatus.Restoring, now).transaction
       d2 <- persistentDiskQuery.getById(id).transaction
@@ -71,7 +71,7 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
     val disk = makePersistentDisk(DiskId(1))
 
     val res = for {
-      id <- persistentDiskQuery.save(disk).transaction
+      id <- disk.save()
       now <- nowInstant
       d1 <- persistentDiskQuery.delete(id, now).transaction
       d2 <- persistentDiskQuery.getById(id).transaction

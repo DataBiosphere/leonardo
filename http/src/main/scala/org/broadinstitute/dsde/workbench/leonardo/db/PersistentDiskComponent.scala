@@ -71,7 +71,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       .filter(_.destroyedDate === dummyDate)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
-    baseQuery joinLeft persistentDiskLabelQuery on (_.id === _.diskId)
+    baseQuery joinLeft labelQuery.diskLabels on (_.id === _.resourceId.mapTo[DiskId])
 
   def save(disk: PersistentDisk): DBIO[DiskId] =
     (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
@@ -112,7 +112,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
     )
 
   private[db] def aggregateLabels(
-    recs: Seq[(PersistentDiskRecord, Option[PersistentDiskLabelRecord])]
+    recs: Seq[(PersistentDiskRecord, Option[LabelRecord])]
   ): Seq[PersistentDisk] = {
     val pdLabelMap: Map[PersistentDiskRecord, Map[String, String]] =
       recs.toList.foldMap {

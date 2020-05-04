@@ -1,52 +1,66 @@
-package org.broadinstitute.dsde.workbench.leonardo.db
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package db
 
-import java.sql.SQLException
-
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import cats.effect.IO
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.db.{labelQuery, LabelResourceType, TestComponent}
 import org.scalatest.FlatSpecLike
+
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.Random
-import CommonTestData._
 
 class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
 
-  "LabelComponent" should "save, get,and delete" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1).save()
-    val savedCluster2 = makeCluster(2).save()
+  List(LabelResourceType.Runtime, LabelResourceType.PersistentDisk).foreach { resourceType =>
+    it should s"save, get, and delete ${resourceType.asString} labels" in isolatedDbTest {
+      for {
+        id1 <- makeResource(1, resourceType)
+        id2 <- makeResource(2, resourceType)
 
-    val cluster2Map = Map("bam" -> "true", "sample" -> "NA12878")
+        cluster2Map = Map("bam" -> "true", "sample" -> "NA12878")
+        missingId = -1
 
-    val missingId = Random.nextLong()
-    dbFutureValue(labelQuery.getAllForCluster(missingId)) shouldEqual Map.empty
-    dbFutureValue(labelQuery.get(missingId, "missing")) shouldEqual None
-    dbFailure(labelQuery.save(missingId, "key1", "value1")) shouldBe a[SQLException]
+        missing <- labelQuery.getAllForResource(missingId, LabelResourceType.Runtime).transaction
+        missingErr <- labelQuery.save(missingId, LabelResourceType.Runtime, "key1", "value1").transaction.attempt
 
-    val cluster1Id = savedCluster1.id
+        save1 <- labelQuery.save(id1, LabelResourceType.Runtime, "key1", "value1").transaction
+        get1 <- labelQuery.getAllForResource(id1, LabelResourceType.Runtime).transaction
 
-    dbFutureValue(labelQuery.save(cluster1Id, "key1", "value1")) shouldEqual 1
-    dbFutureValue(labelQuery.getAllForCluster(cluster1Id)) shouldEqual Map("key1" -> "value1")
-    dbFutureValue(labelQuery.get(cluster1Id, "key1")) shouldEqual Some("value1")
+        _ <- labelQuery.saveAllForResource(id2, LabelResourceType.Runtime, cluster2Map).transaction
+        get2 <- labelQuery.getAllForResource(id2, LabelResourceType.Runtime).transaction
+        get1Again <- labelQuery.getAllForResource(id1, LabelResourceType.Runtime).transaction
 
-    val cluster2Id = savedCluster2.id
+        uniqueKeyErr <- labelQuery.save(id2, LabelResourceType.Runtime, "sample", "NA12879").transaction.attempt
 
-    dbFutureValue(labelQuery.saveAllForCluster(cluster2Id, cluster2Map))
-    dbFutureValue(labelQuery.getAllForCluster(cluster2Id)) shouldEqual cluster2Map
-    dbFutureValue(labelQuery.get(cluster2Id, "bam")) shouldEqual Some("true")
-    dbFutureValue(labelQuery.getAllForCluster(cluster1Id)) shouldEqual Map("key1" -> "value1")
+        delete1 <- labelQuery.deleteAllForResource(id1, LabelResourceType.Runtime).transaction
+        delete2 <- labelQuery.deleteAllForResource(id2, LabelResourceType.Runtime).transaction
 
-    // (cluster, key) unique key test
+        afterDelete1 <- labelQuery.getAllForResource(id1, LabelResourceType.Runtime).transaction
+        afterDelete2 <- labelQuery.getAllForResource(id2, LabelResourceType.Runtime).transaction
+      } yield {
+        missing shouldBe Map.empty
+        missingErr.isLeft shouldBe true
 
-    val cluster2NewMap = Map("sample" -> "NA12879")
+        save1 shouldBe 1
+        get1 shouldBe Map("key1" -> "value1")
 
-    dbFailure(labelQuery.save(cluster1Id, "key1", "newvalue")) shouldBe a[SQLException]
-    dbFailure(labelQuery.saveAllForCluster(cluster2Id, cluster2NewMap)) shouldBe a[SQLException]
+        get2 shouldBe cluster2Map
+        get1Again shouldBe Map("key1" -> "value1")
 
-    dbFutureValue(labelQuery.delete(cluster1Id, "key1")) shouldEqual 1
-    dbFutureValue(labelQuery.delete(cluster1Id, "key1")) shouldEqual 0
-    dbFutureValue(labelQuery.getAllForCluster(cluster1Id)) shouldEqual Map.empty
+        uniqueKeyErr.isLeft shouldBe true
 
-    dbFutureValue(labelQuery.deleteAllForCluster(cluster2Id)) shouldEqual 2
-    dbFutureValue(labelQuery.deleteAllForCluster(cluster2Id)) shouldEqual 0
-    dbFutureValue(labelQuery.getAllForCluster(cluster2Id)) shouldEqual Map.empty
+        delete1 shouldBe 1
+        delete2 shouldBe 2
+
+        afterDelete1 shouldBe Map.empty
+        afterDelete2 shouldBe Map.empty
+      }
+    }
   }
+
+  private def makeResource(index: Int, lblType: LabelResourceType): IO[Long] =
+    lblType match {
+      case LabelResourceType.Runtime        => IO(makeCluster(index).save()).map(_.id)
+      case LabelResourceType.PersistentDisk => makePersistentDisk(DiskId(index)).save().map(_.id)
+    }
 }

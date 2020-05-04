@@ -2,46 +2,60 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import LeoProfile.api._
+import LeoProfile.mappedColumnImplicits._
+import ca.mrvisser.sealerate
 
 import scala.concurrent.ExecutionContext
 
-case class LabelRecord(clusterId: Long, key: String, value: String)
+// TODO IA-1893 is open to add better types for ResourceId, ResourceType that can be more widely used
+case class LabelRecord(resourceId: Long, resourceType: LabelResourceType, key: String, value: String)
 
 class LabelTable(tag: Tag) extends Table[LabelRecord](tag, "LABEL") {
-  def clusterId = column[Long]("clusterId")
+  def resourceId = column[Long]("resourceId")
+  def resourceType = column[LabelResourceType]("resourceType", O.Length(254))
   def key = column[String]("key", O.Length(254))
   def value = column[String]("value", O.Length(254))
 
-  def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
-  def uniqueKey = index("IDX_LABEL_UNIQUE", (clusterId, key), unique = true)
+  def uniqueKey = index("IDX_LABEL_UNIQUE", (resourceId, resourceType, key), unique = true)
 
-  def * = (clusterId, key, value) <> (LabelRecord.tupled, LabelRecord.unapply)
+  def * = (resourceId, resourceType, key, value) <> (LabelRecord.tupled, LabelRecord.unapply)
 }
 
 object labelQuery extends TableQuery(new LabelTable(_)) {
+  val runtimeLabels = labelQuery.filter(_.resourceType === LabelResourceType.runtime)
+  val diskLabels = labelQuery.filter(_.resourceType === LabelResourceType.persistentDisk)
 
-  def save(clusterId: Long, key: String, value: String): DBIO[Int] =
-    labelQuery += LabelRecord(clusterId, key, value)
+  def save(resourceId: Long, resourceType: LabelResourceType, key: String, value: String): DBIO[Int] =
+    labelQuery += LabelRecord(resourceId, resourceType, key, value)
 
   // ++= does not actually produce a useful return value
-  def saveAllForCluster(clusterId: Long, m: LabelMap): DBIO[Option[Int]] =
-    labelQuery ++= m map { case (key, value) => LabelRecord(clusterId, key, value) }
+  def saveAllForResource(resourceId: Long, resourceType: LabelResourceType, m: LabelMap): DBIO[Option[Int]] =
+    labelQuery ++= m map { case (key, value) => LabelRecord(resourceId, resourceType, key, value) }
 
-  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[LabelMap] =
-    labelQuery.filter(_.clusterId === clusterId).result map { recs =>
+  def getAllForResource(resourceId: Long,
+                        resourceType: LabelResourceType)(implicit ec: ExecutionContext): DBIO[LabelMap] =
+    labelQuery.filter(_.resourceId === resourceId).filter(_.resourceType === resourceType).result map { recs =>
       val tuples = recs map { rec => rec.key -> rec.value }
       tuples.toMap
     }
 
-  private def clusterKeyFilter(clusterId: Long, key: String): Query[LabelTable, LabelRecord, Seq] =
-    labelQuery.filter(_.clusterId === clusterId).filter(_.key === key)
+  def deleteAllForResource(resourceId: Long, resourceType: LabelResourceType): DBIO[Int] =
+    labelQuery.filter(_.resourceId === resourceId).filter(_.resourceType === resourceType).delete
+}
 
-  def get(clusterId: Long, key: String): DBIO[Option[String]] =
-    clusterKeyFilter(clusterId, key).map(_.value).result.headOption
+sealed trait LabelResourceType extends Product with Serializable {
+  def asString: String
+}
+object LabelResourceType {
+  final case object Runtime extends LabelResourceType {
+    val asString = "runtime"
+  }
+  final case object PersistentDisk extends LabelResourceType {
+    val asString = "persistentDisk"
+  }
+  val stringToLabelResourceType: Map[String, LabelResourceType] =
+    sealerate.collect[LabelResourceType].map(p => (p.asString, p)).toMap
 
-  def delete(clusterId: Long, key: String): DBIO[Int] =
-    clusterKeyFilter(clusterId, key).delete
-
-  def deleteAllForCluster(clusterId: Long): DBIO[Int] =
-    labelQuery.filter(_.clusterId === clusterId).delete
+  val runtime: LabelResourceType = Runtime
+  val persistentDisk: LabelResourceType = PersistentDisk
 }

@@ -13,7 +13,13 @@ import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpret
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, labelQuery, RuntimeConfigQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  labelQuery,
+  LabelResourceType,
+  RuntimeConfigQueries,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   CreateRuntime2Request,
   UpdateRuntimeConfigRequest,
@@ -281,7 +287,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       internalId2 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
       runtime1 <- IO(makeCluster(1).copy(internalId = internalId1).save())
       _ <- IO(makeCluster(2).copy(internalId = internalId2).save())
-      _ <- labelQuery.save(runtime1.id, "foo", "bar").transaction
+      _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map("foo" -> "bar"))
     } yield {
       listResponse.map(_.internalId).toSet shouldBe Set(internalId1)

@@ -115,7 +115,6 @@ final class DataAccess(blocker: Blocker) {
       TableQuery[PatchTable].delete andThen
       TableQuery[ClusterTable].delete andThen
       RuntimeConfigQueries.runtimeConfigs.delete andThen
-      TableQuery[PersistentDiskLabelTable].delete andThen
       TableQuery[PersistentDiskTable].delete
 
   def sqlDBStatus() =
