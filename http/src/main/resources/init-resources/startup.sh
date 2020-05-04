@@ -62,6 +62,7 @@ export STAGING_BUCKET=$(stagingBucketName)
 export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
 export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
+export MEM_LIMIT=$(memLimit)
 
 JUPYTER_HOME=/etc/jupyter
 
@@ -116,6 +117,10 @@ fi
 # Configuring Jupyter
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
+    CONTAINER_MEM_LIMIT=`docker exec $JUPYTER_SERVER_NAME "echo $MEM_LIMIT"`
+    if [ $MEM_LIMIT != $CONTAINER_MEM_LIMIT ] ; then
+      docker update --memory $MEM_LIMIT
+    fi
     docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
