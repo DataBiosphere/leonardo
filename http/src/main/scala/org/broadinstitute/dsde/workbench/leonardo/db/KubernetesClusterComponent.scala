@@ -4,7 +4,7 @@ package db
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesMasterIP
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp}
 import org.broadinstitute.dsde.workbench.google2.{Location, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -31,7 +31,7 @@ case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                    createdDate: Instant,
                                    destroyedDate: Instant,
                                    dateAccessed: Instant,
-                                   apiServerIp: Option[KubernetesMasterIP],
+                                   apiServerIp: Option[KubernetesApiServerIp],
                                    networkName: Option[NetworkName],
                                    subNetworkName: Option[SubnetworkName],
                                    subNetworkIpRange: Option[IpRange])
@@ -48,7 +48,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
-  def apiServerIp = column[Option[KubernetesMasterIP]]("apiServerIp", O.Length(254))
+  def apiServerIp = column[Option[KubernetesApiServerIp]]("apiServerIp", O.Length(254))
   def networkName = column[Option[NetworkName]]("networkName", O.Length(254))
   def subNetworkName = column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
   def subNetworkIpRange = column[Option[IpRange]]("subNetworkIpRange", O.Length(254))
@@ -158,7 +158,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
         (Some(networkFields.networkName), Some(networkFields.subNetworkName), Some(networkFields.subNetworkIpRange))
       )
 
-  def updateApiServerIp(id: KubernetesClusterLeoId, apiServerIp: KubernetesMasterIP): DBIO[Int] =
+  def updateApiServerIp(id: KubernetesClusterLeoId, apiServerIp: KubernetesApiServerIp): DBIO[Int] =
     findByIdQuery(id)
       .map(_.apiServerIp)
       .update(Some(apiServerIp))

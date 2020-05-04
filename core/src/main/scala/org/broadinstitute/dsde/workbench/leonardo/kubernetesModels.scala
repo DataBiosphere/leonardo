@@ -1,8 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodePoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesMasterIP
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -44,7 +44,7 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
 
 case class KubernetesClusterSamResource(resourceId: String)
 
-case class KubernetesClusterAsyncFields(apiServerIp: Option[KubernetesMasterIP],
+case class KubernetesClusterAsyncFields(apiServerIp: Option[KubernetesApiServerIp],
                                         networkInfo: Option[NetworkFields]
                                        )
 
@@ -88,7 +88,7 @@ case class KubernetesNamespaceId(id: Long)
 
 case class Nodepool(id: NodepoolLeoId,
                     clusterId: KubernetesClusterLeoId,
-                    nodepoolName: NodePoolName,
+                    nodepoolName: NodepoolName,
                     status: NodepoolStatus,
                     auditInfo: AuditInfo,
                     machineType: MachineTypeName,

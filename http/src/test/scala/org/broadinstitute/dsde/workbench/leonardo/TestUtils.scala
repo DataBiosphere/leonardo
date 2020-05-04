@@ -24,15 +24,15 @@ object TestUtils extends Matchers {
   implicit val kubeClusterEq = {
     new Equality[KubernetesCluster] {
       private val FixedId = KubernetesClusterLeoId(0)
-      private val FixedNodePoolId = NodepoolLeoId(0)
+      private val FixedNodepoolId = NodepoolLeoId(0)
       def areEqual(a: KubernetesCluster, b: Any) : Boolean =
         b match {
           case c: KubernetesCluster =>
             a.copy(id = FixedId, nodepools = a.nodepools.map(
-              n => n.copy(id = FixedNodePoolId, clusterId = FixedId)
+              n => n.copy(id = FixedNodepoolId, clusterId = FixedId)
             )) ===
               c.copy(id = FixedId, nodepools = c.nodepools.map(
-                n => n.copy(id = FixedNodePoolId, clusterId = FixedId)
+                n => n.copy(id = FixedNodepoolId, clusterId = FixedId)
               ))
           case _ => false
         }

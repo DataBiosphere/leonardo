@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.GKEModels.NodePoolName
+import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
   AuditInfo,
@@ -25,7 +25,7 @@ import scala.concurrent.ExecutionContext
 case class NodepoolRecord(
   id: NodepoolLeoId,
   clusterId: KubernetesClusterLeoId,
-  nodepoolName: NodePoolName,
+  nodepoolName: NodepoolName,
   status: NodepoolStatus,
   creator: WorkbenchEmail,
   createdDate: Instant,
@@ -41,7 +41,7 @@ case class NodepoolRecord(
 class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
   def id = column[NodepoolLeoId]("id", O.PrimaryKey, O.AutoInc)
   def clusterId = column[KubernetesClusterLeoId]("clusterId")
-  def nodepoolName = column[NodePoolName]("nodepoolName", O.Length(254))
+  def nodepoolName = column[NodepoolName]("nodepoolName", O.Length(254))
   def status = column[NodepoolStatus]("status", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
@@ -77,17 +77,17 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     nodepoolQuery
       .filter(_.clusterId === clusterId)
 
-  private def findByNodePoolIdQuery(id: NodepoolLeoId) =
+  private def findByNodepoolIdQuery(id: NodepoolLeoId) =
     nodepoolQuery
       .filter(_.id === id)
 
   def getById(id: NodepoolLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
-    findByNodePoolIdQuery(id).result.headOption
-      .map(recOpt => recOpt.map(rec => unmarshalNodePool(rec)))
+    findByNodepoolIdQuery(id).result.headOption
+      .map(recOpt => recOpt.map(rec => unmarshalNodepool(rec)))
 
   def getAllForCluster(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Set[Nodepool]] =
     findByClusterIdQuery(clusterId).result
-      .map(rowOpt => rowOpt.map(row => unmarshalNodePool(row)).toSet)
+      .map(rowOpt => rowOpt.map(row => unmarshalNodepool(row)).toSet)
 
   def saveForCluster(n: Nodepool)(implicit ec: ExecutionContext): DBIO[Nodepool] =
     for {
@@ -110,12 +110,12 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     } yield n.copy(id = nodepoolId)
 
   def updateStatus(id: NodepoolLeoId, status: NodepoolStatus): DBIO[Int] =
-    findByNodePoolIdQuery(id)
+    findByNodepoolIdQuery(id)
       .map(_.status)
       .update(status)
 
   def updateDestroyedDate(id: NodepoolLeoId, destroyedDate: Instant): DBIO[Int] =
-    findByNodePoolIdQuery(id)
+    findByNodepoolIdQuery(id)
       .map(_.destroyedDate)
       .update(destroyedDate)
 
@@ -123,9 +123,9 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     findByClusterIdQuery(id).delete
 
   def delete(id: NodepoolLeoId): DBIO[Int] =
-    findByNodePoolIdQuery(id).delete
+    findByNodepoolIdQuery(id).delete
 
-  private def unmarshalNodePool(rec: NodepoolRecord): Nodepool =
+  private def unmarshalNodepool(rec: NodepoolRecord): Nodepool =
     Nodepool(
       rec.id,
       rec.clusterId,

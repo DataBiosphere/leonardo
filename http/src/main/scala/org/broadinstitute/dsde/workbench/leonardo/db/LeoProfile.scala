@@ -6,12 +6,12 @@ import java.time.Instant
 import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodePoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesMasterIP
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject, parseGcsPath}
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
 
@@ -118,8 +118,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[OperationName, String](_.value, OperationName.apply)
     implicit val locationColumnType: BaseColumnType[Location] =
       MappedColumnType.base[Location, String](_.value, Location.apply)
-    implicit val apiServerIpColumnType: BaseColumnType[KubernetesMasterIP] =
-      MappedColumnType.base[KubernetesMasterIP, String](_.value, KubernetesMasterIP.apply)
+    implicit val apiServerIpColumnType: BaseColumnType[KubernetesApiServerIp] =
+      MappedColumnType.base[KubernetesApiServerIp, String](_.value, KubernetesApiServerIp.apply)
     implicit val kubernetesClusterSamResourceIdColumnType: BaseColumnType[KubernetesClusterSamResource] =
       MappedColumnType.base[KubernetesClusterSamResource, String](_.resourceId, KubernetesClusterSamResource.apply)
     implicit val networkNameColumnType: BaseColumnType[NetworkName] =
@@ -136,8 +136,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
 
     implicit val nodepoolIdColumnType: BaseColumnType[NodepoolLeoId] =
       MappedColumnType.base[NodepoolLeoId, Long](_.id, NodepoolLeoId.apply)
-    implicit val nodepoolNameColumnType: BaseColumnType[NodePoolName] =
-      MappedColumnType.base[NodePoolName, String](_.value, NodePoolName.apply)
+    implicit val nodepoolNameColumnType: BaseColumnType[NodepoolName] =
+      MappedColumnType.base[NodepoolName, String](_.value, NodepoolName.apply)
     implicit val numNodesColumnType: BaseColumnType[NumNodes] =
       MappedColumnType.base[NumNodes, Int](_.amount, NumNodes.apply)
     implicit val autoScalingMinColumnType: BaseColumnType[AutoScalingMin] =

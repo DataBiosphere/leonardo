@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodePoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesMasterIP
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -13,17 +13,17 @@ object KubernetesTestData {
   val kubeClusterSamId = KubernetesClusterSamResource("067e2867-5d4a-47f3-a53c-fd711529b289")
   val location = Location("us-central1-a")
 
-  val apiServerIp = KubernetesMasterIP("0.0.0.0")
+  val apiServerIp = KubernetesApiServerIp("0.0.0.0")
   val namespace0 = KubernetesNamespaceName("namespace00")
   val namespace1 = KubernetesNamespaceName("namespace01")
 
-  val nodepoolName0 = NodePoolName("nodepoolname00")
-  val nodepoolName1 = NodePoolName("nodepoolname01")
+  val nodepoolName0 = NodepoolName("nodepoolname00")
+  val nodepoolName1 = NodepoolName("nodepoolname01")
 
   val autoscalingConfig = NodepoolAutoscaling(AutoScalingMin(0), AutoScalingMax(2))
 
   def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId) = {
-    val name = NodePoolName("nodepoolname" + index)
+    val name = NodepoolName("nodepoolname" + index)
     Nodepool(
       NodepoolLeoId(-1), //will be replaced
       clusterId,

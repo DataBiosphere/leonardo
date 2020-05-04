@@ -35,14 +35,14 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
 
   it should "aggregate all sub tables on get, and clean up all tables on delete" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodePool1 = makeNodepool(2, savedCluster1.id).save()
+    val savedNodepool1 = makeNodepool(2, savedCluster1.id).save()
     val namespaceSet = Set(namespace1, namespace0)
     dbFutureValue(namespaceQuery.saveAllForCluster(savedCluster1.id, namespaceSet))
 
     val getCluster = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
     getCluster shouldEqual Some(savedCluster1
       .copy(
-        nodepools = savedCluster1.nodepools + savedNodePool1,
+        nodepools = savedCluster1.nodepools + savedNodepool1,
         namespaces = namespaceSet
     ))
 
