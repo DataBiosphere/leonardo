@@ -125,7 +125,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.auditInfo,
             c.labels,
             c.nodepools.headOption
-              .fold(throw new Exception("test clusters to be saved must have at least 1 nodepool"))(n => n)
+              .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
           )
         )
       }
