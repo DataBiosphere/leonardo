@@ -84,42 +84,32 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       .filter(_.clusterName === clusterName)
       .filter(_.destroyedDate === dummyDate)
 
-  def getActiveFullClusterByName(googleProject: GoogleProject, clusterName: KubernetesClusterName)(
+  private def getFullCluster(baseQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq])(
     implicit ec: ExecutionContext
   ): DBIO[Option[KubernetesCluster]] =
     for {
-      clusterOpt <- findActiveByNameQuery(googleProject, clusterName).result.headOption
+      clusterOpt <- baseQuery.result.headOption
       namespaces <- clusterOpt.fold[DBIO[Set[KubernetesNamespaceName]]](DBIO.successful(Set()))(cluster =>
         namespaceQuery.getAllForCluster(cluster.id)
       )
       nodepools <- clusterOpt.fold[DBIO[Set[Nodepool]]](DBIO.successful(Set()))(cluster =>
         nodepoolQuery.getAllForCluster(cluster.id)
       )
-      labels <- getLabelsById(clusterOpt.map(_.id))
+      labels <- clusterOpt.fold[DBIO[LabelMap]](DBIO.successful(Map()))(clusterOpt =>
+        labelQuery.getAllForResource(clusterOpt.id.id, LabelResourceType.KubernetesCluster)
+      )
     } yield {
       clusterOpt
         .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools, labels))
     }
+
+  def getActiveFullClusterByName(googleProject: GoogleProject, clusterName: KubernetesClusterName)(
+    implicit ec: ExecutionContext
+  ): DBIO[Option[KubernetesCluster]] =
+    getFullCluster(findActiveByNameQuery(googleProject, clusterName))
 
   def getFullClusterById(id: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
-    for {
-      clusterOpt <- findByIdQuery(id).result.headOption
-      namespaces <- clusterOpt.fold[DBIO[Set[KubernetesNamespaceName]]](DBIO.successful(Set()))(cluster =>
-        namespaceQuery.getAllForCluster(cluster.id)
-      )
-      nodepools <- clusterOpt.fold[DBIO[Set[Nodepool]]](DBIO.successful(Set()))(cluster =>
-        nodepoolQuery.getAllForCluster(cluster.id)
-      )
-      labels <- getLabelsById(clusterOpt.map(_.id))
-    } yield {
-      clusterOpt
-        .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools, labels))
-    }
-
-  def getLabelsById(idOpt: Option[KubernetesClusterLeoId])(implicit ec: ExecutionContext): DBIO[LabelMap] =
-    idOpt.fold[DBIO[LabelMap]](DBIO.successful(Map()))(id =>
-      labelQuery.getAllForResource(id.id, LabelResourceType.KubernetesCluster)
-    )
+    getFullCluster(findByIdQuery(id))
 
   def save(saveCluster: SaveKubernetesCluster)(implicit ec: ExecutionContext): DBIO[KubernetesCluster] = {
     val clusterRecord = KubernetesClusterRecord(

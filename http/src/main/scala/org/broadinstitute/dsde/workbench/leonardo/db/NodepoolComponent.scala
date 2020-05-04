@@ -73,11 +73,11 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
 }
 
 object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
-  private def findByClusterIdQuery(clusterId: KubernetesClusterLeoId) =
+  private def findByClusterIdQuery(clusterId: KubernetesClusterLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
     nodepoolQuery
       .filter(_.clusterId === clusterId)
 
-  private def findByNodepoolIdQuery(id: NodepoolLeoId) =
+  private def findByNodepoolIdQuery(id: NodepoolLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
     nodepoolQuery
       .filter(_.id === id)
 
