@@ -21,8 +21,7 @@ class NamespaceComponentSpec extends FlatSpecLike with TestComponent {
 
     val namespaces = Set(namespace0, namespace1)
 
-    val x = dbFutureValue( namespaceQuery.saveAllForCluster(savedCluster1.id, namespaces))
-    println("num inserted: " + x)
+    dbFutureValue( namespaceQuery.saveAllForCluster(savedCluster1.id, namespaces))
     dbFutureValue( namespaceQuery.getAllForCluster(savedCluster1.id)) shouldEqual namespaces
 
     dbFutureValue( namespaceQuery.deleteAllForCluster(savedCluster1.id)) shouldBe 2
