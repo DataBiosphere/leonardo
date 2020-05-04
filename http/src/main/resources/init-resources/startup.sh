@@ -119,7 +119,11 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
     CONTAINER_MEM_LIMIT=`docker exec $JUPYTER_SERVER_NAME "echo $MEM_LIMIT"`
     if [ $MEM_LIMIT != $CONTAINER_MEM_LIMIT ] ; then
+      start=`date +%s.%N`
       docker update --memory $MEM_LIMIT
+      end=`date +%s.%N`
+      runtime=$((end-start))
+      echo "time to update container memory: $runtime"
     fi
     docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
 
