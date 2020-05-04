@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesMast
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
 
@@ -111,11 +111,11 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val kubernetesClusterLeoIdColumnType: BaseColumnType[KubernetesClusterLeoId] =
       MappedColumnType.base[KubernetesClusterLeoId, Long](_.id, KubernetesClusterLeoId.apply)
     implicit val kubernetesStatusColumnType: BaseColumnType[KubernetesClusterStatus] =
-      MappedColumnType.base[KubernetesClusterStatus, String](_.entryName,s => KubernetesClusterStatus.withName(s))
+      MappedColumnType.base[KubernetesClusterStatus, String](_.entryName, s => KubernetesClusterStatus.withName(s))
     implicit val kubernetesClusterNameColumnType: BaseColumnType[KubernetesClusterName] =
       MappedColumnType.base[KubernetesClusterName, String](_.value, KubernetesClusterName.apply)
     implicit val operationNameColumnType: BaseColumnType[OperationName] =
-      MappedColumnType.base[OperationName, String] (_.value, OperationName.apply)
+      MappedColumnType.base[OperationName, String](_.value, OperationName.apply)
     implicit val locationColumnType: BaseColumnType[Location] =
       MappedColumnType.base[Location, String](_.value, Location.apply)
     implicit val apiServerIpColumnType: BaseColumnType[KubernetesMasterIP] =

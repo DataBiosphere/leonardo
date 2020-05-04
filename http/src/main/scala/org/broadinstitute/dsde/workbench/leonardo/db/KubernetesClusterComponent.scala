@@ -33,42 +33,41 @@ case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                    apiServerIp: Option[KubernetesMasterIP],
                                    networkName: Option[NetworkName],
                                    subNetworkName: Option[SubnetworkName],
-                                   subNetworkIpRange: Option[IpRange]
-                                  )
+                                   subNetworkIpRange: Option[IpRange])
 
 case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecord](tag, "KUBERNETES_CLUSTER") {
   def id = column[KubernetesClusterLeoId]("id", O.PrimaryKey, O.AutoInc)
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
-  def clusterName = column[KubernetesClusterName]("clusterName",O.Length(254))
+  def clusterName = column[KubernetesClusterName]("clusterName", O.Length(254))
   def location = column[Location]("location", O.Length(254))
   def status = column[KubernetesClusterStatus]("status", O.Length(254))
   def serviceAccountInfo = column[WorkbenchEmail]("serviceAccountInfo", O.Length(254))
-  def samResourceId = column[KubernetesClusterSamResource]("samResourceId",O.Length(254))
+  def samResourceId = column[KubernetesClusterSamResource]("samResourceId", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
   def apiServerIp = column[Option[KubernetesMasterIP]]("apiServerIp", O.Length(254))
   def networkName = column[Option[NetworkName]]("networkName", O.Length(254))
-  def subNetworkName =  column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
-  def subNetworkIpRange =  column[Option[IpRange]]("subNetworkIpRange", O.Length(254))
+  def subNetworkName = column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
+  def subNetworkIpRange = column[Option[IpRange]]("subNetworkIpRange", O.Length(254))
 
   def uniqueKey = index("IDX_KUBERNETES_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
   def * =
     (id,
-      googleProject,
-      clusterName,
-      location,
-      status,
-      serviceAccountInfo,
-      samResourceId,
-      creator,
-      createdDate,
-      destroyedDate,
-      apiServerIp,
-    networkName,
-    subNetworkName,
-    subNetworkIpRange) <> (KubernetesClusterRecord.tupled, KubernetesClusterRecord.unapply)
+     googleProject,
+     clusterName,
+     location,
+     status,
+     serviceAccountInfo,
+     samResourceId,
+     creator,
+     createdDate,
+     destroyedDate,
+     apiServerIp,
+     networkName,
+     subNetworkName,
+     subNetworkIpRange) <> (KubernetesClusterRecord.tupled, KubernetesClusterRecord.unapply)
 }
 
 object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) {
@@ -82,36 +81,38 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       .filter(_.clusterName === clusterName)
       .filter(_.destroyedDate === dummyDate)
 
-  def getActiveFullClusterByName(googleProject: GoogleProject, clusterName: KubernetesClusterName)
-                                (implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
-
+  def getActiveFullClusterByName(googleProject: GoogleProject, clusterName: KubernetesClusterName)(
+    implicit ec: ExecutionContext
+  ): DBIO[Option[KubernetesCluster]] =
     for {
       clusterOpt <- findActiveByNameQuery(googleProject, clusterName).result.headOption
       namespaces <- clusterOpt.fold[DBIO[Set[KubernetesNamespaceName]]](DBIO.successful(Set()))(cluster =>
-        namespaceQuery.getAllForCluster(cluster.id))
+        namespaceQuery.getAllForCluster(cluster.id)
+      )
       nodepools <- clusterOpt.fold[DBIO[Set[Nodepool]]](DBIO.successful(Set()))(cluster =>
-        nodepoolQuery.getAllForCluster(cluster.id))
+        nodepoolQuery.getAllForCluster(cluster.id)
+      )
     } yield {
       clusterOpt
         .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools))
     }
 
-  def getFullClusterById(id: KubernetesClusterLeoId)
-  (implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
+  def getFullClusterById(id: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
     for {
       clusterOpt <- findByIdQuery(id).result.headOption
       namespaces <- clusterOpt.fold[DBIO[Set[KubernetesNamespaceName]]](DBIO.successful(Set()))(cluster =>
-        namespaceQuery.getAllForCluster(cluster.id))
+        namespaceQuery.getAllForCluster(cluster.id)
+      )
       nodepools <- clusterOpt.fold[DBIO[Set[Nodepool]]](DBIO.successful(Set()))(cluster =>
-        nodepoolQuery.getAllForCluster(cluster.id))
+        nodepoolQuery.getAllForCluster(cluster.id)
+      )
     } yield {
       clusterOpt
         .map(c => unmarshalKubernetesCluster(c, namespaces, nodepools))
     }
 
   //TODO save labels
-  def save(saveCluster: SaveKubernetesCluster)
-                 (implicit ec: ExecutionContext): DBIO[KubernetesCluster] = {
+  def save(saveCluster: SaveKubernetesCluster)(implicit ec: ExecutionContext): DBIO[KubernetesCluster] = {
     val clusterRecord = KubernetesClusterRecord(
       KubernetesClusterLeoId(0),
       saveCluster.googleProject,
@@ -156,15 +157,16 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       .map(_.destroyedDate)
       .update(destroyedDate)
 
-  def delete(id: KubernetesClusterLeoId)
-            (implicit ec: ExecutionContext): DBIO[Int] =
+  def delete(id: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Int] =
     for {
       nodepool <- nodepoolQuery.deleteAllForCluster(id)
       namespace <- namespaceQuery.deleteAllForCluster(id)
       cluster <- findByIdQuery(id).delete
     } yield nodepool + namespace + cluster
 
-  private def unmarshalKubernetesCluster(cr: KubernetesClusterRecord, namespaces: Set[KubernetesNamespaceName], nodepools: Set[Nodepool]): KubernetesCluster =
+  private def unmarshalKubernetesCluster(cr: KubernetesClusterRecord,
+                                         namespaces: Set[KubernetesNamespaceName],
+                                         nodepools: Set[Nodepool]): KubernetesCluster =
     KubernetesCluster(
       cr.id,
       cr.googleProject,
@@ -187,14 +189,12 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       nodepools
     )
 
-
   //all network fields should be set at the same time. We unmarshal the entire record as None if any fields are unset
   private def unmarshalNetwork(cr: KubernetesClusterRecord): Option[NetworkFields] =
     (cr.networkName, cr.subNetworkName, cr.subNetworkIpRange) match {
-      case (Some(networkName), Some(subNetworkName), Some(subNetworkIpRange)) => Some(NetworkFields(networkName, subNetworkName, subNetworkIpRange))
+      case (Some(networkName), Some(subNetworkName), Some(subNetworkIpRange)) =>
+        Some(NetworkFields(networkName, subNetworkName, subNetworkIpRange))
       case _ => None
     }
 
 }
-
-

@@ -12,7 +12,6 @@ case class NamespaceRecord(id: KubernetesNamespaceId,
                            clusterId: KubernetesClusterLeoId,
                            namespaceName: KubernetesNamespaceName)
 
-
 class NamespaceTable(tag: Tag) extends Table[NamespaceRecord](tag, "NAMESPACE") {
   def id = column[KubernetesNamespaceId]("id", O.PrimaryKey, O.AutoInc)
   def clusterId = column[KubernetesClusterLeoId]("clusterId")
@@ -32,16 +31,17 @@ object namespaceQuery extends TableQuery(new NamespaceTable(_)) {
         KubernetesNamespaceName(namespace.value)
       )
 
-  def saveAllForCluster(clusterId: KubernetesClusterLeoId, namespaces: Set[KubernetesNamespaceName])
-                       (implicit ec: ExecutionContext): DBIO[Unit] =
-    (namespaceQuery ++= namespaces.map(name => NamespaceRecord(
+  def saveAllForCluster(clusterId: KubernetesClusterLeoId,
+                        namespaces: Set[KubernetesNamespaceName])(implicit ec: ExecutionContext): DBIO[Unit] =
+    (namespaceQuery ++= namespaces.map(name =>
+      NamespaceRecord(
         KubernetesNamespaceId(0),
         clusterId,
         KubernetesNamespaceName(name.value)
-      )))
-      //the option[int] that this returns is fairly useless, as it doesn't represent the number of records inserted and in practice we .void it anyways
-    .map(_ => ())
-
+      )
+    ))
+    //the option[int] that this returns is fairly useless, as it doesn't represent the number of records inserted and in practice we .void it anyways
+      .map(_ => ())
 
   def delete(clusterId: KubernetesClusterLeoId, namespace: KubernetesNamespaceName): DBIO[Int] =
     namespaceQuery
@@ -54,16 +54,12 @@ object namespaceQuery extends TableQuery(new NamespaceTable(_)) {
       .filter(_.clusterId === clusterId)
       .delete
 
-  def getAllForCluster(clusterId: KubernetesClusterLeoId)
-                      (implicit ec: ExecutionContext): DBIO[Set[KubernetesNamespaceName]] =
+  def getAllForCluster(
+    clusterId: KubernetesClusterLeoId
+  )(implicit ec: ExecutionContext): DBIO[Set[KubernetesNamespaceName]] =
     namespaceQuery
-    .filter(_.clusterId === clusterId)
-    .result
-    .map(rowOpt =>
-      rowOpt.map(row =>
-        row.namespaceName
-      )
-        .toSet
-    )
+      .filter(_.clusterId === clusterId)
+      .result
+      .map(rowOpt => rowOpt.map(row => row.namespaceName).toSet)
 
 }
