@@ -197,8 +197,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   //   left join label l on c.id = l.clusterId
   val clusterLabelQuery: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
     for {
-      (cluster, label) <- clusterQuery joinLeft labelQuery on { case (c, lbl) =>
-        lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
+      (cluster, label) <- clusterQuery joinLeft labelQuery on {
+        case (c, lbl) =>
+          lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
       }
     } yield (cluster, label)
   }
@@ -260,7 +261,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       (((((((cluster, instance), error), label), extension), image), scopes), patch) <- baseClusterQuery joinLeft
         instanceQuery on (_.id === _.clusterId) joinLeft
         clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
-        labelQuery on { case (c, lbl) => lbl.resourceId === c._1._1.id && lbl.resourceType === LabelResourceType.runtime } joinLeft
+        labelQuery on {
+        case (c, lbl) => lbl.resourceId === c._1._1.id && lbl.resourceType === LabelResourceType.runtime
+      } joinLeft
         extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
         clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
         scopeQuery on (_._1._1._1._1._1.id === _.clusterId) joinLeft

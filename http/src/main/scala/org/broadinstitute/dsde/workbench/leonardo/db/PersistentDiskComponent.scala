@@ -72,8 +72,9 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
-      (disk, label) <- baseQuery joinLeft labelQuery on { case (d, lbl) =>
-        lbl.resourceId.mapTo[DiskId] === d.id && lbl.resourceType === LabelResourceType.persistentDisk
+      (disk, label) <- baseQuery joinLeft labelQuery on {
+        case (d, lbl) =>
+          lbl.resourceId.mapTo[DiskId] === d.id && lbl.resourceType === LabelResourceType.persistentDisk
       }
     } yield (disk, label)
 

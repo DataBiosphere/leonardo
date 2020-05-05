@@ -9,6 +9,7 @@ import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
+// TODO deprecated in favor of RuntimeServiceDbQueriesSpec
 class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   it should "get by labels" in isolatedDbTest {
 

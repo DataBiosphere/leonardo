@@ -18,8 +18,9 @@ object RuntimeServiceDbQueries {
 
   def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
     for {
-      (cluster, label) <- baseQuery.joinLeft(labelQuery).on { case (c, lbl) =>
-        lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
+      (cluster, label) <- baseQuery.joinLeft(labelQuery).on {
+        case (c, lbl) =>
+          lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
       }
     } yield (cluster, label)
 
@@ -41,9 +42,7 @@ object RuntimeServiceDbQueries {
       clusterQueryJoinedWithLabel.filter {
         case (clusterRec, _) =>
           labelQuery
-            .filter { lbl =>
-              lbl.resourceId === clusterRec.id && lbl.resourceType === LabelResourceType.runtime
-            }
+            .filter(lbl => lbl.resourceId === clusterRec.id && lbl.resourceType === LabelResourceType.runtime)
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
