@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <!-- See https://broadworkbench.atlassian.net/browse/IA-1897 -->
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="change-label-resource-id-type">
+        <!-- Add `resourceId2` column with correct type and populate it from `resourceId` -->
+        <addColumn tableName="LABEL">
+            <column name="resourceId2" type="bigint(20)">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+        <sql>UPDATE LABEL SET `resourceId2` = CAST(`resourceId` AS UNSIGNED INTEGER)</sql>
+
+        <!-- Drop the existing `IDX_LABEL_UNIQUE` constraint and `resourceId` column -->
+        <dropUniqueConstraint uniqueColumns="resourceId, resourceType, key" tableName="LABEL" constraintName="IDX_LABEL_UNIQUE" />
+        <dropColumn tableName="LABEL" columnName="resourceId" />
+
+        <!-- Rename `resourceId2` to `resourceId` and re-add not-null and unique constraints -->
+        <renameColumn tableName="LABEL" oldColumnName="resourceId2" newColumnName="resourceId" columnDataType="bigint(20)" />
+        <addNotNullConstraint columnName="resourceId" columnDataType="bigint(20)" tableName="LABEL"/>
+        <addUniqueConstraint tableName="LABEL" columnNames="resourceId, resourceType, key" constraintName="IDX_LABEL_UNIQUE" />
+    </changeSet>
+</databaseChangeLog>
