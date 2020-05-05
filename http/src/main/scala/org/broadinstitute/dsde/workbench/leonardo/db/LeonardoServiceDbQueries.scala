@@ -23,7 +23,9 @@ object LeonardoServiceDbQueries {
 
   def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
     for {
-      (cluster, label) <- baseQuery.joinLeft(labelQuery.runtimeLabels).on(_.id === _.resourceId)
+      (cluster, label) <- baseQuery.joinLeft(labelQuery).on { case (c, lbl) =>
+        lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
+      }
     } yield (cluster, label)
 
   def getGetClusterResponse(googleProject: GoogleProject, clusterName: RuntimeName)(
@@ -61,9 +63,9 @@ object LeonardoServiceDbQueries {
     } else {
       clusterQueryJoinedWithLabel.filter {
         case (clusterRec, _) =>
-          labelQuery.runtimeLabels
-            .filter {
-              _.resourceId === clusterRec.id
+          labelQuery
+            .filter { lbl =>
+              lbl.resourceId === clusterRec.id && lbl.resourceType === LabelResourceType.runtime
             }
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }

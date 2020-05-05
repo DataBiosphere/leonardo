@@ -22,8 +22,8 @@ class LabelTable(tag: Tag) extends Table[LabelRecord](tag, "LABEL") {
 }
 
 object labelQuery extends TableQuery(new LabelTable(_)) {
-  val runtimeLabels = labelQuery.filter(_.resourceType === LabelResourceType.runtime)
-  val diskLabels = labelQuery.filter(_.resourceType === LabelResourceType.persistentDisk)
+//  val runtimeLabels = labelQuery.filter(_.resourceType === LabelResourceType.runtime)
+//  val diskLabels = labelQuery.filter(_.resourceType === LabelResourceType.persistentDisk)
 
   def save(resourceId: Long, resourceType: LabelResourceType, key: String, value: String): DBIO[Int] =
     labelQuery += LabelRecord(resourceId, resourceType, key, value)
