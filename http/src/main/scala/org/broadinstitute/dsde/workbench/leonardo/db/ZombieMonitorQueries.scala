@@ -46,7 +46,8 @@ object ZombieMonitorQueries {
 
 
   private def unconfirmedRuntimeLabels: Query[LabelTable, LabelRecord, Seq] =
-    labelQuery.runtimeLabels
+    labelQuery
+      .filter(_.resourceType === LabelResourceType.runtime)
       .filter(_.key === Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey)
       .filter(_.value === "false")
 
