@@ -4,6 +4,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
   ConnectSrc,
   FrameAncestors,
   ObjectSrc,
+  ReportUri,
   ScriptSrc,
   StyleSrc
 }
@@ -14,9 +15,10 @@ final case class ContentSecurityPolicyConfig(frameAncestors: FrameAncestors,
                                              scriptSrc: ScriptSrc,
                                              styleSrc: StyleSrc,
                                              connectSrc: ConnectSrc,
-                                             objectSrc: ObjectSrc) {
+                                             objectSrc: ObjectSrc,
+                                             reportUri: ReportUri) {
   def asString: String = {
-    val components = List(frameAncestors, scriptSrc, styleSrc, connectSrc, objectSrc)
+    val components = List(frameAncestors, scriptSrc, styleSrc, connectSrc, objectSrc, reportUri)
     components.map(c => s"${c.name} ${c.values.mkString(" ")}").mkString("; ")
   }
 }
@@ -40,5 +42,8 @@ object ContentSecurityPolicyComponent {
   }
   final case class ObjectSrc(values: List[String]) extends ContentSecurityPolicyComponent {
     override def name: String = "object-src"
+  }
+  final case class ReportUri(values: List[String]) extends ContentSecurityPolicyComponent {
+    override def name: String = "report-uri"
   }
 }
