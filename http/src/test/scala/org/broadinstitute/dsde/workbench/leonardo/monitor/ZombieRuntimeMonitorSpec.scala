@@ -197,21 +197,21 @@ class ZombieRuntimeMonitorSpec
     val gdDAO = mock[GoogleDataprocDAO]
     when {
       gdDAO.getClusterStatus(mockitoEq(deletedRuntime1.googleProject),
-        RuntimeName(mockitoEq(deletedRuntime1.runtimeName.asString)))
+                             RuntimeName(mockitoEq(deletedRuntime1.runtimeName.asString)))
     } thenReturn {
       Future.successful(None)
     }
 
     when {
       gdDAO.getClusterStatus(mockitoEq(deletedRuntime2.googleProject),
-        RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
+                             RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
     } thenReturn {
       Future.successful(Some(DataprocClusterStatus.Running))
     }
 
     when {
       gdDAO.deleteCluster(mockitoEq(deletedRuntime2.googleProject),
-        RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
+                          RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
     } thenReturn {
       Future.unit
     }
@@ -226,7 +226,7 @@ class ZombieRuntimeMonitorSpec
         c2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
       }
       verify(gdDAO, times(1)).deleteCluster(mockitoEq(deletedRuntime2.googleProject),
-        RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
+                                            RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
     }
   }
 
@@ -275,13 +275,12 @@ class ZombieRuntimeMonitorSpec
     val gce = new MockGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Option[Instance]] = {
+      ): IO[Option[Instance]] =
         if (instanceName.value === deletedRuntime2.runtimeName.asString) {
           IO.pure(Some(readyInstance))
         } else {
           IO.pure(None)
         }
-      }
       override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Operation] = {

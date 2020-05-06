@@ -690,13 +690,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   }
 
   private def unmarshalCluster(clusterRecord: ClusterRecord,
-                                         instanceRecords: Seq[InstanceRecord],
-                                         errors: List[ClusterErrorRecord],
-                                         labels: LabelMap,
-                                         userJupyterExtensionConfig: List[ExtensionRecord],
-                                         clusterImageRecords: List[ClusterImageRecord],
-                                         scopes: List[ScopeRecord],
-                                         patch: List[PatchRecord]): Runtime = {
+                               instanceRecords: Seq[InstanceRecord],
+                               errors: List[ClusterErrorRecord],
+                               labels: LabelMap,
+                               userJupyterExtensionConfig: List[ExtensionRecord],
+                               clusterImageRecords: List[ClusterImageRecord],
+                               scopes: List[ScopeRecord],
+                               patch: List[PatchRecord]): Runtime = {
     val name = clusterRecord.clusterName
     val project = clusterRecord.googleProject
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {

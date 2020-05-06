@@ -237,9 +237,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
     if (params.asyncRuntimeFields.isDefined)
       googleComputeService
-        .deleteInstance(params.googleProject,
-                        config.gceConfig.zoneName,
-                        InstanceName(params.runtimeName.asString))
+        .deleteInstance(params.googleProject, config.gceConfig.zoneName, InstanceName(params.runtimeName.asString))
         .map(x => Some(x))
     else Async[F].pure(None)
 

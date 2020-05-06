@@ -22,10 +22,7 @@ object ZombieMonitorQueries {
       rs.toList.foldMap { r =>
         val asyncRuntimeFields = (r._1.googleId, r._1.operationName, r._1.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
-            AsyncRuntimeFields(googleId,
-              OperationName(operationName),
-              GcsBucketName(stagingBucket),
-              r._1.hostIp map IP)
+            AsyncRuntimeFields(googleId, OperationName(operationName), GcsBucketName(stagingBucket), r._1.hostIp map IP)
         }
         Map(
           r._1.googleProject -> Chain(
@@ -44,7 +41,6 @@ object ZombieMonitorQueries {
     }
   }
 
-
   private def unconfirmedRuntimeLabels: Query[LabelTable, LabelRecord, Seq] =
     labelQuery
       .filter(_.resourceType === LabelResourceType.runtime)
@@ -54,7 +50,8 @@ object ZombieMonitorQueries {
   def listInactiveZombieQuery(implicit ec: ExecutionContext): DBIO[List[ZombieCandidate]] = {
     val runtimes = clusterQuery.filter(_.status === RuntimeStatus.Deleted.toString)
     val unconfirmedRuntimeQuery = runtimes.join(unconfirmedRuntimeLabels).on(_.id === _.resourceId)
-    val joinedQuery = unconfirmedRuntimeQuery.join(RuntimeConfigQueries.runtimeConfigs).on(_._1.runtimeConfigId === _.id)
+    val joinedQuery =
+      unconfirmedRuntimeQuery.join(RuntimeConfigQueries.runtimeConfigs).on(_._1.runtimeConfigId === _.id)
     joinedQuery.result.map { rs =>
       rs.toList.map { r =>
         val runtimeRec = r._1._1
@@ -62,17 +59,19 @@ object ZombieMonitorQueries {
         val asyncRuntimeFields = (runtimeRec.googleId, runtimeRec.operationName, runtimeRec.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
             AsyncRuntimeFields(googleId,
-              OperationName(operationName),
-              GcsBucketName(stagingBucket),
-              runtimeRec.hostIp map IP)
+                               OperationName(operationName),
+                               GcsBucketName(stagingBucket),
+                               runtimeRec.hostIp map IP)
         }
-        ZombieCandidate(runtimeRec.id,
+        ZombieCandidate(
+          runtimeRec.id,
           runtimeRec.googleProject,
           runtimeRec.clusterName,
           RuntimeStatus.withName(runtimeRec.status),
           runtimeRec.auditInfo.createdDate,
           asyncRuntimeFields,
-          cloudService)
+          cloudService
+        )
       }
     }
   }

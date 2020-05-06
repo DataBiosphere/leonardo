@@ -21,7 +21,13 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GoogleProject,
+  ServiceAccountKey,
+  ServiceAccountKeyId,
+  ServiceAccountPrivateKeyData,
+  _
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 object CommonTestData {
