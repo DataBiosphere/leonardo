@@ -46,4 +46,5 @@
     <include file="changesets/20200415_drop_notebookServiceAccount.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200427_create_persistent_disk_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200504_fix_label_table.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200505_change_label_resource_id_type.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

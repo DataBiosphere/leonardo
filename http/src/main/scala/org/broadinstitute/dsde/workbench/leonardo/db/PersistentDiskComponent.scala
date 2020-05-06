@@ -71,7 +71,12 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       .filter(_.destroyedDate === dummyDate)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
-    baseQuery joinLeft labelQuery.diskLabels on (_.id === _.resourceId.mapTo[DiskId])
+    for {
+      (disk, label) <- baseQuery joinLeft labelQuery on {
+        case (d, lbl) =>
+          lbl.resourceId.mapTo[DiskId] === d.id && lbl.resourceType === LabelResourceType.persistentDisk
+      }
+    } yield (disk, label)
 
   def save(disk: PersistentDisk): DBIO[DiskId] =
     (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)

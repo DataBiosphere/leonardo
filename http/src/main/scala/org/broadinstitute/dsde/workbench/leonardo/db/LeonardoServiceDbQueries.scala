@@ -17,13 +17,17 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProj
 
 import scala.concurrent.ExecutionContext
 
+// TODO deprecated in favor of RuntimeServiceDbQueries
 object LeonardoServiceDbQueries {
 
   type ClusterJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
 
   def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
     for {
-      (cluster, label) <- baseQuery.joinLeft(labelQuery.runtimeLabels).on(_.id === _.resourceId)
+      (cluster, label) <- baseQuery.joinLeft(labelQuery).on {
+        case (c, lbl) =>
+          lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
+      }
     } yield (cluster, label)
 
   def getGetClusterResponse(googleProject: GoogleProject, clusterName: RuntimeName)(
@@ -61,10 +65,8 @@ object LeonardoServiceDbQueries {
     } else {
       clusterQueryJoinedWithLabel.filter {
         case (clusterRec, _) =>
-          labelQuery.runtimeLabels
-            .filter {
-              _.resourceId === clusterRec.id
-            }
+          labelQuery
+            .filter(lbl => lbl.resourceId === clusterRec.id && lbl.resourceType === LabelResourceType.runtime)
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
