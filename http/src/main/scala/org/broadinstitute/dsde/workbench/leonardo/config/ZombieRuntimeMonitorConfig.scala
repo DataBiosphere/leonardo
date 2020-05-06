@@ -4,8 +4,9 @@ import org.broadinstitute.dsde.workbench.google2.ZoneName
 
 import scala.concurrent.duration.FiniteDuration
 
-case class ZombieRuntimeMonitorConfig(enableZombieClusterDetection: Boolean,
+case class ZombieRuntimeMonitorConfig(enableZombieRuntimeDetection: Boolean,
                                       zombieCheckPeriod: FiniteDuration,
+                                      deletionConfirmationLabelKey: String,
                                       creationHangTolerance: FiniteDuration,
                                       concurrency: Int,
                                       gceZoneName: ZoneName)

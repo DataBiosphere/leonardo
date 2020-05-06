@@ -142,6 +142,7 @@ class LeonardoService(
   protected val proxyConfig: ProxyConfig,
   protected val swaggerConfig: SwaggerConfig,
   protected val autoFreezeConfig: AutoFreezeConfig,
+  protected val zombieRuntimeMonitorConfig: ZombieRuntimeMonitorConfig,
   protected val welderConfig: WelderConfig,
   protected val petGoogleStorageDAO: String => GoogleStorageDAO,
   protected val authProvider: LeoAuthProvider[IO],
@@ -650,12 +651,16 @@ class LeonardoService(
       val hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
       for {
         // Delete the cluster in Google
-        _ <- CloudService.Dataproc.interpreter.deleteRuntime(DeleteRuntimeParams(cluster))
+        _ <- CloudService.Dataproc.interpreter.deleteRuntime(DeleteRuntimeParams(cluster.googleProject,
+                                                                                 cluster.runtimeName,
+                                                                                 cluster.asyncRuntimeFields))
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
         now <- nowInstant
         _ <- if (hasDataprocInfo) clusterQuery.markPendingDeletion(cluster.id, now).transaction
         else clusterQuery.completeDeletion(cluster.id, now).transaction
+        // save label for zombie monitor actor to confirm deletion of google runtime in the future
+        _ <- labelQuery.save(cluster.id, LabelResourceType.Runtime, zombieRuntimeMonitorConfig.deletionConfirmationLabelKey, "false").transaction
         _ <- if (hasDataprocInfo)
           IO.unit //When dataprocInfo is defined, there's async deletion from google happening and we don't want to delete sam resource immediately
         else

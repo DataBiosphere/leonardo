@@ -16,7 +16,7 @@ import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, GceConfig, ImageConfig, ZombieRuntimeMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
@@ -209,6 +209,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           runtime.runtimeName
         )
       }
+      _ <- labelQuery.save(runtime.id, LabelResourceType.Runtime, config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey, "false").transaction
     } yield ()
 
   def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
@@ -606,6 +607,7 @@ object RuntimeServiceInterp {
 final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       imageConfig: ImageConfig,
                                       autoFreezeConfig: AutoFreezeConfig,
+                                      zombieRuntimeMonitorConfig: ZombieRuntimeMonitorConfig,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig)
 

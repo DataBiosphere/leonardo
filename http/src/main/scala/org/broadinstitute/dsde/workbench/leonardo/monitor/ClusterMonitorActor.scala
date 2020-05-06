@@ -398,7 +398,9 @@ class ClusterMonitorActor(
       _ <- List(
         // Delete the cluster in Google
         runtimeAndRuntimeConfig.runtimeConfig.cloudService.interpreter
-          .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime)),
+          .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime.googleProject,
+                                             runtimeAndRuntimeConfig.runtime.runtimeName,
+                                             runtimeAndRuntimeConfig.runtime.asyncRuntimeFields)),
         // create or update instances in the DB
         persistInstances(runtimeAndRuntimeConfig, dataprocInstances),
         //save cluster error in the DB

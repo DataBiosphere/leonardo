@@ -375,18 +375,19 @@ object Config {
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
 
-  implicit val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
+  implicit val zombieRuntimeConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>
       ZombieRuntimeMonitorConfig(
-        config.getBoolean("enableZombieClusterMonitor"),
+        config.getBoolean("enableZombieRuntimeMonitor"),
         toScalaDuration(config.getDuration("pollPeriod")),
+        config.getString("deletionConfirmationLabelKey"),
         toScalaDuration(config.getDuration("creationHangTolerance")),
         config.getInt("concurrency"),
         gceConfig.zoneName
       )
   }
 
-  val zombieClusterMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieClusterMonitor")
+  val zombieRuntimeMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")

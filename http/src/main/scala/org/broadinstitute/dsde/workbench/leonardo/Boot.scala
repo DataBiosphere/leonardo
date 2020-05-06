@@ -109,6 +109,7 @@ object Boot extends IOApp {
                                                 proxyConfig,
                                                 swaggerConfig,
                                                 autoFreezeConfig,
+                                                zombieRuntimeMonitorConfig,
                                                 welderConfig,
                                                 appDependencies.petGoogleStorageDAO,
                                                 appDependencies.authProvider,
@@ -132,6 +133,7 @@ object Boot extends IOApp {
         proxyConfig.proxyUrlBase,
         imageConfig,
         autoFreezeConfig,
+        zombieRuntimeMonitorConfig,
         dataprocConfig,
         gceConfig
       )
@@ -144,7 +146,7 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
 
-      val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieClusterMonitorConfig, appDependencies.googleProjectDAO)
+      val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieRuntimeMonitorConfig, appDependencies.googleProjectDAO)
 
       val httpRoutes = new HttpRoutes(swaggerConfig,
                                       statusService,

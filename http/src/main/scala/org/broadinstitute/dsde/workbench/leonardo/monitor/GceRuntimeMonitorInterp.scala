@@ -484,7 +484,9 @@ class GceRuntimeMonitorInterp[F[_]: Timer: Parallel](
       _ <- List(
         // Delete the cluster in Google
         gceInterpreter
-          .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime))
+          .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime.googleProject,
+                                             runtimeAndRuntimeConfig.runtime.runtimeName,
+                                             runtimeAndRuntimeConfig.runtime.asyncRuntimeFields))
           .void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB
         saveClusterError(runtimeAndRuntimeConfig.runtime.id,
