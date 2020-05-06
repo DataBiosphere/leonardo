@@ -25,12 +25,11 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{FiniteDuration, MINUTES}
 
 /**
-  * This monitor periodically sweeps the Leo database and checks for and handles zombie runtimes.
-  * There are two types of zombie runtimes:
-  * Active zombie : a runtime that is deleted on the Google side, but still marked as active in the Leo DB
-  * Inactive zombie : a runtime that is in Deleted status in the Leo DB, but still running in Google
+ * This monitor periodically sweeps the Leo database and checks for and handles zombie runtimes.
+ * There are two types of zombie runtimes:
+ * Active zombie : a runtime that is deleted on the Google side, but still marked as active in the Leo DB
+ * Inactive zombie : a runtime that is in Deleted status in the Leo DB, but still running in Google
  */
-
 class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   config: ZombieRuntimeMonitorConfig,
   googleProjectDAO: GoogleProjectDAO
@@ -69,8 +68,14 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
                 // If the project is active, check each individual runtime
                 zombieCandidates.toList.traverseFilter { candidate =>
                   // If the runtime is less than one minute old, it may not exist in Google because it is still Provisioning, so it's not a zombie
-                  isRuntimeActiveInGoogle(candidate.googleProject, candidate.runtimeName, candidate.cloudService, startInstant)
-                    .ifA[Option[ZombieCandidate]](F.pure(None), F.pure(zombieIfOlderThanOneMinute(candidate, startInstant)))
+                  isRuntimeActiveInGoogle(candidate.googleProject,
+                                          candidate.runtimeName,
+                                          candidate.cloudService,
+                                          startInstant)
+                    .ifA[Option[ZombieCandidate]](
+                      F.pure(None),
+                      F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
+                    )
                 }
               case false =>
                 // If the project is inactive, all runtimes in the project are zombies
@@ -86,10 +91,13 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
         s"Starting inactive zombie detection within ${unconfirmedDeletedRuntimes.size} runtimes with concurrency of ${config.concurrency}"
       )
 
-      inactiveZombies <- unconfirmedDeletedRuntimes.parTraverse {
-        candidate =>
+      inactiveZombies <- unconfirmedDeletedRuntimes
+        .parTraverse { candidate =>
           semaphore.withPermit {
-            isRuntimeActiveInGoogle(candidate.googleProject, candidate.runtimeName, candidate.cloudService, startInstant).flatMap { isActive =>
+            isRuntimeActiveInGoogle(candidate.googleProject,
+                                    candidate.runtimeName,
+                                    candidate.cloudService,
+                                    startInstant).flatMap { isActive =>
               if (isActive) {
                 F.pure(Option(candidate))
               } else {
@@ -97,11 +105,14 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
               }
             }
           }
-      }.map(_.flattenOption)
+        }
+        .map(_.flattenOption)
 
       // Delete runtime on Leo side if active zombie, or on Google side if inactive zombie
       _ <- activeZombies.parTraverse(zombie => semaphore.withPermit(handleActiveZombieRuntime(zombie, startInstant)))
-      _ <- inactiveZombies.parTraverse(zombie => semaphore.withPermit(handleInactiveZombieRuntime(zombie, startInstant)))
+      _ <- inactiveZombies.parTraverse(zombie =>
+        semaphore.withPermit(handleInactiveZombieRuntime(zombie, startInstant))
+      )
       end <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       duration = end - start
       _ <- logger.info(
@@ -112,11 +123,10 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     } yield ()
 
   // Puts a label on a deleted runtime to show that we've confirmed the google runtime's deletion
-  private def updateRuntimeAsConfirmedDeleted(runtimeId: Long): F[Unit] = {
+  private def updateRuntimeAsConfirmedDeleted(runtimeId: Long): F[Unit] =
     dbRef.inTransaction {
       labelQuery.save(runtimeId, LabelResourceType.Runtime, config.deletionConfirmationLabelKey, "true")
     }.void
-  }
 
   private def isProjectActiveInGoogle(googleProject: GoogleProject): F[Boolean] = {
     // Check the project and its billing info
@@ -160,16 +170,15 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
             .as(true)
       }
 
-  private def zombieIfOlderThanOneMinute(candidate: ZombieCandidate,
-                                         now: Instant): Option[ZombieCandidate] = {
+  private def zombieIfOlderThanCreationHangTolerance(candidate: ZombieCandidate,
+                                                     now: Instant): Option[ZombieCandidate] = {
     val milliSecondsSinceRuntimeCreation: Long = now.toEpochMilli - candidate.createdDate.toEpochMilli
-    if (milliSecondsSinceRuntimeCreation < FiniteDuration(1, MINUTES).toMillis) {
+    if (milliSecondsSinceRuntimeCreation < config.creationHangTolerance.toMillis) {
       None
     } else {
       Some(candidate)
     }
   }
-
 
   private def handleActiveZombieRuntime(zombie: ZombieCandidate,
                                         now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
@@ -200,7 +209,8 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
         s"${traceId.asString} | Deleting inactive zombie runtime: ${zombie.googleProject} / ${zombie.runtimeName}"
       )
       _ <- metrics.incrementCounter("numOfInactiveZombieRuntimes")
-      _ <- zombie.cloudService.interpreter.deleteRuntime(DeleteRuntimeParams(zombie.googleProject, zombie.runtimeName, zombie.asyncRuntimeFields))
+      _ <- zombie.cloudService.interpreter
+        .deleteRuntime(DeleteRuntimeParams(zombie.googleProject, zombie.runtimeName, zombie.asyncRuntimeFields))
       // In the next pass of the zombie monitor, this runtime will be marked as confirmed deleted if this succeeded
     } yield ()
 }

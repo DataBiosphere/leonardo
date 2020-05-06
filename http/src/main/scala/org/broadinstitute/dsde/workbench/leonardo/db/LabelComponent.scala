@@ -16,7 +16,7 @@ class LabelTable(tag: Tag) extends Table[LabelRecord](tag, "LABEL") {
   def key = column[String]("key", O.Length(254))
   def value = column[String]("value", O.Length(254))
 
-  def pk = primaryKey("label_pk", (resourceId, resourceType, key))
+  def pk = primaryKey("PK_LABEL", (resourceId, resourceType, key))
 
   def * = (resourceId, resourceType, key, value) <> (LabelRecord.tupled, LabelRecord.unapply)
 }
@@ -26,7 +26,9 @@ object labelQuery extends TableQuery(new LabelTable(_)) {
   def save(resourceId: Long, resourceType: LabelResourceType, key: String, value: String): DBIO[Int] =
     labelQuery.insertOrUpdate(LabelRecord(resourceId, resourceType, key, value))
 
-  def saveAllForResource(resourceId: Long, resourceType: LabelResourceType, m: LabelMap)(implicit ec: ExecutionContext): DBIO[Int] =
+  def saveAllForResource(resourceId: Long, resourceType: LabelResourceType, m: LabelMap)(
+    implicit ec: ExecutionContext
+  ): DBIO[Int] =
     DBIO.fold(m.toSeq map { case (key, value) => save(resourceId, resourceType, key, value) }, 0)(_ + _)
 
   def getAllForResource(resourceId: Long,
@@ -37,7 +39,6 @@ object labelQuery extends TableQuery(new LabelTable(_)) {
     }
 
   def deleteAllForResource(resourceId: Long, resourceType: LabelResourceType): DBIO[Int] =
-
     labelQuery.filter(_.resourceId === resourceId).filter(_.resourceType === resourceType).delete
 }
 
