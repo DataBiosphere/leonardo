@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package db
 
+import java.util.concurrent.TimeUnit
+
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -16,22 +18,29 @@ import org.scalatest.FlatSpecLike
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
+  val maxElapsed = 5.seconds
 
   "RuntimeServiceDbQueries" should "list runtimes" in isolatedDbTest {
     val res = for {
+      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
       list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
       c1 <- IO(makeCluster(1).save())
       list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
       c2 <- IO(makeCluster(2).save())
       list3 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
+      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      elapsed = (end - start).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       list1 shouldEqual List.empty
       val c1Expected = toListRuntimeResponse(c1, Map.empty)
       val c2Expected = toListRuntimeResponse(c2, Map.empty)
       list2 shouldEqual List(c1Expected)
       list3.toSet shouldEqual Set(c1Expected, c2Expected)
+      elapsed should be < maxElapsed
     }
 
     res.unsafeRunSync()
@@ -39,6 +48,7 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
 
   it should "list runtimes by labels" in isolatedDbTest {
     val res = for {
+      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
       c1 <- IO(makeCluster(1).save())
       c2 <- IO(makeCluster(2).save())
       labels1 = Map("googleProject" -> c1.googleProject.value,
@@ -56,6 +66,9 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       list5 <- RuntimeServiceDbQueries
         .listClusters(Map("googleProject" -> c1.googleProject.value), false, None)
         .transaction
+      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      elapsed = (end - start).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       list1 shouldEqual List.empty
       list2 shouldEqual List.empty
@@ -64,6 +77,7 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       list3 shouldEqual List(c1Expected)
       list4 shouldEqual List(c2Expected)
       list5.toSet shouldEqual Set(c1Expected, c2Expected)
+      elapsed should be < maxElapsed
     }
 
     res.unsafeRunSync()
@@ -71,15 +85,20 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
 
   it should "list runtimes by project" in isolatedDbTest {
     val res = for {
+      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
       c1 <- IO(makeCluster(1).save())
       c2 <- IO(makeCluster(2).save())
       list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, Some(project)).transaction
       list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, Some(project2)).transaction
+      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      elapsed = (end - start).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       val c1Expected = toListRuntimeResponse(c1, Map.empty)
       val c2Expected = toListRuntimeResponse(c2, Map.empty)
       list1.toSet shouldEqual Set(c1Expected, c2Expected)
       list2 shouldEqual List.empty
+      elapsed should be < maxElapsed
     }
 
     res.unsafeRunSync()
@@ -87,17 +106,22 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
 
   it should "list runtimes including deleted" in isolatedDbTest {
     val res = for {
+      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
       c1 <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleted).save())
       c2 <- IO(makeCluster(2).copy(status = RuntimeStatus.Deleted).save())
       c3 <- IO(makeCluster(3).save())
       list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, true, None).transaction
       list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
+      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      elapsed = (end - start).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       val c1Expected = toListRuntimeResponse(c1, Map.empty)
       val c2Expected = toListRuntimeResponse(c2, Map.empty)
       val c3Expected = toListRuntimeResponse(c3, Map.empty)
       list1.toSet shouldEqual Set(c1Expected, c2Expected, c3Expected)
       list2 shouldEqual List(c3Expected)
+      elapsed should be < maxElapsed
     }
 
     res.unsafeRunSync()
