@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.{FiniteDuration, MINUTES}
 
 /**
  * This monitor periodically sweeps the Leo database and checks for and handles zombie runtimes.
