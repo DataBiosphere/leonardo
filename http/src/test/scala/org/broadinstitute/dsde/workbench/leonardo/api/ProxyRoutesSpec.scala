@@ -64,240 +64,238 @@ class ProxyRoutesSpec
                                             Some(runtimeInternalId))
   }
 
-  val pathPrefixes = Set("notebooks", "proxy")
+  val prefix = "proxy"
 
-  for (prefix <- pathPrefixes) {
-    "ProxyRoutes" should s"listen on /$prefix/{project}/{name}/... ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.OK
-        validateCors()
-      }
-      Get(s"/$prefix/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.OK
-        validateCors()
-      }
-      val newName = "aDifferentClusterName"
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)),
-                                              Some(runtimeInternalId))
-      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.NotFound
-        validateCors()
-      }
-
-      Get(s"/$prefix/").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        handled shouldBe false
-      }
-      Get(s"/api/$prefix").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        handled shouldBe false
-      }
+  "ProxyRoutes" should s"listen on /$prefix/{project}/{name}/... ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      validateCors()
+    }
+    Get(s"/$prefix/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      validateCors()
+    }
+    val newName = "aDifferentClusterName"
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)),
+                                            Some(runtimeInternalId))
+    Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.NotFound
+      validateCors()
     }
 
-    it should s"404 for non-existent clusters ($prefix)" in {
-      val newName = "aDifferentClusterName"
-      // should 404 since the internal id cannot be looked up
-      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        status shouldEqual StatusCodes.NotFound
+    Get(s"/$prefix/").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe false
+    }
+    Get(s"/api/$prefix").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe false
+    }
+  }
+
+  it should s"404 for non-existent clusters ($prefix)" in {
+    val newName = "aDifferentClusterName"
+    // should 404 since the internal id cannot be looked up
+    Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+    // should still 404 even if a cache entry is present
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)),
+                                            Some(runtimeInternalId))
+    Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+  }
+
+  it should s"set CORS headers in proxy requests ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      validateCors(origin = Some("http://example.com"))
+    }
+  }
+
+  it should s"reject non-cookied requests ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName") ~> httpRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should s"404 when using a non-white-listed user ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName")
+      .addHeader(Cookie(unauthorizedTokenCookie)) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+  }
+
+  it should s"401 when using an expired token ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(expiredTokenCookie)) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should s"pass through paths ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Data].path shouldEqual s"/$prefix/$googleProject/$clusterName"
+    }
+  }
+
+  it should s"pass through query string params ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      responseAs[Data].qs shouldBe None
+    }
+    Get(s"/$prefix/$googleProject/$clusterName?foo=bar&baz=biz")
+      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
+    }
+  }
+
+  it should s"pass through http methods ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      responseAs[Data].method shouldBe "GET"
+    }
+    Post(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      responseAs[Data].method shouldBe "POST"
+    }
+    Put(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      responseAs[Data].method shouldBe "PUT"
+    }
+  }
+
+  it should s"pass through headers ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(RawHeader("foo", "bar"))
+      .addHeader(RawHeader("baz", "biz")) ~> proxyRoutes.route ~> check {
+      responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
+    }
+  }
+
+  it should s"remove utf-8'' from content-disposition header filenames ($prefix)" in {
+    // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
+    Get(s"/$prefix/$googleProject/$clusterName/content-disposition-test")
+      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      responseAs[HttpResponse].headers should contain(
+        `Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb"))
+      )
+    }
+  }
+
+  it should s"proxy websockets ($prefix)" in withWebsocketProxy {
+    // See comments in ProxyService.handleHttpRequest for more high-level information on Flows, Sources, and Sinks.
+
+    // Sink for incoming data from the WebSocket
+    val incoming = Sink.head[String]
+
+    // Source outgoing data over the WebSocket
+    val outgoing = Source.single(TextMessage("Leonardo"))
+
+    // Flow to hit the proxy server
+    val webSocketFlow = Http()
+      .webSocketClientFlow(
+        WebSocketRequest(Uri(s"ws://localhost:9000/$prefix/$googleProject/$clusterName/websocket"),
+                         immutable.Seq(Cookie(tokenCookie)))
+      )
+      .map {
+        case m: TextMessage.Strict => m.text
+        case _                     => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
       }
-      // should still 404 even if a cache entry is present
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)),
-                                              Some(runtimeInternalId))
-      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        status shouldEqual StatusCodes.NotFound
-      }
+
+    // Glue together the source, sink, and flow. This materializes the Flow and actually initiates the HTTP request.
+    // Returns a tuple of:
+    //  - `upgradeResponse` is a Future[WebSocketUpgradeResponse] that completes or fails when the connection succeeds or fails.
+    //  - `result` is a Future[String] with the stream completion from the incoming sink.
+    val (upgradeResponse, result) =
+      outgoing
+        .viaMat(webSocketFlow)(Keep.right)
+        .toMat(incoming)(Keep.both)
+        .run()
+
+    // The connection future should have returned the HTTP 101 status code
+    upgradeResponse.futureValue.response.status shouldBe StatusCodes.SwitchingProtocols
+    // The stream completion future should have greeted Leonardo
+    result.futureValue shouldBe "Hello Leonardo!"
+  }
+
+  "setCookie" should s"set a cookie given a valid Authorization header ($prefix)" in {
+    // cache should not initially contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
+    // login request with Authorization header should succeed and return a Set-Cookie header
+    Get(s"/$prefix/$googleProject/$clusterName/setCookie")
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
+      .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
+      validateRawCookie(setCookie = header("Set-Cookie"), age = 3600)
+      status shouldEqual StatusCodes.NoContent
+      validateCors(origin = Some("http://example.com"))
     }
 
-    it should s"set CORS headers in proxy requests ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName")
-        .addHeader(Cookie(tokenCookie))
-        .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.OK
-        validateCors(origin = Some("http://example.com"))
-      }
+    // cache should now contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
+  }
+
+  it should s"handle preflight OPTIONS requests ($prefix)" in {
+    Options(s"/$prefix/$googleProject/$clusterName/setCookie")
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
+      .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.NoContent
+      header[`Set-Cookie`] shouldBe None
+      validateCors(origin = Some("http://example.com"), optionsRequest = true)
+    }
+  }
+
+  it should s"401 when not given an Authorization header ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName/setCookie")
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should s"404 when using a non-white-listed user ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName/setCookie")
+      .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value)))
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+  }
+
+  it should s"401 when using an expired token ($prefix)" in {
+    Get(s"/$prefix/$googleProject/$clusterName")
+      .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  "invalidateToken" should s"remove a token from cache ($prefix)" in {
+    // cache should not initially contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
+
+    // regular request with a cookie should succeed but NOT return a Set-Cookie header
+    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      header[`Set-Cookie`] shouldBe None
     }
 
-    it should s"reject non-cookied requests ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName") ~> httpRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.Unauthorized
-      }
+    // cache should now contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
+
+    // log out, passing a cookie
+    Get(s"/$prefix/invalidateToken").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      header[`Set-Cookie`] shouldBe None
     }
 
-    it should s"404 when using a non-white-listed user ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName")
-        .addHeader(Cookie(unauthorizedTokenCookie)) ~> httpRoutes.route ~> check {
-        status shouldEqual StatusCodes.NotFound
-      }
-    }
-
-    it should s"401 when using an expired token ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(expiredTokenCookie)) ~> httpRoutes.route ~> check {
-        status shouldEqual StatusCodes.Unauthorized
-      }
-    }
-
-    it should s"pass through paths ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Data].path shouldEqual s"/$prefix/$googleProject/$clusterName"
-      }
-    }
-
-    it should s"pass through query string params ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        responseAs[Data].qs shouldBe None
-      }
-      Get(s"/$prefix/$googleProject/$clusterName?foo=bar&baz=biz")
-        .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
-      }
-    }
-
-    it should s"pass through http methods ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        responseAs[Data].method shouldBe "GET"
-      }
-      Post(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        responseAs[Data].method shouldBe "POST"
-      }
-      Put(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        responseAs[Data].method shouldBe "PUT"
-      }
-    }
-
-    it should s"pass through headers ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName")
-        .addHeader(Cookie(tokenCookie))
-        .addHeader(RawHeader("foo", "bar"))
-        .addHeader(RawHeader("baz", "biz")) ~> proxyRoutes.route ~> check {
-        responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
-      }
-    }
-
-    it should s"remove utf-8'' from content-disposition header filenames ($prefix)" in {
-      // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
-      Get(s"/$prefix/$googleProject/$clusterName/content-disposition-test")
-        .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-        responseAs[HttpResponse].headers should contain(
-          `Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb"))
-        )
-      }
-    }
-
-    it should s"proxy websockets ($prefix)" in withWebsocketProxy {
-      // See comments in ProxyService.handleHttpRequest for more high-level information on Flows, Sources, and Sinks.
-
-      // Sink for incoming data from the WebSocket
-      val incoming = Sink.head[String]
-
-      // Source outgoing data over the WebSocket
-      val outgoing = Source.single(TextMessage("Leonardo"))
-
-      // Flow to hit the proxy server
-      val webSocketFlow = Http()
-        .webSocketClientFlow(
-          WebSocketRequest(Uri(s"ws://localhost:9000/$prefix/$googleProject/$clusterName/websocket"),
-                           immutable.Seq(Cookie(tokenCookie)))
-        )
-        .map {
-          case m: TextMessage.Strict => m.text
-          case _                     => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
-        }
-
-      // Glue together the source, sink, and flow. This materializes the Flow and actually initiates the HTTP request.
-      // Returns a tuple of:
-      //  - `upgradeResponse` is a Future[WebSocketUpgradeResponse] that completes or fails when the connection succeeds or fails.
-      //  - `result` is a Future[String] with the stream completion from the incoming sink.
-      val (upgradeResponse, result) =
-        outgoing
-          .viaMat(webSocketFlow)(Keep.right)
-          .toMat(incoming)(Keep.both)
-          .run()
-
-      // The connection future should have returned the HTTP 101 status code
-      upgradeResponse.futureValue.response.status shouldBe StatusCodes.SwitchingProtocols
-      // The stream completion future should have greeted Leonardo
-      result.futureValue shouldBe "Hello Leonardo!"
-    }
-
-    "setCookie" should s"set a cookie given a valid Authorization header ($prefix)" in {
-      // cache should not initially contain the token
-      proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
-      // login request with Authorization header should succeed and return a Set-Cookie header
-      Get(s"/$prefix/$googleProject/$clusterName/setCookie")
-        .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
-        validateRawCookie(setCookie = header("Set-Cookie"), age = 3600)
-        status shouldEqual StatusCodes.NoContent
-        validateCors(origin = Some("http://example.com"))
-      }
-
-      // cache should now contain the token
-      proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
-    }
-
-    it should s"handle preflight OPTIONS requests ($prefix)" in {
-      Options(s"/$prefix/$googleProject/$clusterName/setCookie")
-        .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.NoContent
-        header[`Set-Cookie`] shouldBe None
-        validateCors(origin = Some("http://example.com"), optionsRequest = true)
-      }
-    }
-
-    it should s"401 when not given an Authorization header ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName/setCookie")
-        .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.Unauthorized
-      }
-    }
-
-    it should s"404 when using a non-white-listed user ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName/setCookie")
-        .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
-        status shouldEqual StatusCodes.NotFound
-      }
-    }
-
-    it should s"401 when using an expired token ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName")
-        .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
-        .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
-        status shouldEqual StatusCodes.Unauthorized
-      }
-    }
-
-    "invalidateToken" should s"remove a token from cache ($prefix)" in {
-      // cache should not initially contain the token
-      proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
-
-      // regular request with a cookie should succeed but NOT return a Set-Cookie header
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.OK
-        header[`Set-Cookie`] shouldBe None
-      }
-
-      // cache should now contain the token
-      proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
-
-      // log out, passing a cookie
-      Get(s"/$prefix/invalidateToken").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
-        handled shouldBe true
-        status shouldEqual StatusCodes.OK
-        header[`Set-Cookie`] shouldBe None
-      }
-
-      // cache should not contain the token
-      proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
-    }
+    // cache should not contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
   }
 
   /**
