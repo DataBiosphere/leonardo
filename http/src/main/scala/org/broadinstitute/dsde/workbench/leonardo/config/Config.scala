@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
   ConnectSrc,
   FrameAncestors,
   ObjectSrc,
+  ReportUri,
   ScriptSrc,
   StyleSrc
 }
@@ -228,7 +229,8 @@ object Config {
         config.as[ScriptSrc]("scriptSrc"),
         config.as[StyleSrc]("styleSrc"),
         config.as[ConnectSrc]("connectSrc"),
-        config.as[ObjectSrc]("objectSrc")
+        config.as[ObjectSrc]("objectSrc"),
+        config.as[ReportUri]("reportUri")
       )
   }
 
@@ -348,6 +350,7 @@ object Config {
   implicit val styleSrcReader: ValueReader[StyleSrc] = traversableReader[List, String].map(StyleSrc)
   implicit val connectSrcReader: ValueReader[ConnectSrc] = traversableReader[List, String].map(ConnectSrc)
   implicit val objectSrcReader: ValueReader[ObjectSrc] = traversableReader[List, String].map(ObjectSrc)
+  implicit val reportUriReader: ValueReader[ReportUri] = traversableReader[List, String].map(ReportUri)
   implicit val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
     ValueReader.relative { config =>
       LeoPubsubMessageSubscriberConfig(
