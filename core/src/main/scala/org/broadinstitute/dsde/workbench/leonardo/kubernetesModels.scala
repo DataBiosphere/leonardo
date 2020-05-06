@@ -8,10 +8,6 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Net
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-/** Google Container Cluster statuses
- *  see: https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters#Cluster.Status
- */
-
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
                              clusterName: KubernetesClusterName,
@@ -27,20 +23,12 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                             )
 
 object KubernetesCluster {
+
   implicit class EnrichedKubernetesCluster(cluster: KubernetesCluster) {
     def getGKEClusterId: KubernetesClusterId = KubernetesClusterId(cluster.googleProject, cluster.location, cluster.clusterName)
   }
-}
 
-case class SaveKubernetesCluster(googleProject: GoogleProject,
-                                 clusterName: KubernetesClusterName,
-                                 location: Location,
-                                 status: KubernetesClusterStatus,
-                                 serviceAccountInfo: WorkbenchEmail,
-                                 samResourceId: KubernetesClusterSamResource,
-                                 auditInfo: AuditInfo,
-                                 labels: LabelMap,
-                                 initialNodepool: Nodepool) //the clusterId specified here isn't used, and will be replaced by the id of cluster saved beforehand
+}
 
 case class KubernetesClusterSamResource(resourceId: String)
 
@@ -52,6 +40,10 @@ case class NetworkFields(networkName: NetworkName,
                          subNetworkName: SubnetworkName,
                          subNetworkIpRange: IpRange)
 
+
+/** Google Container Cluster statuses
+ *  see: https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters#Cluster.Status
+ */
 
 //TODO: possibly consolidate Kubernetes status when monitoring is implemented
 sealed trait KubernetesClusterStatus extends EnumEntry with Product with Serializable
@@ -67,6 +59,10 @@ object KubernetesClusterStatus extends Enum[KubernetesClusterStatus] {
   case object Error extends KubernetesClusterStatus
   case object Degraded extends KubernetesClusterStatus
 }
+
+/** Google Container Nodepool statuses
+ * See https://googleapis.github.io/googleapis/java/all/latest/apidocs/com/google/container/v1/NodePool.Status.html
+ */
 
 //TODO: possibly consolidate Kubernetes status when monitoring is implemented
 sealed trait NodepoolStatus extends EnumEntry with Product with Serializable

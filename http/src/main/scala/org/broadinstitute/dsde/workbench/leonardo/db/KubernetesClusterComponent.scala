@@ -202,3 +202,13 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
     }
 
 }
+
+case class SaveKubernetesCluster(googleProject: GoogleProject,
+                                 clusterName: KubernetesClusterName,
+                                 location: Location,
+                                 status: KubernetesClusterStatus,
+                                 serviceAccountInfo: WorkbenchEmail,
+                                 samResourceId: KubernetesClusterSamResource,
+                                 auditInfo: AuditInfo,
+                                 labels: LabelMap,
+                                 initialNodepool: Nodepool) //the clusterId specified here isn't used, and will be replaced by the id of cluster saved beforehand
