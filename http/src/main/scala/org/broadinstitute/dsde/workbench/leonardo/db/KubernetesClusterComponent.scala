@@ -141,13 +141,15 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       .map(_.status)
       .update(status)
 
-  def updateAsyncFields(id: KubernetesClusterLeoId, asyncFields: KubernetesClusterAsyncFields): DBIO[Int] = {
+  def updateAsyncFields(id: KubernetesClusterLeoId, asyncFields: KubernetesClusterAsyncFields): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.apiServerIp, c.networkName, c.subNetworkName, c.subNetworkIpRange))
       .update(
-        (Some(asyncFields.apiServerIp), Some(asyncFields.networkInfo.networkName), Some(asyncFields.networkInfo.subNetworkName), Some(asyncFields.networkInfo.subNetworkIpRange))
+        (Some(asyncFields.apiServerIp),
+         Some(asyncFields.networkInfo.networkName),
+         Some(asyncFields.networkInfo.subNetworkName),
+         Some(asyncFields.networkInfo.subNetworkIpRange))
       )
-  }
 
   def updateDestroyedDate(id: KubernetesClusterLeoId, destroyedDate: Instant): DBIO[Int] =
     findByIdQuery(id)
@@ -182,7 +184,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       ),
       (cr.apiServerIp, unmarshalNetwork(cr)) match {
         case (Some(apiServerIp), Some(networkFields)) => Some(KubernetesClusterAsyncFields(apiServerIp, networkFields))
-        case _ => None
+        case _                                        => None
       },
       namespaces,
       labels,
@@ -199,12 +201,14 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
 }
 
-case class SaveKubernetesCluster(googleProject: GoogleProject,
-                                 clusterName: KubernetesClusterName,
-                                 location: Location,
-                                 status: KubernetesClusterStatus,
-                                 serviceAccountInfo: WorkbenchEmail,
-                                 samResourceId: KubernetesClusterSamResource,
-                                 auditInfo: AuditInfo,
-                                 labels: LabelMap,
-                                 initialNodepool: Nodepool) //the clusterId specified here isn't used, and will be replaced by the id of cluster saved beforehand
+case class SaveKubernetesCluster(
+  googleProject: GoogleProject,
+  clusterName: KubernetesClusterName,
+  location: Location,
+  status: KubernetesClusterStatus,
+  serviceAccountInfo: WorkbenchEmail,
+  samResourceId: KubernetesClusterSamResource,
+  auditInfo: AuditInfo,
+  labels: LabelMap,
+  initialNodepool: Nodepool
+) //the clusterId specified here isn't used, and will be replaced by the id of cluster saved beforehand
