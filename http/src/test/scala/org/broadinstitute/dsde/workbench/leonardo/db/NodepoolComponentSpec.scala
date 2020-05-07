@@ -63,7 +63,7 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
     val savedCluster1 = makeKubeCluster(1).save()
 
     val savedNodepool1 = makeNodepool(3, savedCluster1.id).save()
-    savedNodepool1.status shouldBe NodepoolStatus.Status_Unspecified
+    savedNodepool1.status shouldBe NodepoolStatus.StatusUnspecified
 
     dbFutureValue(nodepoolQuery.updateStatus(savedNodepool1.id, NodepoolStatus.Provisioning)) shouldBe 1
 

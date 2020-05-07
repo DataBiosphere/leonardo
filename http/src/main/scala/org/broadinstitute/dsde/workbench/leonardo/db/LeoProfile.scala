@@ -111,7 +111,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val kubernetesClusterLeoIdColumnType: BaseColumnType[KubernetesClusterLeoId] =
       MappedColumnType.base[KubernetesClusterLeoId, Long](_.id, KubernetesClusterLeoId.apply)
     implicit val kubernetesStatusColumnType: BaseColumnType[KubernetesClusterStatus] =
-      MappedColumnType.base[KubernetesClusterStatus, String](_.entryName, s => KubernetesClusterStatus.withName(s))
+      MappedColumnType.base[KubernetesClusterStatus, String](_.toString, s => KubernetesClusterStatus.stringToObject(s))
     implicit val kubernetesClusterNameColumnType: BaseColumnType[KubernetesClusterName] =
       MappedColumnType.base[KubernetesClusterName, String](_.value, KubernetesClusterName.apply)
     implicit val operationNameColumnType: BaseColumnType[OperationName] =
@@ -145,6 +145,6 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val autoScalingMaxColumnType: BaseColumnType[AutoScalingMax] =
       MappedColumnType.base[AutoScalingMax, Int](_.amount, AutoScalingMax.apply)
     implicit val nodepoolStatusColumnType: BaseColumnType[NodepoolStatus] =
-      MappedColumnType.base[NodepoolStatus, String](_.entryName, s => NodepoolStatus.withName(s))
+      MappedColumnType.base[NodepoolStatus, String](_.toString, s => NodepoolStatus.stringToObject(s))
   }
 }

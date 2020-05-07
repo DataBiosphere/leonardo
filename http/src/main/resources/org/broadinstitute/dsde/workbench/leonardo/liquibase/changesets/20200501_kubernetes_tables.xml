@@ -15,7 +15,7 @@
             <column name="location" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="status" type="VARCHAR(254)" defaultValue="Status_Unspecified">
+            <column name="status" type="VARCHAR(254)" defaultValue="STATUS_UNSPECIFIED">
                 <constraints nullable="false"/>
             </column>
             <column name="serviceAccountInfo" type="VARCHAR(254)">
@@ -58,7 +58,7 @@
             <column name="nodepoolName" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="status" type="VARCHAR(254)" defaultValue="Status_Unspecified">
+            <column name="status" type="VARCHAR(254)" defaultValue="STATUS_UNSPECIFIED">
                 <constraints nullable="false"/>
             </column>
             <column name="creator" type="VARCHAR(254)">

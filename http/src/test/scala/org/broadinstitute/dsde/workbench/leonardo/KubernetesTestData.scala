@@ -28,7 +28,7 @@ object KubernetesTestData {
       NodepoolLeoId(-1), //will be replaced
       clusterId,
       name,
-      NodepoolStatus.Status_Unspecified,
+      NodepoolStatus.StatusUnspecified,
       auditInfo,
       MachineTypeName("n1-standard-4"),
       NumNodes(2),
@@ -44,7 +44,7 @@ object KubernetesTestData {
       project,
       name,
       location,
-      KubernetesClusterStatus.Status_Unspecified,
+      KubernetesClusterStatus.StatusUnspecified,
       serviceAccountEmail,
       kubeClusterSamId,
       auditInfo,
