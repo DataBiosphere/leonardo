@@ -141,17 +141,25 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       .map(_.status)
       .update(status)
 
-  def updateNetwork(id: KubernetesClusterLeoId, networkFields: NetworkFields): DBIO[Int] =
+  def updateAsyncFields(id: KubernetesClusterLeoId, asyncFields: KubernetesClusterAsyncFields): DBIO[Int] = {
     findByIdQuery(id)
-      .map(c => (c.networkName, c.subNetworkName, c.subNetworkIpRange))
+      .map(c => (c.apiServerIp, c.networkName, c.subNetworkName, c.subNetworkIpRange))
       .update(
-        (Some(networkFields.networkName), Some(networkFields.subNetworkName), Some(networkFields.subNetworkIpRange))
+        (Some(asyncFields.apiServerIp), Some(asyncFields.networkInfo.networkName), Some(asyncFields.networkInfo.subNetworkName), Some(asyncFields.networkInfo.subNetworkIpRange))
       )
+  }
 
-  def updateApiServerIp(id: KubernetesClusterLeoId, apiServerIp: KubernetesApiServerIp): DBIO[Int] =
-    findByIdQuery(id)
-      .map(_.apiServerIp)
-      .update(Some(apiServerIp))
+//  def updateNetwork(id: KubernetesClusterLeoId, networkFields: NetworkFields): DBIO[Int] =
+//    findByIdQuery(id)
+//      .map(c => (c.networkName, c.subNetworkName, c.subNetworkIpRange))
+//      .update(
+//        (Some(networkFields.networkName), Some(networkFields.subNetworkName), Some(networkFields.subNetworkIpRange))
+//      )
+//
+//  def updateApiServerIp(id: KubernetesClusterLeoId, apiServerIp: KubernetesApiServerIp): DBIO[Int] =
+//    findByIdQuery(id)
+//      .map(_.apiServerIp)
+//      .update(Some(apiServerIp))
 
   def updateDestroyedDate(id: KubernetesClusterLeoId, destroyedDate: Instant): DBIO[Int] =
     findByIdQuery(id)
@@ -184,10 +192,10 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
         unmarshalDestroyedDate(cr.destroyedDate),
         cr.dateAccessed
       ),
-      KubernetesClusterAsyncFields(
-        cr.apiServerIp,
-        unmarshalNetwork(cr)
-      ),
+      (cr.apiServerIp, unmarshalNetwork(cr)) match {
+        case (Some(apiServerIp), Some(networkFields)) => Some(KubernetesClusterAsyncFields(apiServerIp, networkFields))
+        case _ => None
+      },
       namespaces,
       labels,
       nodepools

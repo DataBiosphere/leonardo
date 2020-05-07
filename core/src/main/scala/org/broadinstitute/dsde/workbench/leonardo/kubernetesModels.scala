@@ -16,7 +16,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              serviceAccountInfo: WorkbenchEmail,
                              samResourceId: KubernetesClusterSamResource,
                              auditInfo: AuditInfo,
-                             asyncFields: KubernetesClusterAsyncFields,
+                             asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: Set[KubernetesNamespaceName],
                              labels: LabelMap,
                              nodepools: Set[Nodepool]
@@ -25,15 +25,15 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
 object KubernetesCluster {
 
   implicit class EnrichedKubernetesCluster(cluster: KubernetesCluster) {
-    def getGKEClusterId: KubernetesClusterId = KubernetesClusterId(cluster.googleProject, cluster.location, cluster.clusterName)
+    def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(cluster.googleProject, cluster.location, cluster.clusterName)
   }
 
 }
 
 case class KubernetesClusterSamResource(resourceId: String)
 
-case class KubernetesClusterAsyncFields(apiServerIp: Option[KubernetesApiServerIp],
-                                        networkInfo: Option[NetworkFields]
+case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp,
+                                        networkInfo: NetworkFields
                                        )
 
 case class NetworkFields(networkName: NetworkName,

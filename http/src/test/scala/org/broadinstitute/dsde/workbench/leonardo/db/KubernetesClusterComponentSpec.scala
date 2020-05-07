@@ -68,16 +68,13 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
   it should "update async fields" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
 
-    dbFutureValue(kubernetesClusterQuery.updateNetwork(savedCluster1.id, networkFields))
-    val updatedCluster1 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
-    val newAsyncFields1 = KubernetesClusterAsyncFields(None, Some(networkFields))
-    updatedCluster1 shouldBe Some(savedCluster1.copy(asyncFields = newAsyncFields1))
+    val newAsyncFields = KubernetesClusterAsyncFields(apiServerIp, networkFields)
+    assert(savedCluster1.asyncFields != Some(newAsyncFields))
 
-    val savedCluster2 = makeKubeCluster(2).save()
-    dbFutureValue(kubernetesClusterQuery.updateApiServerIp(savedCluster2.id, apiServerIp))
-    val updatedCluster2 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster2.id))
-    val newAsyncFields2 = KubernetesClusterAsyncFields(Some(apiServerIp), None)
-    updatedCluster2 shouldBe Some(savedCluster2.copy(asyncFields = newAsyncFields2))
+    dbFutureValue(kubernetesClusterQuery.updateAsyncFields(savedCluster1.id, newAsyncFields)) shouldBe 1
+    val updatedCluster1 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
+
+    updatedCluster1 shouldBe Some(savedCluster1.copy(asyncFields = Some(newAsyncFields)))
   }
 
   it should "update destroyed date" in isolatedDbTest {

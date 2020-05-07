@@ -48,7 +48,7 @@ object KubernetesTestData {
       serviceAccountEmail,
       kubeClusterSamId,
       auditInfo,
-      KubernetesClusterAsyncFields(None, None),
+      None,
       Set(),
       Map(),
       Set(makeNodepool(index, KubernetesClusterLeoId(-1)))
