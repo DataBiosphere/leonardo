@@ -115,7 +115,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   //TODO: it is yet to be seen whether this will be used. It could be useful though
   def fromKubernetesClusterStatus(kubernetesClusterStatus: KubernetesClusterStatus): RuntimeStatus =
     kubernetesClusterStatus match {
-      case KubernetesClusterStatus.Status_Unspecified => Unknown
+      case KubernetesClusterStatus.StatusUnspecified => Unknown
       case KubernetesClusterStatus.Provisioning => Creating
       case KubernetesClusterStatus.Running => Running
       case KubernetesClusterStatus.Reconciling => Updating
