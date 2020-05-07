@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import enumeratum.{Enum, EnumEntry}
+import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
@@ -23,20 +23,18 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                             )
 
 object KubernetesCluster {
-
   implicit class EnrichedKubernetesCluster(cluster: KubernetesCluster) {
     def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(cluster.googleProject, cluster.location, cluster.clusterName)
   }
-
 }
 
-case class KubernetesClusterSamResource(resourceId: String)
+final case class KubernetesClusterSamResource(resourceId: String)
 
-case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp,
+final case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp,
                                         networkInfo: NetworkFields
                                        )
 
-case class NetworkFields(networkName: NetworkName,
+final case class NetworkFields(networkName: NetworkName,
                          subNetworkName: SubnetworkName,
                          subNetworkIpRange: IpRange)
 
@@ -45,44 +43,81 @@ case class NetworkFields(networkName: NetworkName,
  *  see: https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters#Cluster.Status
  */
 
-//TODO: possibly consolidate Kubernetes status when monitoring is implemented
-sealed trait KubernetesClusterStatus extends EnumEntry with Product with Serializable
-object KubernetesClusterStatus extends Enum[KubernetesClusterStatus] {
-  val values = findValues
+sealed abstract class KubernetesClusterStatus
+object KubernetesClusterStatus {
+  case object StatusUnspecified extends KubernetesClusterStatus {
+    override def toString: String = "STATUS_UNSPECIFIED"
+  }
 
-  // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Status_Unspecified extends KubernetesClusterStatus
-  case object Provisioning extends KubernetesClusterStatus
-  case object Running extends KubernetesClusterStatus
-  case object Reconciling extends KubernetesClusterStatus
-  case object Stopping extends KubernetesClusterStatus
-  case object Error extends KubernetesClusterStatus
-  case object Degraded extends KubernetesClusterStatus
+  case object Provisioning extends KubernetesClusterStatus {
+    override def toString: String = "PROVISIONING"
+  }
+
+  case object Running extends KubernetesClusterStatus {
+    override def toString: String = "RUNNING"
+  }
+
+  case object Reconciling extends KubernetesClusterStatus {
+    override def toString: String = "RECONCILING"
+  }
+
+  case object Stopping extends KubernetesClusterStatus {
+    override def toString: String = "STOPPING"
+  }
+
+  case object Error extends KubernetesClusterStatus {
+    override def toString: String = "ERROR"
+  }
+
+  case object Degraded extends KubernetesClusterStatus {
+    override def toString: String = "DEGRADED"
+  }
+
+  def values: Set[KubernetesClusterStatus] = sealerate.values[KubernetesClusterStatus]
+  def stringToObject: Map[String, KubernetesClusterStatus] = values.map(v => v.toString -> v).toMap
 }
 
 /** Google Container Nodepool statuses
  * See https://googleapis.github.io/googleapis/java/all/latest/apidocs/com/google/container/v1/NodePool.Status.html
  */
+sealed abstract class NodepoolStatus
+object NodepoolStatus {
+  case object StatusUnspecified extends NodepoolStatus {
+    override def toString: String = "STATUS_UNSPECIFIED"
+  }
 
-//TODO: possibly consolidate Kubernetes status when monitoring is implemented
-sealed trait NodepoolStatus extends EnumEntry with Product with Serializable
-object NodepoolStatus extends Enum[NodepoolStatus] {
-  val values = findValues
+  case object Provisioning extends NodepoolStatus {
+    override def toString: String = "PROVISIONING"
+  }
 
-  // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Status_Unspecified extends NodepoolStatus
-  case object Provisioning extends NodepoolStatus
-  case object Running extends NodepoolStatus
-  case object Running_with_Error extends NodepoolStatus //consistent with Degraded from KubernetesClusterStatus
-  case object Reconciling extends NodepoolStatus
-  case object Stopping extends NodepoolStatus
-  case object Error extends NodepoolStatus
+  case object Running extends NodepoolStatus {
+    override def toString: String = "RUNNING"
+  }
+
+  case object Reconciling extends NodepoolStatus {
+    override def toString: String = "RECONCILING"
+  }
+
+  case object Stopping extends NodepoolStatus {
+    override def toString: String = "STOPPING"
+  }
+
+  case object Error extends NodepoolStatus {
+    override def toString: String = "ERROR"
+  }
+
+  case object RunningWithError extends NodepoolStatus {
+    override def toString: String = "RUNNING_WITH_ERROR"
+  }
+
+  def values: Set[NodepoolStatus] = sealerate.values[NodepoolStatus]
+  def stringToObject: Map[String, NodepoolStatus] = values.map(v => v.toString -> v).toMap
 }
 
-case class KubernetesClusterLeoId(id: Long)
-case class KubernetesNamespaceId(id: Long)
+final case class KubernetesClusterLeoId(id: Long)
+final case class KubernetesNamespaceId(id: Long)
 
-case class Nodepool(id: NodepoolLeoId,
+final case class Nodepool(id: NodepoolLeoId,
                     clusterId: KubernetesClusterLeoId,
                     nodepoolName: NodepoolName,
                     status: NodepoolStatus,
@@ -92,11 +127,11 @@ case class Nodepool(id: NodepoolLeoId,
                     autoScalingEnabled: Boolean,
                     autoscalingConfig: Option[NodepoolAutoscaling])
 
-case class NodepoolAutoscaling(autoScalingMin: AutoScalingMin,
+final case class NodepoolAutoscaling(autoScalingMin: AutoScalingMin,
                                autoScalingMax: AutoScalingMax)
 
-case class NodepoolLeoId(id: Long)
-case class NumNodes(amount: Int)
-case class AutoScalingMin(amount: Int)
-case class AutoScalingMax(amount: Int)
+final case class NodepoolLeoId(id: Long)
+final case class NumNodes(amount: Int)
+final case class AutoScalingMin(amount: Int)
+final case class AutoScalingMax(amount: Int)
 

@@ -25,7 +25,7 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id)) shouldEqual Some(savedCluster1)
     dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)
 
-    dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster1.googleProject, savedCluster1.clusterName)) shouldEqual  Some(savedCluster1)
+    dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster1.googleProject, savedCluster1.clusterName)) shouldEqual Some(savedCluster1)
     dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster2.googleProject, savedCluster2.clusterName)) shouldEqual Some(savedCluster2)
 
     //should delete the cluster and initial nodepool, hence '2' records deleted

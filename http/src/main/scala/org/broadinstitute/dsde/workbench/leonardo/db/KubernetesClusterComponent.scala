@@ -149,18 +149,6 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       )
   }
 
-//  def updateNetwork(id: KubernetesClusterLeoId, networkFields: NetworkFields): DBIO[Int] =
-//    findByIdQuery(id)
-//      .map(c => (c.networkName, c.subNetworkName, c.subNetworkIpRange))
-//      .update(
-//        (Some(networkFields.networkName), Some(networkFields.subNetworkName), Some(networkFields.subNetworkIpRange))
-//      )
-//
-//  def updateApiServerIp(id: KubernetesClusterLeoId, apiServerIp: KubernetesApiServerIp): DBIO[Int] =
-//    findByIdQuery(id)
-//      .map(_.apiServerIp)
-//      .update(Some(apiServerIp))
-
   def updateDestroyedDate(id: KubernetesClusterLeoId, destroyedDate: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(_.destroyedDate)
