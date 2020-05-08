@@ -55,8 +55,31 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
         namespaces = namespaceSet
     ))
 
-    //we expect 5 records to be deleted: 2 namespaces, 2 nodepools, 1 cluster
-//    dbFutureValue(kubernetesClusterQuery.delete(savedCluster1.id)) shouldBe 5
+    //we expect 5 records to be affected by the delete: 2 namespaces, 2 nodepools, 1 cluster
+    dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster1.id, Instant.now())) shouldBe 5
+  }
+
+  it should "list all clusters" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedCluster2 = makeKubeCluster(2).save()
+    val savedCluster3 = makeKubeCluster(3).save()
+
+    val now = Instant.now()
+    dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster3.id, now))
+
+    //list active
+    val listCluster1 = dbFutureValue(kubernetesClusterQuery.listFullClusters(savedCluster1.googleProject))
+    listCluster1.size shouldBe 2
+    listCluster1 should contain(savedCluster1)
+    listCluster1 should contain(savedCluster2)
+
+    //list deleted
+    val listCluster2 = dbFutureValue(kubernetesClusterQuery.listFullClusters(savedCluster1.googleProject, includeDeleted = true))
+    val getCluster3 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster3.id)).get
+    listCluster2.size shouldBe 3
+    listCluster2 should contain(savedCluster1)
+    listCluster2 should contain(savedCluster2)
+    listCluster2 should contain(getCluster3)
   }
 
   it should "have 1 nodepool when initialized" in isolatedDbTest {
