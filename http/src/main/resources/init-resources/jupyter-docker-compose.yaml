@@ -39,6 +39,7 @@ services:
       # Value must be the string "true" to enable.
       WELDER_ENABLED: "${WELDER_ENABLED}"
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
+      MEM_LIMIT: "${MEM_LIMIT}"
     env_file:
       - /etc/google_application_credentials.env
       - /etc/custom_env_vars.env
