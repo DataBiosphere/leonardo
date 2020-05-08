@@ -62,4 +62,5 @@ object LabelResourceType {
 
   val runtime: LabelResourceType = Runtime
   val persistentDisk: LabelResourceType = PersistentDisk
+  val kubernetesCluster: LabelResourceType = KubernetesCluster
 }

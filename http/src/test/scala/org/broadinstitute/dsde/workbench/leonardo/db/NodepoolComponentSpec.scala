@@ -25,7 +25,7 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
     nodepool1 shouldEqual savedNodepool1
     nodepool2 shouldEqual savedNodepool2
 
-    val nodepoolGetAll1 = dbFutureValue(nodepoolQuery.getAllForCluster(savedCluster1.id))
+    val nodepoolGetAll1 = dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id))
 
     //the 2 we saved plus initial nodepool
     nodepoolGetAll1.size shouldBe 3
@@ -37,14 +37,18 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
     clusterFromDb.map(_.nodepools).getOrElse(Set()) should contain(savedNodepool1)
     clusterFromDb.map(_.nodepools).getOrElse(Set()) should contain(savedNodepool2)
 
-    dbFutureValue(nodepoolQuery.delete(savedNodepool2.id)) shouldBe 1
-    val nodepoolGetAll2 = dbFutureValue(nodepoolQuery.getAllForCluster(savedCluster1.id))
+    val now = Instant.now()
+    dbFutureValue(nodepoolQuery.markAsDeleted(savedNodepool2.id, now)) shouldBe 1
+    val nodepoolGetAll2 = dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id))
     nodepoolGetAll2.size shouldBe 2
-    nodepoolGetAll2 should not contain(savedNodepool2)
     nodepoolGetAll2 should contain(savedNodepool1)
+    nodepoolGetAll2 should not contain(savedNodepool2)
 
-    dbFutureValue(nodepoolQuery.deleteAllForCluster(savedCluster1.id)) shouldBe 2
-    dbFutureValue(nodepoolQuery.getAllForCluster(savedCluster1.id)) shouldBe Set()
+    val deletedNodepoolGet = dbFutureValue(nodepoolQuery.getById(savedNodepool2.id))
+    deletedNodepoolGet shouldBe Some(savedNodepool2.copy(status = NodepoolStatus.Deleted, auditInfo = savedNodepool2.auditInfo.copy(destroyedDate = Some(now))))
+
+    dbFutureValue(nodepoolQuery.markActiveAsDeletedForCluster(savedCluster1.id, now)) shouldBe 2
+    dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id)) shouldBe Set()
   }
 
   it should "prevent duplicate (clusterId, nodepoolName) nodepools" in isolatedDbTest {
@@ -67,18 +71,6 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
 
     dbFutureValue(nodepoolQuery.updateStatus(savedNodepool1.id, NodepoolStatus.Provisioning)) shouldBe 1
 
-    dbFutureValue(nodepoolQuery.getAllForCluster(savedCluster1.id)) should contain(savedNodepool1.copy(status = NodepoolStatus.Provisioning))
-  }
-
-  it should "update destroyed date" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-
-    val savedNodepool1 = makeNodepool(3, savedCluster1.id).save()
-    savedNodepool1.auditInfo.destroyedDate shouldBe None
-
-    val newDestroyedDate = Instant.now()
-    dbFutureValue(nodepoolQuery.updateDestroyedDate(savedNodepool1.id, newDestroyedDate)) shouldBe 1
-
-    dbFutureValue(nodepoolQuery.getById(savedNodepool1.id)) shouldEqual Some(savedNodepool1.copy(auditInfo = savedNodepool1.auditInfo.copy(destroyedDate = Some(newDestroyedDate))))
+    dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id)) should contain(savedNodepool1.copy(status = NodepoolStatus.Provisioning))
   }
 }

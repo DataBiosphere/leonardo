@@ -61,5 +61,4 @@ object namespaceQuery extends TableQuery(new NamespaceTable(_)) {
       .filter(_.clusterId === clusterId)
       .result
       .map(rowOpt => rowOpt.map(row => row.namespaceName).toSet)
-
 }

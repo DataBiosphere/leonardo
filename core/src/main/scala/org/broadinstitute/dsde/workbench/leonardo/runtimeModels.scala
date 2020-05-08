@@ -121,7 +121,8 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
       case KubernetesClusterStatus.Reconciling => Updating
       case KubernetesClusterStatus.Degraded => Error
       case KubernetesClusterStatus.Error => Error
-      case KubernetesClusterStatus.Stopping => Deleting
+      case KubernetesClusterStatus.Deleting => Deleting
+      case KubernetesClusterStatus.Deleted => Deleted
     }
 
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.

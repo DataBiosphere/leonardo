@@ -5,7 +5,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
-import org.broadinstitute.dsde.workbench.leonardo.{KubernetesClusterAsyncFields, KubernetesClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{KubernetesClusterAsyncFields, KubernetesClusterStatus, NodepoolStatus}
 import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -28,9 +28,18 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster1.googleProject, savedCluster1.clusterName)) shouldEqual Some(savedCluster1)
     dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster2.googleProject, savedCluster2.clusterName)) shouldEqual Some(savedCluster2)
 
-    //should delete the cluster and initial nodepool, hence '2' records deleted
-    dbFutureValue(kubernetesClusterQuery.delete(savedCluster1.id)) shouldBe 2
-    dbFutureValue(kubernetesClusterQuery.delete(savedCluster2.id)) shouldBe 2
+    //should delete the cluster and initial nodepool, hence '2' records updated
+    val now = Instant.now()
+    dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster1.id, now)) shouldBe 2
+    dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster2.id, now)) shouldBe 2
+
+    val getDeletedCluster1 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
+    getDeletedCluster1.map(_.status) shouldEqual Some(KubernetesClusterStatus.Deleted)
+    getDeletedCluster1.map(_.auditInfo.destroyedDate) shouldEqual Some(Some(now))
+    getDeletedCluster1.map(_.nodepools.map(_.status)) shouldEqual Some(savedCluster1.nodepools.map(_.status).map(_ => NodepoolStatus.Deleted))
+
+    dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster2.id)).map(_.status) shouldEqual Some(KubernetesClusterStatus.Deleted)
+
   }
 
   it should "aggregate all sub tables on get, and clean up all tables on delete" in isolatedDbTest {
@@ -47,7 +56,7 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     ))
 
     //we expect 5 records to be deleted: 2 namespaces, 2 nodepools, 1 cluster
-    dbFutureValue(kubernetesClusterQuery.delete(savedCluster1.id)) shouldBe 5
+//    dbFutureValue(kubernetesClusterQuery.delete(savedCluster1.id)) shouldBe 5
   }
 
   it should "have 1 nodepool when initialized" in isolatedDbTest {
@@ -75,18 +84,6 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     val updatedCluster1 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
 
     updatedCluster1 shouldBe Some(savedCluster1.copy(asyncFields = Some(newAsyncFields)))
-  }
-
-  it should "update destroyed date" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    savedCluster1.auditInfo.destroyedDate shouldBe None
-
-    val newDate = Instant.now()
-    dbFutureValue(kubernetesClusterQuery.updateDestroyedDate(savedCluster1.id, newDate))
-    val updatedCluster1 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
-
-    updatedCluster1 shouldBe Some(savedCluster1.copy(auditInfo = savedCluster1.auditInfo.copy(destroyedDate = Some(newDate))))
-    dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster1.googleProject, savedCluster1.clusterName)) shouldBe None
   }
 
   it should "update status" in isolatedDbTest {

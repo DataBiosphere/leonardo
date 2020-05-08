@@ -73,9 +73,10 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
 }
 
 object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
-  private def findByClusterIdQuery(clusterId: KubernetesClusterLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
+  private def findActiveByClusterIdQuery(clusterId: KubernetesClusterLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
     nodepoolQuery
       .filter(_.clusterId === clusterId)
+      .filter(_.destroyedDate === dummyDate)
 
   private def findByNodepoolIdQuery(id: NodepoolLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
     nodepoolQuery
@@ -85,8 +86,8 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     findByNodepoolIdQuery(id).result.headOption
       .map(recOpt => recOpt.map(rec => unmarshalNodepool(rec)))
 
-  def getAllForCluster(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Set[Nodepool]] =
-    findByClusterIdQuery(clusterId).result
+  def getAllActiveForCluster(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Set[Nodepool]] =
+    findActiveByClusterIdQuery(clusterId).result
       .map(rowOpt => rowOpt.map(row => unmarshalNodepool(row)).toSet)
 
   def saveForCluster(n: Nodepool)(implicit ec: ExecutionContext): DBIO[Nodepool] =
@@ -114,18 +115,18 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       .map(_.status)
       .update(status)
 
-  def updateDestroyedDate(id: NodepoolLeoId, destroyedDate: Instant): DBIO[Int] =
-    findByNodepoolIdQuery(id)
-      .map(_.destroyedDate)
-      .update(destroyedDate)
+  def markActiveAsDeletedForCluster(id: KubernetesClusterLeoId, destroyedDate: Instant): DBIO[Int] =
+    deleteFromQuery(findActiveByClusterIdQuery(id), destroyedDate)
 
-  def deleteAllForCluster(id: KubernetesClusterLeoId): DBIO[Int] =
-    findByClusterIdQuery(id).delete
+  def markAsDeleted(id: NodepoolLeoId, destroyedDate: Instant): DBIO[Int] =
+    deleteFromQuery(findByNodepoolIdQuery(id), destroyedDate)
 
-  def delete(id: NodepoolLeoId): DBIO[Int] =
-    findByNodepoolIdQuery(id).delete
+  private def deleteFromQuery(baseQuery: Query[NodepoolTable, NodepoolRecord, Seq], destroyedDate: Instant): DBIO[Int] =
+    baseQuery
+      .map(n => (n.destroyedDate, n.status))
+      .update((destroyedDate, NodepoolStatus.Deleted))
 
-  private def unmarshalNodepool(rec: NodepoolRecord): Nodepool =
+  private[db] def unmarshalNodepool(rec: NodepoolRecord): Nodepool =
     Nodepool(
       rec.id,
       rec.clusterId,

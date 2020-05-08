@@ -45,34 +45,41 @@ final case class NetworkFields(networkName: NetworkName,
 
 sealed abstract class KubernetesClusterStatus
 object KubernetesClusterStatus {
-  case object StatusUnspecified extends KubernetesClusterStatus {
+  final case object StatusUnspecified extends KubernetesClusterStatus {
     override def toString: String = "STATUS_UNSPECIFIED"
   }
 
-  case object Provisioning extends KubernetesClusterStatus {
+  final case object Provisioning extends KubernetesClusterStatus {
     override def toString: String = "PROVISIONING"
   }
 
-  case object Running extends KubernetesClusterStatus {
+  final case object Running extends KubernetesClusterStatus {
     override def toString: String = "RUNNING"
   }
 
-  case object Reconciling extends KubernetesClusterStatus {
+  final case object Reconciling extends KubernetesClusterStatus {
     override def toString: String = "RECONCILING"
   }
 
-  case object Stopping extends KubernetesClusterStatus {
+  //in kubernetes statuses, they label "deleting' resources as 'stopping'
+  final case object Deleting extends KubernetesClusterStatus {
     override def toString: String = "STOPPING"
   }
 
-  case object Error extends KubernetesClusterStatus {
+  final case object Error extends KubernetesClusterStatus {
     override def toString: String = "ERROR"
   }
 
-  case object Degraded extends KubernetesClusterStatus {
+  final case object Degraded extends KubernetesClusterStatus {
     override def toString: String = "DEGRADED"
   }
 
+  //this is a custom status, and will not be returned from google
+  final case object Deleted extends KubernetesClusterStatus {
+    override def toString: String = "DELETED"
+  }
+
+  val deleted: KubernetesClusterStatus = Deleted
   def values: Set[KubernetesClusterStatus] = sealerate.values[KubernetesClusterStatus]
   def stringToObject: Map[String, KubernetesClusterStatus] = values.map(v => v.toString -> v).toMap
 }
@@ -98,12 +105,18 @@ object NodepoolStatus {
     override def toString: String = "RECONCILING"
   }
 
-  case object Stopping extends NodepoolStatus {
+  //in kubernetes statuses, they label "deleting' resources as 'stopping'
+  case object Deleting extends NodepoolStatus {
     override def toString: String = "STOPPING"
   }
 
   case object Error extends NodepoolStatus {
     override def toString: String = "ERROR"
+  }
+
+  //this is a custom status, and will not be returned from google
+  case object Deleted extends NodepoolStatus {
+    override def toString: String = "DELETED"
   }
 
   case object RunningWithError extends NodepoolStatus {
