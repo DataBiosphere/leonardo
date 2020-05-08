@@ -121,7 +121,7 @@ final case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
 
 final case class InvalidImage(traceId: TraceId, image: ContainerImage)
     extends LeoException(
-      s"${traceId} | Image ${image.imageUrl} doesn't have neither JUPYTER_HOME nor RSTUDIO_HOME defined. Make sure your custom image extends from one of the terra base images",
+      s"${traceId} | Image ${image.imageUrl} doesn't have JUPYTER_HOME or RSTUDIO_HOME environment variables defined. Make sure your custom image extends from one of the Terra base images.",
       StatusCodes.NotFound
     )
 
