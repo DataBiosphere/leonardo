@@ -116,8 +116,14 @@ case class IllegalLabelKeyException(labelKey: String)
 case class InvalidDataprocMachineConfigException(errorMsg: String)
     extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
-case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
+final case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
     extends LeoException(s"${traceId} | Image ${image.imageUrl} not found", StatusCodes.NotFound)
+
+final case class InvalidImage(traceId: TraceId, image: ContainerImage)
+    extends LeoException(
+      s"${traceId} | Image ${image.imageUrl} doesn't have neither JUPYTER_HOME nor RSTUDIO_HOME defined",
+      StatusCodes.NotFound
+    )
 
 final case class CloudServiceNotSupportedException(cloudService: CloudService)
     extends LeoException(
@@ -811,12 +817,9 @@ class LeonardoService(
       now <- nowInstant
       traceId <- ev.ask
       // Try to autodetect the image
-      autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse { image =>
-        dockerDAO.detectTool(image, petToken).flatMap {
-          case None       => IO.raiseError(ImageNotFoundException(traceId, image))
-          case Some(tool) => IO.pure(RuntimeImage(tool, image.imageUrl, now))
-        }
-      }
+      autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse(image =>
+        dockerDAO.detectTool(image, petToken).map(t => RuntimeImage(t, image.imageUrl, now))
+      )
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
       // - else if a legacy jupyterDockerImage param was sent, use that

@@ -9,7 +9,6 @@ import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
-
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.http4s._
@@ -19,6 +18,7 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.client.middleware.FollowRedirect
 import org.http4s.headers.Authorization
 import ContainerRegistry._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 
 /**
  * Talks to Docker remote APIs to retrieve manifest information in order to try and figure out
@@ -36,19 +36,22 @@ import ContainerRegistry._
  *
  * Note: this class uses the `Concurrent` typeclass to support following redirects.
  */
-class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit logger: Logger[F])
+class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logger[F], F: Concurrent[F])
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
 
   override def detectTool(image: ContainerImage, petTokenOpt: Option[String])(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Option[RuntimeImageType]] =
+  ): F[RuntimeImageType] =
     for {
+      traceId <- ev.ask
+
       parsed <- parseImage(image)
       tokenOpt <- getToken(parsed, petTokenOpt)
+
       digest <- parsed.imageVersion match {
         case Tag(_)      => getManifestConfig(parsed, tokenOpt).map(_.digest)
-        case Sha(digest) => Concurrent[F].pure(digest)
+        case Sha(digest) => F.pure(digest)
       }
       containerConfig <- getContainerConfig(parsed, digest, tokenOpt)
       envSet = containerConfig.env.toSet
@@ -58,7 +61,8 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
             envSet.exists(_.startsWith(v))
         }
         .map(_._1)
-    } yield tool
+      res <- F.fromEither(tool.toRight(InvalidImage(traceId, image)))
+    } yield res
 
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
@@ -123,8 +127,8 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
           .orElse(Option(shaOpt).map(Sha))
         for {
           traceId <- ev.ask
-          res <- version.fold(Concurrent[F].raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
-            Concurrent[F].pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
+          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
+            F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
           )
         } yield res
       case DockerHub.regex(imageName, tagOpt, shaOpt) =>
@@ -132,12 +136,12 @@ class HttpDockerDAO[F[_]: Concurrent] private (httpClient: Client[F])(implicit l
           .map(Tag)
           .orElse(Option(shaOpt).map(Sha))
           .getOrElse(Tag("latest"))
-        Concurrent[F].pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
+        F.pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
       case _ =>
         for {
           traceId <- ev.ask
           _ <- logger.error(s"${traceId} | Unable to parse ${image.registry.toString} image ${image.imageUrl}")
-          res <- Concurrent[F].raiseError[ParsedImage](ImageParseException(traceId, image))
+          res <- F.raiseError[ParsedImage](ImageParseException(traceId, image))
         } yield res
     }
 }
