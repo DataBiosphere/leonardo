@@ -22,14 +22,10 @@ import scala.concurrent.ExecutionContext
 case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                    googleProject: GoogleProject,
                                    clusterName: KubernetesClusterName,
-                                   // the GKE API actually supports a location (e.g. us-central1 or us-central1-a)
-                                   // If a zone is specified, it will be a single-zone cluster, otherwise it will span multiple zones in the region
-                                   // Leo currently specifies a zone, e.g. "us-central1-a" and makes all clusters single-zone
-                                   // Location is exposed here in case we ever want to leverage the flexibility GKE provides
                                    location: Location,
                                    status: KubernetesClusterStatus,
-                                   serviceAccountInfo: WorkbenchEmail,
-                                   samResourceId: KubernetesClusterSamResource,
+                                   serviceAccount: WorkbenchEmail,
+                                   samResourceId: KubernetesClusterSamResourceId,
                                    creator: WorkbenchEmail,
                                    createdDate: Instant,
                                    destroyedDate: Instant,
@@ -45,8 +41,8 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def clusterName = column[KubernetesClusterName]("clusterName", O.Length(254))
   def location = column[Location]("location", O.Length(254))
   def status = column[KubernetesClusterStatus]("status", O.Length(254))
-  def serviceAccountInfo = column[WorkbenchEmail]("serviceAccountInfo", O.Length(254))
-  def samResourceId = column[KubernetesClusterSamResource]("samResourceId", O.Length(254))
+  def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
+  def samResourceId = column[KubernetesClusterSamResourceId]("samResourceId", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
@@ -64,7 +60,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      clusterName,
      location,
      status,
-     serviceAccountInfo,
+     serviceAccount,
      samResourceId,
      creator,
      createdDate,
@@ -99,7 +95,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       saveCluster.clusterName,
       saveCluster.location,
       saveCluster.status,
-      saveCluster.serviceAccountInfo,
+      saveCluster.serviceAccount,
       saveCluster.samResourceId,
       saveCluster.auditInfo.creator,
       saveCluster.auditInfo.createdDate,
@@ -222,7 +218,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       cr.clusterName,
       cr.location,
       cr.status,
-      cr.serviceAccountInfo,
+      cr.serviceAccount,
       cr.samResourceId,
       AuditInfo(
         cr.creator,
@@ -236,7 +232,8 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       },
       namespaces,
       labels,
-      nodepools
+      nodepools,
+      List()
     )
 
   //all network fields should be set at the same time. We unmarshal the entire record as None if any fields are unset
@@ -254,8 +251,8 @@ case class SaveKubernetesCluster(
   clusterName: KubernetesClusterName,
   location: Location,
   status: KubernetesClusterStatus,
-  serviceAccountInfo: WorkbenchEmail,
-  samResourceId: KubernetesClusterSamResource,
+  serviceAccount: WorkbenchEmail,
+  samResourceId: KubernetesClusterSamResourceId,
   auditInfo: AuditInfo,
   labels: LabelMap,
   initialNodepool: Nodepool

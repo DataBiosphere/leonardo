@@ -11,24 +11,27 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
                              clusterName: KubernetesClusterName,
+                             // the GKE API supports a location (e.g. us-central1 (a 'region') or us-central1-a (a 'zone))
+                             // If a zone is specified, it will be a single-zone cluster, otherwise it will span multiple zones in the region
+                             // Leo currently specifies a zone, e.g. "us-central1-a" and makes all clusters single-zone
+                             // Location is exposed here in case we ever want to leverage the flexibility GKE provides
                              location: Location,
                              status: KubernetesClusterStatus,
-                             serviceAccountInfo: WorkbenchEmail,
-                             samResourceId: KubernetesClusterSamResource,
+                             serviceAccount: WorkbenchEmail,
+                             samResourceId: KubernetesClusterSamResourceId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: Set[KubernetesNamespaceName],
                              labels: LabelMap,
-                             nodepools: Set[Nodepool]
-                            )
+                             nodepools: Set[Nodepool],
+                             //TODO: populate this
+                             errors: List[RuntimeError]
+                            ) {
 
-object KubernetesCluster {
-  implicit class EnrichedKubernetesCluster(cluster: KubernetesCluster) {
-    def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(cluster.googleProject, cluster.location, cluster.clusterName)
-  }
+  def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
 
-final case class KubernetesClusterSamResource(resourceId: String)
+final case class KubernetesClusterSamResourceId(resourceId: String) extends AnyVal
 
 final case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp,
                                         networkInfo: NetworkFields
@@ -127,8 +130,8 @@ object NodepoolStatus {
   def stringToObject: Map[String, NodepoolStatus] = values.map(v => v.toString -> v).toMap
 }
 
-final case class KubernetesClusterLeoId(id: Long)
-final case class KubernetesNamespaceId(id: Long)
+final case class KubernetesClusterLeoId(id: Long) extends AnyVal
+final case class KubernetesNamespaceId(id: Long)  extends AnyVal
 
 final case class Nodepool(id: NodepoolLeoId,
                     clusterId: KubernetesClusterLeoId,
@@ -138,13 +141,14 @@ final case class Nodepool(id: NodepoolLeoId,
                     machineType: MachineTypeName,
                     numNodes: NumNodes,
                     autoScalingEnabled: Boolean,
-                    autoscalingConfig: Option[NodepoolAutoscaling])
+                    autoscalingConfig: Option[NodepoolAutoscaling],
+                    errors: List[RuntimeError])
 
 final case class NodepoolAutoscaling(autoScalingMin: AutoScalingMin,
                                autoScalingMax: AutoScalingMax)
 
-final case class NodepoolLeoId(id: Long)
-final case class NumNodes(amount: Int)
-final case class AutoScalingMin(amount: Int)
-final case class AutoScalingMax(amount: Int)
+final case class NodepoolLeoId(id: Long) extends AnyVal
+final case class NumNodes(amount: Int) extends AnyVal
+final case class AutoScalingMin(amount: Int) extends AnyVal
+final case class AutoScalingMax(amount: Int) extends AnyVal
 

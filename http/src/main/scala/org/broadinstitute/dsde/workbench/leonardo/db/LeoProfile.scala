@@ -120,8 +120,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[Location, String](_.value, Location.apply)
     implicit val apiServerIpColumnType: BaseColumnType[KubernetesApiServerIp] =
       MappedColumnType.base[KubernetesApiServerIp, String](_.value, KubernetesApiServerIp.apply)
-    implicit val kubernetesClusterSamResourceIdColumnType: BaseColumnType[KubernetesClusterSamResource] =
-      MappedColumnType.base[KubernetesClusterSamResource, String](_.resourceId, KubernetesClusterSamResource.apply)
+    implicit val kubernetesClusterSamResourceIdColumnType: BaseColumnType[KubernetesClusterSamResourceId] =
+      MappedColumnType.base[KubernetesClusterSamResourceId, String](_.resourceId, KubernetesClusterSamResourceId.apply)
     implicit val networkNameColumnType: BaseColumnType[NetworkName] =
       MappedColumnType.base[NetworkName, String](_.value, NetworkName.apply)
     implicit val subNetworkNameColumnType: BaseColumnType[SubnetworkName] =

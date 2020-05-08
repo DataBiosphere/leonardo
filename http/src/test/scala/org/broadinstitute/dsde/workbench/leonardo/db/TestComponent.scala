@@ -120,7 +120,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.clusterName,
             c.location,
             c.status,
-            c.serviceAccountInfo,
+            c.serviceAccount,
             c.samResourceId,
             c.auditInfo,
             c.labels,

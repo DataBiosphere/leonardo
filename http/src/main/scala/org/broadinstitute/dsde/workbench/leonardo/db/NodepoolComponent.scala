@@ -144,6 +144,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       (rec.autoScalingMin, rec.autoScalingMax) match {
         case (Some(autoScalingMin), Some(autoScalingMax)) => Some(NodepoolAutoscaling(autoScalingMin, autoScalingMax))
         case _                                            => None
-      }
+      },
+      List()
     )
 }

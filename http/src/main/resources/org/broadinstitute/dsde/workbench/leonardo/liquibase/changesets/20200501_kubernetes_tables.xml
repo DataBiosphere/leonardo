@@ -18,7 +18,7 @@
             <column name="status" type="VARCHAR(254)" defaultValue="STATUS_UNSPECIFIED">
                 <constraints nullable="false"/>
             </column>
-            <column name="serviceAccountInfo" type="VARCHAR(254)">
+            <column name="serviceAccount" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
             <column name="samResourceId" type="VARCHAR(254)">
@@ -41,9 +41,6 @@
             <column name="subNetworkName" type="VARCHAR(254)"/>
             <column name="subNetworkIpRange" type="VARCHAR(254)"/>
         </createTable>
-        <createIndex indexName="IDX_KUBERNETES_CLUSTER_ID" tableName="KUBERNETES_CLUSTER">
-            <column name="id"/>
-        </createIndex>
         <addUniqueConstraint columnNames="googleProject, clusterName, destroyedDate" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE" tableName="KUBERNETES_CLUSTER"/>
     </changeSet>
 
@@ -86,9 +83,6 @@
             <column name="autoScalingMax" type="INT"/>
         </createTable>
         <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="NODEPOOL" constraintName="FK_NODEPOOL_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="KUBERNETES_CLUSTER"/>
-        <createIndex indexName="IDX_NODEPOOL_ID" tableName="NODEPOOL">
-            <column name="id"/>
-        </createIndex>
         <addUniqueConstraint columnNames="clusterId, nodepoolName" constraintName="IDX_NODEPOOL_UNIQUE" tableName="NODEPOOL"/>
     </changeSet>
 
@@ -105,9 +99,6 @@
             </column>
         </createTable>
         <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="NAMESPACE" constraintName="FK_NAMESPACE_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="KUBERNETES_CLUSTER"/>
-        <createIndex indexName="IDX_NAMESPACE_ID" tableName="NAMESPACE">
-            <column name="id"/>
-        </createIndex>
         <addUniqueConstraint columnNames="clusterId, namespaceName" constraintName="IDX_NAMESPACE_UNIQUE" tableName="NAMESPACE"/>
     </changeSet>
 </databaseChangeLog>

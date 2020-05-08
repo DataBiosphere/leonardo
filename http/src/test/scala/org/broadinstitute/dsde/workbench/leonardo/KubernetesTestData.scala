@@ -10,7 +10,7 @@ object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val kubeClusterSamId = KubernetesClusterSamResource("067e2867-5d4a-47f3-a53c-fd711529b289")
+  val kubeClusterSamId = KubernetesClusterSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
   val location = Location("us-central1-a")
 
   val apiServerIp = KubernetesApiServerIp("0.0.0.0")
@@ -33,7 +33,8 @@ object KubernetesTestData {
       MachineTypeName("n1-standard-4"),
       NumNodes(2),
       false,
-      None
+      None,
+      List()
     )
   }
 
@@ -51,7 +52,8 @@ object KubernetesTestData {
       None,
       Set(),
       Map(),
-      Set(makeNodepool(index, KubernetesClusterLeoId(-1)))
+      Set(makeNodepool(index, KubernetesClusterLeoId(-1))),
+      List()
     )
   }
 }
