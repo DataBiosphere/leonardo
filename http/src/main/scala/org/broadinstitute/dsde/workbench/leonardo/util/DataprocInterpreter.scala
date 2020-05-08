@@ -263,7 +263,11 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker)
+      //TODO: how do we get RuntimeProjectAndName
+      resourceConstraints <- getClusterResourceContraints(
+        runtimeConfig.machineType)
+      //TODO: Option[resourceConstraints]
+      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker, resourceConstraints)
 
       // Add back the preemptible instances, if any
       _ <- runtimeConfig match {

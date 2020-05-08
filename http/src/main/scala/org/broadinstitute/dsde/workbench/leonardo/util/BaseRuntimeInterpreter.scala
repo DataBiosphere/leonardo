@@ -142,7 +142,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     } yield ()
 
   // Startup script to run after the runtime is resumed
-  protected def getStartupScript(runtime: Runtime, welderAction: Option[WelderAction], now: Instant, blocker: Blocker)(
+  protected def getStartupScript(runtime: Runtime, welderAction: Option[WelderAction], now: Instant, blocker: Blocker, runtimeResourceConstraints: Option[RuntimeResourceConstraints])(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
@@ -156,7 +156,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.proxyConfig,
       config.clusterFilesConfig,
       config.clusterResourcesConfig,
-      None,
+      runtimeResourceConstraints,
       RuntimeOperation.Restarting,
       welderAction
     )
