@@ -17,6 +17,7 @@ import com.typesafe.scalalogging.LazyLogging
 import LeoRoutesJsonCodec._
 import LeoRoutesSprayJsonCodec._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, LeonardoService}
@@ -145,10 +146,11 @@ class LeoRoutes(
 }
 
 object LeoRoutes {
-  private val clusterNameReg = "([a-z|0-9|-])*".r
+  private val resourceNameReg = "([a-z|0-9|-])*".r
+
   private def validateRuntimeName(clusterNameString: String): Either[Throwable, RuntimeName] =
     clusterNameString match {
-      case clusterNameReg(_) => Right(RuntimeName(clusterNameString))
+      case resourceNameReg(_) => Right(RuntimeName(clusterNameString))
       case _ =>
         Left(
           RequestValidationError(
@@ -160,6 +162,25 @@ object LeoRoutes {
   def validateRuntimeNameDirective(clusterNameString: String): Directive1[RuntimeName] =
     Directive { inner =>
       validateRuntimeName(clusterNameString) match {
+        case Left(e)  => failWith(e)
+        case Right(c) => inner(Tuple1(c))
+      }
+    }
+
+  private def validateDiskName(diskNameString: String): Either[Throwable, DiskName] =
+    diskNameString match {
+      case resourceNameReg(_) => Right(DiskName(diskNameString))
+      case _ =>
+        Left(
+          RequestValidationError(
+            s"invalid disk name ${diskNameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in disk name"
+          )
+        )
+    }
+
+  def validateDiskNameDirective(diskNameString: String): Directive1[DiskName] =
+    Directive { inner =>
+      validateDiskName(diskNameString) match {
         case Left(e)  => failWith(e)
         case Right(c) => inner(Tuple1(c))
       }
