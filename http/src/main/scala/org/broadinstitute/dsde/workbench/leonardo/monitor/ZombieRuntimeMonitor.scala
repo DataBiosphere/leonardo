@@ -190,6 +190,8 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       _ <- dbRef.inTransaction {
         for {
           _ <- clusterQuery.completeDeletion(zombie.id, now)
+          _ <- labelQuery
+            .save(zombie.id, LabelResourceType.Runtime, config.deletionConfirmationLabelKey, "false")
           error = RuntimeError(
             s"An underlying resource was removed in Google. Runtime(${zombie.runtimeName.asString}) has been marked deleted in Leo.",
             -1,
