@@ -175,6 +175,7 @@ class ZombieRuntimeMonitorSpec
 
         c2.status shouldBe RuntimeStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
+        c2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
         c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
@@ -252,6 +253,7 @@ class ZombieRuntimeMonitorSpec
 
         c1.status shouldBe RuntimeStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
+        c1.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c1.errors.size shouldBe 1
         c1.errors.head.errorCode shouldBe -1
         c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
