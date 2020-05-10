@@ -4,7 +4,7 @@ package monitor
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
-import com.google.cloud.compute.v1.{AccessConfig, Items, Metadata, NetworkInterface, Operation}
+import com.google.cloud.compute.v1.{Items, Metadata, Operation}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterErrorQuery
@@ -54,27 +54,6 @@ import GceRuntimeMonitorInterp._
 
 class GceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent with LeonardoTestSuite with EitherValues {
   implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
-  val readyInstance = Instance
-    .newBuilder()
-    .setStatus("Running")
-    .setMetadata(
-      Metadata
-        .newBuilder()
-        .addItems(
-          Items.newBuilder
-            .setKey(userScriptStartupOutputUriMetadataKey)
-            .setValue("gs://success/object")
-            .build()
-        )
-        .build()
-    )
-    .addNetworkInterfaces(
-      NetworkInterface
-        .newBuilder()
-        .addAccessConfigs(AccessConfig.newBuilder().setNatIP("fakeIP").build())
-        .build()
-    )
-    .build()
 
   "validateUserScript" should "validate user script properly" in {
     val monitor = gceRuntimeMonitor()

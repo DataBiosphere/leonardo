@@ -16,7 +16,7 @@ class LabelTable(tag: Tag) extends Table[LabelRecord](tag, "LABEL") {
   def key = column[String]("key", O.Length(254))
   def value = column[String]("value", O.Length(254))
 
-  def uniqueKey = index("IDX_LABEL_UNIQUE", (resourceId, resourceType, key), unique = true)
+  def pk = primaryKey("PK_LABEL", (resourceId, resourceType, key))
 
   def * = (resourceId, resourceType, key, value) <> (LabelRecord.tupled, LabelRecord.unapply)
 }
@@ -24,11 +24,12 @@ class LabelTable(tag: Tag) extends Table[LabelRecord](tag, "LABEL") {
 object labelQuery extends TableQuery(new LabelTable(_)) {
 
   def save(resourceId: Long, resourceType: LabelResourceType, key: String, value: String): DBIO[Int] =
-    labelQuery += LabelRecord(resourceId, resourceType, key, value)
+    labelQuery.insertOrUpdate(LabelRecord(resourceId, resourceType, key, value))
 
-  // ++= does not actually produce a useful return value
-  def saveAllForResource(resourceId: Long, resourceType: LabelResourceType, m: LabelMap): DBIO[Option[Int]] =
-    labelQuery ++= m map { case (key, value) => LabelRecord(resourceId, resourceType, key, value) }
+  def saveAllForResource(resourceId: Long, resourceType: LabelResourceType, m: LabelMap)(
+    implicit ec: ExecutionContext
+  ): DBIO[Int] =
+    DBIO.fold(m.toSeq map { case (key, value) => save(resourceId, resourceType, key, value) }, 0)(_ + _)
 
   def getAllForResource(resourceId: Long,
                         resourceType: LabelResourceType)(implicit ec: ExecutionContext): DBIO[LabelMap] =

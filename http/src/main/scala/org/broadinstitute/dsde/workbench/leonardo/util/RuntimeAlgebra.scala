@@ -81,7 +81,9 @@ final case class CreateRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
 final case class GetRuntimeStatusParams(googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
                                         zoneName: Option[ZoneName]) // zoneName is only needed for GCE
-final case class DeleteRuntimeParams(runtime: Runtime)
+final case class DeleteRuntimeParams(googleProject: GoogleProject,
+                                     runtimeName: RuntimeName,
+                                     asyncRuntimeFields: Option[AsyncRuntimeFields])
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)
 final case class StartRuntimeParams(runtime: Runtime, now: Instant)

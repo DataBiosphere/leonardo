@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
 
   List(LabelResourceType.Runtime, LabelResourceType.PersistentDisk).foreach { resourceType =>
-    it should s"save, get, and delete ${resourceType.asString} labels" in isolatedDbTest {
+    it should s"save, get, update, and delete ${resourceType.asString} labels" in isolatedDbTest {
       for {
         id1 <- makeResource(1, resourceType)
         id2 <- makeResource(2, resourceType)
@@ -30,7 +30,8 @@ class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUti
         get2 <- labelQuery.getAllForResource(id2, LabelResourceType.Runtime).transaction
         get1Again <- labelQuery.getAllForResource(id1, LabelResourceType.Runtime).transaction
 
-        uniqueKeyErr <- labelQuery.save(id2, LabelResourceType.Runtime, "sample", "NA12879").transaction.attempt
+        update1 <- labelQuery.save(id1, LabelResourceType.Runtime, "key1", "value2").transaction
+        get1YetAgain <- labelQuery.getAllForResource(id1, LabelResourceType.Runtime).transaction
 
         delete1 <- labelQuery.deleteAllForResource(id1, LabelResourceType.Runtime).transaction
         delete2 <- labelQuery.deleteAllForResource(id2, LabelResourceType.Runtime).transaction
@@ -47,7 +48,8 @@ class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUti
         get2 shouldBe cluster2Map
         get1Again shouldBe Map("key1" -> "value1")
 
-        uniqueKeyErr.isLeft shouldBe true
+        update1 shouldBe 1
+        get1YetAgain shouldBe Map("key1" -> "value2")
 
         delete1 shouldBe 1
         delete2 shouldBe 2

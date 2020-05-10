@@ -41,6 +41,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                          imageConfig,
                          autoFreezeConfig,
+                         zombieMonitorConfig,
                          dataprocConfig,
                          Config.gceConfig),
     whitelistAuthProvider,

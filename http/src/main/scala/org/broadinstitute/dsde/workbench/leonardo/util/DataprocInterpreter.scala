@@ -210,9 +210,9 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     params: DeleteRuntimeParams
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
-      _ <- if (params.runtime.asyncRuntimeFields.isDefined) //check if runtime has been created
+      _ <- if (params.asyncRuntimeFields.isDefined) //check if runtime has been created
         Async[F].liftIO(
-          IO.fromFuture(IO(gdDAO.deleteCluster(params.runtime.googleProject, params.runtime.runtimeName)))
+          IO.fromFuture(IO(gdDAO.deleteCluster(params.googleProject, params.runtimeName)))
         )
       else Async[F].unit
     } yield None

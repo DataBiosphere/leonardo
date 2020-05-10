@@ -1,11 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
+import com.google.cloud.compute.v1.{AccessConfig, Instance, Items, Metadata, NetworkInterface}
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
@@ -18,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -87,7 +90,7 @@ object CommonTestData {
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-  val zombieClusterConfig = config.as[ZombieRuntimeMonitorConfig]("zombieClusterMonitor")
+  val zombieMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val proxyUrlBase = proxyConfig.proxyUrlBase
@@ -147,6 +150,7 @@ object CommonTestData {
   val clusterServiceAccount = WorkbenchEmail("testClusterServiceAccount@example.com")
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  val olderRuntimeAuditInfo = AuditInfo(userEmail, Instant.now().minus(1, ChronoUnit.DAYS), None, Instant.now())
   val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
@@ -245,6 +249,28 @@ object CommonTestData {
     runtimeConfigId = RuntimeConfigId(-1),
     patchInProgress = false
   )
+
+  val readyInstance = Instance
+    .newBuilder()
+    .setStatus("Running")
+    .setMetadata(
+      Metadata
+        .newBuilder()
+        .addItems(
+          Items.newBuilder
+            .setKey(userScriptStartupOutputUriMetadataKey)
+            .setValue("gs://success/object")
+            .build()
+        )
+        .build()
+    )
+    .addNetworkInterfaces(
+      NetworkInterface
+        .newBuilder()
+        .addAccessConfigs(AccessConfig.newBuilder().setNatIP("fakeIP").build())
+        .build()
+    )
+    .build()
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

@@ -249,7 +249,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(runtime)
+        DeleteRuntimeParams(runtime.googleProject, runtime.runtimeName, runtime.asyncRuntimeFields)
       )
       _ <- op match {
         case Some(o) =>

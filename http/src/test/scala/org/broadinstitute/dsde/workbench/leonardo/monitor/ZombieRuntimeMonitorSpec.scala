@@ -8,11 +8,12 @@ import cats.effect.concurrent.Deferred
 import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
-import com.google.cloud.compute.v1.Instance
+import com.google.cloud.compute.v1.{Instance, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
@@ -20,9 +21,13 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponen
 import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocInterpreter, GceInterpreter, RuntimeInstances}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.Mockito.verify
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+import org.mockito.Mockito._
+import org.scalatestplus.mockito.MockitoSugar
+import org.mockito.ArgumentMatchers.{eq => mockitoEq}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -34,11 +39,19 @@ class ZombieRuntimeMonitorSpec
     with BeforeAndAfterAll
     with LeonardoTestSuite
     with TestComponent
+    with MockitoSugar
     with GcsPathUtils { testKit =>
 
   val testCluster1 = makeCluster(1).copy(status = RuntimeStatus.Running)
   val testCluster2 = makeCluster(2).copy(status = RuntimeStatus.Running)
   val testCluster3 = makeCluster(3).copy(status = RuntimeStatus.Running)
+
+  val deletedRuntime1 = makeCluster(4).copy(status = RuntimeStatus.Deleted,
+                                            auditInfo = olderRuntimeAuditInfo,
+                                            labels = Map(zombieMonitorConfig.deletionConfirmationLabelKey -> "false"))
+  val deletedRuntime2 = makeCluster(5).copy(status = RuntimeStatus.Deleted,
+                                            auditInfo = olderRuntimeAuditInfo,
+                                            labels = Map(zombieMonitorConfig.deletionConfirmationLabelKey -> "false"))
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -46,8 +59,6 @@ class ZombieRuntimeMonitorSpec
   }
 
   "ZombieRuntimeMonitor" should "detect zombie clusters when the project is inactive" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-
     // create 2 running clusters in the same project
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
@@ -78,8 +89,6 @@ class ZombieRuntimeMonitorSpec
   }
 
   it should "detect zombie clusters when we get a 403 from google" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-
     // create a running cluster
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
@@ -108,8 +117,6 @@ class ZombieRuntimeMonitorSpec
   }
 
   it should "detect zombie clusters when the project's billing is inactive" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-
     // create 2 running clusters in the same project
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
@@ -139,9 +146,7 @@ class ZombieRuntimeMonitorSpec
     }
   }
 
-  it should "detect zombie dataptoc cluster when the cluster is inactive" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-
+  it should "detect active zombie dataproc cluster" in isolatedDbTest {
     // create 2 running clusters in the same project
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
@@ -170,6 +175,7 @@ class ZombieRuntimeMonitorSpec
 
         c2.status shouldBe RuntimeStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
+        c2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
         c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
@@ -180,16 +186,58 @@ class ZombieRuntimeMonitorSpec
     }
   }
 
-  it should "detect zombie gce instance when the cluster is inactive" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+  it should "detect inactive zombie dataproc cluster" in isolatedDbTest {
+    // create 2 running clusters in the same project
+    val savedDeletedRuntime1 = deletedRuntime1.save()
+    savedDeletedRuntime1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual deletedRuntime1
 
-    // create a running clusters in the same project
+    val savedDeletedRuntime2 = deletedRuntime2.save()
+    savedDeletedRuntime2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual deletedRuntime2
+
+    // stub GoogleDataprocDAO to flag deletedRuntime2 as running
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(deletedRuntime1.googleProject),
+                             RuntimeName(mockitoEq(deletedRuntime1.runtimeName.asString)))
+    } thenReturn {
+      Future.successful(None)
+    }
+
+    when {
+      gdDAO.getClusterStatus(mockitoEq(deletedRuntime2.googleProject),
+                             RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
+    } thenReturn {
+      Future.successful(Some(DataprocClusterStatus.Running))
+    }
+
+    when {
+      gdDAO.deleteCluster(mockitoEq(deletedRuntime2.googleProject),
+                          RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
+    } thenReturn {
+      Future.unit
+    }
+
+    // c2 should be flagged as a zombie but not c1
+    withZombieMonitor(gdDAO = gdDAO) { () =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c1 = dbFutureValue(clusterQuery.getClusterById(savedDeletedRuntime1.id)).get
+        val c2 = dbFutureValue(clusterQuery.getClusterById(savedDeletedRuntime2.id)).get
+
+        c1.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("true")
+        c2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
+      }
+      verify(gdDAO, times(1)).deleteCluster(mockitoEq(deletedRuntime2.googleProject),
+                                            RuntimeName(mockitoEq(deletedRuntime2.runtimeName.asString)))
+    }
+  }
+
+  it should "detect active zombie gce instance" in isolatedDbTest {
     val runtimeConfig = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
       DiskSize(50)
     )
-    val savedTestCluster = testCluster1.saveWithRuntimeConfig(runtimeConfig)
-    savedTestCluster.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
+    val savedTestRuntime = testCluster1.saveWithRuntimeConfig(runtimeConfig)
+    savedTestRuntime.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     // stub GoogleComputeService to flag runtime as deleted
     val gce = new MockGoogleComputeService {
@@ -201,10 +249,11 @@ class ZombieRuntimeMonitorSpec
 
     withZombieMonitor(gce = gce) { () =>
       eventually(timeout(Span(10, Seconds))) {
-        val c1 = dbFutureValue(clusterQuery.getClusterById(savedTestCluster.id)).get
+        val c1 = dbFutureValue(clusterQuery.getClusterById(savedTestRuntime.id)).get
 
         c1.status shouldBe RuntimeStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
+        c1.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c1.errors.size shouldBe 1
         c1.errors.head.errorCode shouldBe -1
         c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
@@ -212,9 +261,49 @@ class ZombieRuntimeMonitorSpec
     }
   }
 
-  it should "zombify creating cluster after hang period" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+  it should "detect inactive zombie gce instance" in isolatedDbTest {
+    // create a running gce instance
+    val runtimeConfig = RuntimeConfig.GceConfig(
+      MachineTypeName("n1-standard-4"),
+      DiskSize(50)
+    )
+    val savedTestInstance1 = deletedRuntime1.saveWithRuntimeConfig(runtimeConfig)
+    savedTestInstance1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual deletedRuntime1
 
+    val savedTestInstance2 = deletedRuntime2.saveWithRuntimeConfig(runtimeConfig)
+    savedTestInstance2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual deletedRuntime2
+
+    // stub GoogleComputeService to flag instance2 as still running on google
+    val gce = new MockGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[Instance]] =
+        if (instanceName.value === deletedRuntime2.runtimeName.asString) {
+          IO.pure(Some(readyInstance))
+        } else {
+          IO.pure(None)
+        }
+      override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Operation] = {
+        instanceName.value shouldBe (deletedRuntime2.runtimeName.asString)
+        project shouldBe (deletedRuntime2.googleProject)
+        IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+      }
+    }
+
+    withZombieMonitor(gce = gce) { () =>
+      eventually(timeout(Span(10, Seconds))) {
+        val r1 = dbFutureValue(clusterQuery.getClusterById(savedTestInstance1.id)).get
+        val r2 = dbFutureValue(clusterQuery.getClusterById(savedTestInstance2.id)).get
+
+        r1.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("true")
+        r2.labels.get(zombieMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
+      }
+    }
+  }
+
+  it should "zombify creating cluster after hang period" in isolatedDbTest {
     // create a Running and a Creating cluster in the same project
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
@@ -230,7 +319,7 @@ class ZombieRuntimeMonitorSpec
         Future.successful(None)
     }
 
-    val shouldHangAfter: Span = zombieClusterConfig.creationHangTolerance.plus(zombieClusterConfig.zombieCheckPeriod)
+    val shouldHangAfter: Span = zombieMonitorConfig.creationHangTolerance.plus(zombieMonitorConfig.zombieCheckPeriod)
 
     // cluster2 should be active when it's still within hang tolerance
     withZombieMonitor(gdDAO = gdDAO) { () =>
@@ -264,13 +353,11 @@ class ZombieRuntimeMonitorSpec
   }
 
   it should "not zombify cluster before hang period" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-
     val creatingTestCluster = testCluster2.copy(status = RuntimeStatus.Creating)
     val savedTestCluster2 = creatingTestCluster.save()
     savedTestCluster2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual creatingTestCluster
 
-    val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
+    val shouldNotHangBefore = zombieMonitorConfig.creationHangTolerance.minus(zombieMonitorConfig.zombieCheckPeriod)
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
       override def getClusterStatus(googleProject: GoogleProject,
@@ -288,8 +375,6 @@ class ZombieRuntimeMonitorSpec
   }
 
   it should "not zombify upon non-403 errors from Google" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-
     // running cluster in "bad" project - should not get zombified
     val clusterBadProject = testCluster1.copy(googleProject = GoogleProject("bad-project"))
     val savedClusterBadProject = clusterBadProject.save()
@@ -350,7 +435,7 @@ class ZombieRuntimeMonitorSpec
     val gceInterp = new GceInterpreter(gceInterpreterConfig, null, null, gce, null, blocker)
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
-    val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieClusterConfig, googleProjectDAO)
+    val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieMonitorConfig, googleProjectDAO)
     val process = Stream.eval(Deferred[IO, A]).flatMap { signalToStop =>
       val signal = Stream.eval(IO(validations())).evalMap(r => signalToStop.complete(r))
       val p = Stream(zombieClusterMonitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)
