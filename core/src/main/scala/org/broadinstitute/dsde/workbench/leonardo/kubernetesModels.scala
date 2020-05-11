@@ -25,27 +25,20 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              labels: LabelMap,
                              nodepools: Set[Nodepool],
                              //TODO: populate this
-                             errors: List[RuntimeError]
-                            ) {
+                             errors: List[RuntimeError]) {
 
   def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
 
 final case class KubernetesClusterSamResourceId(resourceId: String) extends AnyVal
 
-final case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp,
-                                        networkInfo: NetworkFields
-                                       )
+final case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp, networkInfo: NetworkFields)
 
-final case class NetworkFields(networkName: NetworkName,
-                         subNetworkName: SubnetworkName,
-                         subNetworkIpRange: IpRange)
-
+final case class NetworkFields(networkName: NetworkName, subNetworkName: SubnetworkName, subNetworkIpRange: IpRange)
 
 /** Google Container Cluster statuses
  *  see: https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters#Cluster.Status
  */
-
 sealed abstract class KubernetesClusterStatus
 object KubernetesClusterStatus {
   final case object StatusUnspecified extends KubernetesClusterStatus {
@@ -131,24 +124,22 @@ object NodepoolStatus {
 }
 
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
-final case class KubernetesNamespaceId(id: Long)  extends AnyVal
+final case class KubernetesNamespaceId(id: Long) extends AnyVal
 
 final case class Nodepool(id: NodepoolLeoId,
-                    clusterId: KubernetesClusterLeoId,
-                    nodepoolName: NodepoolName,
-                    status: NodepoolStatus,
-                    auditInfo: AuditInfo,
-                    machineType: MachineTypeName,
-                    numNodes: NumNodes,
-                    autoScalingEnabled: Boolean,
-                    autoscalingConfig: Option[NodepoolAutoscaling],
-                    errors: List[RuntimeError])
+                          clusterId: KubernetesClusterLeoId,
+                          nodepoolName: NodepoolName,
+                          status: NodepoolStatus,
+                          auditInfo: AuditInfo,
+                          machineType: MachineTypeName,
+                          numNodes: NumNodes,
+                          autoScalingEnabled: Boolean,
+                          autoscalingConfig: Option[NodepoolAutoscaling],
+                          errors: List[RuntimeError])
 
-final case class NodepoolAutoscaling(autoScalingMin: AutoScalingMin,
-                               autoScalingMax: AutoScalingMax)
+final case class NodepoolAutoscaling(autoScalingMin: AutoScalingMin, autoScalingMax: AutoScalingMax)
 
 final case class NodepoolLeoId(id: Long) extends AnyVal
 final case class NumNodes(amount: Int) extends AnyVal
 final case class AutoScalingMin(amount: Int) extends AnyVal
 final case class AutoScalingMax(amount: Int) extends AnyVal
-

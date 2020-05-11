@@ -12,7 +12,14 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{DiskName, InstanceName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  InstanceName,
+  MachineTypeName,
+  NetworkName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
@@ -21,7 +28,13 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GoogleProject,
+  ServiceAccountKey,
+  ServiceAccountKeyId,
+  ServiceAccountPrivateKeyData,
+  _
+}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 object CommonTestData {

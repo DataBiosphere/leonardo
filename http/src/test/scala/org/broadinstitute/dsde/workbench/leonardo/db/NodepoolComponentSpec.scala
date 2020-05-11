@@ -42,10 +42,13 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
     val nodepoolGetAll2 = dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id))
     nodepoolGetAll2.size shouldBe 2
     nodepoolGetAll2 should contain(savedNodepool1)
-    nodepoolGetAll2 should not contain(savedNodepool2)
+    nodepoolGetAll2 should not contain (savedNodepool2)
 
     val deletedNodepoolGet = dbFutureValue(nodepoolQuery.getById(savedNodepool2.id))
-    deletedNodepoolGet shouldBe Some(savedNodepool2.copy(status = NodepoolStatus.Deleted, auditInfo = savedNodepool2.auditInfo.copy(destroyedDate = Some(now))))
+    deletedNodepoolGet shouldBe Some(
+      savedNodepool2.copy(status = NodepoolStatus.Deleted,
+                          auditInfo = savedNodepool2.auditInfo.copy(destroyedDate = Some(now)))
+    )
 
     dbFutureValue(nodepoolQuery.markActiveAsDeletedForCluster(savedCluster1.id, now)) shouldBe 2
     dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id)) shouldBe Set()
@@ -71,6 +74,8 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
 
     dbFutureValue(nodepoolQuery.updateStatus(savedNodepool1.id, NodepoolStatus.Provisioning)) shouldBe 1
 
-    dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id)) should contain(savedNodepool1.copy(status = NodepoolStatus.Provisioning))
+    dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id)) should contain(
+      savedNodepool1.copy(status = NodepoolStatus.Provisioning)
+    )
   }
 }

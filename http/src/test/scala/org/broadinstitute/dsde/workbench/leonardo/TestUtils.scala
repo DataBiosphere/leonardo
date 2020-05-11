@@ -25,15 +25,11 @@ object TestUtils extends Matchers {
     new Equality[KubernetesCluster] {
       private val FixedId = KubernetesClusterLeoId(0)
       private val FixedNodepoolId = NodepoolLeoId(0)
-      def areEqual(a: KubernetesCluster, b: Any) : Boolean =
+      def areEqual(a: KubernetesCluster, b: Any): Boolean =
         b match {
           case c: KubernetesCluster =>
-            a.copy(id = FixedId, nodepools = a.nodepools.map(
-              n => n.copy(id = FixedNodepoolId, clusterId = FixedId)
-            )) ===
-              c.copy(id = FixedId, nodepools = c.nodepools.map(
-                n => n.copy(id = FixedNodepoolId, clusterId = FixedId)
-              ))
+            a.copy(id = FixedId, nodepools = a.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId))) ===
+              c.copy(id = FixedId, nodepools = c.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId)))
           case _ => false
         }
     }
@@ -46,7 +42,7 @@ object TestUtils extends Matchers {
       def areEqual(a: Nodepool, b: Any): Boolean =
         b match {
           case c: Nodepool => a.copy(id = FixedId) == c.copy(id = FixedId)
-          case _ => false
+          case _           => false
         }
     }
   }

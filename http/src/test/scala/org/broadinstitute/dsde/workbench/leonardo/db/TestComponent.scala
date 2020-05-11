@@ -6,7 +6,18 @@ import cats.effect.concurrent.Semaphore
 import cats.effect.{IO, Resource}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, DiskId, GcsPathUtils, KubernetesCluster, LeonardoTestSuite, Nodepool, PersistentDisk, Runtime, RuntimeConfig, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  CommonTestData,
+  DiskId,
+  GcsPathUtils,
+  KubernetesCluster,
+  LeonardoTestSuite,
+  Nodepool,
+  PersistentDisk,
+  Runtime,
+  RuntimeConfig,
+  RuntimeName
+}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -132,10 +143,10 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   }
 
   implicit class NodepoolExtension(n: Nodepool) {
-   def save(): Nodepool =
-     dbFutureValue {
-       nodepoolQuery.saveForCluster(n)
-     }
+    def save(): Nodepool =
+      dbFutureValue {
+        nodepoolQuery.saveForCluster(n)
+      }
   }
 
 }

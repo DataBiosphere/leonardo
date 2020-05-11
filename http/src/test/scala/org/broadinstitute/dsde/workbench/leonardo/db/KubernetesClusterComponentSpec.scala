@@ -5,7 +5,11 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
-import org.broadinstitute.dsde.workbench.leonardo.{KubernetesClusterAsyncFields, KubernetesClusterStatus, NodepoolStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  KubernetesClusterAsyncFields,
+  KubernetesClusterStatus,
+  NodepoolStatus
+}
 import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -25,8 +29,12 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id)) shouldEqual Some(savedCluster1)
     dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)
 
-    dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster1.googleProject, savedCluster1.clusterName)) shouldEqual Some(savedCluster1)
-    dbFutureValue(kubernetesClusterQuery.getActiveFullClusterByName(savedCluster2.googleProject, savedCluster2.clusterName)) shouldEqual Some(savedCluster2)
+    dbFutureValue(
+      kubernetesClusterQuery.getActiveFullClusterByName(savedCluster1.googleProject, savedCluster1.clusterName)
+    ) shouldEqual Some(savedCluster1)
+    dbFutureValue(
+      kubernetesClusterQuery.getActiveFullClusterByName(savedCluster2.googleProject, savedCluster2.clusterName)
+    ) shouldEqual Some(savedCluster2)
 
     //should delete the cluster and initial nodepool, hence '2' records updated
     val now = Instant.now()
@@ -36,9 +44,13 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     val getDeletedCluster1 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
     getDeletedCluster1.map(_.status) shouldEqual Some(KubernetesClusterStatus.Deleted)
     getDeletedCluster1.map(_.auditInfo.destroyedDate) shouldEqual Some(Some(now))
-    getDeletedCluster1.map(_.nodepools.map(_.status)) shouldEqual Some(savedCluster1.nodepools.map(_.status).map(_ => NodepoolStatus.Deleted))
+    getDeletedCluster1.map(_.nodepools.map(_.status)) shouldEqual Some(
+      savedCluster1.nodepools.map(_.status).map(_ => NodepoolStatus.Deleted)
+    )
 
-    dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster2.id)).map(_.status) shouldEqual Some(KubernetesClusterStatus.Deleted)
+    dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster2.id)).map(_.status) shouldEqual Some(
+      KubernetesClusterStatus.Deleted
+    )
 
   }
 
@@ -49,11 +61,13 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     dbFutureValue(namespaceQuery.saveAllForCluster(savedCluster1.id, namespaceSet))
 
     val getCluster = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
-    getCluster shouldEqual Some(savedCluster1
-      .copy(
-        nodepools = savedCluster1.nodepools + savedNodepool1,
-        namespaces = namespaceSet
-    ))
+    getCluster shouldEqual Some(
+      savedCluster1
+        .copy(
+          nodepools = savedCluster1.nodepools + savedNodepool1,
+          namespaces = namespaceSet
+        )
+    )
 
     //we expect 5 records to be affected by the delete: 2 namespaces, 2 nodepools, 1 cluster
     dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster1.id, Instant.now())) shouldBe 5
@@ -74,7 +88,8 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
     listCluster1 should contain(savedCluster2)
 
     //list deleted
-    val listCluster2 = dbFutureValue(kubernetesClusterQuery.listFullClusters(savedCluster1.googleProject, includeDeleted = true))
+    val listCluster2 =
+      dbFutureValue(kubernetesClusterQuery.listFullClusters(savedCluster1.googleProject, includeDeleted = true))
     val getCluster3 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster3.id)).get
     listCluster2.size shouldBe 3
     listCluster2 should contain(savedCluster1)
@@ -114,6 +129,6 @@ class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
 
     dbFutureValue(kubernetesClusterQuery.updateStatus(savedCluster1.id, KubernetesClusterStatus.Provisioning))
     val updatedCluster1 = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
-    updatedCluster1 shouldBe Some(savedCluster1.copy(status =KubernetesClusterStatus.Provisioning))
+    updatedCluster1 shouldBe Some(savedCluster1.copy(status = KubernetesClusterStatus.Provisioning))
   }
 }
