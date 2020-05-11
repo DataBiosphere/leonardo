@@ -10,7 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   CommonTestData,
   DiskId,
   GcsPathUtils,
+  KubernetesCluster,
   LeonardoTestSuite,
+  Nodepool,
   PersistentDisk,
   Runtime,
   RuntimeConfig,
@@ -115,7 +117,36 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
         )
       }
   }
+
   implicit class DiskExtensions(disk: PersistentDisk) {
     def save(): IO[DiskId] = dbRef.inTransaction(persistentDiskQuery.save(disk))
   }
+
+  implicit class KubernetesClusterExtensions(c: KubernetesCluster) {
+    def save(): KubernetesCluster =
+      dbFutureValue {
+        kubernetesClusterQuery.save(
+          SaveKubernetesCluster(
+            c.googleProject,
+            c.clusterName,
+            c.location,
+            c.status,
+            c.serviceAccount,
+            c.samResourceId,
+            c.auditInfo,
+            c.labels,
+            c.nodepools.headOption
+              .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
+          )
+        )
+      }
+  }
+
+  implicit class NodepoolExtension(n: Nodepool) {
+    def save(): Nodepool =
+      dbFutureValue {
+        nodepoolQuery.saveForCluster(n)
+      }
+  }
+
 }

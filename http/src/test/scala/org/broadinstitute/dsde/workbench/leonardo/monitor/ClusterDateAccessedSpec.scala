@@ -29,7 +29,7 @@ class ClusterDateAccessedSpec
   }
 
   "ClusterDateAccessedMonitor" should "update date accessed" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+    import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1

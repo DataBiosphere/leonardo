@@ -7,7 +7,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.DiskType.SSD
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.diskEq
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.diskEq
 import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global

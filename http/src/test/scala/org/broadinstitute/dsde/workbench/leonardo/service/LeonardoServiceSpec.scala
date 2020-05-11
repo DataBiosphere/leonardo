@@ -164,7 +164,7 @@ class LeonardoServiceSpec
 
     // check the cluster persisted to the database matches the create response
     val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterCreateResponse.id))
-    ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterCreateResponse)
+    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterCreateResponse)
 
     // check that no state in Google changed
     // TODO
@@ -184,7 +184,7 @@ class LeonardoServiceSpec
     // get the cluster detail
     val clusterGetResponse = leo.getActiveClusterDetails(userInfo, project, name1).unsafeToFuture.futureValue
     // check the create response and get response are the same
-    ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(clusterGetResponse, clusterCreateResponse)
+    TestUtils.compareClusterAndCreateClusterAPIResponse(clusterGetResponse, clusterCreateResponse)
   }
 
   it should "create a cluster with the default welder image" in isolatedDbTest {
@@ -199,7 +199,7 @@ class LeonardoServiceSpec
 
     // check the cluster persisted to the database matches the create response
     val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
-    ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
+    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
 
     // cluster images should contain welder and Jupyter
     clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
@@ -226,7 +226,7 @@ class LeonardoServiceSpec
 
     // check the cluster persisted to the database matches the create response
     val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
-    ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
+    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
 
     // cluster images should contain welder and Jupyter
     clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
@@ -261,7 +261,7 @@ class LeonardoServiceSpec
 
     // check the cluster persisted to the database matches the create response
     val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
-    ClusterEnrichments.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
+    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
 
     // cluster images should contain welder and RStudio
     clusterResponse.clusterImages.find(_.imageType == RStudio).map(_.imageUrl) shouldBe Some(rstudioImage.imageUrl)

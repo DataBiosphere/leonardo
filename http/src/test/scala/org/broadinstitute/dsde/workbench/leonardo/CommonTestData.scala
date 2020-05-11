@@ -12,7 +12,14 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{DiskName, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  InstanceName,
+  MachineTypeName,
+  NetworkName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
@@ -146,6 +153,11 @@ object CommonTestData {
   val tokenName = "LeoToken"
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
+
+  val networkName = NetworkName("default")
+  val subNetworkName = SubnetworkName("default")
+  val ipRange = IpRange("0.0.0.0/20")
+  val networkFields = NetworkFields(networkName, subNetworkName, ipRange)
 
   val clusterServiceAccount = WorkbenchEmail("testClusterServiceAccount@example.com")
 
