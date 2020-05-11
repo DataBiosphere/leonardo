@@ -693,7 +693,7 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     runtimeName: RuntimeName
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
   override def hasPersistentDiskPermission(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userInfo: UserInfo,
     action: PersistentDiskAction,
     googleProject: GoogleProject
@@ -703,8 +703,8 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
   ): IO[List[(GoogleProject, RuntimeInternalId)]] = ???
   override def filterUserVisiblePersistentDisks(
     userInfo: UserInfo,
-    clusters: List[(GoogleProject, PersistentDiskInternalId)]
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, PersistentDiskInternalId)]] = ???
+    clusters: List[(GoogleProject, DiskSamResourceId)]
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, DiskSamResourceId)]] = ???
   override def notifyClusterCreated(internalId: RuntimeInternalId,
                                     creatorEmail: WorkbenchEmail,
                                     googleProject: GoogleProject,
@@ -716,12 +716,12 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
                                     runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
   override def notifyPersistentDiskCreated(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
   override def notifyPersistentDiskDeleted(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

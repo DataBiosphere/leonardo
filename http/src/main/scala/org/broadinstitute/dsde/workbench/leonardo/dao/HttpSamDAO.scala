@@ -193,7 +193,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
    * @param googleProject  The Google project the disk was created in
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def createPersistentDiskResource(internalId: PersistentDiskInternalId,
+  def createPersistentDiskResource(internalId: DiskSamResourceId,
                                    creatorEmail: WorkbenchEmail,
                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
@@ -235,7 +235,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
    * @param googleProject   The Google project the disk was created in
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
+  def deletePersistentDiskResource(internalId: DiskSamResourceId,
                                    userEmail: WorkbenchEmail,
                                    creatorEmail: WorkbenchEmail,
                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
@@ -361,7 +361,7 @@ object HttpSamDAO {
   implicit val samPersistentDiskPolicyDecoder: Decoder[SamPersistentDiskPolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
-      diskInternalId <- c.downField("resourceId").as[PersistentDiskInternalId]
+      diskInternalId <- c.downField("resourceId").as[DiskSamResourceId]
     } yield SamPersistentDiskPolicy(policyName, diskInternalId)
   }
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
@@ -402,7 +402,7 @@ object AccessPolicyName {
 
 }
 final case class SamNotebookClusterPolicy(accessPolicyName: AccessPolicyName, internalId: RuntimeInternalId)
-final case class SamPersistentDiskPolicy(accessPolicyName: AccessPolicyName, internalId: PersistentDiskInternalId)
+final case class SamPersistentDiskPolicy(accessPolicyName: AccessPolicyName, internalId: DiskSamResourceId)
 final case class SamProjectPolicy(accessPolicyName: AccessPolicyName, googleProject: GoogleProject)
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 

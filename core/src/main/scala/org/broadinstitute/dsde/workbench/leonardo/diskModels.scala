@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class PersistentDisk(id: DiskId,
@@ -15,10 +16,26 @@ final case class PersistentDisk(id: DiskId,
                                 size: DiskSize,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
-                                labels: LabelMap)
+                                labels: LabelMap) {
+  def projectNameString: String = s"${googleProject.value}/${name.value}"
+}
 
 final case class DiskId(id: Long) extends AnyVal
 final case class DiskSamResourceId(asString: String) extends AnyVal
+
+/** Default persistent disk labels */
+case class DefaultDiskLabels(diskName: DiskName,
+                             googleProject: GoogleProject,
+                             creator: WorkbenchEmail,
+                             serviceAccount: WorkbenchEmail) {
+  def toMap: LabelMap =
+    Map(
+      "diskName" -> diskName.value,
+      "googleProject" -> googleProject.value,
+      "creator" -> creator.value,
+      "clusterServiceAccount" -> serviceAccount.value
+    ).filterNot(_._2 == null)
+}
 
 // See https://cloud.google.com/compute/docs/reference/rest/v1/disks
 sealed trait DiskStatus extends EnumEntry

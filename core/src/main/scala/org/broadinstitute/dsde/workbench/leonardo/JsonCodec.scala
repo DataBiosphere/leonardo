@@ -95,7 +95,7 @@ object JsonCodec {
     }
   )
   implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
-  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct7(
+  implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct7(
     "clusterName",
     "googleProject",
     "creator",
@@ -103,7 +103,7 @@ object JsonCodec {
     "notebookUserScript",
     "notebookStartUserScript",
     "tool"
-  )(x => DefaultLabels.unapply(x).get)
+  )(x => DefaultRuntimeLabels.unapply(x).get)
   implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
     Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
   implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
@@ -130,8 +130,6 @@ object JsonCodec {
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
   implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
   implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
-  implicit val persistentDiskInternalIdDecoder: Decoder[PersistentDiskInternalId] =
-    Decoder.decodeString.map(PersistentDiskInternalId)
   implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
     if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
   )

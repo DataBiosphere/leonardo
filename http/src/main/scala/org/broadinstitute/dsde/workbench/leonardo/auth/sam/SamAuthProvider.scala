@@ -141,7 +141,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
   }
 
   override def hasPersistentDiskPermission(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userInfo: UserInfo,
     action: PersistentDiskAction,
     googleProject: GoogleProject
@@ -176,7 +176,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     } yield res
 
   private def checkPersistentDiskPermissionWithProjectFallback(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     authorization: Authorization,
     action: PersistentDiskAction,
     googleProject: GoogleProject
@@ -226,7 +226,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     } yield res
 
   private def hasPersistentDiskPermissionInternal(
-    persistentDiskInternalId: PersistentDiskInternalId,
+    persistentDiskInternalId: DiskSamResourceId,
     action: LeoAuthAction,
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
@@ -256,10 +256,9 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     }
   }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
-                                                disks: List[(GoogleProject, PersistentDiskInternalId)])(
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, DiskSamResourceId)])(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, PersistentDiskInternalId)]] = {
+  ): F[List[(GoogleProject, DiskSamResourceId)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       projectPolicies <- samDao.getResourcePolicies[SamProjectPolicy](authHeader, ResourceTypeName.BillingProject)
@@ -289,14 +288,14 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     samDao.deleteClusterResource(internalId, userEmail, creatorEmail, googleProject, clusterName)
 
   override def notifyPersistentDiskCreated(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.createPersistentDiskResource(internalId, creatorEmail, googleProject)
 
   override def notifyPersistentDiskDeleted(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

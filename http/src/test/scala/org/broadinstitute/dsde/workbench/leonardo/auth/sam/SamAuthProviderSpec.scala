@@ -335,8 +335,8 @@ class SamAuthProviderSpec
   }
 
   "filterUserVisiblePersistentDisks should return disks that were created by the user or whose project is owned by the user" in {
-    val disk1 = PersistentDiskInternalId(name1.asString)
-    val disk2 = PersistentDiskInternalId(name2.asString)
+    val disk1 = DiskSamResourceId(name1.asString)
+    val disk2 = DiskSamResourceId(name2.asString)
     // initial filterDisks should return empty list
     samAuthProvider
       .filterUserVisiblePersistentDisks(fakeUserInfo, List(project -> disk1, project -> disk2))

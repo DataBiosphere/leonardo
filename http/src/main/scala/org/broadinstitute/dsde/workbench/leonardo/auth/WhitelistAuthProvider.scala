@@ -35,7 +35,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     checkWhitelist(userInfo)
 
   override def hasPersistentDiskPermission(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userInfo: UserInfo,
     action: PersistentDiskAction,
     googleProject: GoogleProject
@@ -52,10 +52,9 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       }
     }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
-                                                disks: List[(GoogleProject, PersistentDiskInternalId)])(
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, DiskSamResourceId)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, PersistentDiskInternalId)]] =
+  ): IO[List[(GoogleProject, DiskSamResourceId)]] =
     disks.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
@@ -75,13 +74,13 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def notifyPersistentDiskCreated(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def notifyPersistentDiskDeleted(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

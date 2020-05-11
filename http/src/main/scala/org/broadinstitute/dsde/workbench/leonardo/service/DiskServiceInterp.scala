@@ -14,7 +14,13 @@ import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GcsBlobName,
+  GoogleStorageService,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   AutoFreezeConfig,
@@ -26,13 +32,14 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateDiskRequest,
   CreateRuntime2Request,
   ListRuntimeResponse2,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
@@ -43,27 +50,27 @@ import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, Workb
 
 import scala.concurrent.ExecutionContext
 
-class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
-                                           authProvider: LeoAuthProvider[F],
-                                           serviceAccountProvider: ServiceAccountProvider[F],
-                                           dockerDAO: DockerDAO[F],
-                                           googleStorageService: GoogleStorageService[F],
-                                           publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
+class DiskServiceInterp[F[_]: Parallel]( //config: DiskServiceConfig,
+                                        authProvider: LeoAuthProvider[F],
+                                        serviceAccountProvider: ServiceAccountProvider[F],
+                                        dockerDAO: DockerDAO[F],
+                                        googleStorageService: GoogleStorageService[F],
+                                        publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
-) extends RuntimeService[F] {
+) extends DiskService[F] {
 
-  override def createRuntime(
+  override def createDisk(
     userInfo: UserInfo,
     googleProject: GoogleProject,
-    runtimeName: RuntimeName,
-    req: CreateRuntime2Request
+    diskName: DiskName,
+    req: CreateDiskRequest
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
-      hasPermission <- authProvider.hasProjectPermission(userInfo, CreateClusters, googleProject)
+      hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccountOpt <- serviceAccountProvider
@@ -72,13 +79,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         clusterServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
-      clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
 
-      _ <- clusterOpt match {
-        case Some(c) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, c.status))
+      _ <- diskOpt match {
+        case Some(c) => F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, diskName, c.status))
         case None =>
           for {
-            internalId <- F.delay(RuntimeInternalId(UUID.randomUUID().toString))
+            samResourceId <- F.delay(DiskSamResourceId(UUID.randomUUID().toString))
             petToken <- serviceAccountProvider.getAccessToken(userInfo.userEmail, googleProject).recoverWith {
               case e =>
                 log.warn(e)(
@@ -86,57 +93,19 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     s"Skipping validation of bucket objects in the cluster request."
                 ) as None
             }
-            clusterImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
-            runtime <- F.fromEither(
-              convertToRuntime(userInfo,
-                               petSA,
-                               googleProject,
-                               runtimeName,
-                               internalId,
-                               clusterImages,
-                               config,
-                               req,
-                               context.now)
-            )
-            gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
-              .map(config =>
-                (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values)
-                  .filter(_.startsWith("gs://"))
-                  .toList
-              )
-              .getOrElse(List.empty) ++ req.jupyterUserScriptUri.map(_.asString) ++ req.jupyterStartUserScriptUri.map(
-              _.asString
-            )
-            _ <- petToken.traverse(t =>
-              gcsObjectUrisToValidate
-                .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
+            disk <- F.fromEither(
+              convertToDisk(userInfo, petSA, googleProject, diskName, samResourceId, config, req, context.now)
             )
             _ <- authProvider
-              .notifyClusterCreated(internalId, userInfo.userEmail, googleProject, runtimeName)
+              .notifyPersistentDiskCreated(samResourceId, userInfo.userEmail, googleProject)
               .handleErrorWith { t =>
                 log.error(t)(
-                  s"[${context.traceId}] Failed to notify the AuthProvider for creation of cluster ${runtime.projectNameString}"
+                  s"[${context.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
                 ) >> F.raiseError(t)
               }
 
-            gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
-            runtimeCofig = req.runtimeConfig
-              .fold[RuntimeConfig](gceRuntimeDefaults) { // default to gce if no runtime specific config is provided
-                c =>
-                  c match {
-                    case gce: RuntimeConfigRequest.GceConfig =>
-                      RuntimeConfig.GceConfig(
-                        gce.machineType.getOrElse(gceRuntimeDefaults.machineType),
-                        gce.diskSize.getOrElse(gceRuntimeDefaults.diskSize)
-                      ): RuntimeConfig
-                    case dataproc: RuntimeConfigRequest.DataprocConfig =>
-                      dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
-                  }
-              }
-
-            saveCluster = SaveCluster(cluster = runtime, runtimeConfig = runtimeCofig, now = context.now)
-            runtime <- clusterQuery.save(saveCluster).transaction
-            _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(runtime, runtimeCofig, Some(context.traceId)))
+            savedDisk <- persistentDiskQuery.save(disk).transaction
+//            _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(savedDisk, Some(context.traceId))) TODO: make these messages
           } yield ()
       }
     } yield ()
@@ -341,10 +310,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     welderDockerImage: Option[ContainerImage]
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Set[RuntimeImage]] =
     for {
+      traceId <- ev.ask
       // Try to autodetect the image
-      autodetectedImageOpt <- toolDockerImage.traverse(image =>
-        dockerDAO.detectTool(image, petToken).map(t => RuntimeImage(t, image.imageUrl, now))
-      )
+      autodetectedImageOpt <- toolDockerImage.traverse { image =>
+        dockerDAO.detectTool(image, petToken).flatMap {
+          case None       => F.raiseError[RuntimeImage](ImageNotFoundException(traceId, image))
+          case Some(tool) => F.pure(RuntimeImage(tool, image.imageUrl, now))
+        }
+      }
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
       // - else use the default jupyter image
@@ -514,44 +487,25 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
 }
 
-object RuntimeServiceInterp {
-  private def convertToRuntime(userInfo: UserInfo,
-                               serviceAccountInfo: WorkbenchEmail,
-                               googleProject: GoogleProject,
-                               runtimeName: RuntimeName,
-                               clusterInternalId: RuntimeInternalId,
-                               clusterImages: Set[RuntimeImage],
-                               config: RuntimeServiceConfig,
-                               req: CreateRuntime2Request,
-                               now: Instant): Either[Throwable, Runtime] = {
+object DiskServiceInterp {
+  private def convertToDisk(userInfo: UserInfo,
+                            serviceAccountInfo: WorkbenchEmail,
+                            googleProject: GoogleProject,
+                            diskName: DiskName,
+                            diskSamResourceId: DiskSamResourceId,
+                            config: RuntimeServiceConfig,
+                            req: CreateDiskRequest,
+                            now: Instant): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
-    val defaultLabels = DefaultRuntimeLabels(
-      runtimeName,
+    val defaultLabels = DefaultDiskLabels(
+      diskName,
       googleProject,
       userInfo.userEmail,
-      serviceAccountInfo,
-      req.jupyterUserScriptUri,
-      req.jupyterStartUserScriptUri,
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+      serviceAccountInfo
     ).toMap
 
-    // combine default and given labels and add labels for extensions
-    val allLabels = req.labels ++ defaultLabels ++ req.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
-
-    val autopauseThreshold = calculateAutopauseThreshold(
-      req.autopause,
-      req.autopauseThreshold.map(_.toMinutes.toInt),
-      config.autoFreezeConfig
-    ) //TODO: use FiniteDuration for autopauseThreshold field in Cluster
-    val clusterScopes = req.runtimeConfig match {
-      case Some(rq) if rq.cloudService == CloudService.GCE =>
-        if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
-      case Some(rq) if rq.cloudService == CloudService.Dataproc =>
-        if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
-      case None =>
-        if (req.scopes.isEmpty) config.gceConfig.defaultScopes
-        else req.scopes //default to create gce runtime if runtimeConfig is not specified
-    }
+    // combine default and given labels
+    val allLabels = req.labels ++ defaultLabels
 
     for {
       // check the labels do not contain forbidden keys
@@ -559,33 +513,20 @@ object RuntimeServiceInterp {
         Left(IllegalLabelKeyException(includeDeletedKey))
       else
         Right(allLabels)
-    } yield Runtime(
-      0,
-      internalId = clusterInternalId,
-      runtimeName = runtimeName,
-      googleProject = googleProject,
-      serviceAccount = serviceAccountInfo,
-      asyncRuntimeFields = None,
-      auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
-      kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, labels),
-      status = RuntimeStatus.Creating,
-      labels = labels,
-      jupyterUserScriptUri = req.jupyterUserScriptUri,
-      jupyterStartUserScriptUri = req.jupyterStartUserScriptUri,
-      errors = List.empty,
-      dataprocInstances = Set.empty,
-      userJupyterExtensionConfig = req.userJupyterExtensionConfig,
-      autopauseThreshold = autopauseThreshold,
-      defaultClientId = req.defaultClientId,
-      runtimeImages = clusterImages,
-      scopes = clusterScopes,
-      welderEnabled = true,
-      customEnvironmentVariables = req.customEnvironmentVariables,
-      allowStop = false, //TODO: double check this should be false when cluster is created
-      runtimeConfigId = RuntimeConfigId(-1),
-      stopAfterCreation = false,
-      patchInProgress = false
+    } yield PersistentDisk(
+      DiskId(0),
+      googleProject,
+      ZoneName("example"),
+      diskName,
+      None,
+      diskSamResourceId,
+      DiskStatus.Creating,
+      AuditInfo(userInfo.userEmail, now, None, now),
+      //TODO: get from a config
+      req.size.getOrElse(DiskSize(4)),
+      req.diskType.getOrElse(DiskType()),
+      req.blockSize.getOrElse(BlockSize(4)),
+      allLabels
     )
   }
 

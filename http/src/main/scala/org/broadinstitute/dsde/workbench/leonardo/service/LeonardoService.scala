@@ -16,7 +16,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -55,6 +55,12 @@ case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: R
 case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
       s"Runtime ${googleProject.value}/${runtimeName.asString} already exists in ${status.toString} status",
+      StatusCodes.Conflict
+    )
+
+case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject, diskName: DiskName, status: DiskStatus)
+    extends LeoException(
+      s"Persistent disk ${googleProject.value}/${diskName.value} already exists in ${status.toString} status",
       StatusCodes.Conflict
     )
 
@@ -955,7 +961,7 @@ object LeonardoService {
                                         request: CreateRuntimeRequest,
                                         clusterImages: Set[RuntimeImage]): CreateRuntimeRequest = {
     // create a LabelMap of default labels
-    val defaultLabels = DefaultLabels(
+    val defaultLabels = DefaultRuntimeLabels(
       clusterName,
       googleProject,
       creator,
