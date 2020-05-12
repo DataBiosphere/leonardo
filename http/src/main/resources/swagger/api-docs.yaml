@@ -1617,9 +1617,6 @@ components:
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
-        jupyterExtensionUri:
-          type: string
-          description: Deprecated. Please use userJupyterExtensionConfig.
         jupyterUserScriptUri:
           type: string
           description: >
@@ -1943,9 +1940,6 @@ components:
           description: The labels to be placed on the runtime. Of type Map[String,String]
         userJupyterExtensionConfig:
           $ref: "#/components/schemas/UserJupyterExtensionConfig"
-        jupyterExtensionUri:
-          type: string
-          description: Deprecated. Please use userJupyterExtensionConfig.
         jupyterUserScriptUri:
           type: string
           description: >

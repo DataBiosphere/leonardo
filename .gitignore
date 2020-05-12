@@ -32,3 +32,6 @@ automation/src/test/resources/trial-billing-account.pem
 automation/output/
 automation/*.ipynb
 test-reports/
+
+http/src/main/resources/application.conf
+http/src/main/resources/application.conf.example

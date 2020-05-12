@@ -45,7 +45,6 @@ class LeoRoutesSpec
   "leoRoutes" should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = CreateRuntimeRequest(
       Map.empty,
-      Some(jupyterExtensionUri),
       Some(jupyterUserScriptUri),
       Some(jupyterStartUserScriptUri),
       None,
@@ -70,7 +69,6 @@ class LeoRoutesSpec
         .getClusterServiceAccount(defaultUserInfo, googleProject)
         .unsafeRunSync()
         .get
-      responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
 
       //validateCookie { header[`Set-Cookie`] }
       validateRawCookie(header("Set-Cookie"))
@@ -343,10 +341,10 @@ class LeoRoutesSpec
     it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
       val request = CreateRuntimeRequest(
         Map.empty,
-        Some(jupyterExtensionUri),
         Some(jupyterUserScriptUri),
         Some(jupyterStartUserScriptUri),
-        stopAfterCreation = Some(stopAfterCreation)
+        stopAfterCreation = Some(stopAfterCreation),
+        userJupyterExtensionConfig = Some(userJupyterExtensionConfig)
       )
       Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", request.asJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
@@ -358,11 +356,13 @@ class LeoRoutesSpec
 
   it should s"reject create a cluster if cluster name is invalid" in isolatedDbTest {
     val invalidClusterName = "MyCluster"
-    val request = CreateRuntimeRequest(Map.empty,
-                                       Some(jupyterExtensionUri),
-                                       Some(jupyterUserScriptUri),
-                                       Some(jupyterStartUserScriptUri),
-                                       stopAfterCreation = None)
+    val request = CreateRuntimeRequest(
+      Map.empty,
+      Some(jupyterUserScriptUri),
+      Some(jupyterStartUserScriptUri),
+      stopAfterCreation = None,
+      userJupyterExtensionConfig = Some(userJupyterExtensionConfig)
+    )
     Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.asJson) ~> httpRoutes.route ~> check {
       val expectedResponse =
         """invalid cluster name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name"""
@@ -386,6 +386,5 @@ class LeoRoutesSpec
 final case class GetClusterResponseTest(
   id: Long,
   clusterName: RuntimeName,
-  serviceAccountInfo: WorkbenchEmail,
-  jupyterExtensionUri: Option[GcsPath]
+  serviceAccountInfo: WorkbenchEmail
 )

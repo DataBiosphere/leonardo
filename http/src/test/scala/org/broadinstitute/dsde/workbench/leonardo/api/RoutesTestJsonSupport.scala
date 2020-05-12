@@ -8,6 +8,7 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   CreateRuntimeRequest,
   GetRuntimeResponse,
@@ -15,8 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import spray.json.DefaultJsonProtocol
 
 object RoutesTestJsonSupport extends DefaultJsonProtocol {
@@ -43,7 +43,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       destroyedDate <- x.downField("destroyedDate").as[Option[Instant]]
       kernelFoundBusyDate <- x.downField("kernelFoundBusyDate").as[Option[Instant]]
       labels <- x.downField("labels").as[LabelMap]
-      jupyterExtensionUri <- x.downField("jupyterExtensionUri").as[Option[GcsPath]]
       jupyterUserScriptUri <- x.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       dateAccessed <- x.downField("dateAccessed").as[Instant]
       autopauseThreshold <- x.downField("autopauseThreshold").as[Int]
@@ -64,7 +63,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       clusterUrl,
       status,
       labels,
-      jupyterExtensionUri,
       jupyterUserScriptUri,
       Set.empty, //TODO: do this when this field is needed
       autopauseThreshold,
@@ -98,7 +96,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       destroyedDate <- x.downField("destroyedDate").as[Option[Instant]]
       kernelFoundBusyDate <- x.downField("kernelFoundBusyDate").as[Option[Instant]]
       labels <- x.downField("labels").as[LabelMap]
-      jupyterExtensionUri <- x.downField("jupyterExtensionUri").as[Option[GcsPath]]
       jupyterUserScriptUri <- x.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jupyterStartUserScriptUri <- x.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
       errors <- x.downField("errors").as[List[RuntimeError]]
@@ -124,7 +121,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       clusterUrl,
       status,
       labels,
-      jupyterExtensionUri,
       jupyterUserScriptUri,
       jupyterStartUserScriptUri,
       errors,
@@ -173,9 +169,8 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       case x: RuntimeConfigRequest.GceConfig      => x.asJson
     }
   }
-  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct17(
+  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct16(
     "labels",
-    "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "jupyterStartUserScriptUri",
     "runtimeConfig",
@@ -193,10 +188,9 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     "customClusterEnvironmentVariables"
   )(x => CreateRuntimeRequest.unapply(x).get)
 
-  implicit val getClusterResponseTestDecoder: Decoder[GetClusterResponseTest] = Decoder.forProduct4(
+  implicit val getClusterResponseTestDecoder: Decoder[GetClusterResponseTest] = Decoder.forProduct3(
     "id",
     "clusterName",
-    "googleServiceAccount",
-    "jupyterExtensionUri"
+    "googleServiceAccount"
   )(GetClusterResponseTest.apply)
 }

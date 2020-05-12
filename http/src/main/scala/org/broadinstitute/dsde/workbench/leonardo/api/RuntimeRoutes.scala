@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeConfigRequest,
   RuntimeService
 }
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.concurrent.duration._
@@ -249,7 +249,6 @@ object RuntimeRoutes {
   implicit val createRuntimeRequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
-      je <- c.downField("jupyterExtensionUri").as[Option[GcsPath]]
       jus <- c.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jsus <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
       rc <- c.downField("runtimeConfig").as[Option[RuntimeConfigRequest]]
@@ -263,11 +262,10 @@ object RuntimeRoutes {
       c <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
     } yield CreateRuntime2Request(
       l.getOrElse(Map.empty),
-      je,
       jus,
       jsus,
       rc,
-      uje,
+      uje.flatMap(x => if (x.asLabels.isEmpty) None else Some(x)),
       a,
       apt.map(_.minute),
       dc,
@@ -328,7 +326,7 @@ object RuntimeRoutes {
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct20(
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct19(
     "id",
     "runtimeName",
     "googleProject",
@@ -339,7 +337,6 @@ object RuntimeRoutes {
     "proxyUrl",
     "status",
     "labels",
-    "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "jupyterStartUserScriptUri",
     "errors",
@@ -361,7 +358,6 @@ object RuntimeRoutes {
       x.clusterUrl,
       x.status,
       x.labels,
-      x.jupyterExtensionUri,
       x.jupyterUserScriptUri,
       x.jupyterStartUserScriptUri,
       x.errors,
@@ -402,7 +398,6 @@ object RuntimeRoutes {
 }
 
 final case class CreateRuntime2Request(labels: LabelMap,
-                                       jupyterExtensionUri: Option[GcsPath],
                                        jupyterUserScriptUri: Option[UserScriptPath],
                                        jupyterStartUserScriptUri: Option[UserScriptPath],
                                        runtimeConfig: Option[RuntimeConfigRequest],

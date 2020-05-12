@@ -31,7 +31,6 @@ final case class ClusterRecord(id: Long,
                                operationName: Option[String],
                                status: String,
                                hostIp: Option[String],
-                               jupyterExtensionUri: Option[GcsPath],
                                jupyterUserScriptUri: Option[UserScriptPath],
                                jupyterStartUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
@@ -59,7 +58,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate: Rep[Instant] = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
-  def jupyterExtensionUri = column[Option[GcsPath]]("jupyterExtensionUri", O.Length(1024))
   def jupyterUserScriptUri = column[Option[UserScriptPath]]("jupyterUserScriptUri", O.Length(1024))
   def jupyterStartUserScriptUri = column[Option[UserScriptPath]]("jupyterStartUserScriptUri", O.Length(1024))
   def initBucket = column[Option[String]]("initBucket", O.Length(1024))
@@ -89,7 +87,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       operationName,
       status,
       hostIp,
-      jupyterExtensionUri,
       jupyterUserScriptUri,
       jupyterStartUserScriptUri,
       initBucket,
@@ -112,7 +109,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             operationName,
             status,
             hostIp,
-            jupyterExtensionUri,
             jupyterUserScriptUri,
             jupyterStartUserScriptUri,
             initBucket,
@@ -135,7 +131,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           operationName,
           status,
           hostIp,
-          jupyterExtensionUri,
           jupyterUserScriptUri,
           jupyterStartUserScriptUri,
           initBucket,
@@ -172,7 +167,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.operationName,
           c.status,
           c.hostIp,
-          c.jupyterExtensionUri,
           c.jupyterUserScriptUri,
           c.jupyterStartUserScriptUri,
           c.initBucket,
@@ -571,7 +565,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status.toString,
       runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)),
-      runtime.jupyterExtensionUri,
       runtime.jupyterUserScriptUri,
       runtime.jupyterStartUserScriptUri,
       initBucket,
@@ -724,7 +717,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),
       RuntimeStatus.withName(clusterRecord.status),
       labels,
-      clusterRecord.jupyterExtensionUri,
       clusterRecord.jupyterUserScriptUri,
       clusterRecord.jupyterStartUserScriptUri,
       errors map clusterErrorQuery.unmarshallClusterErrorRecord,

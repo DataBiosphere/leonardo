@@ -4,23 +4,12 @@ package util
 import java.time.Instant
 
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  ClusterFilesConfig,
-  ClusterResourcesConfig,
-  DataprocConfig,
-  GceConfig,
-  GoogleGroupsConfig,
-  ImageConfig,
-  MonitorConfig,
-  ProxyConfig,
-  VPCConfig,
-  WelderConfig
-}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, ServiceAccountKey}
 import com.google.cloud.compute.v1.Operation
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 /**
  * Defines an algebra for manipulating Leo Runtimes.
@@ -44,7 +33,6 @@ final case class CreateRuntimeParams(id: Long,
                                      serviceAccountInfo: WorkbenchEmail,
                                      asyncRuntimeFields: Option[AsyncRuntimeFields],
                                      auditInfo: AuditInfo,
-                                     jupyterExtensionUri: Option[GcsPath],
                                      jupyterUserScriptUri: Option[UserScriptPath],
                                      jupyterStartUserScriptUri: Option[UserScriptPath],
                                      userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
@@ -62,7 +50,6 @@ object CreateRuntimeParams {
       message.serviceAccountInfo,
       message.asyncRuntimeFields,
       message.auditInfo,
-      message.jupyterExtensionUri,
       message.jupyterUserScriptUri,
       message.jupyterStartUserScriptUri,
       message.userJupyterExtensionConfig,

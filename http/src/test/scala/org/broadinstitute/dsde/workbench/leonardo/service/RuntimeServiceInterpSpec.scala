@@ -61,7 +61,6 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     None,
     None,
     None,
-    None,
     Set.empty,
     Map.empty
   )

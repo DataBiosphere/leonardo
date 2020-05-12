@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.{FlatSpec, Matchers}
 
 class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
@@ -199,7 +198,6 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
     val res = decode[CreateRuntimeRequest](inputString)
     val expected = CreateRuntimeRequest(
       Map.empty,
-      Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
       None,
       None,
       Some(
@@ -216,7 +214,9 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       ),
       Some(true),
       false,
-      None,
+      Some(
+        UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
+      ),
       None,
       Some(30),
       Some("defaultClientId"),
