@@ -48,6 +48,21 @@ object DiskStatus extends Enum[DiskStatus] {
   final case object Ready extends DiskStatus
   final case object Deleting extends DiskStatus
   final case object Deleted extends DiskStatus
+
+  //TODO: confirm these
+  val activeStatuses: Set[DiskStatus] =
+    Set(Creating, Restoring, Ready)
+
+  val deletableStatuses: Set[DiskStatus] =
+    Set(Failed, Ready)
+
+  val updatableStatuses: Set[DiskStatus] = Set(Ready)
+
+  implicit class EnrichedDiskStatus(status: DiskStatus) {
+    def isActive: Boolean = activeStatuses contains status
+    def isDeletable: Boolean = deletableStatuses contains status
+    def isUpdatable: Boolean = updatableStatuses contains status
+  }
 }
 
 // Disks are always specified in GB, it doesn't make sense to support other units
@@ -69,4 +84,9 @@ object DiskType extends Enum[DiskType] {
   final case object SSD extends DiskType {
     override def googleString: String = "pd-ssd"
   }
+  def stringToDiskType(string: String): DiskType =
+    string match {
+      case "pd-standard" => Standard
+      case "pd-ssd"      => SSD
+    }
 }

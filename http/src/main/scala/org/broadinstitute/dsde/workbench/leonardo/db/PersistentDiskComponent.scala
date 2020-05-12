@@ -91,6 +91,11 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
 
+  def markPendingDeletion(id: DiskId, dateAccessed: Instant): DBIO[Int] =
+    findByIdQuery(id)
+      .map(d => (d.status, d.dateAccessed))
+      .update((DiskStatus.Deleting, dateAccessed))
+
   def delete(id: DiskId, destroyedDate: Instant) =
     findByIdQuery(id)
       .map(d => (d.status, d.destroyedDate, d.dateAccessed))

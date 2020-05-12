@@ -274,6 +274,14 @@ object Config {
     )
   }
 
+  implicit val persistentDiskConfigReader: ValueReader[PersistentDiskConfig] = ValueReader.relative { config =>
+    PersistentDiskConfig(
+      config.as[DiskSize]("defaultDiskSizeGB"),
+      config.as[DiskType]("defaultDiskType"),
+      config.as[BlockSize]("defaultBlockSizeBytes")
+    )
+  }
+
   implicit val clusterToolConfigValueReader: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
     ClusterToolConfig(
       toScalaDuration(config.getDuration("pollPeriod"))
@@ -345,6 +353,8 @@ object Config {
   implicit val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
   implicit val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
+  implicit val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(DiskType.stringToDiskType)
+  implicit val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit val frameAncestorsReader: ValueReader[FrameAncestors] = traversableReader[List, String].map(FrameAncestors)
   implicit val scriptSrcReader: ValueReader[ScriptSrc] = traversableReader[List, String].map(ScriptSrc)
   implicit val styleSrcReader: ValueReader[StyleSrc] = traversableReader[List, String].map(StyleSrc)
@@ -372,6 +382,7 @@ object Config {
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
+  val persistentDiskConfig = config.as[PersistentDiskConfig]("persistentDisk")
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
 

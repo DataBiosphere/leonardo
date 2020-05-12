@@ -52,6 +52,9 @@ case class AuthorizationError(email: Option[WorkbenchEmail] = None)
 case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: RuntimeName)
     extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found", StatusCodes.NotFound)
 
+case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskName)
+    extends LeoException(s"Persistent disk ${googleProject.value}/${diskName.value} not found", StatusCodes.NotFound)
+
 case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
       s"Runtime ${googleProject.value}/${runtimeName.asString} already exists in ${status.toString} status",
@@ -76,6 +79,12 @@ case class RuntimeCannotBeDeletedException(googleProject: GoogleProject, runtime
     extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be deleted in Creating status",
                          StatusCodes.Conflict)
 
+case class DiskCannotBeDeletedException(googleProject: GoogleProject, diskName: DiskName, status: DiskStatus)
+    extends LeoException(
+      s"Persistent disk ${googleProject.value}/${diskName.value} cannot be deleted in ${status} status",
+      StatusCodes.Conflict
+    )
+
 case class RuntimeCannotBeStartedException(googleProject: GoogleProject,
                                            runtimeName: RuntimeName,
                                            status: RuntimeStatus)
@@ -94,6 +103,10 @@ case class RuntimeOutOfDateException()
 
 case class RuntimeCannotBeUpdatedException(projectNameString: String, status: RuntimeStatus, userHint: String = "")
     extends LeoException(s"Runtime ${projectNameString} cannot be updated in ${status} status. ${userHint}",
+                         StatusCodes.Conflict)
+
+case class DiskCannotBeUpdatedException(projectNameString: String, status: DiskStatus, userHint: String = "")
+    extends LeoException(s"Persistent disk ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict)
 
 case class RuntimeMachineTypeCannotBeChangedException(runtime: Runtime)
@@ -755,7 +768,7 @@ class LeonardoService(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Vector[ListRuntimeResponse]] =
     for {
-      paramMap <- IO.fromEither(processListClustersParameters(params))
+      paramMap <- IO.fromEither(processListParameters(params))
       clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProjectOpt).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
@@ -890,7 +903,7 @@ object LeonardoService {
   private[service] val includeDeletedKey = "includeDeleted"
   private[service] val bucketPathMaxLength = 1024
 
-  private[service] def processListClustersParameters(
+  private[service] def processListParameters(
     params: LabelMap
   ): Either[ParseLabelsException, (LabelMap, Boolean)] =
     params.get(includeDeletedKey) match {
