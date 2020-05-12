@@ -341,14 +341,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     welderDockerImage: Option[ContainerImage]
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Set[RuntimeImage]] =
     for {
-      traceId <- ev.ask
       // Try to autodetect the image
-      autodetectedImageOpt <- toolDockerImage.traverse { image =>
-        dockerDAO.detectTool(image, petToken).flatMap {
-          case None       => F.raiseError[RuntimeImage](ImageNotFoundException(traceId, image))
-          case Some(tool) => F.pure(RuntimeImage(tool, image.imageUrl, now))
-        }
-      }
+      autodetectedImageOpt <- toolDockerImage.traverse(image =>
+        dockerDAO.detectTool(image, petToken).map(t => RuntimeImage(t, image.imageUrl, now))
+      )
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
       // - else use the default jupyter image

@@ -10,6 +10,6 @@ class MockDockerDAO(tool: RuntimeImageType = Jupyter) extends DockerDAO[IO] {
   override def detectTool(
     image: ContainerImage,
     petTokenOpt: Option[String]
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[RuntimeImageType]] =
-    IO.pure(Some(tool))
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[RuntimeImageType] =
+    IO.pure(tool)
 }

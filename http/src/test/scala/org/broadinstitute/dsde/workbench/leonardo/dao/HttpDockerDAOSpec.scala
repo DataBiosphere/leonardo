@@ -1,24 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import java.util.UUID
-
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.{DockerHub, GCR}
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.ExecutionContext.global
 
-class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
-  implicit val cs = IO.contextShift(global)
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-
+class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
   val jupyterImages = List(
     // dockerhub no tag
     DockerHub("broadinstitute/leonardo-notebooks"),
@@ -60,15 +53,6 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 //    )
   )
 
-  val unknownImages = List(
-    // not a supported tool
-    DockerHub("library/nginx:latest"),
-    // not a supported tool
-    GCR("us.gcr.io/broad-dsp-gcr-public/welder-server:latest"),
-    // non existent tag
-    GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base")
-  )
-
   def withDockerDAO(testCode: HttpDockerDAO[IO] => Any): Unit = {
     val dockerDAOResource = for {
       client <- BlazeClientBuilder[IO](global).resource
@@ -79,13 +63,48 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     dockerDAOResource.use(dao => IO(testCode(dao))).unsafeRunSync()
   }
 
-  Map(Some(Jupyter) -> jupyterImages, Some(RStudio) -> rstudioImages, None -> unknownImages).foreach {
+  Map(Jupyter -> jupyterImages, RStudio -> rstudioImages).foreach {
     case (tool, images) =>
       images.foreach { image =>
         it should s"detect tool=$tool for image $image" in withDockerDAO { dockerDAO =>
-          val response = dockerDAO.detectTool(image).attempt.unsafeRunSync().toOption.flatten
+          val response = dockerDAO.detectTool(image).unsafeRunSync()
           response shouldBe tool
         }
       }
+  }
+
+  it should s"detect ImageParseException" in withDockerDAO { dockerDAO =>
+    val image = GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base") // non existent tag
+    val res = for {
+      tid <- traceId.ask
+      response <- dockerDAO.detectTool(image).attempt
+    } yield {
+      response shouldBe Left(ImageParseException(tid, image))
+    }
+    res.unsafeRunSync()
+  }
+
+  it should s"detect invalid GCR image if image doesn't have proper environment variables set" in withDockerDAO {
+    dockerDAO =>
+      val image = GCR("us.gcr.io/broad-dsp-gcr-public/welder-server:latest") // not a supported tool
+      val res = for {
+        tid <- traceId.ask
+        response <- dockerDAO.detectTool(image).attempt
+      } yield {
+        response shouldBe Left(InvalidImage(tid, image))
+      }
+      res.unsafeRunSync()
+  }
+
+  it should s"detect invalid dockerhub image if image doesn't have proper environment variables set" in withDockerDAO {
+    dockerDAO =>
+      val image = DockerHub("library/nginx:latest") // not a supported tool
+      val res = for {
+        tid <- traceId.ask
+        response <- dockerDAO.detectTool(image).attempt
+      } yield {
+        response shouldBe Left(InvalidImage(tid, image))
+      }
+      res.unsafeRunSync()
   }
 }
