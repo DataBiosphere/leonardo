@@ -24,16 +24,12 @@ final case class DiskId(id: Long) extends AnyVal
 final case class DiskSamResourceId(asString: String) extends AnyVal
 
 /** Default persistent disk labels */
-case class DefaultDiskLabels(diskName: DiskName,
-                             googleProject: GoogleProject,
-                             creator: WorkbenchEmail,
-                             serviceAccount: WorkbenchEmail) {
+case class DefaultDiskLabels(diskName: DiskName, googleProject: GoogleProject, creator: WorkbenchEmail) {
   def toMap: LabelMap =
     Map(
       "diskName" -> diskName.value,
       "googleProject" -> googleProject.value,
-      "creator" -> creator.value,
-      "clusterServiceAccount" -> serviceAccount.value
+      "creator" -> creator.value
     ).filterNot(_._2 == null)
 }
 

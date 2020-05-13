@@ -44,7 +44,6 @@ object CommonTestData {
   val name2 = RuntimeName("clustername2")
   val name3 = RuntimeName("clustername3")
   val runtimeInternalId = RuntimeInternalId("067e2867-5d4a-47f3-a53c-fd711529b287")
-  val diskInternalId = DiskSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
@@ -84,6 +83,9 @@ object CommonTestData {
   val diskName = DiskName("disk-1")
   val googleId = GoogleId("google-id")
   val diskSamResourceId = DiskSamResourceId("disk-resource-id")
+  val diskSize = DiskSize(500)
+  val diskType = DiskType.stringToDiskType("disk-type")
+  val blockSize = BlockSize(4096)
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = config.as[ApplicationConfig]("application")
@@ -96,6 +98,7 @@ object CommonTestData {
   val gceConfig = config.as[GceConfig]("gce")
   val vpcConfig = config.as[VPCConfig]("vpc")
   val imageConfig = config.as[ImageConfig]("image")
+  val persistentDiskConfig = config.as[PersistentDiskConfig]("persistentDisk")
   val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
@@ -285,6 +288,25 @@ object CommonTestData {
         .build()
     )
     .build()
+
+  def makeDisk(index: Int): PersistentDisk = {
+    val diskName = DiskName("diskName" + index.toString)
+    PersistentDisk(
+      DiskId(-1),
+      project,
+      zone,
+      diskName,
+      Some(googleId),
+      diskSamResourceId,
+      DiskStatus.Ready,
+      auditInfo,
+      diskSize,
+      diskType,
+      blockSize,
+      Map.empty
+    )
+
+  }
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

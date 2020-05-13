@@ -259,28 +259,37 @@ class SamAuthProviderSpec
     val defaultPermittedActions = List("read", "attach", "modify", "delete")
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(diskInternalId.asString, action, ResourceTypeName.PersistentDisk, fakeUserAuthorization)
+        .hasResourcePermission(diskSamResourceId.asString,
+                               action,
+                               ResourceTypeName.PersistentDisk,
+                               fakeUserAuthorization)
         .unsafeRunSync() shouldBe false
     }
 
     // creating a disk would call notify
-    samAuthProvider.notifyPersistentDiskCreated(diskInternalId, fakeUserInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider.notifyPersistentDiskCreated(diskSamResourceId, fakeUserInfo.userEmail, project).unsafeRunSync()
 
     // check the resource exists for the user and actions
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(diskInternalId.asString, action, ResourceTypeName.PersistentDisk, fakeUserAuthorization)
+        .hasResourcePermission(diskSamResourceId.asString,
+                               action,
+                               ResourceTypeName.PersistentDisk,
+                               fakeUserAuthorization)
         .unsafeRunSync() shouldBe true
     }
     // deleting a disk would call notify
     samAuthProvider
-      .notifyPersistentDiskDeleted(diskInternalId, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
+      .notifyPersistentDiskDeleted(diskSamResourceId, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
       .unsafeRunSync()
 
     mockSam.persistentDisks shouldBe empty
     defaultPermittedActions.foreach { action =>
       mockSam
-        .hasResourcePermission(diskInternalId.asString, action, ResourceTypeName.PersistentDisk, fakeUserAuthorization)
+        .hasResourcePermission(diskSamResourceId.asString,
+                               action,
+                               ResourceTypeName.PersistentDisk,
+                               fakeUserAuthorization)
         .unsafeRunSync() shouldBe false
     }
 
@@ -288,50 +297,50 @@ class SamAuthProviderSpec
   }
 
   "hasPersistentDiskPermission should return true if user has persistent disk permissions and false if they do not" in {
-    mockSam.persistentDisks += (diskInternalId, fakeUserAuthorization) -> Set("attach")
+    mockSam.persistentDisks += (diskSamResourceId, fakeUserAuthorization) -> Set("attach")
     samAuthProvider
-      .hasPersistentDiskPermission(diskInternalId, fakeUserInfo, AttachPersistentDisk, project)
+      .hasPersistentDiskPermission(diskSamResourceId, fakeUserInfo, AttachPersistentDisk, project)
       .unsafeRunSync() shouldBe true
     samAuthProvider
-      .hasPersistentDiskPermission(diskInternalId, unauthorizedUserInfo, AttachPersistentDisk, project)
+      .hasPersistentDiskPermission(diskSamResourceId, unauthorizedUserInfo, AttachPersistentDisk, project)
       .unsafeRunSync() shouldBe false
     samAuthProvider
-      .hasPersistentDiskPermission(diskInternalId, fakeUserInfo, DeletePersistentDisk, project)
+      .hasPersistentDiskPermission(diskSamResourceId, fakeUserInfo, DeletePersistentDisk, project)
       .unsafeRunSync() shouldBe false
-    mockSam.persistentDisks.remove((diskInternalId, fakeUserAuthorization))
+    mockSam.persistentDisks.remove((diskSamResourceId, fakeUserAuthorization))
   }
 
   "hasPersistentDiskPermission should return true if user does not have persistent disk permissions but does have project permissions" in {
     mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("delete_persistent_disk")
-    mockSam.persistentDisks += (diskInternalId, fakeUserAuthorization) -> Set()
+    mockSam.persistentDisks += (diskSamResourceId, fakeUserAuthorization) -> Set()
 
     samAuthProvider
-      .hasPersistentDiskPermission(diskInternalId, fakeUserInfo, DeletePersistentDisk, project)
+      .hasPersistentDiskPermission(diskSamResourceId, fakeUserInfo, DeletePersistentDisk, project)
       .unsafeRunSync() shouldBe true
 
     mockSam.billingProjects.remove((project, fakeUserAuthorization))
-    mockSam.persistentDisks.remove((diskInternalId, fakeUserAuthorization))
+    mockSam.persistentDisks.remove((diskSamResourceId, fakeUserAuthorization))
   }
 
   "notifyPersistentDiskCreated should create a new persistent disk resource" in {
     mockSam.persistentDisks shouldBe empty
-    samAuthProvider.notifyPersistentDiskCreated(diskInternalId, fakeUserInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider.notifyPersistentDiskCreated(diskSamResourceId, fakeUserInfo.userEmail, project).unsafeRunSync()
     mockSam.persistentDisks.toList should contain(
-      (diskInternalId, fakeUserAuthorization) -> Set("read", "read_policies", "attach", "modify", "delete")
+      (diskSamResourceId, fakeUserAuthorization) -> Set("read", "read_policies", "attach", "modify", "delete")
     )
-    mockSam.persistentDisks.remove((diskInternalId, fakeUserAuthorization))
+    mockSam.persistentDisks.remove((diskSamResourceId, fakeUserAuthorization))
   }
 
   "notifyPersistentDiskDeleted should delete a persistent disk resource" in {
-    mockSam.persistentDisks += (diskInternalId, fakeUserAuthorization) -> Set()
+    mockSam.persistentDisks += (diskSamResourceId, fakeUserAuthorization) -> Set()
 
     samAuthProvider
-      .notifyPersistentDiskDeleted(diskInternalId, userInfo.userEmail, userInfo.userEmail, project)
+      .notifyPersistentDiskDeleted(diskSamResourceId, userInfo.userEmail, userInfo.userEmail, project)
       .unsafeRunSync()
-    mockSam.persistentDisks.toList should not contain ((diskInternalId, fakeUserAuthorization) -> Set("read",
-                                                                                                      "attach",
-                                                                                                      "modify",
-                                                                                                      "delete"))
+    mockSam.persistentDisks.toList should not contain ((diskSamResourceId, fakeUserAuthorization) -> Set("read",
+                                                                                                         "attach",
+                                                                                                         "modify",
+                                                                                                         "delete"))
   }
 
   "filterUserVisiblePersistentDisks should return disks that were created by the user or whose project is owned by the user" in {

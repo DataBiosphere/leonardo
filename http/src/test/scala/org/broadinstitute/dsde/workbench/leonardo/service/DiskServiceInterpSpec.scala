@@ -1,0 +1,221 @@
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
+
+import java.time.Instant
+import java.util.UUID
+
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
+import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateDiskRequest, UpdateDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.model
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.scalatest.FlatSpec
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
+class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
+  val publisherQueue = QueueFactory.makePublisherQueue()
+  val diskService = new DiskServiceInterp(
+    persistentDiskConfig,
+    whitelistAuthProvider,
+    new MockDockerDAO,
+    FakeGoogleStorageInterpreter,
+    publisherQueue
+  )
+  val emptyCreateDiskReq = CreateDiskRequest(
+    Map.empty,
+    None,
+    None,
+    None
+  )
+
+  implicit val ctx: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const[IO, AppContext](
+    AppContext(model.TraceId("traceId"), Instant.now())
+  )
+
+  "DiskService" should "fail with AuthorizationError if user doesn't have project level permission" in {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
+    val googleProject = GoogleProject("googleProject")
+
+    val res = for {
+      d <- diskService
+        .createDisk(
+          userInfo,
+          googleProject,
+          DiskName("diskName1"),
+          emptyCreateDiskReq
+        )
+        .attempt
+    } yield {
+      d shouldBe (Left(AuthorizationError(Some(userInfo.userEmail))))
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "successfully create a persistent disk" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val googleProject = GoogleProject("googleProject")
+    val diskName = DiskName("diskName1")
+
+    val res = for {
+      context <- ctx.ask
+      d <- diskService
+        .createDisk(
+          userInfo,
+          googleProject,
+          diskName,
+          emptyCreateDiskReq
+        )
+        .attempt
+      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
+      disk = diskOpt.get
+      message <- publisherQueue.dequeue1
+    } yield {
+      d shouldBe Right(())
+      disk.googleProject shouldBe (googleProject)
+      disk.name shouldBe (diskName)
+      val expectedMessage = CreateDiskMessage.fromDisk(disk, Some(context.traceId))
+
+      message shouldBe expectedMessage
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "get a disk" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      samResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      testDisk = makeDisk(1).copy(samResourceId = samResourceId)
+      _ <- testDisk.save()
+      getResponse <- diskService.getDisk(userInfo, testDisk.googleProject, testDisk.name)
+    } yield {
+      getResponse.samResourceId shouldBe testDisk.samResourceId
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "list disks" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      _ <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId1).save())
+      _ <- IO(makeDisk(2).copy(samResourceId = diskSamResourceId2).save())
+      listResponse <- diskService.listDisks(userInfo, None, Map.empty)
+    } yield {
+      listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1, diskSamResourceId2)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "list disks with a project" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      diskSamResourceId3 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      _ <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId1).save())
+      _ <- IO(makeDisk(2).copy(samResourceId = diskSamResourceId2).save())
+      _ <- IO(makeDisk(3).copy(samResourceId = diskSamResourceId3, googleProject = project2).save())
+      listResponse <- diskService.listDisks(userInfo, Some(project), Map.empty)
+    } yield {
+      listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1, diskSamResourceId2)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "list disks with parameters" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      disk1 <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId1))
+      _ <- disk1.save()
+      _ <- IO(makeDisk(2).copy(samResourceId = diskSamResourceId2).save())
+      _ <- labelQuery.save(disk1.id.id, LabelResourceType.PersistentDisk, "foo", "bar").transaction
+      listResponse <- diskService.listDisks(userInfo, None, Map("foo" -> "bar"))
+    } yield {
+      listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "delete a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      context <- ctx.ask
+      diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      disk <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId))
+      _ <- disk.save()
+
+      _ <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name)
+      dbDiskOpt <- persistentDiskQuery
+        .getActiveByName(disk.googleProject, disk.name)
+        .transaction
+      dbDisk = dbDiskOpt.get
+      message <- publisherQueue.dequeue1
+    } yield {
+      dbDisk.status shouldBe DiskStatus.Deleting
+      val expectedMessage = DeleteDiskMessage(disk.id, Some(context.traceId))
+      message shouldBe expectedMessage
+    }
+
+    res.unsafeRunSync()
+  }
+
+  List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
+    status =>
+      val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+      it should s"fail to update a disk in $status status" in isolatedDbTest {
+        val res = for {
+          diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+          disk <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId, status = status))
+          _ <- disk.save()
+          req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
+          fail <- diskService
+            .updateDisk(userInfo, disk.googleProject, disk.name, req)
+            .attempt
+        } yield {
+          fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status))
+        }
+        res.unsafeRunSync()
+      }
+  }
+
+  it should "update a disk in Ready status" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      context <- ctx.ask
+      diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      disk <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId))
+      _ <- disk.save()
+      req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
+      _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)
+      message <- publisherQueue.dequeue1
+    } yield {
+      val expectedMessage = UpdateDiskMessage(disk.id, Some(DiskSize(600)), None, None, Some(context.traceId))
+      message shouldBe expectedMessage
+    }
+
+    res.unsafeRunSync()
+  }
+}

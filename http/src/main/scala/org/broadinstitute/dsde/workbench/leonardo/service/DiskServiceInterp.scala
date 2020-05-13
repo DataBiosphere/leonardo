@@ -31,13 +31,12 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   UpdateDiskMessage
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.ExecutionContext
 
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
-                                        serviceAccountProvider: ServiceAccountProvider[F],
                                         dockerDAO: DockerDAO[F],
                                         googleStorageService: GoogleStorageService[F],
                                         publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
@@ -57,12 +56,6 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       ctx <- as.ask
       hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
-      // Grab the service accounts from serviceAccountProvider for use later
-      clusterServiceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, googleProject)
-      petSA <- F.fromEither(
-        clusterServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
 
       diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
 
@@ -72,7 +65,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           for {
             samResourceId <- F.delay(DiskSamResourceId(UUID.randomUUID().toString))
             disk <- F.fromEither(
-              convertToDisk(userInfo, petSA, googleProject, diskName, samResourceId, config, req, ctx.now)
+              convertToDisk(userInfo, googleProject, diskName, samResourceId, config, req, ctx.now)
             )
             _ <- authProvider
               .notifyPersistentDiskCreated(samResourceId, userInfo.userEmail, googleProject)
@@ -81,9 +74,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
                 ) >> F.raiseError(t)
               }
-
-            _ <- persistentDiskQuery.save(disk).transaction
             _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)))
+            _ <- persistentDiskQuery.save(disk).transaction
           } yield ()
       }
     } yield ()
@@ -191,7 +183,6 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
 object DiskServiceInterp {
   private def convertToDisk(userInfo: UserInfo,
-                            serviceAccountInfo: WorkbenchEmail,
                             googleProject: GoogleProject,
                             diskName: DiskName,
                             diskSamResourceId: DiskSamResourceId,
@@ -202,8 +193,7 @@ object DiskServiceInterp {
     val defaultLabels = DefaultDiskLabels(
       diskName,
       googleProject,
-      userInfo.userEmail,
-      serviceAccountInfo
+      userInfo.userEmail
     ).toMap
 
     // combine default and given labels
