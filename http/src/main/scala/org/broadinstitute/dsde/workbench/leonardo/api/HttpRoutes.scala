@@ -62,7 +62,7 @@ class HttpRoutes(
         complete(StatusCodes.InternalServerError -> report)
       case e: Throwable =>
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
-        complete(StatusCodes.InternalServerError -> ErrorReport(e))
+        complete(StatusCodes.InternalServerError -> ErrorReport(e.getMessage, Some(StatusCodes.InternalServerError), ErrorReport.causes(e), Seq(), Some(e.getClass)))
     }
   }
 
