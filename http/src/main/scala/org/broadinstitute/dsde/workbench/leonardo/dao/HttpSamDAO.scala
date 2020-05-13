@@ -6,6 +6,8 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import _root_.io.circe.{Decoder, Json, KeyDecoder}
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
+import akka.http.scaladsl.model.StatusCode._
 import ca.mrvisser.sealerate
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Resource}
@@ -112,7 +114,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
         _.fold(
           Effect[F].raiseError[String](
-            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}")
+            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}", StatusCodes.Unauthorized)
           )
         )(s => Effect[F].pure(s))
       )
@@ -157,7 +159,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
         _.fold(
           Effect[F].raiseError[String](
-            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}")
+            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}", StatusCodes.Unauthorized)
           )
         )(s => Effect[F].pure(s))
       )
@@ -199,7 +201,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
         _.fold(
           Effect[F].raiseError[String](
-            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}")
+            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}", StatusCodes.Unauthorized)
           )
         )(s => Effect[F].pure(s))
       )
@@ -242,7 +244,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
         _.fold(
           Effect[F].raiseError[String](
-            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}")
+            AuthProviderException(traceId, s"No pet SA found for ${creatorEmail} in ${googleProject}", StatusCodes.Unauthorized)
           )
         )(s => Effect[F].pure(s))
       )
@@ -333,7 +335,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       traceId <- ev.ask
       body <- response.bodyAsText(Charset.`UTF-8`).compile.foldMonoid
       _ <- logger.error(s"${traceId} | Sam call failed: $body")
-    } yield AuthProviderException(traceId, body)
+    } yield AuthProviderException(traceId, body, response.status.code)
 }
 
 object HttpSamDAO {
@@ -423,5 +425,5 @@ object ResourceTypeName {
 }
 
 final case object NotFoundException extends NoStackTrace
-final case class AuthProviderException(traceId: TraceId, msg: String)
+final case class AuthProviderException(traceId: TraceId, msg: String, statusCode: StatusCode)
     extends LeoException(message = s"${traceId} | AuthProvider error: $msg")
