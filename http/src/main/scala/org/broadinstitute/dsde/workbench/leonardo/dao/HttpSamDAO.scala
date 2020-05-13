@@ -425,5 +425,5 @@ object ResourceTypeName {
 }
 
 final case object NotFoundException extends NoStackTrace
-final case class AuthProviderException(traceId: TraceId, msg: String, statusCode: StatusCode)
-    extends LeoException(message = s"${traceId} | AuthProvider error: $msg")
+final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
+    extends LeoException(message = s"${traceId} | AuthProvider error: $msg", statusCode = code)
