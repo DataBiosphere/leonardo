@@ -84,7 +84,7 @@ object CommonTestData {
   val googleId = GoogleId("google-id")
   val diskSamResourceId = DiskSamResourceId("disk-resource-id")
   val diskSize = DiskSize(500)
-  val diskType = DiskType.stringToDiskType("disk-type")
+  val diskType = DiskType.stringToDiskType("pd-standard")
   val blockSize = BlockSize(4096)
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()

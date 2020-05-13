@@ -54,6 +54,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
+
       hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
 
