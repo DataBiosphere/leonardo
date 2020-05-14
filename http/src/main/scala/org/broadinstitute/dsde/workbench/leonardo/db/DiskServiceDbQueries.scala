@@ -16,8 +16,10 @@ object DiskServiceDbQueries {
     val diskQueryFilteredByDeletion =
       if (includeDeleted) persistentDiskQuery
       else persistentDiskQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
+
     val diskQueryFilteredByProject =
       googleProjectOpt.fold(diskQueryFilteredByDeletion)(p => diskQueryFilteredByDeletion.filter(_.googleProject === p))
+
     val diskQueryJoinedWithLabel = persistentDiskQuery.joinLabelQuery(diskQueryFilteredByProject)
 
     val diskQueryFilteredByLabel = if (labelMap.isEmpty) {
@@ -37,7 +39,6 @@ object DiskServiceDbQueries {
             .length === labelMap.size
       }
     }
-
     diskQueryFilteredByLabel.result.map(x => persistentDiskQuery.aggregateLabels(x).toList)
   }
 }

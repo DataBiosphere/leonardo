@@ -75,8 +75,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
                 ) >> F.raiseError(t)
               }
-            _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)))
-            _ <- persistentDiskQuery.save(disk).transaction
+            diskId <- persistentDiskQuery.save(disk).transaction
+            _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(disk.copy(id = diskId), Some(ctx.traceId)))
           } yield ()
       }
     } yield ()
