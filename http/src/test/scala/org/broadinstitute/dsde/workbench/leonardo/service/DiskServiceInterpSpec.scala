@@ -96,11 +96,10 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
 
     val res = for {
       samResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      testDisk = makeDisk(1).copy(samResourceId = samResourceId)
-      _ <- testDisk.save()
-      getResponse <- diskService.getDisk(userInfo, testDisk.googleProject, testDisk.name)
+      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = samResourceId).save()
+      getResponse <- diskService.getDisk(userInfo, disk.googleProject, disk.name)
     } yield {
-      getResponse.samResourceId shouldBe testDisk.samResourceId
+      getResponse.samResourceId shouldBe disk.samResourceId
     }
     res.unsafeRunSync()
   }
@@ -111,8 +110,8 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val res = for {
       diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
       diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      _ <- makeDisk(1).copy(samResourceId = diskSamResourceId1).save()
-      _ <- makeDisk(2).copy(samResourceId = diskSamResourceId2).save()
+      _ <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId1).save()
+      _ <- makePersistentDisk(DiskId(2)).copy(samResourceId = diskSamResourceId2).save()
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
     } yield {
       listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1, diskSamResourceId2)
@@ -128,9 +127,9 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
       diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
       diskSamResourceId3 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      _ <- makeDisk(1).copy(samResourceId = diskSamResourceId1).save()
-      _ <- makeDisk(2).copy(samResourceId = diskSamResourceId2).save()
-      _ <- makeDisk(3).copy(samResourceId = diskSamResourceId3, googleProject = project2).save()
+      _ <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId1).save()
+      _ <- makePersistentDisk(DiskId(2)).copy(samResourceId = diskSamResourceId2).save()
+      _ <- makePersistentDisk(DiskId(3)).copy(samResourceId = diskSamResourceId3, googleProject = project2).save()
       listResponse <- diskService.listDisks(userInfo, Some(project), Map.empty)
     } yield {
       listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1, diskSamResourceId2)
@@ -145,10 +144,9 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val res = for {
       diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
       diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk1 <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId1))
-      diskId1 <- disk1.save()
-      _ <- makeDisk(2).copy(samResourceId = diskSamResourceId2).save()
-      _ <- labelQuery.save(diskId1.id, LabelResourceType.PersistentDisk, "foo", "bar").transaction
+      disk1 <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId1).save()
+      _ <- makePersistentDisk(DiskId(2)).copy(samResourceId = diskSamResourceId2).save()
+      _ <- labelQuery.save(disk1.id.value, LabelResourceType.PersistentDisk, "foo", "bar").transaction
       listResponse <- diskService.listDisks(userInfo, None, Map("foo" -> "bar"))
     } yield {
       listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1)
@@ -163,8 +161,7 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val res = for {
       context <- ctx.ask
       diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId))
-      diskId <- disk.save()
+      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId).save()
 
       _ <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name)
       dbDiskOpt <- persistentDiskQuery
@@ -174,7 +171,7 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       message <- publisherQueue.dequeue1
     } yield {
       dbDisk.status shouldBe DiskStatus.Deleting
-      val expectedMessage = DeleteDiskMessage(diskId, Some(context.traceId))
+      val expectedMessage = DeleteDiskMessage(disk.id, Some(context.traceId))
       message shouldBe expectedMessage
     }
 
@@ -187,8 +184,7 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val res = for {
           diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-          disk <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId, status = status))
-          _ <- disk.save()
+          disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId, status = status).save()
           req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
           fail <- diskService
             .updateDisk(userInfo, disk.googleProject, disk.name, req)
@@ -206,13 +202,12 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val res = for {
       context <- ctx.ask
       diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk <- IO(makeDisk(1).copy(samResourceId = diskSamResourceId))
-      diskId <- disk.save()
+      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId).save()
       req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
       _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)
       message <- publisherQueue.dequeue1
     } yield {
-      val expectedMessage = UpdateDiskMessage(diskId, Some(DiskSize(600)), None, None, Some(context.traceId))
+      val expectedMessage = UpdateDiskMessage(disk.id, Some(DiskSize(600)), None, None, Some(context.traceId))
       message shouldBe expectedMessage
     }
 

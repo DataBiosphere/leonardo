@@ -78,8 +78,10 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       }
     } yield (disk, label)
 
-  def save(disk: PersistentDisk): DBIO[DiskId] =
-    (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
+  def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
+    for {
+      diskId <- (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
+    } yield disk.copy(diskId)
 
   def getById(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)

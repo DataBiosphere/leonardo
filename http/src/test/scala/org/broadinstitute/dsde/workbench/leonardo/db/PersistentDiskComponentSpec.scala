@@ -19,10 +19,10 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
     val disk2 = makePersistentDisk(DiskId(2)).copy(size = DiskSize(1000), blockSize = BlockSize(16384), diskType = SSD)
 
     val res = for {
-      id1 <- disk1.save()
-      id2 <- disk2.save()
-      d1 <- persistentDiskQuery.getById(id1).transaction
-      d2 <- persistentDiskQuery.getById(id2).transaction
+      savedDisk1 <- disk1.save()
+      savedDisk2 <- disk2.save()
+      d1 <- persistentDiskQuery.getById(savedDisk1.id).transaction
+      d2 <- persistentDiskQuery.getById(savedDisk2.id).transaction
       d3 <- persistentDiskQuery.getById(DiskId(-1)).transaction
     } yield {
       d1.get shouldEqual disk1
@@ -54,10 +54,10 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
     val disk = makePersistentDisk(DiskId(1))
 
     val res = for {
-      id <- disk.save()
+      savedDisk <- disk.save()
       now <- nowInstant
-      d1 <- persistentDiskQuery.updateStatus(id, DiskStatus.Restoring, now).transaction
-      d2 <- persistentDiskQuery.getById(id).transaction
+      d1 <- persistentDiskQuery.updateStatus(savedDisk.id, DiskStatus.Restoring, now).transaction
+      d2 <- persistentDiskQuery.getById(savedDisk.id).transaction
     } yield {
       d1 shouldEqual 1
       d2.get.status shouldEqual DiskStatus.Restoring
@@ -71,10 +71,10 @@ class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
     val disk = makePersistentDisk(DiskId(1))
 
     val res = for {
-      id <- disk.save()
+      savedDisk <- disk.save()
       now <- nowInstant
-      d1 <- persistentDiskQuery.delete(id, now).transaction
-      d2 <- persistentDiskQuery.getById(id).transaction
+      d1 <- persistentDiskQuery.delete(savedDisk.id, now).transaction
+      d2 <- persistentDiskQuery.getById(savedDisk.id).transaction
     } yield {
       d1 shouldEqual 1
       d2.get.status shouldEqual DiskStatus.Deleted

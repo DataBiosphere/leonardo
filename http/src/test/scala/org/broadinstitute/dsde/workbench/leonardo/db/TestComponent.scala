@@ -8,7 +8,6 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.{
   CommonTestData,
-  DiskId,
   GcsPathUtils,
   KubernetesCluster,
   LeonardoTestSuite,
@@ -119,7 +118,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   }
 
   implicit class DiskExtensions(disk: PersistentDisk) {
-    def save(): IO[DiskId] = dbRef.inTransaction(persistentDiskQuery.save(disk))
+    def save(): IO[PersistentDisk] = dbRef.inTransaction(persistentDiskQuery.save(disk))
   }
 
   implicit class KubernetesClusterExtensions(c: KubernetesCluster) {

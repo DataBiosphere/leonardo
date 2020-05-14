@@ -80,7 +80,7 @@ object CommonTestData {
     "https://www.googleapis.com/auth/source.read_only"
   )
   val zone = ZoneName("us-central1-a")
-  val diskName = DiskName("disk-1")
+  val diskName = DiskName("diskName")
   val googleId = GoogleId("google-id")
   val diskSamResourceId = DiskSamResourceId("disk-resource-id")
   val diskSize = DiskSize(500)
@@ -289,24 +289,20 @@ object CommonTestData {
     )
     .build()
 
-  def makeDisk(index: Int): PersistentDisk = {
-    val diskName = DiskName("diskName" + index.toString)
-    PersistentDisk(
-      DiskId(-1),
-      project,
-      zone,
-      diskName,
-      Some(googleId),
-      diskSamResourceId,
-      DiskStatus.Ready,
-      auditInfo,
-      diskSize,
-      diskType,
-      blockSize,
-      Map.empty
-    )
-
-  }
+  def makePersistentDisk(id: DiskId): PersistentDisk = PersistentDisk(
+    id,
+    project,
+    zone,
+    DiskName(diskName.value + id),
+    Some(googleId),
+    diskSamResourceId,
+    DiskStatus.Ready,
+    auditInfo,
+    diskSize,
+    diskType,
+    blockSize,
+    Map.empty
+  )
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
@@ -356,21 +352,6 @@ object CommonTestData {
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
   def modifyInstanceKey(instanceKey: DataprocInstanceKey): DataprocInstanceKey =
     instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
-
-  def makePersistentDisk(id: DiskId): PersistentDisk = PersistentDisk(
-    id,
-    project,
-    zone,
-    DiskName(diskName.value + id),
-    Some(googleId),
-    diskSamResourceId,
-    DiskStatus.Ready,
-    AuditInfo(userEmail, Instant.now, None, Instant.now),
-    DiskSize(500),
-    DiskType.Standard,
-    BlockSize(4096),
-    Map.empty
-  )
 }
 
 trait GcsPathUtils {

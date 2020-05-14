@@ -115,7 +115,7 @@ object JsonCodec {
     "errorCode",
     "timestamp"
   )(x => RuntimeError.unapply(x).get)
-  implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.id)
+  implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.value)
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.toString)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.entryName)
 

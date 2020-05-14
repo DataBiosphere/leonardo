@@ -20,7 +20,7 @@ final case class PersistentDisk(id: DiskId,
   def projectNameString: String = s"${googleProject.value}/${name.value}"
 }
 
-final case class DiskId(id: Long) extends AnyVal
+final case class DiskId(value: Long) extends AnyVal
 final case class DiskSamResourceId(asString: String) extends AnyVal
 
 /** Default persistent disk labels */

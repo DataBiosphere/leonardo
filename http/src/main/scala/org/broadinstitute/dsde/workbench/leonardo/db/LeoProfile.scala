@@ -86,7 +86,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val googleIdMappedColumnType: BaseColumnType[GoogleId] =
       MappedColumnType.base[GoogleId, String](_.value, GoogleId.apply)
     implicit val diskIdMappedColumnType: BaseColumnType[DiskId] =
-      MappedColumnType.base[DiskId, Long](_.id, DiskId.apply)
+      MappedColumnType.base[DiskId, Long](_.value, DiskId.apply)
     implicit val diskSizeMappedColumnType: BaseColumnType[DiskSize] =
       MappedColumnType.base[DiskSize, Int](_.gb, DiskSize.apply)
     implicit val zoneNameMappedColumnType: BaseColumnType[ZoneName] =
