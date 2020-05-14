@@ -89,7 +89,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
       "kernelFoundBusyDate" -> obj.kernelFoundBusyDate.toJson,
       "labels" -> obj.labels.toJson,
-      "jupyterExtensionUri" -> obj.jupyterExtensionUri.map(_.toUri).toJson,
       "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.map(_.asString).toJson,
       "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket.toJson).getOrElse(JsNull),
       "instances" -> obj.dataprocInstances.toJson,
@@ -163,7 +162,10 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
       "kernelFoundBusyDate" -> obj.kernelFoundBusyDate.toJson,
       "labels" -> obj.labels.toJson,
-      "jupyterExtensionUri" -> obj.jupyterExtensionUri.map(_.toUri).toJson,
+      "jupyterExtensionUri" -> obj.userJupyterExtensionConfig
+        .flatMap(_.nbExtensions.values.headOption)
+        .getOrElse("")
+        .toJson,
       "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.map(_.asString).toJson,
       "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.map(_.asString).toJson,
       "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket).toJson,
@@ -245,7 +247,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
       "kernelFoundBusyDate" -> obj.kernelFoundBusyDate.toJson,
       "labels" -> obj.labels.toJson,
-      "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
       "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.map(_.asString).toJson,
       "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.map(_.asString).toJson,
       "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket).toJson,

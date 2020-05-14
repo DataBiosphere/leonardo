@@ -18,7 +18,7 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
     asyncRuntimeFields =
       Some(makeAsyncRuntimeFields(1).copy(googleId = GoogleId("4ba97751-026a-4555-961b-89ae6ce78df4"))),
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
-    jupyterExtensionUri = Some(jupyterExtensionUri),
+    userJupyterExtensionConfig = Some(userJupyterExtensionConfig),
     stopAfterCreation = true,
     allowStop = false,
     runtimeImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
@@ -86,7 +86,9 @@ class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
     val expectedClusterRequest = CreateRuntimeRequest(
       labels = Map.empty,
       scopes = Set.empty,
-      jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
+      userJupyterExtensionConfig = Some(
+        UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
+      ),
       jupyterUserScriptUri =
         Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))),
       jupyterStartUserScriptUri =

@@ -58,7 +58,6 @@ class HttpRoutesSpec
       Map("lbl1" -> "true"),
       None,
       Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
-      None,
       Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)))),
       None,
       Some(true),
@@ -194,9 +193,8 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
-  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct13(
+  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct12(
     "labels",
-    "jupyterExtensionUri",
     "jupyterUserScriptUri",
     "jupyterStartUserScriptUri",
     "runtimeConfig",
@@ -211,7 +209,6 @@ object HttpRoutesSpec {
   )(x =>
     (
       x.labels,
-      x.jupyterExtensionUri,
       x.jupyterUserScriptUri,
       x.jupyterStartUserScriptUri,
       x.runtimeConfig,
@@ -281,7 +278,6 @@ object HttpRoutesSpec {
       clusterUrl <- x.downField("proxyUrl").as[URL]
       status <- x.downField("status").as[RuntimeStatus]
       labels <- x.downField("labels").as[LabelMap]
-      jupyterExtensionUri <- x.downField("jupyterExtensionUri").as[Option[GcsPath]]
       jupyterUserScriptUri <- x.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jupyterStartUserScriptUri <- x.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
       errors <- x.downField("errors").as[List[RuntimeError]]
@@ -303,7 +299,6 @@ object HttpRoutesSpec {
       clusterUrl,
       status,
       labels,
-      jupyterExtensionUri,
       jupyterUserScriptUri,
       jupyterStartUserScriptUri,
       errors,

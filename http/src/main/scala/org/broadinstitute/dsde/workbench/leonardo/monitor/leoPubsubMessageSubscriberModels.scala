@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
-import org.broadinstitute.dsde.workbench.model.google.GcsPath
 
 sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Product {
   def asString: String
@@ -67,7 +66,6 @@ object LeoPubsubMessage {
                                         serviceAccountInfo: WorkbenchEmail,
                                         asyncRuntimeFields: Option[AsyncRuntimeFields],
                                         auditInfo: AuditInfo,
-                                        jupyterExtensionUri: Option[GcsPath],
                                         jupyterUserScriptUri: Option[UserScriptPath],
                                         jupyterStartUserScriptUri: Option[UserScriptPath],
                                         userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
@@ -90,7 +88,6 @@ object LeoPubsubMessage {
         runtime.serviceAccount,
         runtime.asyncRuntimeFields,
         runtime.auditInfo,
-        runtime.jupyterExtensionUri,
         runtime.jupyterUserScriptUri,
         runtime.jupyterStartUserScriptUri,
         runtime.userJupyterExtensionConfig,
@@ -142,26 +139,6 @@ object LeoPubsubCodec {
 
   implicit val clusterTransitionFinishedDecoder: Decoder[RuntimeTransitionMessage] =
     Decoder.forProduct2("clusterPatchDetails", "traceId")(RuntimeTransitionMessage.apply)
-
-  implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct16(
-      "id",
-      "clusterProjectAndName",
-      "serviceAccountInfo",
-      "dataprocInfo",
-      "auditInfo",
-      "jupyterExtensionUri",
-      "jupyterUserScriptUri",
-      "jupyterStartUserScriptUri",
-      "userJupyterExtensionConfig",
-      "defaultClientId",
-      "clusterImages",
-      "scopes",
-      "welderEnabled",
-      "customClusterEnvironmentVariables",
-      "runtimeConfig",
-      "traceId"
-    )(CreateRuntimeMessage.apply)
 
   implicit val deleteRuntimeDecoder: Decoder[DeleteRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(DeleteRuntimeMessage.apply)
@@ -216,14 +193,13 @@ object LeoPubsubCodec {
     Encoder.forProduct2("messageType", "clusterPatchDetails")(x => (x.messageType, x.runtimePatchDetails))
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct17(
+    Encoder.forProduct16(
       "messageType",
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
       "dataprocInfo",
       "auditInfo",
-      "jupyterExtensionUri",
       "jupyterUserScriptUri",
       "jupyterStartUserScriptUri",
       "userJupyterExtensionConfig",
@@ -241,7 +217,6 @@ object LeoPubsubCodec {
        x.serviceAccountInfo,
        x.asyncRuntimeFields,
        x.auditInfo,
-       x.jupyterExtensionUri,
        x.jupyterUserScriptUri,
        x.jupyterStartUserScriptUri,
        x.userJupyterExtensionConfig,
@@ -253,6 +228,25 @@ object LeoPubsubCodec {
        x.runtimeConfig,
        x.traceId)
     )
+
+  implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
+    Decoder.forProduct15(
+      "id",
+      "clusterProjectAndName",
+      "serviceAccountInfo",
+      "dataprocInfo",
+      "auditInfo",
+      "jupyterUserScriptUri",
+      "jupyterStartUserScriptUri",
+      "userJupyterExtensionConfig",
+      "defaultClientId",
+      "clusterImages",
+      "scopes",
+      "welderEnabled",
+      "customClusterEnvironmentVariables",
+      "runtimeConfig",
+      "traceId"
+    )(CreateRuntimeMessage.apply)
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =
     Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))

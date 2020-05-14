@@ -71,8 +71,8 @@ trait TestLeoRoutes {
     petMock.buckets += jupyterStartUserScriptBucketName -> Set(
       (jupyterStartUserScriptObjectName, new ByteArrayInputStream("foo".getBytes()))
     )
-    petMock.buckets += jupyterExtensionUri.bucketName -> Set(
-      (jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes()))
+    petMock.buckets += jupyterExtensionBucket -> Set(
+      (jupyterExtensionObject, new ByteArrayInputStream("foo".getBytes()))
     )
     petMock
   }

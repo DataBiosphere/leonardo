@@ -108,7 +108,6 @@ object TestUtils extends Matchers {
     c.proxyUrl shouldBe createCluster.clusterUrl
     c.status shouldBe createCluster.status
     c.labels shouldBe createCluster.labels
-    c.jupyterExtensionUri shouldBe createCluster.jupyterExtensionUri
     c.jupyterUserScriptUri shouldBe createCluster.jupyterUserScriptUri
     c.jupyterStartUserScriptUri shouldBe createCluster.jupyterStartUserScriptUri
     c.errors shouldBe createCluster.errors

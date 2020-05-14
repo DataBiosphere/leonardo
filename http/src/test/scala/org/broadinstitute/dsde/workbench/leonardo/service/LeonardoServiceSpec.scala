@@ -76,8 +76,9 @@ class LeonardoServiceSpec
     projectDAO = new MockGoogleProjectDAO
     storageDAO = new MockGoogleStorageDAO
     // Pre-populate the juptyer extension bucket in the mock storage DAO, as it is passed in some requests
-    storageDAO.buckets += jupyterExtensionUri.bucketName -> Set(
-      (jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes()))
+    // Value should match userJupyterExtensionConfig variable
+    storageDAO.buckets += GcsBucketName("bucket-name") -> Set(
+      (GcsObjectName("extension"), new ByteArrayInputStream("foo".getBytes()))
     )
 
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
@@ -169,7 +170,7 @@ class LeonardoServiceSpec
     // check that no state in Google changed
     // TODO
 //    computeDAO.firewallRules shouldBe 'empty
-    storageDAO.buckets.keySet shouldBe Set(jupyterExtensionUri.bucketName)
+    storageDAO.buckets.keySet shouldBe Set(GcsBucketName("bucket-name"))
 
     // init bucket should not have been persisted to the database
     val dbInitBucketOpt = dbFutureValue(clusterQuery.getInitBucket(project, name0))
@@ -667,26 +668,31 @@ class LeonardoServiceSpec
   }
 
   it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {
-    val jupyterExtensionUri =
-      GcsPath(GcsBucketName("bucket"), GcsObjectName(Stream.continually('a').take(1025).mkString))
-
     // create the cluster
-    val clusterRequest = testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))
+    val clusterRequest = testClusterRequest.copy(userJupyterExtensionConfig =
+      Some(
+        UserJupyterExtensionConfig(nbExtensions =
+          Map("notebookExtension" -> s"gs://bucket/${Stream.continually('a').take(1025).mkString}")
+        )
+      )
+    )
     val response = leo.createCluster(userInfo, project, name0, clusterRequest).unsafeToFuture.failed.futureValue
 
     response shouldBe a[BucketObjectException]
   }
 
   it should "throw a JupyterExtensionException when the jupyterExtensionUri does not point to a GCS object" in isolatedDbTest {
-    val jupyterExtensionUri = parseGcsPath("gs://bogus/object.tar.gz").right.get
-
     // create the cluster
     val response =
       leo
-        .createCluster(userInfo,
-                       project,
-                       name0,
-                       testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri)))
+        .createCluster(
+          userInfo,
+          project,
+          name0,
+          testClusterRequest.copy(userJupyterExtensionConfig =
+            Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bogus/object.tar.gz")))
+          )
+        )
         .unsafeToFuture
         .failed
         .futureValue

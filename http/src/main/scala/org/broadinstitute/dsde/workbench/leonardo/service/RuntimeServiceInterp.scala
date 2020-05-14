@@ -535,19 +535,8 @@ object RuntimeServiceInterp {
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
     ).toMap
 
-    val userJupyterExt = req.jupyterExtensionUri match {
-      case Some(ext) => Map("notebookExtension" -> ext.toUri)
-      case None      => Map.empty[String, String]
-    }
-
-    // add the userJupyterExt to the nbExtensions
-    val updatedUserJupyterExtensionConfig = req.userJupyterExtensionConfig match {
-      case Some(config) => config.copy(nbExtensions = config.nbExtensions ++ userJupyterExt)
-      case None         => UserJupyterExtensionConfig(userJupyterExt, Map.empty, Map.empty, Map.empty)
-    }
-
     // combine default and given labels and add labels for extensions
-    val allLabels = req.labels ++ defaultLabels ++ updatedUserJupyterExtensionConfig.asLabels
+    val allLabels = req.labels ++ defaultLabels ++ req.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
 
     val autopauseThreshold = calculateAutopauseThreshold(
       req.autopause,
@@ -582,13 +571,11 @@ object RuntimeServiceInterp {
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, labels),
       status = RuntimeStatus.Creating,
       labels = labels,
-      jupyterExtensionUri = req.jupyterExtensionUri,
       jupyterUserScriptUri = req.jupyterUserScriptUri,
       jupyterStartUserScriptUri = req.jupyterStartUserScriptUri,
       errors = List.empty,
       dataprocInstances = Set.empty,
-      userJupyterExtensionConfig =
-        if (updatedUserJupyterExtensionConfig.asLabels.isEmpty) None else Some(updatedUserJupyterExtensionConfig),
+      userJupyterExtensionConfig = req.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = req.defaultClientId,
       runtimeImages = clusterImages,

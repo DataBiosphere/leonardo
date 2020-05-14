@@ -124,7 +124,6 @@ object LeonardoServiceDbQueries {
                                 lmp), //TODO: remove clusterImages field
             RuntimeStatus.withName(clusterRec.status),
             lmp,
-            clusterRec.jupyterExtensionUri,
             clusterRec.jupyterUserScriptUri,
             Set.empty, //TODO: remove instances from ListResponse
             clusterRec.autopauseThreshold,

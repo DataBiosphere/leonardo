@@ -53,7 +53,12 @@ object CommonTestData {
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
   val unauthorizedUserInfo =
     UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("somecreep"), unauthorizedEmail, 0)
-  val jupyterExtensionUri = GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))
+  val jupyterExtensionBucket = GcsBucketName("bucket-name")
+  val jupyterExtensionObject = GcsObjectName("extension")
+  val userJupyterExtensionConfig =
+    UserJupyterExtensionConfig(nbExtensions =
+      Map("notebookExtension" -> s"gs://${jupyterExtensionBucket.value}/${jupyterExtensionObject.value}")
+    )
   val jupyterUserScriptBucketName = GcsBucketName("userscript_bucket")
   val jupyterUserScriptObjectName = GcsObjectName("userscript.sh")
   val jupyterUserScriptUri = UserScriptPath.Gcs(GcsPath(jupyterUserScriptBucketName, jupyterUserScriptObjectName))
@@ -122,7 +127,6 @@ object CommonTestData {
     None,
     None,
     None,
-    None,
     false,
     Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
     Some(true),
@@ -131,7 +135,6 @@ object CommonTestData {
   )
   val testClusterRequestWithExtensionAndScript = CreateRuntimeRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-    Some(jupyterExtensionUri),
     Some(jupyterUserScriptUri),
     Some(jupyterStartUserScriptUri),
     None,
@@ -210,7 +213,6 @@ object CommonTestData {
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
-      jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
       jupyterStartUserScriptUri = None,
       errors = List.empty,
@@ -243,13 +245,13 @@ object CommonTestData {
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
-    jupyterExtensionUri = Some(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("extension"))),
     jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
     jupyterStartUserScriptUri =
       Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
     errors = List.empty,
     dataprocInstances = Set.empty,
-    userJupyterExtensionConfig = None,
+    userJupyterExtensionConfig =
+      Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bucket-name/extension"))),
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = Some("clientId"),
     stopAfterCreation = false,

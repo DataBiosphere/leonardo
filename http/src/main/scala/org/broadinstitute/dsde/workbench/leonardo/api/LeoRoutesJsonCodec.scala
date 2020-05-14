@@ -94,24 +94,36 @@ object LeoRoutesJsonCodec {
       customClusterEnvironmentVariables <- c
         .downField("customClusterEnvironmentVariables")
         .as[Option[Map[String, String]]]
-    } yield CreateRuntimeRequest(
-      labels.getOrElse(Map.empty),
-      jupyterExtensionUri,
-      jupyterUserScriptUri,
-      jupyterStartUserScriptUri,
-      machineConfig,
-      stopAfterCreation,
-      allowStop.getOrElse(false),
-      userJupyterExtensionConfig,
-      autopause,
-      autopauseThreshold,
-      defaultClientId,
-      jupyterDockerImage,
-      toolDockerImage,
-      welderDockerImage,
-      scopes.getOrElse(Set.empty),
-      enableWelder,
-      customClusterEnvironmentVariables.getOrElse(Map.empty)
-    )
+    } yield {
+      val userJupyterExt = jupyterExtensionUri match {
+        case Some(ext) => Map("notebookExtension" -> ext.toUri)
+        case None      => Map.empty[String, String]
+      }
+
+      // add the userJupyterExt to the nbExtensions
+      val updatedUserJupyterExtensionConfig = userJupyterExtensionConfig match {
+        case Some(config) => config.copy(nbExtensions = config.nbExtensions ++ userJupyterExt)
+        case None         => UserJupyterExtensionConfig(userJupyterExt, Map.empty, Map.empty, Map.empty)
+      }
+
+      CreateRuntimeRequest(
+        labels.getOrElse(Map.empty),
+        jupyterUserScriptUri,
+        jupyterStartUserScriptUri,
+        machineConfig,
+        stopAfterCreation,
+        allowStop.getOrElse(false),
+        if (updatedUserJupyterExtensionConfig.asLabels.isEmpty) None else Some(updatedUserJupyterExtensionConfig),
+        autopause,
+        autopauseThreshold,
+        defaultClientId,
+        jupyterDockerImage,
+        toolDockerImage,
+        welderDockerImage,
+        scopes.getOrElse(Set.empty),
+        enableWelder,
+        customClusterEnvironmentVariables.getOrElse(Map.empty)
+      )
+    }
   }
 }

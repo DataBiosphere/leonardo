@@ -274,7 +274,6 @@ class LeonardoService(
         runtimeName,
         googleProject,
         serviceAccountInfo,
-        machineConfig,
         proxyConfig.proxyUrlBase,
         autopauseThreshold,
         clusterScopes,
@@ -933,29 +932,8 @@ object LeonardoService {
                                                    clusterName: RuntimeName,
                                                    userEmail: WorkbenchEmail,
                                                    request: CreateRuntimeRequest,
-                                                   clusterImages: Set[RuntimeImage]): CreateRuntimeRequest = {
-    val userJupyterExt = request.jupyterExtensionUri match {
-      case Some(ext) => Map("notebookExtension" -> ext.toUri)
-      case None      => Map.empty[String, String]
-    }
-
-    // add the userJupyterExt to the nbExtensions
-    val updatedUserJupyterExtensionConfig = request.userJupyterExtensionConfig match {
-      case Some(config) => config.copy(nbExtensions = config.nbExtensions ++ userJupyterExt)
-      case None         => UserJupyterExtensionConfig(userJupyterExt, Map.empty, Map.empty, Map.empty)
-    }
-
-    // transform Some(empty, empty, empty, empty) to None
-    val updatedRequest = request.copy(
-      userJupyterExtensionConfig =
-        if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
-          None
-        else
-          Some(updatedUserJupyterExtensionConfig)
-    )
-
-    addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedRequest, clusterImages)
-  }
+                                                   clusterImages: Set[RuntimeImage]): CreateRuntimeRequest =
+    addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, request, clusterImages)
 
   private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
                                                    autopauseThreshold: Option[Int],
