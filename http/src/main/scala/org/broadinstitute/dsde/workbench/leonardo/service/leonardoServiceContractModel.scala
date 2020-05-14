@@ -175,7 +175,7 @@ object CreateRuntimeResponse {
     runtime.proxyUrl,
     runtime.status,
     runtime.labels,
-    None, //TODO: double check if this is okay
+    None,
     runtime.jupyterUserScriptUri,
     runtime.jupyterStartUserScriptUri,
     runtime.errors,

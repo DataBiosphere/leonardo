@@ -535,12 +535,6 @@ object RuntimeServiceInterp {
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
     ).toMap
 
-//    // add the userJupyterExt to the nbExtensions
-//    val updatedUserJupyterExtensionConfig = req.userJupyterExtensionConfig match {
-//      case Some(config) => config.copy(nbExtensions = config.nbExtensions)
-//      case None         => UserJupyterExtensionConfig(Map.empty, Map.empty, Map.empty, Map.empty)
-//    }
-
     // combine default and given labels and add labels for extensions
     val allLabels = req.labels ++ defaultLabels ++ req.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
 
