@@ -17,7 +17,6 @@ import com.typesafe.scalalogging.LazyLogging
 import LeoRoutesJsonCodec._
 import LeoRoutesSprayJsonCodec._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, LeonardoService}
@@ -48,7 +47,7 @@ class LeoRoutes(
       CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
         pathPrefix("cluster") {
           pathPrefix("v2" / Segment / Segment) { (googleProject, clusterNameString) =>
-            validateRuntimeNameDirective(clusterNameString) { clusterName =>
+            validateClusterNameDirective(clusterNameString) { clusterName =>
               pathEndOrSingleSlash {
                 put {
                   entity(as[CreateRuntimeRequest]) { cluster =>
@@ -63,7 +62,7 @@ class LeoRoutes(
             }
           } ~
             pathPrefix(Segment / Segment) { (googleProject, clusterNameString) =>
-              validateRuntimeNameDirective(clusterNameString) { clusterName =>
+              validateClusterNameDirective(clusterNameString) { clusterName =>
                 pathEndOrSingleSlash {
                   patch {
                     entity(as[CreateRuntimeRequest]) { cluster =>
@@ -146,11 +145,11 @@ class LeoRoutes(
 }
 
 object LeoRoutes {
-  private val resourceNameReg = "([a-z|0-9|-])*".r
+  private val clusterNameReg = "([a-z|0-9|-])*".r
 
-  private def validateRuntimeName(clusterNameString: String): Either[Throwable, RuntimeName] =
+  private def validateClusterName(clusterNameString: String): Either[Throwable, RuntimeName] =
     clusterNameString match {
-      case resourceNameReg(_) => Right(RuntimeName(clusterNameString))
+      case clusterNameReg(_) => Right(RuntimeName(clusterNameString))
       case _ =>
         Left(
           RequestValidationError(
@@ -159,28 +158,9 @@ object LeoRoutes {
         )
     }
 
-  def validateRuntimeNameDirective(clusterNameString: String): Directive1[RuntimeName] =
+  def validateClusterNameDirective(clusterNameString: String): Directive1[RuntimeName] =
     Directive { inner =>
-      validateRuntimeName(clusterNameString) match {
-        case Left(e)  => failWith(e)
-        case Right(c) => inner(Tuple1(c))
-      }
-    }
-
-  private def validateDiskName(diskNameString: String): Either[Throwable, DiskName] =
-    diskNameString match {
-      case resourceNameReg(_) => Right(DiskName(diskNameString))
-      case _ =>
-        Left(
-          RequestValidationError(
-            s"invalid disk name ${diskNameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in disk name"
-          )
-        )
-    }
-
-  def validateDiskNameDirective(diskNameString: String): Directive1[DiskName] =
-    Directive { inner =>
-      validateDiskName(diskNameString) match {
+      validateClusterName(clusterNameString) match {
         case Left(e)  => failWith(e)
         case Right(c) => inner(Tuple1(c))
       }

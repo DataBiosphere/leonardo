@@ -117,7 +117,7 @@ object JsonCodec {
   )(x => RuntimeError.unapply(x).get)
   implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.value)
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.toString)
-  implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.entryName)
+  implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.googleString)
 
   // Decoders
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
@@ -222,5 +222,5 @@ object JsonCodec {
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =
-    Decoder.decodeString.emap(x => DiskType.withNameOption(x).toRight(s"Invalid disk type: $x"))
+    Decoder.decodeString.emap(x => DiskType.stringToDiskType(x).toRight(s"Invalid disk type: $x"))
 }
