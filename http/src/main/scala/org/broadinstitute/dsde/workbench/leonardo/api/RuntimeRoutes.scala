@@ -25,8 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeConfigRequest,
   RuntimeService
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import io.opencensus.trace.{AttributeValue, Span}
@@ -403,9 +402,8 @@ object RuntimeRoutes {
     "name",
     "size",
     "diskType",
-    "blockSize",
-    "labels"
-  )(x => (x.name, x.size, x.diskType, x.blockSize, x.labels))
+    "blockSize"
+  )(x => (x.name, x.size, x.diskType, x.blockSize))
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
@@ -457,7 +455,7 @@ object RuntimeRoutes {
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct9(
+  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct10(
     "id",
     "runtimeName",
     "googleProject",
@@ -466,7 +464,8 @@ object RuntimeRoutes {
     "proxyUrl",
     "status",
     "labels",
-    "patchInProgress"
+    "patchInProgress",
+    "diskConfig"
   )(x =>
     (
       x.id,
@@ -477,7 +476,8 @@ object RuntimeRoutes {
       x.proxyUrl,
       x.status,
       x.labels,
-      x.patchInProgress
+      x.patchInProgress,
+      x.diskConfig
     )
   )
 
@@ -549,7 +549,8 @@ final case class ListRuntimeResponse2(id: Long,
                                       proxyUrl: URL,
                                       status: RuntimeStatus,
                                       labels: LabelMap,
-                                      patchInProgress: Boolean)
+                                      patchInProgress: Boolean,
+                                      diskConfig: Option[DiskConfig])
 
 sealed trait DiskConfigRequest extends Product with Serializable {
   def name: DiskName
@@ -569,8 +570,8 @@ object DiskConfigRequest {
   }
 }
 
-final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize, labels: LabelMap)
+final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize)
 object DiskConfig {
   def fromPersistentDisk(disk: PersistentDisk): DiskConfig =
-    DiskConfig(disk.name, disk.size, disk.diskType, disk.blockSize, disk.labels)
+    DiskConfig(disk.name, disk.size, disk.diskType, disk.blockSize)
 }

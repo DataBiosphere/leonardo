@@ -5,18 +5,27 @@ import cats.data.Chain
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
+import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{fullClusterQueryByUniqueKey, unmarshalFullCluster}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{DiskConfig, ListRuntimeResponse2}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeNotFoundException}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
 
-  type ClusterJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
+  type RuntimeJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
+
+  def runtimeLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): RuntimeJoinLabel =
+    for {
+      (runtime, label) <- baseQuery.joinLeft(labelQuery).on {
+        case (r, lbl) =>
+          lbl.resourceId === r.id && lbl.resourceType === LabelResourceType.runtime
+      }
+    } yield (runtime, label)
 
   def getStatusByName(project: GoogleProject,
                       name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] = {
@@ -30,33 +39,48 @@ object RuntimeServiceDbQueries {
     res.map(recs => recs.headOption.flatMap(x => RuntimeStatus.withNameInsensitiveOption(x)))
   }
 
-  def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
-    for {
-      (cluster, label) <- baseQuery.joinLeft(labelQuery).on {
-        case (c, lbl) =>
-          lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
-      }
-    } yield (cluster, label)
+  def getRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit executionContext: ExecutionContext
+  ): DBIO[GetRuntimeResponse] = {
+    val activeRuntime = fullClusterQueryByUniqueKey(googleProject, runtimeName, None)
+      .join(runtimeConfigs)
+      .on(_._1.runtimeConfigId === _.id)
+      .joinLeft(persistentDiskQuery)
+      .on { case (a, b) => a._1._1.persistentDiskId.fold(false)(_ == b.id) }
+    activeRuntime.result.flatMap { recs =>
+      val runtimeRecs = recs.map(_._1._1)
+      val res = for {
+        runtime <- unmarshalFullCluster(runtimeRecs).headOption
+        runtimeConfig <- recs.headOption.map(_._1._2)
+        persistentDisk = recs.headOption
+          .flatMap(_._2)
+          .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
+      } yield GetRuntimeResponse.fromRuntime(runtime,
+                                             runtimeConfig.runtimeConfig,
+                                             persistentDisk.map(DiskConfig.fromPersistentDisk))
+      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, runtimeName)))(r =>
+        DBIO.successful(r)
+      )
+    }
+  }
 
-  // new runtime route return a lot less fields than legacy listCluster API
-  // Once we remove listCluster API, we can optimize this query
-  def listClusters(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
+  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
-    val clusterQueryFilteredByDeletion =
+    val runtimeQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === "Deleted")
-    val clusterQueryFilteredByProject = googleProjectOpt.fold(clusterQueryFilteredByDeletion)(p =>
-      clusterQueryFilteredByDeletion.filter(_.googleProject === p)
+    val clusterQueryFilteredByProject = googleProjectOpt.fold(runtimeQueryFilteredByDeletion)(p =>
+      runtimeQueryFilteredByDeletion.filter(_.googleProject === p)
     )
-    val clusterQueryJoinedWithLabel = clusterLabelQuery(clusterQueryFilteredByProject)
+    val runtimeQueryJoinedWithLabel = runtimeLabelQuery(clusterQueryFilteredByProject)
 
-    val clusterQueryFilteredByLabel = if (labelMap.isEmpty) {
-      clusterQueryJoinedWithLabel
+    val runtimeQueryFilteredByLabel = if (labelMap.isEmpty) {
+      runtimeQueryJoinedWithLabel
     } else {
-      clusterQueryJoinedWithLabel.filter {
-        case (clusterRec, _) =>
+      runtimeQueryJoinedWithLabel.filter {
+        case (runtimeRec, _) =>
           labelQuery
-            .filter(lbl => lbl.resourceId === clusterRec.id && lbl.resourceType === LabelResourceType.runtime)
+            .filter(lbl => lbl.resourceId === runtimeRec.id && lbl.resourceType === LabelResourceType.runtime)
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
@@ -66,21 +90,29 @@ object RuntimeServiceDbQueries {
       }
     }
 
-    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = clusterLabelRuntimeConfigQuery(
-      clusterQueryFilteredByLabel
+    val runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = runtimeLabelRuntimeConfigQuery(
+      runtimeQueryFilteredByLabel
     )
 
-    clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
-      val clusterLabelMap
-        : Map[(ClusterRecord, Option[RuntimeConfig], Option[PatchRecord]), Map[String, Chain[String]]] =
+    val runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatchAndDisk =
+      runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch
+        .joinLeft(persistentDiskQuery)
+        .on { case (a, b) => a._1._1._1.persistentDiskId.fold(false)(_ == b.id) }
+
+    runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatchAndDisk.result.map { x =>
+      val runtimeLabelMap
+        : Map[(ClusterRecord, RuntimeConfig, Option[PatchRecord], Option[DiskConfig]), Map[String, Chain[String]]] =
         x.toList.foldMap {
-          case (((clusterRec, labelRecOpt), runTimeConfigRecOpt), patchRecOpt) =>
+          case ((((runtimeRec, labelRecOpt), runtimeConfigRec), patchRecOpt), diskRecOpt) =>
             val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-            Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig), patchRecOpt) -> labelMap)
+            val diskConfigOpt = diskRecOpt
+              .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
+              .map(DiskConfig.fromPersistentDisk)
+            Map((runtimeRec, runtimeConfigRec.runtimeConfig, patchRecOpt, diskConfigOpt) -> labelMap)
         }
 
-      clusterLabelMap.map {
-        case ((clusterRec, runTimeConfigRecOpt, patchRecOpt), labelMap) =>
+      runtimeLabelMap.map {
+        case ((runtimeRec, runtimeConfig, patchRecOpt, diskConfigOpt), labelMap) =>
           val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
 
           val patchInProgress = patchRecOpt match {
@@ -88,23 +120,21 @@ object RuntimeServiceDbQueries {
             case None           => false
           }
           ListRuntimeResponse2(
-            clusterRec.id,
-            RuntimeSamResource(clusterRec.internalId),
-            clusterRec.clusterName,
-            clusterRec.googleProject,
-            clusterRec.auditInfo,
-            runTimeConfigRecOpt
-              .getOrElse(
-                throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")
-              ), //In theory, the exception should never happen because it's enforced by db foreign key
+            runtimeRec.id,
+            RuntimeSamResource(runtimeRec.internalId),
+            runtimeRec.clusterName,
+            runtimeRec.googleProject,
+            runtimeRec.auditInfo,
+            runtimeConfig,
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                                clusterRec.googleProject,
-                                clusterRec.clusterName,
+                                runtimeRec.googleProject,
+                                runtimeRec.clusterName,
                                 Set.empty,
                                 lmp),
-            RuntimeStatus.withName(clusterRec.status),
+            RuntimeStatus.withName(runtimeRec.status),
             lmp,
-            patchInProgress
+            patchInProgress,
+            diskConfigOpt
           )
       }.toList
     }

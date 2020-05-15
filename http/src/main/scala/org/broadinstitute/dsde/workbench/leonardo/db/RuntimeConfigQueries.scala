@@ -6,26 +6,26 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeonardoServiceDbQueries.ClusterJoinLabel
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries.RuntimeJoinLabel
 
 import scala.concurrent.ExecutionContext
 
 object RuntimeConfigQueries {
-  type ClusterJoinLabelJoinRuntimeConfigJoinPatch =
-    Query[(((ClusterTable, Rep[Option[LabelTable]]), Rep[Option[RuntimeConfigTable]]), Rep[Option[PatchTable]]),
-          (((ClusterRecord, Option[LabelRecord]), Option[RuntimeConfigRecord]), Option[PatchRecord]),
+  type RuntimeJoinLabelJoinRuntimeConfigJoinPatch =
+    Query[(((ClusterTable, Rep[Option[LabelTable]]), RuntimeConfigTable), Rep[Option[PatchTable]]),
+          (((ClusterRecord, Option[LabelRecord]), RuntimeConfigRecord), Option[PatchRecord]),
           Seq]
 
   val runtimeConfigs = TableQuery[RuntimeConfigTable]
 
-  def clusterLabelRuntimeConfigQuery(baseQuery: ClusterJoinLabel): ClusterJoinLabelJoinRuntimeConfigJoinPatch =
+  def runtimeLabelRuntimeConfigQuery(baseQuery: RuntimeJoinLabel): RuntimeJoinLabelJoinRuntimeConfigJoinPatch =
     for {
-      (((cluster, label), runTimeConfig), patch) <- baseQuery
-        .joinLeft(runtimeConfigs)
+      (((cluster, label), runtimeConfig), patch) <- baseQuery
+        .join(runtimeConfigs)
         .on(_._1.runtimeConfigId === _.id)
         .joinLeft(patchQuery)
         .on(_._1._1.id === _.clusterId)
-    } yield (((cluster, label), runTimeConfig), patch)
+    } yield (((cluster, label), runtimeConfig), patch)
 
   /**
    * return DB generated id
