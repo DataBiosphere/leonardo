@@ -255,6 +255,6 @@ final case class CreateDiskRequest(labels: LabelMap,
                                    blockSize: Option[BlockSize])
 
 final case class UpdateDiskRequest(labels: LabelMap,
-                                   updateSize: Option[DiskSize],
-                                   updateDiskType: Option[DiskType],
-                                   updateBlockSize: Option[BlockSize])
+                                   newSize: Option[DiskSize],
+                                   newDiskType: Option[DiskType],
+                                   newBlockSize: Option[BlockSize])

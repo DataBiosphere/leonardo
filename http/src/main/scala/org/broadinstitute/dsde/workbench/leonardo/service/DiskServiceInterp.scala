@@ -177,7 +177,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       else
         F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status))
       _ <- publisherQueue.enqueue1(
-        UpdateDiskMessage(disk.id, req.updateSize, req.updateDiskType, req.updateBlockSize, Some(ctx.traceId))
+        UpdateDiskMessage(disk.id, req.newSize, req.newDiskType, req.newBlockSize, Some(ctx.traceId))
       )
     } yield ()
 }

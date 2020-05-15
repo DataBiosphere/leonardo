@@ -274,7 +274,7 @@ object Config {
     )
   }
 
-  implicit private val persistentDiskConfigReader: ValueReader[PersistentDiskConfig] = ValueReader.relative { config =>
+  implicit val persistentDiskConfigReader: ValueReader[PersistentDiskConfig] = ValueReader.relative { config =>
     PersistentDiskConfig(
       config.as[DiskSize]("defaultDiskSizeGB"),
       config.as[DiskType]("defaultDiskType"),
@@ -354,7 +354,7 @@ object Config {
   implicit val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
   implicit val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
-    DiskType.stringToDiskType(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
+    DiskType.withNameInsensitiveOption(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
   implicit val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit val frameAncestorsReader: ValueReader[FrameAncestors] = traversableReader[List, String].map(FrameAncestors)

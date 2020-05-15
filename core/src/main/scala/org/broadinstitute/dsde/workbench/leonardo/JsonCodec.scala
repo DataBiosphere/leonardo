@@ -222,5 +222,5 @@ object JsonCodec {
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =
-    Decoder.decodeString.emap(x => DiskType.stringToDiskType(x).toRight(s"Invalid disk type: $x"))
+    Decoder.decodeString.emap(x => DiskType.withNameInsensitiveOption(x).toRight(s"Invalid disk type: $x"))
 }

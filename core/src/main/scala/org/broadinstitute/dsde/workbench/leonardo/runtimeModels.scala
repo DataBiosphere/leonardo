@@ -109,7 +109,6 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
       case GceInstanceStatus.Suspending   => Stopping
       case GceInstanceStatus.Suspended    => Stopped
       case GceInstanceStatus.Terminated   => Stopped
-      case GceInstanceStatus.Terminated   => Stopped
     }
 
   //TODO: it is yet to be seen whether this will be used. It could be useful though

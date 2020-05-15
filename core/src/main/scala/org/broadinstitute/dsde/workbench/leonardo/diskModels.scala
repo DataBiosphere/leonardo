@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import ca.mrvisser.sealerate
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -69,11 +68,11 @@ final case class DiskSize(gb: Int) extends AnyVal {
 
 final case class BlockSize(bytes: Int) extends AnyVal
 
-sealed trait DiskType extends Product with Serializable {
+sealed trait DiskType extends EnumEntry {
   def googleString: String
 }
-object DiskType {
-  val allDiskTypes = sealerate.values[DiskType]
+object DiskType extends Enum[DiskType] {
+  val values = findValues
 
   final case object Standard extends DiskType {
     override def googleString: String = "pd-standard"
@@ -81,9 +80,4 @@ object DiskType {
   final case object SSD extends DiskType {
     override def googleString: String = "pd-ssd"
   }
-  def stringToDiskType(string: String): Option[DiskType] =
-    allDiskTypes
-      .map(obj => obj.googleString -> obj)
-      .toMap
-      .get(string)
 }
