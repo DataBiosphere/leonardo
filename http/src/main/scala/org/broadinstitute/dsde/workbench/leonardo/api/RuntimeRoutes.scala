@@ -14,7 +14,7 @@ import cats.effect.{IO, Timer}
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
@@ -282,6 +282,32 @@ object RuntimeRoutes {
     } yield r
   }
 
+  implicit val diskConfigRequestCreateDecoder: Decoder[DiskConfigRequest.Create] = Decoder.instance { x =>
+    for {
+      n <- x.downField("name").as[DiskName]
+      s <- x.downField("size").as[Option[DiskSize]]
+      t <- x.downField("diskType").as[Option[DiskType]]
+      b <- x.downField("blockSize").as[Option[BlockSize]]
+      l <- x.downField("labels").as[Option[LabelMap]]
+    } yield DiskConfigRequest.Create(n, s, t, b, l.getOrElse(Map.empty))
+  }
+
+  implicit val diskConfigRequestReferenceDecoder: Decoder[DiskConfigRequest.Reference] = Decoder.instance { x =>
+    for {
+      n <- x.downField("name").as[DiskName]
+    } yield DiskConfigRequest.Reference(n)
+  }
+
+  implicit val diskConfigRequestDecoder: Decoder[DiskConfigRequest] = Decoder.instance { x =>
+    for {
+      create <- x.downField("create").as[Boolean]
+      d <- if (create)
+        x.as[DiskConfigRequest.Create]
+      else
+        x.as[DiskConfigRequest.Reference]
+    } yield d
+  }
+
   implicit val createRuntimeRequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
@@ -295,7 +321,8 @@ object RuntimeRoutes {
       tdi <- c.downField("toolDockerImage").as[Option[ContainerImage]]
       wdi <- c.downField("welderDockerImage").as[Option[ContainerImage]]
       s <- c.downField("scopes").as[Option[Set[String]]]
-      c <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
+      cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
+      d <- c.downField("diskConfig").as[Option[DiskConfigRequest]]
     } yield CreateRuntime2Request(
       l.getOrElse(Map.empty),
       jus,
@@ -308,7 +335,8 @@ object RuntimeRoutes {
       tdi,
       wdi,
       s.getOrElse(Set.empty),
-      c.getOrElse(Map.empty)
+      cv.getOrElse(Map.empty),
+      d
     )
   }
 
@@ -370,9 +398,18 @@ object RuntimeRoutes {
     }
   }
 
+
+  implicit val diskConfigEncoder: Encoder[DiskConfig] = Encoder.forProduct5(
+    "name",
+    "size",
+    "diskType",
+    "blockSize",
+    "labels"
+  )(x => (x.name, x.size, x.diskType, x.blockSize, x.labels))
+
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct19(
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct20(
     "id",
     "runtimeName",
     "googleProject",
@@ -391,7 +428,8 @@ object RuntimeRoutes {
     "defaultClientId",
     "runtimeImages",
     "scopes",
-    "customEnvironmentVariables"
+    "customEnvironmentVariables",
+    "diskConfig"
   )(x =>
     (
       x.id,
@@ -412,7 +450,8 @@ object RuntimeRoutes {
       x.defaultClientId,
       x.clusterImages,
       x.scopes,
-      x.customClusterEnvironmentVariables
+      x.customClusterEnvironmentVariables,
+      x.diskConfig
     )
   )
 
@@ -476,7 +515,8 @@ final case class CreateRuntime2Request(labels: LabelMap,
                                        toolDockerImage: Option[ContainerImage],
                                        welderDockerImage: Option[ContainerImage],
                                        scopes: Set[String],
-                                       customEnvironmentVariables: Map[String, String])
+                                       customEnvironmentVariables: Map[String, String],
+                                       diskConfig: Option[DiskConfigRequest])
 
 sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
   def cloudService: CloudService
@@ -510,3 +550,27 @@ final case class ListRuntimeResponse2(id: Long,
                                       status: RuntimeStatus,
                                       labels: LabelMap,
                                       patchInProgress: Boolean)
+
+sealed trait DiskConfigRequest extends Product with Serializable {
+  def name: DiskName
+  def create: Boolean
+}
+object DiskConfigRequest {
+  final case class Reference(name: DiskName) extends DiskConfigRequest {
+    val create = false
+  }
+  final case class Create(name: DiskName,
+                          size: Option[DiskSize],
+                          diskType: Option[DiskType],
+                          blockSize: Option[BlockSize],
+                          labels: LabelMap)
+      extends DiskConfigRequest {
+    val create = true
+  }
+}
+
+final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize, labels: LabelMap)
+object DiskConfig {
+  def fromPersistentDisk(disk: PersistentDisk): DiskConfig =
+    DiskConfig(disk.name, disk.size, disk.diskType, disk.blockSize, disk.labels)
+}

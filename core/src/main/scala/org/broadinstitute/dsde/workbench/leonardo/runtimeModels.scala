@@ -44,7 +44,8 @@ final case class Runtime(id: Long,
                          welderEnabled: Boolean,
                          customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId,
-                         patchInProgress: Boolean) {
+                         patchInProgress: Boolean,
+                         persistentDiskId: Option[DiskId]) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
   def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
