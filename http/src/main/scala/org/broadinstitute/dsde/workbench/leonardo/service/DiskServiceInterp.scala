@@ -19,8 +19,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   ListPersistentDiskResponse,
   UpdateDiskRequest
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.{
+  includeDeletedKey,
+  processListParameters
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.{
   DeletePersistentDisk,
@@ -244,3 +247,22 @@ object DiskServiceInterp {
     )
   }
 }
+
+case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject, diskName: DiskName, status: DiskStatus)
+    extends LeoException(
+      s"Persistent disk ${googleProject.value}/${diskName.value} already exists in ${status.toString} status",
+      StatusCodes.Conflict
+    )
+
+case class DiskCannotBeDeletedException(googleProject: GoogleProject, diskName: DiskName, status: DiskStatus)
+    extends LeoException(
+      s"Persistent disk ${googleProject.value}/${diskName.value} cannot be deleted in ${status} status",
+      StatusCodes.Conflict
+    )
+
+case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskName)
+    extends LeoException(s"Persistent disk ${googleProject.value}/${diskName.value} not found", StatusCodes.NotFound)
+
+case class DiskCannotBeUpdatedException(projectNameString: String, status: DiskStatus, userHint: String = "")
+    extends LeoException(s"Persistent disk ${projectNameString} cannot be updated in ${status} status. ${userHint}",
+                         StatusCodes.Conflict)

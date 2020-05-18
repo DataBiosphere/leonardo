@@ -139,4 +139,7 @@ object RuntimeServiceDbQueries {
       }.toList
     }
   }
+
+  def isDiskAttachedToRuntime(disk: PersistentDisk): DBIO[Boolean] =
+    ???
 }

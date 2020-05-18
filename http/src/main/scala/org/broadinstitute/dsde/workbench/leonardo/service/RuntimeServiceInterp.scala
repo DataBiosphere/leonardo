@@ -14,7 +14,7 @@ import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GcsBlobName, GoogleStorageService, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.{
@@ -525,18 +525,21 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       case (DiskConfigRequest.Reference(name), RuntimeConfig.GceConfig(_, _)) =>
         for {
           diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
-          disk <- F.fromEither(diskOpt.toRight(new Exception("disk not found")))
-          _ <- F.unit // TODO check if disk is already attached to another runtime
+          disk <- F.fromEither(diskOpt.toRight(DiskNotFoundException(googleProject, name)))
+          attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk).transaction
+          _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, name)) else F.unit
           hasAttachPermission <- authProvider.hasPersistentDiskPermission(disk.samResourceId,
                                                                           userInfo,
                                                                           AttachPersistentDisk,
                                                                           googleProject)
-          _ <- if (hasAttachPermission) F.unit else F.raiseError[Unit](new Exception("no attach permission"))
+          _ <- if (hasAttachPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
         } yield disk
       case (createReq @ DiskConfigRequest.Create(name, _, _, _, _), RuntimeConfig.GceConfig(_, _)) =>
         for {
           diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
-          _ <- if (diskOpt.isDefined) F.raiseError[Unit](new Exception("disk already exists")) else F.unit
+          _ <- diskOpt.fold(F.unit)(d =>
+            F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, name, d.status))
+          )
           hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
           _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
           samResourceId <- F.delay(DiskSamResourceId(UUID.randomUUID().toString))
@@ -560,7 +563,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           savedDisk <- persistentDiskQuery.save(disk).transaction
 
         } yield savedDisk
-      case (_, RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _)) => F.raiseError(new Exception("uh oh dataproc"))
+      case (_, RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _)) =>
+        F.raiseError(DiskNotSupportedException)
     }
 
 }
@@ -661,5 +665,17 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
 final case class WrongCloudServiceException(runtimeCloudService: CloudService, updateCloudService: CloudService)
     extends LeoException(
       s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
+      StatusCodes.Conflict
+    )
+
+final case object DiskNotSupportedException
+    extends LeoException(
+      s"Persistent disks are not supported on Google Cloud Dataproc",
+      StatusCodes.Conflict
+    )
+
+final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName)
+    extends LeoException(
+      s"Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
       StatusCodes.Conflict
     )
