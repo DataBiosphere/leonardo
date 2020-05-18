@@ -13,7 +13,7 @@ import cats.effect.{IO, Timer}
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import cats.mtl.ApplicativeAsk
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -196,7 +196,37 @@ object DiskRoutes {
     } yield UpdateDiskRequest(l, us, ud, ub)
   }
 
-  implicit val diskEncoder: Encoder[PersistentDisk] = Encoder.forProduct12(
+  implicit val getDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
+    "id",
+    "googleProject",
+    "zone",
+    "name",
+    "googleId",
+    "samResourceId",
+    "status",
+    "auditInfo",
+    "size",
+    "diskType",
+    "blockSize",
+    "labels"
+  )(x =>
+    (
+      x.id,
+      x.googleProject,
+      x.zone,
+      x.name,
+      x.googleId,
+      x.samResourceId,
+      x.status,
+      x.auditInfo,
+      x.size,
+      x.diskType,
+      x.blockSize,
+      x.labels
+    )
+  )
+
+  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct12(
     "id",
     "googleProject",
     "zone",
@@ -249,12 +279,38 @@ object DiskRoutes {
 
 }
 
+final case class ListPersistentDiskResponse(id: DiskId,
+                                            googleProject: GoogleProject,
+                                            zone: ZoneName,
+                                            name: DiskName,
+                                            googleId: Option[GoogleId],
+                                            samResourceId: DiskSamResourceId,
+                                            status: DiskStatus,
+                                            auditInfo: AuditInfo,
+                                            size: DiskSize,
+                                            diskType: DiskType,
+                                            blockSize: BlockSize,
+                                            labels: LabelMap)
+
+final case class GetPersistentDiskResponse(id: DiskId,
+                                           googleProject: GoogleProject,
+                                           zone: ZoneName,
+                                           name: DiskName,
+                                           googleId: Option[GoogleId],
+                                           samResourceId: DiskSamResourceId,
+                                           status: DiskStatus,
+                                           auditInfo: AuditInfo,
+                                           size: DiskSize,
+                                           diskType: DiskType,
+                                           blockSize: BlockSize,
+                                           labels: LabelMap)
+
 final case class CreateDiskRequest(labels: LabelMap,
                                    size: Option[DiskSize],
                                    diskType: Option[DiskType],
                                    blockSize: Option[BlockSize])
 
 final case class UpdateDiskRequest(labels: LabelMap,
-                                   newSize: Option[DiskSize],
-                                   newDiskType: Option[DiskType],
-                                   newBlockSize: Option[BlockSize])
+                                   size: Option[DiskSize],
+                                   diskType: Option[DiskType],
+                                   blockSize: Option[BlockSize])

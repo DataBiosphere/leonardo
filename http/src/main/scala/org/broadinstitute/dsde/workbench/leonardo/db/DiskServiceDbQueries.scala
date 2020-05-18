@@ -1,10 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{GetPersistentDiskResponse, ListPersistentDiskResponse}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
+import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
 
 import scala.concurrent.ExecutionContext
 
@@ -12,7 +15,7 @@ object DiskServiceDbQueries {
 
   def listDisks(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ec: ExecutionContext
-  ): DBIO[List[PersistentDisk]] = {
+  ): DBIO[List[ListPersistentDiskResponse]] = {
     val diskQueryFilteredByDeletion =
       if (includeDeleted) persistentDiskQuery
       else persistentDiskQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
@@ -39,6 +42,71 @@ object DiskServiceDbQueries {
             .length === labelMap.size
       }
     }
-    diskQueryFilteredByLabel.result.map(x => persistentDiskQuery.aggregateLabels(x).toList)
+    diskQueryFilteredByLabel.result.map { x =>
+      val diskLabelMap: Map[PersistentDiskRecord, Map[String, String]] =
+        x.toList.flatMap {
+          case (diskRec, labelRecOpt) =>
+            val labelMap = labelRecOpt.map(labelRec => labelRec.key -> labelRec.value).toMap
+            Map(diskRec -> labelMap)
+        }.toMap
+      diskLabelMap.map {
+        case (diskRec, labelMap) =>
+          ListPersistentDiskResponse(
+            diskRec.id,
+            diskRec.googleProject,
+            diskRec.zone,
+            diskRec.name,
+            diskRec.googleId,
+            diskRec.samResourceId,
+            diskRec.status,
+            AuditInfo(diskRec.creator,
+                      diskRec.createdDate,
+                      unmarshalDestroyedDate(diskRec.destroyedDate),
+                      diskRec.dateAccessed),
+            diskRec.size,
+            diskRec.diskType,
+            diskRec.blockSize,
+            labelMap
+          )
+      }.toList
+    }
+  }
+
+  def getGetPersistentDiskResponse(googleProject: GoogleProject, diskName: DiskName)(
+    implicit executionContext: ExecutionContext
+  ): DBIO[GetPersistentDiskResponse] = {
+    val diskQuery = persistentDiskQuery.findByNameQuery(googleProject, diskName)
+    val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
+
+    diskQueryJoinedWithLabels.result.flatMap { x =>
+      val diskWithLabel = x.toList.flatMap {
+        case (diskRec, labelRecOpt) =>
+          val labelMap = labelRecOpt.map(labelRec => labelRec.key -> labelRec.value).toMap
+          Map(diskRec -> labelMap)
+      }.headOption
+      diskWithLabel.fold[DBIO[GetPersistentDiskResponse]](DBIO.failed(DiskNotFoundException(googleProject, diskName))) {
+        d =>
+          val diskRec = d._1
+          val labelMap = d._2
+          val getDiskResponse = GetPersistentDiskResponse(
+            diskRec.id,
+            diskRec.googleProject,
+            diskRec.zone,
+            diskRec.name,
+            diskRec.googleId,
+            diskRec.samResourceId,
+            diskRec.status,
+            AuditInfo(diskRec.creator,
+                      diskRec.createdDate,
+                      unmarshalDestroyedDate(diskRec.destroyedDate),
+                      diskRec.dateAccessed),
+            diskRec.size,
+            diskRec.diskType,
+            diskRec.blockSize,
+            labelMap
+          )
+          DBIO.successful(getDiskResponse)
+      }
+    }
   }
 }

@@ -461,7 +461,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/PersistentDisk"
+                  $ref: "#/components/schemas/ListPersistentDiskResponse"
         "400":
           description: Bad Request
           content:
@@ -516,7 +516,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/PersistentDisk"
+                  $ref: "#/components/schemas/ListPersistentDiskResponse"
         "400":
           description: Bad Request
           content:
@@ -557,7 +557,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PersistentDisk"
+                $ref: "#/components/schemas/GetPersistentDiskResponse"
         "403":
           description: User does not have permission to perform action on persistent disk
         "404":
@@ -1656,9 +1656,10 @@ components:
           schema:
             $ref: "#/components/schemas/CreateRuntimeRequest"
           example:
-            size: 500
-            diskType: "Standard"
-            blockSize: 4096
+            runtimeConfig:
+              cloudService: gce
+              machineType: n1-standard-4
+              diskSize: 100
     UpdateRuntimeRequest:
       content:
         application/json:
@@ -1676,10 +1677,9 @@ components:
           schema:
             $ref: "#/components/schemas/CreateDiskRequest"
           example:
-            runtimeConfig:
-              cloudService: gce
-              machineType: n1-standard-4
-              diskSize: 100
+            size: 500
+            diskType: "Standard"
+            blockSize: 4096
     UpdateDiskRequest:
       content:
         application/json:
@@ -2079,7 +2079,58 @@ components:
         patchInProgress:
           type: boolean
           description: Whether there is a patch in progress on the runtime. Is used to indicate updates that require status transitions.
-    PersistentDisk:
+    ListPersistentDiskResponse:
+      description: ""
+      required:
+        - id
+        - googleProject
+        - zone
+        - name
+        - googleId
+        - samResourceId
+        - status
+        - auditInfo
+        - size
+        - diskType
+        - blockSize
+        - labels
+      properties:
+        id:
+          type: integer
+          description: Internal Leonardo ID of the persistent disk
+        googleProject:
+          type: string
+          description: The google project used to create the persistent disk
+        zone:
+          type: string
+          description: The google zone in which the persistent disk was created
+        name:
+          type: string
+          description: The user-supplied name of the persistent disk
+        googleId:
+          type: string
+          description: Google's UUID for the persistent disk
+        samResourceId:
+          type: string
+          description: Internal resource ID of the persistent disk
+        status:
+          $ref: "#/components/schemas/DiskStatus"
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        size:
+          type: string
+          description: Size of persistent disk in GB
+        diskType:
+          type: string
+          description: Type of persistent disk
+        blockSize:
+          type: string
+          description: Block size of persistent disk in bytes
+        labels:
+          type: object
+          description: The labels to be placed on the persistent disk. Of type Map[String,String]
+
+    GetPersistentDiskResponse:
       description: ""
       required:
         - id
@@ -2456,13 +2507,13 @@ components:
         labels:
           type: object
           description: The labels to be added or updated on the persistent disk. Of type Map[String,String]
-        newSize:
+        size:
           type: integer
           description: The size in GB that the persistent disk is to be updated to.
-        newDiskType:
+        diskType:
           type: string
           description: The disk type that the persistent disk is to be updated to. Can be "Standard" or "SSD".
-        newBlockSize:
+        blockSize:
           type: integer
           description: The block size in bytes that the persistent disk is to be updated to.
     ClusterError:

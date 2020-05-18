@@ -14,7 +14,12 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateDiskRequest, UpdateDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateDiskRequest,
+  GetPersistentDiskResponse,
+  ListPersistentDiskResponse,
+  UpdateDiskRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -83,24 +88,20 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
   override def getDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
     implicit as: ApplicativeAsk[F, AppContext]
-  ): F[PersistentDisk] =
+  ): F[GetPersistentDiskResponse] =
     for {
-      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
-      disk <- diskOpt match {
-        case Some(disk) => F.pure(disk)
-        case None       => F.raiseError[PersistentDisk](DiskNotFoundException(googleProject, diskName))
-      }
-      hasPermission <- authProvider.hasPersistentDiskPermission(disk.samResourceId,
+      resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(googleProject, diskName).transaction
+      hasPermission <- authProvider.hasPersistentDiskPermission(resp.samResourceId,
                                                                 userInfo,
                                                                 ReadPersistentDisk,
                                                                 googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName))
 
-    } yield disk
+    } yield resp
 
   override def listDisks(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
     implicit as: ApplicativeAsk[F, AppContext]
-  ): F[Vector[PersistentDisk]] =
+  ): F[Vector[ListPersistentDiskResponse]] =
     for {
       paramMap <- F.fromEither(processListParameters(params))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, googleProject).transaction
@@ -177,7 +178,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       else
         F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status))
       _ <- publisherQueue.enqueue1(
-        UpdateDiskMessage(disk.id, req.newSize, req.newDiskType, req.newBlockSize, Some(ctx.traceId))
+        UpdateDiskMessage(disk.id, req.size, req.diskType, req.blockSize, Some(ctx.traceId))
       )
     } yield ()
 }

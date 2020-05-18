@@ -70,6 +70,11 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
 
+  private[db] def findByNameQuery(googleProject: GoogleProject, name: DiskName) =
+    persistentDiskQuery
+      .filter(_.googleProject === googleProject)
+      .filter(_.name === name)
+
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
       (disk, label) <- baseQuery joinLeft labelQuery on {
