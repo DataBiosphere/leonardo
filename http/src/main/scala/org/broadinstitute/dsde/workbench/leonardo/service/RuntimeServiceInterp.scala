@@ -22,19 +22,22 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   DataprocConfig,
   GceConfig,
   ImageConfig,
+  PersistentDiskConfig,
   ZombieRuntimeMonitorConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateDiskRequest,
   CreateRuntime2Request,
+  DiskConfigRequest,
   ListRuntimeResponse2,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -45,6 +48,7 @@ import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, Workb
 import scala.concurrent.ExecutionContext
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
+                                           diskConfig: PersistentDiskConfig,
                                            authProvider: LeoAuthProvider[F],
                                            serviceAccountProvider: ServiceAccountProvider[F],
                                            dockerDAO: DockerDAO[F],
@@ -92,6 +96,21 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
             runtimeImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
+            gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
+            runtimeConfig = req.runtimeConfig
+              .fold[RuntimeConfig](gceRuntimeDefaults) { // default to gce if no runtime specific config is provided
+                c =>
+                  c match {
+                    case gce: RuntimeConfigRequest.GceConfig =>
+                      RuntimeConfig.GceConfig(
+                        gce.machineType.getOrElse(gceRuntimeDefaults.machineType),
+                        gce.diskSize.getOrElse(gceRuntimeDefaults.diskSize)
+                      ): RuntimeConfig
+                    case dataproc: RuntimeConfigRequest.DataprocConfig =>
+                      dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
+                  }
+              }
+            diskOpt <- req.diskConfig.traverse(x => processDiskConfigRequest(x, googleProject, runtimeConfig, userInfo))
             runtime <- F.fromEither(
               convertToRuntime(userInfo,
                                petSA,
@@ -101,7 +120,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                runtimeImages,
                                config,
                                req,
-                               context.now)
+                               context.now,
+                               diskOpt.map(_.id))
             )
             gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
               .map(config =>
@@ -126,24 +146,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
 
-            gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
-            runtimeCofig = req.runtimeConfig
-              .fold[RuntimeConfig](gceRuntimeDefaults) { // default to gce if no runtime specific config is provided
-                c =>
-                  c match {
-                    case gce: RuntimeConfigRequest.GceConfig =>
-                      RuntimeConfig.GceConfig(
-                        gce.machineType.getOrElse(gceRuntimeDefaults.machineType),
-                        gce.diskSize.getOrElse(gceRuntimeDefaults.diskSize)
-                      ): RuntimeConfig
-                    case dataproc: RuntimeConfigRequest.DataprocConfig =>
-                      dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
-                  }
-              }
-
-            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeCofig, now = context.now)
+            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
-            _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(runtime, runtimeCofig, Some(context.traceId)))
+            _ <- publisherQueue.enqueue1(
+              CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
+            )
           } yield ()
       }
     } yield ()
@@ -153,7 +160,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[GetRuntimeResponse] =
     for {
       // throws 404 if not existent
-      resp <- LeonardoServiceDbQueries.getGetClusterResponse(googleProject, runtimeName).transaction
+      resp <- RuntimeServiceDbQueries.getRuntime(googleProject, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
       hasPermission <- authProvider.hasRuntimePermission(resp.samResource, userInfo, GetRuntimeStatus, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
@@ -165,7 +172,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      runtimes <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
+      runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listCluster db query")))
       samVisibleRuntimes <- authProvider
         .filterUserVisibleRuntimes(userInfo, runtimes.map(c => (c.googleProject, c.samResource)))
@@ -306,10 +313,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasRuntimePermission(runtime.samResource, userInfo, GetRuntimeStatus, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
-      hasModifyPermission <- authProvider.hasRuntimePermission(runtime.samResource,
-                                                               userInfo,
-                                                               ModifyRuntime,
-                                                               googleProject)
+      hasModifyPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
+                                                                       userInfo,
+                                                                       ModifyCluster,
+                                                                       googleProject,
+                                                                       runtimeName)
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not updatable
       _ <- if (runtime.status.isUpdatable) F.unit
@@ -507,6 +515,54 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         }
     } yield ()
 
+  private[service] def processDiskConfigRequest(
+    req: DiskConfigRequest,
+    googleProject: GoogleProject,
+    runtimeConfig: RuntimeConfig,
+    userInfo: UserInfo
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[PersistentDisk] =
+    (req, runtimeConfig) match {
+      case (DiskConfigRequest.Reference(name), RuntimeConfig.GceConfig(_, _)) =>
+        for {
+          diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
+          disk <- F.fromEither(diskOpt.toRight(new Exception("disk not found")))
+          _ <- F.unit // TODO check if disk is already attached to another runtime
+          hasAttachPermission <- authProvider.hasPersistentDiskPermission(disk.samResourceId,
+                                                                          userInfo,
+                                                                          AttachPersistentDisk,
+                                                                          googleProject)
+          _ <- if (hasAttachPermission) F.unit else F.raiseError[Unit](new Exception("no attach permission"))
+        } yield disk
+      case (createReq @ DiskConfigRequest.Create(name, _, _, _, _), RuntimeConfig.GceConfig(_, _)) =>
+        for {
+          diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
+          _ <- if (diskOpt.isDefined) F.raiseError[Unit](new Exception("disk already exists")) else F.unit
+          hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
+          _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+          samResourceId <- F.delay(DiskSamResourceId(UUID.randomUUID().toString))
+          ctx <- as.ask
+          disk <- F.fromEither(
+            DiskServiceInterp.convertToDisk(userInfo,
+                                            googleProject,
+                                            name,
+                                            samResourceId,
+                                            diskConfig,
+                                            CreateDiskRequest.fromDiskConfigRequest(createReq),
+                                            ctx.now)
+          )
+          _ <- authProvider
+            .notifyPersistentDiskCreated(samResourceId, userInfo.userEmail, googleProject)
+            .handleErrorWith { t =>
+              log.error(t)(
+                s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
+              ) >> F.raiseError(t)
+            }
+          savedDisk <- persistentDiskQuery.save(disk).transaction
+
+        } yield savedDisk
+      case (_, RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _)) => F.raiseError(new Exception("uh oh dataproc"))
+    }
+
 }
 
 object RuntimeServiceInterp {
@@ -518,7 +574,8 @@ object RuntimeServiceInterp {
                                clusterImages: Set[RuntimeImage],
                                config: RuntimeServiceConfig,
                                req: CreateRuntime2Request,
-                               now: Instant): Either[Throwable, Runtime] = {
+                               now: Instant,
+                               diskIdOpt: Option[DiskId]): Either[Throwable, Runtime] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
@@ -580,7 +637,8 @@ object RuntimeServiceInterp {
       allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
       stopAfterCreation = false,
-      patchInProgress = false
+      patchInProgress = false,
+      persistentDiskId = diskIdOpt
     )
   }
 

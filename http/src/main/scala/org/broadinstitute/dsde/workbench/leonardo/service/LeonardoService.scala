@@ -344,8 +344,8 @@ class LeonardoService(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[GetRuntimeResponse] =
     for {
-      resp <- LeonardoServiceDbQueries
-        .getGetClusterResponse(googleProject, clusterName)
+      resp <- RuntimeServiceDbQueries
+        .getRuntime(googleProject, clusterName)
         .transaction //throws 404 if nonexistent
       _ <- checkClusterPermission(userInfo,
                                   GetRuntimeStatus,

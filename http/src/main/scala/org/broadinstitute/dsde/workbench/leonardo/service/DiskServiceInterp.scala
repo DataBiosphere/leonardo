@@ -10,8 +10,7 @@ import cats.effect.Async
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleStorageService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{

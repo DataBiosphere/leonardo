@@ -143,10 +143,16 @@ object Boot extends IOApp {
       )
       val runtimeService = new RuntimeServiceInterp[IO](
         runtimeServiceConfig,
+        persistentDiskConfig,
         appDependencies.authProvider,
         appDependencies.serviceAccountProvider,
         appDependencies.dockerDAO,
         appDependencies.google2StorageDao,
+        appDependencies.publisherQueue
+      )
+      val diskService = new DiskServiceInterp[IO](
+        persistentDiskConfig,
+        appDependencies.authProvider,
         appDependencies.publisherQueue
       )
 
@@ -157,6 +163,7 @@ object Boot extends IOApp {
                                       proxyService,
                                       leonardoService,
                                       runtimeService,
+                                      diskService,
                                       StandardUserInfoDirectives,
                                       contentSecurityPolicy)
       val httpServer = for {

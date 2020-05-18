@@ -51,4 +51,5 @@
     <include file="changesets/20200501_kubernetes_tables.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200512_drop_jupyterExtensionUri.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200522_disk_service_account.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200529_add_runtime_disk_foreign_key.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
