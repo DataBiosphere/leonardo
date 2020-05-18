@@ -97,9 +97,13 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val res = for {
       samResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = samResourceId).save()
+      _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label1", "value1").transaction
+      _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label2", "value2").transaction
+      labelResp <- labelQuery.getAllForResource(disk.id.value, LabelResourceType.PersistentDisk).transaction
       getResponse <- diskService.getDisk(userInfo, disk.googleProject, disk.name)
     } yield {
       getResponse.samResourceId shouldBe disk.samResourceId
+      getResponse.labels shouldBe labelResp
     }
     res.unsafeRunSync()
   }

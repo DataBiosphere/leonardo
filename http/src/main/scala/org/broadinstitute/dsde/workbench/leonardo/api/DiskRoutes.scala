@@ -226,33 +226,29 @@ object DiskRoutes {
     )
   )
 
-  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct12(
+  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct10(
     "id",
     "googleProject",
     "zone",
     "name",
-    "googleId",
     "samResourceId",
     "status",
     "auditInfo",
     "size",
     "diskType",
-    "blockSize",
-    "labels"
+    "blockSize"
   )(x =>
     (
       x.id,
       x.googleProject,
       x.zone,
       x.name,
-      x.googleId,
       x.samResourceId,
       x.status,
       x.auditInfo,
       x.size,
       x.diskType,
-      x.blockSize,
-      x.labels
+      x.blockSize
     )
   )
 
@@ -283,14 +279,12 @@ final case class ListPersistentDiskResponse(id: DiskId,
                                             googleProject: GoogleProject,
                                             zone: ZoneName,
                                             name: DiskName,
-                                            googleId: Option[GoogleId],
                                             samResourceId: DiskSamResourceId,
                                             status: DiskStatus,
                                             auditInfo: AuditInfo,
                                             size: DiskSize,
                                             diskType: DiskType,
-                                            blockSize: BlockSize,
-                                            labels: LabelMap)
+                                            blockSize: BlockSize)
 
 final case class GetPersistentDiskResponse(id: DiskId,
                                            googleProject: GoogleProject,

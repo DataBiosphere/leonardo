@@ -38,6 +38,7 @@ sealed trait DiskStatus extends EnumEntry
 object DiskStatus extends Enum[DiskStatus] {
   val values = findValues
 
+  //TODO: Create Pre statuses once https://github.com/DataBiosphere/leonardo/pull/1395/files#diff-4101c04c4a7015e058bf48267899df0bR92 is merged
   final case object Creating extends DiskStatus
   final case object Restoring extends DiskStatus
   final case object Failed extends DiskStatus
@@ -45,7 +46,6 @@ object DiskStatus extends Enum[DiskStatus] {
   final case object Deleting extends DiskStatus
   final case object Deleted extends DiskStatus
 
-  //TODO: confirm these
   val activeStatuses: Set[DiskStatus] =
     Set(Creating, Restoring, Ready)
 

@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
+import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -44,19 +45,18 @@ object DiskServiceDbQueries {
     }
     diskQueryFilteredByLabel.result.map { x =>
       val diskLabelMap: Map[PersistentDiskRecord, Map[String, String]] =
-        x.toList.flatMap {
+        x.toList.foldMap {
           case (diskRec, labelRecOpt) =>
             val labelMap = labelRecOpt.map(labelRec => labelRec.key -> labelRec.value).toMap
             Map(diskRec -> labelMap)
-        }.toMap
+        }
       diskLabelMap.map {
-        case (diskRec, labelMap) =>
+        case (diskRec, _) =>
           ListPersistentDiskResponse(
             diskRec.id,
             diskRec.googleProject,
             diskRec.zone,
             diskRec.name,
-            diskRec.googleId,
             diskRec.samResourceId,
             diskRec.status,
             AuditInfo(diskRec.creator,
@@ -65,8 +65,7 @@ object DiskServiceDbQueries {
                       diskRec.dateAccessed),
             diskRec.size,
             diskRec.diskType,
-            diskRec.blockSize,
-            labelMap
+            diskRec.blockSize
           )
       }.toList
     }
@@ -79,7 +78,7 @@ object DiskServiceDbQueries {
     val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
 
     diskQueryJoinedWithLabels.result.flatMap { x =>
-      val diskWithLabel = x.toList.flatMap {
+      val diskWithLabel = x.toList.foldMap {
         case (diskRec, labelRecOpt) =>
           val labelMap = labelRecOpt.map(labelRec => labelRec.key -> labelRec.value).toMap
           Map(diskRec -> labelMap)

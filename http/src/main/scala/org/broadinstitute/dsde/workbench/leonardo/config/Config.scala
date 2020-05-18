@@ -274,6 +274,7 @@ object Config {
     )
   }
 
+  // TODO: move this once https://github.com/DataBiosphere/leonardo/pull/1395/files#diff-4101c04c4a7015e058bf48267899df0bR92 is merged
   implicit val persistentDiskConfigReader: ValueReader[PersistentDiskConfig] = ValueReader.relative { config =>
     PersistentDiskConfig(
       config.as[DiskSize]("defaultDiskSizeGB"),
