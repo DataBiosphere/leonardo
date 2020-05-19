@@ -11,7 +11,6 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import cats.effect.{ContextShift, IO}
-import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import LeoRoutesJsonCodec._
