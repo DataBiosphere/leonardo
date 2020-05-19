@@ -312,7 +312,7 @@ class ProxyService(
     // Initialize a Flow for the WebSocket conversation.
     // `Message` is the root of the ADT for WebSocket messages. A Message may be a TextMessage or a BinaryMessage.
     val flow =
-      Flow.fromSinkAndSourceCoupledMat(Sink.asPublisher[Message](fanout = false), Source.asSubscriber[Message])(
+      Flow.fromSinkAndSourceMat(Sink.asPublisher[Message](fanout = false), Source.asSubscriber[Message])(
         Keep.both
       )
 
