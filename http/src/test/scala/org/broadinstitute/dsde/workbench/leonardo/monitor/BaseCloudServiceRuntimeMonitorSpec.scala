@@ -115,8 +115,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends FlatSpec with Matchers with Tes
       implicit override def runtimeToolToToolDao
         : RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = x => {
         x match {
-          case RuntimeContainerServiceType.WelderService  => MockToolDAO(isWelderReady)
-          case RuntimeContainerServiceType.JupyterService => MockToolDAO(true)
+          case RuntimeContainerServiceType.WelderService => MockToolDAO(isWelderReady)
+          case _                                         => MockToolDAO(true)
         }
       }
 

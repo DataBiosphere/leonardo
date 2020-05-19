@@ -359,6 +359,7 @@ object Config {
   implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
     DiskType.withNameInsensitiveOption(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
+  implicit val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit private val frameAncestorsReader: ValueReader[FrameAncestors] =
     traversableReader[List, String].map(FrameAncestors)
   implicit private val scriptSrcReader: ValueReader[ScriptSrc] = traversableReader[List, String].map(ScriptSrc)

@@ -16,7 +16,7 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{Event, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
