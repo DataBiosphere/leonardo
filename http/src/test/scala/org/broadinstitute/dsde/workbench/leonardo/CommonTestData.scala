@@ -98,7 +98,7 @@ object CommonTestData {
   val gceConfig = config.as[GceConfig]("gce")
   val vpcConfig = config.as[VPCConfig]("vpc")
   val imageConfig = config.as[ImageConfig]("image")
-  val persistentDiskConfig = config.as[PersistentDiskConfig]("persistentDisk")
+  val persistentDiskConfig = Config.persistentDiskConfig
   val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
