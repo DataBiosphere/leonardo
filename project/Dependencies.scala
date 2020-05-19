@@ -18,8 +18,7 @@ object Dependencies {
 
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
-  // TODO: revert to non-SNAP and remove this comment once https://github.com/broadinstitute/workbench-libs/pull/307 is merged
-  val workbenchGoogleV = "0.21-a6ee6de-SNAP"
+  val workbenchGoogleV = "0.21-2a218f3"
   val workbenchGoogle2V = "0.8-e08439a"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchOpenTelemetryV = "0.1-73d6a64"
