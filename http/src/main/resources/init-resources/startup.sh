@@ -124,7 +124,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
     # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
     # kernel tries to connect to it.
-    docker exec ${JUPYTER_SERVER_NAME} /bin/bash -c "R -e '1+1'" || true
+    docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
     docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
 
