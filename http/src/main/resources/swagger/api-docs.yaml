@@ -2086,14 +2086,11 @@ components:
         - googleProject
         - zone
         - name
-        - googleId
-        - samResourceId
         - status
         - auditInfo
         - size
         - diskType
         - blockSize
-        - labels
       properties:
         id:
           type: integer
@@ -2107,12 +2104,6 @@ components:
         name:
           type: string
           description: The user-supplied name of the persistent disk
-        googleId:
-          type: string
-          description: Google's UUID for the persistent disk
-        samResourceId:
-          type: string
-          description: Internal resource ID of the persistent disk
         status:
           $ref: "#/components/schemas/DiskStatus"
         auditInfo:
@@ -2126,9 +2117,6 @@ components:
         blockSize:
           type: string
           description: Block size of persistent disk in bytes
-        labels:
-          type: object
-          description: The labels to be placed on the persistent disk. Of type Map[String,String]
 
     GetPersistentDiskResponse:
       description: ""

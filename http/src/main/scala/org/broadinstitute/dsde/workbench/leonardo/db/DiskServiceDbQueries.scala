@@ -5,9 +5,10 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{GetPersistentDiskResponse, ListPersistentDiskResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.GetPersistentDiskResponse
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
+import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
 
 import scala.concurrent.ExecutionContext
@@ -16,7 +17,7 @@ object DiskServiceDbQueries {
 
   def listDisks(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ec: ExecutionContext
-  ): DBIO[List[ListPersistentDiskResponse]] = {
+  ): DBIO[List[PersistentDisk]] = {
     val diskQueryFilteredByDeletion =
       if (includeDeleted) persistentDiskQuery
       else persistentDiskQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
@@ -51,22 +52,8 @@ object DiskServiceDbQueries {
             Map(diskRec -> labelMap)
         }
       diskLabelMap.map {
-        case (diskRec, _) =>
-          ListPersistentDiskResponse(
-            diskRec.id,
-            diskRec.googleProject,
-            diskRec.zone,
-            diskRec.name,
-            diskRec.samResourceId,
-            diskRec.status,
-            AuditInfo(diskRec.creator,
-                      diskRec.createdDate,
-                      unmarshalDestroyedDate(diskRec.destroyedDate),
-                      diskRec.dateAccessed),
-            diskRec.size,
-            diskRec.diskType,
-            diskRec.blockSize
-          )
+        case (diskRec, labelMap) =>
+          unmarshalPersistentDisk(diskRec, labelMap)
       }.toList
     }
   }

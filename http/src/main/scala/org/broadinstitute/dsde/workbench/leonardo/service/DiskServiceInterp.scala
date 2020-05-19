@@ -113,6 +113,17 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .filter(d =>
           d.auditInfo.creator == userInfo.userEmail || samVisibleDisks.contains((d.googleProject, d.samResourceId))
         )
+        .map(d =>
+          ListPersistentDiskResponse(d.id,
+                                     d.googleProject,
+                                     d.zone,
+                                     d.name,
+                                     d.status,
+                                     d.auditInfo,
+                                     d.size,
+                                     d.diskType,
+                                     d.blockSize)
+        )
         .toVector
     }
 

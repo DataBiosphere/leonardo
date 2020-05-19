@@ -112,13 +112,11 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      _ <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId1).save()
-      _ <- makePersistentDisk(DiskId(2)).copy(samResourceId = diskSamResourceId2).save()
+      disk1 <- makePersistentDisk(DiskId(1)).save()
+      disk2 <- makePersistentDisk(DiskId(2)).save()
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
     } yield {
-      listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1, diskSamResourceId2)
+      listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
     res.unsafeRunSync()
@@ -128,15 +126,12 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      diskSamResourceId3 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      _ <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId1).save()
-      _ <- makePersistentDisk(DiskId(2)).copy(samResourceId = diskSamResourceId2).save()
-      _ <- makePersistentDisk(DiskId(3)).copy(samResourceId = diskSamResourceId3, googleProject = project2).save()
+      disk1 <- makePersistentDisk(DiskId(1)).save()
+      disk2 <- makePersistentDisk(DiskId(2)).save()
+      _ <- makePersistentDisk(DiskId(3)).copy(googleProject = project2).save()
       listResponse <- diskService.listDisks(userInfo, Some(project), Map.empty)
     } yield {
-      listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1, diskSamResourceId2)
+      listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
     res.unsafeRunSync()
@@ -146,14 +141,12 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      diskSamResourceId1 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      diskSamResourceId2 <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk1 <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId1).save()
-      _ <- makePersistentDisk(DiskId(2)).copy(samResourceId = diskSamResourceId2).save()
+      disk1 <- makePersistentDisk(DiskId(1)).save()
+      _ <- makePersistentDisk(DiskId(2)).save()
       _ <- labelQuery.save(disk1.id.value, LabelResourceType.PersistentDisk, "foo", "bar").transaction
       listResponse <- diskService.listDisks(userInfo, None, Map("foo" -> "bar"))
     } yield {
-      listResponse.map(_.samResourceId).toSet shouldBe Set(diskSamResourceId1)
+      listResponse.map(_.id).toSet shouldBe Set(disk1.id)
     }
 
     res.unsafeRunSync()
