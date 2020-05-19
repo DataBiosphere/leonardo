@@ -88,14 +88,14 @@ class StatusRoutesSpec
         ???
 
       override def createPersistentDiskResource(
-        internalId: PersistentDiskInternalId,
+        internalId: DiskSamResourceId,
         creatorEmail: WorkbenchEmail,
         googleProject: GoogleProject
       )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         ???
 
       override def deletePersistentDiskResource(
-        internalId: PersistentDiskInternalId,
+        internalId: DiskSamResourceId,
         userEmail: WorkbenchEmail,
         creatorEmail: WorkbenchEmail,
         googleProject: GoogleProject

@@ -160,7 +160,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]] =
     for {
-      paramMap <- F.fromEither(processListClustersParameters(params))
+      paramMap <- F.fromEither(processListParameters(params))
       clusters <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
       samVisibleClusters <- authProvider
         .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
@@ -525,7 +525,7 @@ object RuntimeServiceInterp {
                                req: CreateRuntime2Request,
                                now: Instant): Either[Throwable, Runtime] = {
     // create a LabelMap of default labels
-    val defaultLabels = DefaultLabels(
+    val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
       googleProject,
       userInfo.userEmail,

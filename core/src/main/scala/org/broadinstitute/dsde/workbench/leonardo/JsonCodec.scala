@@ -6,7 +6,7 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -39,6 +39,9 @@ object JsonCodec {
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
+  implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.toString)
+  implicit val diskNameEncoder: Encoder[DiskName] = Encoder.encodeString.contramap(_.value)
+  implicit val diskSamResourceIdEncoder: Encoder[DiskSamResourceId] = Encoder.encodeString.contramap(_.asString)
   implicit val diskSizeEncoder: Encoder[DiskSize] = Encoder.encodeInt.contramap(_.gb)
   implicit val blockSizeEncoder: Encoder[BlockSize] = Encoder.encodeInt.contramap(_.bytes)
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
@@ -92,7 +95,7 @@ object JsonCodec {
     }
   )
   implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
-  implicit val defaultLabelsEncoder: Encoder[DefaultLabels] = Encoder.forProduct7(
+  implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct7(
     "clusterName",
     "googleProject",
     "creator",
@@ -100,7 +103,7 @@ object JsonCodec {
     "notebookUserScript",
     "notebookStartUserScript",
     "tool"
-  )(x => DefaultLabels.unapply(x).get)
+  )(x => DefaultRuntimeLabels.unapply(x).get)
   implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
     Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
   implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
@@ -112,9 +115,9 @@ object JsonCodec {
     "errorCode",
     "timestamp"
   )(x => RuntimeError.unapply(x).get)
-  implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.id)
+  implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.value)
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.toString)
-  implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.entryName)
+  implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.googleString)
 
   // Decoders
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
@@ -127,8 +130,6 @@ object JsonCodec {
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
   implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
   implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
-  implicit val persistentDiskInternalIdDecoder: Decoder[PersistentDiskInternalId] =
-    Decoder.decodeString.map(PersistentDiskInternalId)
   implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
     if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
   )
@@ -214,10 +215,12 @@ object JsonCodec {
 
   implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
-  implicit val diskIdDecoder: Decoder[DiskId] =
-    Decoder.decodeLong.map(DiskId)
+  implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName)
+  implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.map(DiskName)
+  implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
+  implicit val DiskSamResourceIdDecoder: Decoder[DiskSamResourceId] = Decoder.decodeString.map(DiskSamResourceId)
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =
-    Decoder.decodeString.emap(x => DiskType.withNameOption(x).toRight(s"Invalid disk type: $x"))
+    Decoder.decodeString.emap(x => DiskType.withNameInsensitiveOption(x).toRight(s"Invalid disk type: $x"))
 }

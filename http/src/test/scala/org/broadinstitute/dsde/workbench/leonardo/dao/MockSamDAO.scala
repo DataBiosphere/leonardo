@@ -18,7 +18,7 @@ import scala.collection.mutable
 class MockSamDAO extends SamDAO[IO] {
   val billingProjects: mutable.Map[(GoogleProject, Authorization), Set[String]] = new TrieMap()
   val notebookClusters: mutable.Map[(RuntimeInternalId, Authorization), Set[String]] = new TrieMap()
-  val persistentDisks: mutable.Map[(PersistentDiskInternalId, Authorization), Set[String]] = new TrieMap()
+  val persistentDisks: mutable.Map[(DiskSamResourceId, Authorization), Set[String]] = new TrieMap()
   val projectOwners: mutable.Map[Authorization, Set[SamProjectPolicy]] = new TrieMap()
   val clusterCreators: mutable.Map[Authorization, Set[SamNotebookClusterPolicy]] = new TrieMap()
   val diskCreators: mutable.Map[Authorization, Set[SamPersistentDiskPolicy]] = new TrieMap()
@@ -44,7 +44,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
       case ResourceTypeName.PersistentDisk =>
         val res = persistentDisks
-          .get((PersistentDiskInternalId(resourceId), authHeader)) //look it up: Option[Set]
+          .get((DiskSamResourceId(resourceId), authHeader)) //look it up: Option[Set]
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
           .getOrElse(false) //unpack the resulting option and handle the project never having existed
         IO.pure(res)
@@ -83,7 +83,7 @@ class MockSamDAO extends SamDAO[IO] {
     IO(notebookClusters.remove((internalId, userEmailToAuthorization(userEmail))))
 
   override def createPersistentDiskResource(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
@@ -96,7 +96,7 @@ class MockSamDAO extends SamDAO[IO] {
     )
 
   override def deletePersistentDiskResource(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

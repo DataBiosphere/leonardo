@@ -11,6 +11,8 @@ info:
 tags:
   - name: runtimes
     description: Runtimes API. Support both Google Dataproc and Google Compute Engine.
+  - name: disks
+    description: Experimental Persistent Disks API.
   - name: cluster
     description: Legacy Clusters API. Supports Google Dataproc only.
   - name: proxy
@@ -64,7 +66,7 @@ paths:
                 $ref: "#/components/schemas/LeonardoVersion"
       security: []
 
-## Runtime paths ##
+  ## Runtime paths ##
 
   /api/google/v1/runtimes:
     get:
@@ -422,7 +424,279 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-## Legacy Cluster API ##
+  ## Persistent Disk paths ##
+
+  /api/google/v1/disks:
+    get:
+      summary: List all persistent disks that the caller has access to
+      description: List all persistent disks, optionally filtering on a set of labels
+      operationId: listDisks
+      tags:
+        - disks
+      parameters:
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all persistent disks that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/google/v1/disks?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any persistent disks with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of persistent disks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListPersistentDiskResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  /api/google/v1/disks/{googleProject}:
+    get:
+      summary: List all persistent disks within the given Google project that the caller has access to
+      description: List all persistent disks within the given Google project, optionally
+        filtering on a set of labels
+      operationId: listDisksByProject
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all persistent disks that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/google/v1/disks?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any persistent disks with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of persistent disks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListPersistentDiskResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  /api/google/v1/disks/{googleProject}/{name}:
+    get:
+      summary: Get details of a persistent disk
+      description: >
+        Returns information about an existing persistent disk managed by Leo.
+        Poll this to find out when your disk has finished starting up.
+      operationId: getDisk
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: diskName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Persistent disk found, here are the details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetPersistentDiskResponse"
+        "403":
+          description: User does not have permission to perform action on persistent disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+    post:
+      summary: Creates a new persistent disk in the given project with the given name.
+      description: >
+        The request is completed without waiting for the persistent disk to be created in Google.
+        The disk status can be polled using the getDisk API.
+        Default labels diskName, googleProject, and creator cannot be overridden.
+      operationId: createDisk
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: diskName. only lowercase alphanumeric characters, numbers and dashes are allowed
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/CreateDiskRequest"
+      responses:
+        "202":
+          description: Persistent disk creation request accepted
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+    delete:
+      summary: Deletes an existing persistent disk in the given project
+      description: Deletes a persistent disk
+      operationId: deleteDisk
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: diskName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Persistent disk deletion request accepted
+        "403":
+          description: User does not have permission to perform action on persistent disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+    patch:
+      summary: Updates the configuration of a persistent disk
+      description: In order to update the configuration of a persistent disk, it must first be ready
+      operationId: updateDisk
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: diskName
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/UpdateDiskRequest"
+      responses:
+        "202":
+          description: Persistent disk update request accepted
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
+  ## Legacy Cluster API ##
 
   /api/clusters:
     get:
@@ -895,7 +1169,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-## Deprecated Notebook API ##
+  ## Deprecated Notebook API ##
 
   "/notebooks/{googleProject}/{clusterName}":
     get:
@@ -1127,7 +1401,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-## Proxy API ##
+  ## Proxy API ##
 
   "/proxy/{googleProject}/{clusterName}/jupyter":
     get:
@@ -1397,6 +1671,24 @@ components:
               cloudService: gce
               machineType: n1-highmem-16
               diskSize: 500
+    CreateDiskRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateDiskRequest"
+          example:
+            size: 500
+            diskType: "Standard"
+            blockSize: 4096
+    UpdateDiskRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateDiskRequest"
+          example:
+            updateSize: 600
+            updateDiskType: "SSD"
+            updateBlockSize: 16384
     # legacy
     ClusterRequest:
       content:
@@ -1440,6 +1732,15 @@ components:
         - Suspending
         - Suspended
         - Terminated
+    DiskStatus:
+      type: string
+      enum:
+        - Creating
+        - Restoring
+        - Failed
+        - Ready
+        - Deleting
+        - Deleted
     ErrorReport:
       description: ""
       required:
@@ -1592,7 +1893,7 @@ components:
         - scopes
       properties:
         id:
-          type: long
+          type: integer
           description: The leonardo ID of the runtime
         runtimeName:
           type: string
@@ -1757,7 +2058,7 @@ components:
         - labels
       properties:
         id:
-          type: long
+          type: integer
           description: Internal Leonardo ID of the runtime
         runtimeName:
           type: string
@@ -1778,6 +2079,96 @@ components:
         patchInProgress:
           type: boolean
           description: Whether there is a patch in progress on the runtime. Is used to indicate updates that require status transitions.
+    ListPersistentDiskResponse:
+      description: ""
+      required:
+        - id
+        - googleProject
+        - zone
+        - name
+        - status
+        - auditInfo
+        - size
+        - diskType
+        - blockSize
+      properties:
+        id:
+          type: integer
+          description: Internal Leonardo ID of the persistent disk
+        googleProject:
+          type: string
+          description: The google project used to create the persistent disk
+        zone:
+          type: string
+          description: The google zone in which the persistent disk was created
+        name:
+          type: string
+          description: The user-supplied name of the persistent disk
+        status:
+          $ref: "#/components/schemas/DiskStatus"
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        size:
+          type: string
+          description: Size of persistent disk in GB
+        diskType:
+          type: string
+          description: Type of persistent disk
+        blockSize:
+          type: string
+          description: Block size of persistent disk in bytes
+
+    GetPersistentDiskResponse:
+      description: ""
+      required:
+        - id
+        - googleProject
+        - zone
+        - name
+        - googleId
+        - samResourceId
+        - status
+        - auditInfo
+        - size
+        - diskType
+        - blockSize
+        - labels
+      properties:
+        id:
+          type: integer
+          description: Internal Leonardo ID of the persistent disk
+        googleProject:
+          type: string
+          description: The google project used to create the persistent disk
+        zone:
+          type: string
+          description: The google zone in which the persistent disk was created
+        name:
+          type: string
+          description: The user-supplied name of the persistent disk
+        googleId:
+          type: string
+          description: Google's UUID for the persistent disk
+        samResourceId:
+          type: string
+          description: Internal resource ID of the persistent disk
+        status:
+          $ref: "#/components/schemas/DiskStatus"
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        size:
+          type: string
+          description: Size of persistent disk in GB
+        diskType:
+          type: string
+          description: Type of persistent disk
+        blockSize:
+          type: string
+          description: Block size of persistent disk in bytes
+        labels:
+          type: object
+          description: The labels to be placed on the persistent disk. Of type Map[String,String]
+
     InstanceKey:
       description: ""
       required:
@@ -2081,6 +2472,38 @@ components:
           description: The number of minutes of idle time to elapse before the cluster is
             autopaused. If autopause is set to false, this value is disregarded.
             A value of 0 is equivalent to autopause being turned off.
+    CreateDiskRequest:
+      description: "Creates a new persistent disk"
+      type: object
+      properties:
+        labels:
+          type: object
+          description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        size:
+          type: integer
+          description: The size of the persistent disk to be created in GB.
+        diskType:
+          type: string
+          description: The type of the persistent disk to be created. Can be "Standard" or "SSD".
+        blockSize:
+          type: integer
+          description: The block size of the persistent disk to be created in bytes.
+    UpdateDiskRequest:
+      description: "Updates an existing persistent disk"
+      type: object
+      properties:
+        labels:
+          type: object
+          description: The labels to be added or updated on the persistent disk. Of type Map[String,String]
+        size:
+          type: integer
+          description: The size in GB that the persistent disk is to be updated to.
+        diskType:
+          type: string
+          description: The disk type that the persistent disk is to be updated to. Can be "Standard" or "SSD".
+        blockSize:
+          type: integer
+          description: The block size in bytes that the persistent disk is to be updated to.
     ClusterError:
       description: Errors encountered on cluster create
       properties:
@@ -2164,86 +2587,86 @@ components:
     GceConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
-      - $ref: '#/components/schemas/RuntimeConfig'
-      - type: object
-        properties:
-          diskSize:
-            type: integer
-            description: >
-              Optional, the size in gigabytes of the disk on the GCE VM.
-              Minimum size is 50GB. If unspecified, default size is 100GB.
-          machineType:
-            type: string
-            description: >
-              Optional, the machine type determines the number of CPUs and memory
-              for the master node. For example "n1-standard-16"
+        - $ref: '#/components/schemas/RuntimeConfig'
+        - type: object
+          properties:
+            diskSize:
+              type: integer
+              description: >
+                Optional, the size in gigabytes of the disk on the GCE VM.
+                Minimum size is 50GB. If unspecified, default size is 100GB.
+            machineType:
+              type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the master node. For example "n1-standard-16"
 
-              or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+                or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
 
-              see https://cloud.google.com/compute/docs/machine-types
+                see https://cloud.google.com/compute/docs/machine-types
     MachineConfig:
       description: Configuration for a single Dataproc cluster.
       allOf:
-      - $ref: '#/components/schemas/RuntimeConfig'
-      - type: object
-        properties:
-          numberOfWorkers:
-            type: integer
-            description: >
-              Optional, number of workers in the cluster. Can be 0 (default), 2 or
-              more. Google Dataproc does not allow 1 worker.
-          masterMachineType:
-            type: string
-            description: >
-              Optional, the machine type determines the number of CPUs and memory
-              for the master node. For example "n1-standard-16"
-
-              or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-
-              see https://cloud.google.com/compute/docs/machine-types
-          masterDiskSize:
-            type: integer
-            description: >
-              Optional, the size in gigabytes of the disk on the master node.
-              Minimum size is 50GB. If unspecified, default size is 100GB.
-          workerMachineType:
-            type: string
-            description: >
-              Optional, the machine type determines the number of CPUs and memory
-              for the worker nodes. For example "n1-standard-16"
-
-              or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-
-              see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
-          workerDiskSize:
-            type: integer
-            description: >
-              Optional, the size in gigabytes of the disk on the master node.
-              Minimum size is 10GB. If unspecified, default size is 100GB.
-
-              Ignored if numberOfWorkers is 0.
-          numberOfWorkerLocalSSDs:
-            type: integer
-            description: >
-              Optional, the number of local solid state disks for workers. If
-              unspecified, the default number is 0.
-
-              Ignored if numberOfWorkers is 0.
-          numberOfPreemptibleWorkers:
-            type: integer
-            description: >
-              Optional, the number of preemptible workers. If unspecified, the
-              default number is 0. Ignored if numberOfWorkers is 0.
-
-              For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+        - $ref: '#/components/schemas/RuntimeConfig'
+        - type: object
           properties:
-            description: >
-              Example {"spark:spark.executor.memory": "10g"}. See
-              https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
-              for allowed property settings
-            type: object
-            additionalProperties:
+            numberOfWorkers:
+              type: integer
+              description: >
+                Optional, number of workers in the cluster. Can be 0 (default), 2 or
+                more. Google Dataproc does not allow 1 worker.
+            masterMachineType:
               type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the master node. For example "n1-standard-16"
+
+                or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+                see https://cloud.google.com/compute/docs/machine-types
+            masterDiskSize:
+              type: integer
+              description: >
+                Optional, the size in gigabytes of the disk on the master node.
+                Minimum size is 50GB. If unspecified, default size is 100GB.
+            workerMachineType:
+              type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the worker nodes. For example "n1-standard-16"
+
+                or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+                see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
+            workerDiskSize:
+              type: integer
+              description: >
+                Optional, the size in gigabytes of the disk on the master node.
+                Minimum size is 10GB. If unspecified, default size is 100GB.
+
+                Ignored if numberOfWorkers is 0.
+            numberOfWorkerLocalSSDs:
+              type: integer
+              description: >
+                Optional, the number of local solid state disks for workers. If
+                unspecified, the default number is 0.
+
+                Ignored if numberOfWorkers is 0.
+            numberOfPreemptibleWorkers:
+              type: integer
+              description: >
+                Optional, the number of preemptible workers. If unspecified, the
+                default number is 0. Ignored if numberOfWorkers is 0.
+
+                For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+            properties:
+              description: >
+                Example {"spark:spark.executor.memory": "10g"}. See
+                https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+                for allowed property settings
+              type: object
+              additionalProperties:
+                type: string
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:

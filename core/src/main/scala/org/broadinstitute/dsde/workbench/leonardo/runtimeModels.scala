@@ -326,13 +326,13 @@ object RuntimeUI {
 }
 
 /** Default runtime labels */
-case class DefaultLabels(runtimeName: RuntimeName,
-                         googleProject: GoogleProject,
-                         creator: WorkbenchEmail,
-                         serviceAccount: WorkbenchEmail,
-                         notebookUserScript: Option[UserScriptPath],
-                         notebookStartUserScript: Option[UserScriptPath],
-                         tool: Option[RuntimeImageType]) {
+case class DefaultRuntimeLabels(runtimeName: RuntimeName,
+                                googleProject: GoogleProject,
+                                creator: WorkbenchEmail,
+                                serviceAccount: WorkbenchEmail,
+                                notebookUserScript: Option[UserScriptPath],
+                                notebookStartUserScript: Option[UserScriptPath],
+                                tool: Option[RuntimeImageType]) {
   def toMap: LabelMap =
     Map(
       "runtimeName" -> runtimeName.asString,
@@ -391,8 +391,6 @@ final case class NetworkTag(value: String) extends ValueObject
 final case class OperationName(value: String) extends ValueObject
 final case class GoogleOperation(name: OperationName, id: GoogleId)
 final case class GoogleId(value: String) extends AnyVal
-
-final case class PersistentDiskInternalId(asString: String) extends AnyVal
 
 sealed trait RuntimeOperation extends Product with Serializable {
   def asString: String

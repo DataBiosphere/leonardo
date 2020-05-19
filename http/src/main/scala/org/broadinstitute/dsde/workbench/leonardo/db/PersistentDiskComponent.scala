@@ -70,6 +70,11 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
 
+  private[db] def findByNameQuery(googleProject: GoogleProject, name: DiskName) =
+    persistentDiskQuery
+      .filter(_.googleProject === googleProject)
+      .filter(_.name === name)
+
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
       (disk, label) <- baseQuery joinLeft labelQuery on {
@@ -78,8 +83,10 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       }
     } yield (disk, label)
 
-  def save(disk: PersistentDisk): DBIO[DiskId] =
-    (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
+  def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
+    for {
+      diskId <- (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
+    } yield disk.copy(diskId)
 
   def getById(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
@@ -90,6 +97,11 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
 
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
+
+  def markPendingDeletion(id: DiskId, dateAccessed: Instant): DBIO[Int] =
+    findByIdQuery(id)
+      .map(d => (d.status, d.dateAccessed))
+      .update((DiskStatus.Deleting, dateAccessed))
 
   def delete(id: DiskId, destroyedDate: Instant) =
     findByIdQuery(id)

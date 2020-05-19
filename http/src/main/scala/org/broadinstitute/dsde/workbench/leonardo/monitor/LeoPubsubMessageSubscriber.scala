@@ -49,6 +49,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         handleStartRuntimeMessage(msg, now)
       case msg: UpdateRuntimeMessage =>
         handleUpdateRuntimeMessage(msg, now)
+      case _ => throw new NotImplementedError("disk events are not implemented yet") //TODO: put disk messages here
     }
 
   private[monitor] def messageHandler: Pipe[F, Event[LeoPubsubMessage], Unit] = in => {

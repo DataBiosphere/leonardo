@@ -6,10 +6,11 @@ import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Product {
   def asString: String
@@ -40,12 +41,21 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object UpdateRuntime extends LeoPubsubMessageType {
     val asString = "updateRuntime"
   }
+
+  final case object CreateDisk extends LeoPubsubMessageType {
+    val asString = "createDisk"
+  }
+  final case object UpdateDisk extends LeoPubsubMessageType {
+    val asString = "updateDisk"
+  }
+  final case object DeleteDisk extends LeoPubsubMessageType {
+    val asString = "deleteDisk"
+  }
 }
 
 sealed trait LeoPubsubMessage {
   def traceId: Option[TraceId]
   def messageType: LeoPubsubMessageType
-  def runtimeId: Long
 }
 
 object LeoPubsubMessage {
@@ -101,8 +111,40 @@ object LeoPubsubMessage {
       )
   }
 
+  final case class CreateDiskMessage(diskId: DiskId,
+                                     googleProject: GoogleProject,
+                                     name: DiskName,
+                                     zone: ZoneName,
+                                     auditInfo: AuditInfo,
+                                     size: DiskSize,
+                                     diskType: DiskType,
+                                     blockSize: BlockSize,
+                                     traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateDisk
+  }
+
+  object CreateDiskMessage {
+    def fromDisk(disk: PersistentDisk, traceId: Option[TraceId]): CreateDiskMessage =
+      CreateDiskMessage(
+        disk.id,
+        disk.googleProject,
+        disk.name,
+        disk.zone,
+        disk.auditInfo,
+        disk.size,
+        disk.diskType,
+        disk.blockSize,
+        traceId
+      )
+  }
+
   final case class DeleteRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteRuntime
+  }
+
+  final case class DeleteDiskMessage(diskId: DiskId, traceId: Option[TraceId]) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteDisk
   }
 
   final case class StopRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
@@ -123,6 +165,15 @@ object LeoPubsubMessage {
                                         traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateRuntime
+  }
+
+  final case class UpdateDiskMessage(diskId: DiskId,
+                                     newSize: Option[DiskSize],
+                                     newDiskType: Option[DiskType],
+                                     newBlockSize: Option[BlockSize],
+                                     traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
 }
 
@@ -160,6 +211,23 @@ object LeoPubsubCodec {
       UpdateRuntimeMessage.apply
     )
 
+  implicit val createDiskDecoder: Decoder[CreateDiskMessage] =
+    Decoder.forProduct9("diskId",
+                        "googleProject",
+                        "name",
+                        "zone",
+                        "auditInfo",
+                        "size",
+                        "diskType",
+                        "blockSize",
+                        "traceId")(CreateDiskMessage.apply)
+
+  implicit val updateDiskDecoder: Decoder[UpdateDiskMessage] =
+    Decoder.forProduct5("diskId", "newSize", "newDiskType", "newBlockSize", "traceId")(UpdateDiskMessage.apply)
+
+  implicit val deleteDiskDecoder: Decoder[DeleteDiskMessage] =
+    Decoder.forProduct2("diskId", "traceId")(DeleteDiskMessage.apply)
+
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
@@ -175,6 +243,9 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.StopRuntime        => message.as[StopRuntimeMessage]
         case LeoPubsubMessageType.StartRuntime       => message.as[StartRuntimeMessage]
         case LeoPubsubMessageType.UpdateRuntime      => message.as[UpdateRuntimeMessage]
+        case LeoPubsubMessageType.CreateDisk         => message.as[CreateDiskMessage]
+        case LeoPubsubMessageType.UpdateDisk         => message.as[UpdateDiskMessage]
+        case LeoPubsubMessageType.DeleteDisk         => message.as[DeleteDiskMessage]
       }
     } yield value
   }
@@ -276,6 +347,39 @@ object LeoPubsubCodec {
        x.traceId)
     )
 
+  implicit val createDiskMessageEncoder: Encoder[CreateDiskMessage] =
+    Encoder.forProduct10("messageType",
+                         "diskId",
+                         "googleProject",
+                         "name",
+                         "zone",
+                         "auditInfo",
+                         "size",
+                         "diskType",
+                         "blockSize",
+                         "traceId")(x =>
+      (
+        x.messageType,
+        x.diskId,
+        x.googleProject,
+        x.name,
+        x.zone,
+        x.auditInfo,
+        x.size,
+        x.diskType,
+        x.blockSize,
+        x.traceId
+      )
+    )
+
+  implicit val updateDiskMessageEncoder: Encoder[UpdateDiskMessage] =
+    Encoder.forProduct6("messageType", "diskId", "newSize", "newDiskType", "newBlockSize", "traceId")(x =>
+      (x.messageType, x.diskId, x.newSize, x.newDiskType, x.newBlockSize, x.traceId)
+    )
+
+  implicit val deleteDiskMessageEncoder: Encoder[DeleteDiskMessage] =
+    Encoder.forProduct3("messageType", "diskId", "traceId")(x => (x.messageType, x.diskId, x.traceId))
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
     message match {
       case m: StopUpdateMessage        => m.asJson
@@ -285,6 +389,9 @@ object LeoPubsubCodec {
       case m: StopRuntimeMessage       => m.asJson
       case m: StartRuntimeMessage      => m.asJson
       case m: UpdateRuntimeMessage     => m.asJson
+      case m: CreateDiskMessage        => m.asJson
+      case m: UpdateDiskMessage        => m.asJson
+      case m: DeleteDiskMessage        => m.asJson
     }
   }
 }

@@ -40,7 +40,7 @@ class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComp
       event <- queue.tryDequeue1
     } yield {
       status.get shouldBe (RuntimeStatus.Stopping)
-      event.get.runtimeId shouldBe (runningRuntime.id)
+      event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
     res.unsafeRunSync()
@@ -94,7 +94,7 @@ class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComp
       event <- queue.tryDequeue1
     } yield {
       status.get shouldBe (RuntimeStatus.Stopping)
-      event.get.runtimeId shouldBe (runningRuntime.id)
+      event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
     res.unsafeRunSync()
@@ -125,7 +125,7 @@ class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComp
       event <- queue.tryDequeue1
     } yield {
       status.get shouldBe (RuntimeStatus.Stopping)
-      event.get.runtimeId shouldBe (runningRuntime.id)
+      event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
     res.unsafeRunSync()

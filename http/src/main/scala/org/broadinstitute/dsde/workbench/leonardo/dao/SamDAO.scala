@@ -32,11 +32,11 @@ trait SamDAO[F[_]] {
                             googleProject: GoogleProject,
                             runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
-  def createPersistentDiskResource(internalId: PersistentDiskInternalId,
+  def createPersistentDiskResource(internalId: DiskSamResourceId,
                                    creatorEmail: WorkbenchEmail,
                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
-  def deletePersistentDiskResource(internalId: PersistentDiskInternalId,
+  def deletePersistentDiskResource(internalId: DiskSamResourceId,
                                    userEmail: WorkbenchEmail,
                                    creatorEmail: WorkbenchEmail,
                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]

@@ -97,7 +97,7 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
     checkUserAccess(userInfo, googleProject)
 
   override def hasPersistentDiskPermission(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userInfo: UserInfo,
     action: PersistentDiskAction,
     googleProject: GoogleProject
@@ -118,10 +118,9 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
     }
   }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
-                                                disks: List[(GoogleProject, PersistentDiskInternalId)])(
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, DiskSamResourceId)])(
     implicit ev: ApplicativeAsk[Future, TraceId]
-  ): Future[List[(GoogleProject, PersistentDiskInternalId)]] = {
+  ): Future[List[(GoogleProject, DiskSamResourceId)]] = {
     // Check each project for user-access exactly once, then filter by project.
     val projects = disks.map(lv => lv._1).toSet
     val projectAccess = projects.map(p => p.value -> checkUserAccess(userInfo, p)).toMap
@@ -149,13 +148,13 @@ class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Fu
   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
   override def notifyPersistentDiskCreated(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
   override def notifyPersistentDiskDeleted(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

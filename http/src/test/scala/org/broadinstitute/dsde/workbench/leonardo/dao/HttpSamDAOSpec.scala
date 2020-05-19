@@ -129,7 +129,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(5 milliseconds, 4))
     val errorSam = Client.fromHttpApp[IO](
       HttpApp { _ =>
-        IO(hitCount = hitCount + 1) >> IO.raiseError[Response[IO]](FakeException(s"retried ${hitCount + 1} times"))
+        IO { hitCount = hitCount + 1 } >> IO.raiseError[Response[IO]](FakeException(s"retried ${hitCount + 1} times"))
       }
     )
     val clientWithRetry = Retry(retryPolicy)(errorSam)

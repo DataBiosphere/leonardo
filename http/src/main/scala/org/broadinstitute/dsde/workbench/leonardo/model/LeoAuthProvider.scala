@@ -74,7 +74,7 @@ abstract class LeoAuthProvider[F[_]] {
    * @param googleProject  The Google project the persistent disk was created in
    * @return If the userEmail has permission on this individual notebook cluster to perform this action
    */
-  def hasPersistentDiskPermission(internalId: PersistentDiskInternalId,
+  def hasPersistentDiskPermission(internalId: DiskSamResourceId,
                                   userInfo: UserInfo,
                                   action: PersistentDiskAction,
                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
@@ -99,9 +99,9 @@ abstract class LeoAuthProvider[F[_]] {
    * @param disks    All non-deleted disks from the database
    * @return         Filtered list of disks that the user is allowed to see
    */
-  def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskInternalId)])(
+  def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, DiskSamResourceId)])(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, PersistentDiskInternalId)]]
+  ): F[List[(GoogleProject, DiskSamResourceId)]]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 
@@ -151,7 +151,7 @@ abstract class LeoAuthProvider[F[_]] {
    * @param googleProject  The Google project the disk was created in
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def notifyPersistentDiskCreated(internalId: PersistentDiskInternalId,
+  def notifyPersistentDiskCreated(internalId: DiskSamResourceId,
                                   creatorEmail: WorkbenchEmail,
                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
@@ -166,7 +166,7 @@ abstract class LeoAuthProvider[F[_]] {
    * @param googleProject The Google project the disk was created in
    * @return A Future that will complete when the auth provider has finished doing its business.
    */
-  def notifyPersistentDiskDeleted(internalId: PersistentDiskInternalId,
+  def notifyPersistentDiskDeleted(internalId: DiskSamResourceId,
                                   userEmail: WorkbenchEmail,
                                   creatorEmail: WorkbenchEmail,
                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]

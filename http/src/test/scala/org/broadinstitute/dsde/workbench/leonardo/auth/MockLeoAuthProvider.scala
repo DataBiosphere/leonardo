@@ -40,7 +40,7 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     IO.pure(clusterPermissions(action))
 
   override def hasPersistentDiskPermission(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userInfo: UserInfo,
     action: PersistentDiskAction,
     googleProject: GoogleProject
@@ -61,10 +61,9 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
       })
     }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
-                                                disks: List[(GoogleProject, PersistentDiskInternalId)])(
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, DiskSamResourceId)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, PersistentDiskInternalId)]] =
+  ): IO[List[(GoogleProject, DiskSamResourceId)]] =
     if (canSeeResourcesInAllProjects) {
       IO.pure(disks)
     } else {
@@ -94,14 +93,14 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     notifyInternal
 
   override def notifyPersistentDiskCreated(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
   override def notifyPersistentDiskDeleted(
-    internalId: PersistentDiskInternalId,
+    internalId: DiskSamResourceId,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

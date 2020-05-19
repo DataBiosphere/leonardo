@@ -44,7 +44,6 @@ object CommonTestData {
   val name2 = RuntimeName("clustername2")
   val name3 = RuntimeName("clustername3")
   val runtimeInternalId = RuntimeInternalId("067e2867-5d4a-47f3-a53c-fd711529b287")
-  val diskInternalId = PersistentDiskInternalId("067e2867-5d4a-47f3-a53c-fd711529b289")
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
@@ -81,9 +80,12 @@ object CommonTestData {
     "https://www.googleapis.com/auth/source.read_only"
   )
   val zone = ZoneName("us-central1-a")
-  val diskName = DiskName("disk-1")
+  val diskName = DiskName("diskName")
   val googleId = GoogleId("google-id")
   val diskSamResourceId = DiskSamResourceId("disk-resource-id")
+  val diskSize = DiskSize(500)
+  val diskType = DiskType.Standard
+  val blockSize = BlockSize(4096)
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = config.as[ApplicationConfig]("application")
@@ -96,6 +98,7 @@ object CommonTestData {
   val gceConfig = config.as[GceConfig]("gce")
   val vpcConfig = config.as[VPCConfig]("vpc")
   val imageConfig = config.as[ImageConfig]("image")
+  val persistentDiskConfig = Config.persistentDiskConfig
   val welderConfig = config.as[WelderConfig]("welder")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
@@ -286,6 +289,21 @@ object CommonTestData {
     )
     .build()
 
+  def makePersistentDisk(id: DiskId): PersistentDisk = PersistentDisk(
+    id,
+    project,
+    zone,
+    DiskName(diskName.value + id),
+    Some(googleId),
+    diskSamResourceId,
+    DiskStatus.Ready,
+    auditInfo,
+    diskSize,
+    diskType,
+    blockSize,
+    Map.empty
+  )
+
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider
@@ -334,21 +352,6 @@ object CommonTestData {
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
   def modifyInstanceKey(instanceKey: DataprocInstanceKey): DataprocInstanceKey =
     instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
-
-  def makePersistentDisk(id: DiskId): PersistentDisk = PersistentDisk(
-    id,
-    project,
-    zone,
-    DiskName(diskName.value + id),
-    Some(googleId),
-    diskSamResourceId,
-    DiskStatus.Ready,
-    AuditInfo(userEmail, Instant.now, None, Instant.now),
-    DiskSize(500),
-    DiskType.Standard,
-    BlockSize(4096),
-    Map.empty
-  )
 }
 
 trait GcsPathUtils {
