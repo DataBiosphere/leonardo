@@ -96,7 +96,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     )
 
   private def handleStopUpdateMessage(message: StopUpdateMessage,
-                                      now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                                      now: Instant)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     dbRef
       .inTransaction(clusterQuery.getClusterById(message.runtimeId))
       .flatMap {
@@ -370,9 +370,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       _ <- msg.newMachineType.traverse_ { m =>
         if (msg.stopToUpdateMachineType) {
           for {
-            _ <- dbRef.inTransaction(clusterQuery.setToStopping(msg.runtimeId, now))
+            timeToStop <- nowInstant
+            ctxStopping = ApplicativeAsk.const[F, AppContext](
+              AppContext(tid, timeToStop)
+            )
+            _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, now))
             operation <- runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))
+              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))(ctxStopping)
             task = for {
               _ <- operation match {
                 case Some(op) =>
@@ -380,10 +384,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                                                        RuntimeAndRuntimeConfig(runtime, runtimeConfig),
                                                        op,
                                                        RuntimeStatus.Stopping)
-                case None => runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+                case None =>
+                  runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
               }
               now <- nowInstant
-              implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+              implicit0(ctxStarting: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
                 AppContext(tid, now)
               )
               _ <- updateRuntimeAfterStopAndStarting(runtime, m)

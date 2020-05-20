@@ -22,7 +22,7 @@ trait RuntimeAlgebra[F[_]] {
   def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus]
   def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-  def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]]
+  def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Option[Operation]]
   def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]

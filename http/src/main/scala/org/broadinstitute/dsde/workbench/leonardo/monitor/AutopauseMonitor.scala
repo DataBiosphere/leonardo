@@ -37,7 +37,6 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
     for {
       clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
       now <- nowInstant
-      traceId = TraceId(s"fromAutopause_${UUID.randomUUID().toString}")
       pauseableClusters <- clusters.toList.filterA { cluster =>
         jupyterDAO.isAllKernelsIdle(cluster.googleProject, cluster.runtimeName).attempt.flatMap {
           case Left(t) =>
@@ -75,8 +74,9 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
       }
       _ <- metrics.gauge("autoPause/numOfRuntimes", pauseableClusters.length)
       _ <- pauseableClusters.traverse_ { cl =>
+        val traceId = TraceId(s"fromAutopause_${UUID.randomUUID().toString}")
         for {
-          _ <- clusterQuery.setToStopping(cl.id, now).transaction
+          _ <- clusterQuery.updateClusterStatus(cl.id, RuntimeStatus.PreStopping, now).transaction
           _ <- logger.info(s"${traceId.asString} | Auto freezing runtime ${cl.projectNameString}")
           _ <- publisherQueue.enqueue1(LeoPubsubMessage.StopRuntimeMessage(cl.id, Some(traceId)))
         } yield ()

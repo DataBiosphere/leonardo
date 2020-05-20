@@ -714,7 +714,9 @@ object FakeDataproInterp extends RuntimeAlgebra[IO] {
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
 
-  override def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[Operation]] =
+  override def stopRuntime(
+    params: StopRuntimeParams
+  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Option[Operation]] =
     IO.pure(None)
 
   override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] = ???

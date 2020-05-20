@@ -63,7 +63,7 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
     .build(
       new CacheLoader[DnsCacheKey, HostStatus] {
         def load(key: DnsCacheKey): HostStatus = {
-          logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
+          logger.info(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
           val res = dbRef
             .inTransaction {
               clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
@@ -96,7 +96,7 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
     val assumption = s"Google ID for Google project/cluster ${r.googleProject}/${r.runtimeName} must not be undefined."
     assert(googleId.isDefined, assumption)
 
-    Host(googleId.get.value.toString + proxyConfig.proxyDomain)
+    Host(googleId.get.value + proxyConfig.proxyDomain)
   }
 
   private def hostToIpEntry(r: Runtime): (Host, IP) = host(r) -> r.asyncRuntimeFields.flatMap(_.hostIp).get

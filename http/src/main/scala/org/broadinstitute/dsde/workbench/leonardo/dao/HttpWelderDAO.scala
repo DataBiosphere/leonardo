@@ -31,10 +31,10 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
               )
             )
           )
-        case _ =>
+        case x =>
           Logger[F]
             .error(
-              s"fail to get target host name for welder for ${googleProject.value}/${runtimeName.asString} when trying to flush cache"
+              s"fail to get target host name for welder for ${googleProject.value}/${runtimeName.asString} when trying to flush cache. Host status ${x}"
             )
             .as(false)
       }
