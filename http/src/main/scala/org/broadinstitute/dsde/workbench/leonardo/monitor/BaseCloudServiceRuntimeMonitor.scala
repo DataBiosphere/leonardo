@@ -46,7 +46,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       monitorContext = MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus)
       _ <- Stream.sleep(monitorConfig.initialDelay) ++ Stream.unfoldLoopEval[F, MonitorState, Unit](Initial)(s =>
         Timer[F].sleep(monitorConfig.pollingInterval) >> handler(monitorContext, s)
-      ) ++ Stream.sleep(30 seconds)
+      )
     } yield ()
 
   def pollCheck(googleProject: GoogleProject,
@@ -76,8 +76,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         case Some(_) =>
           monitorState match {
             case MonitorState.Initial => handleInitial(monitorContext)
-            case MonitorState.CheckTools(ip, runtimeAndRuntimeConfig, images, _) =>
-              handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty, images)
+            case MonitorState.CheckTools(ip, runtimeAndRuntimeConfig, images, dataprocInstances) =>
+              handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, dataprocInstances, images)
             case MonitorState.Check(runtimeAndRuntimeConfig) => handleCheck(monitorContext, runtimeAndRuntimeConfig)
           }
       }
@@ -317,7 +317,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
       res <- availableTools match {
         case a if a.forall(_._2) =>
-          readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
+          timer.sleep(30 seconds) >> readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
           checkAgain(
