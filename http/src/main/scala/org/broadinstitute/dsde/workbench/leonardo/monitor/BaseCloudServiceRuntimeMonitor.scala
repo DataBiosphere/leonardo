@@ -46,7 +46,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       monitorContext = MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus)
       _ <- Stream.sleep(monitorConfig.initialDelay) ++ Stream.unfoldLoopEval[F, MonitorState, Unit](Initial)(s =>
         Timer[F].sleep(monitorConfig.pollingInterval) >> handler(monitorContext, s)
-      )
+      ) ++ Stream.sleep(30 seconds)
     } yield ()
 
   def pollCheck(googleProject: GoogleProject,

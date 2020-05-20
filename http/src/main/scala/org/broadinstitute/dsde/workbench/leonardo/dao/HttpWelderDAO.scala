@@ -59,9 +59,11 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
               )
             )
             .handleError(_ => false)
-        case _ =>
+        case x =>
           Logger[F]
-            .error(s"fail to get target host name for welder for ${googleProject.value}/${runtimeName.asString}")
+            .error(
+              s"fail to get target host name for welder for ${googleProject.value}/${runtimeName.asString}. Host status ${x}"
+            )
             .as(false)
       }
       _ <- if (res) {
