@@ -14,7 +14,7 @@ import LeoProfile.mappedColumnImplicits._
 import cats.data.Chain
 import cats.implicits._
 import nodepoolQuery.unmarshalNodepool
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 
 import scala.concurrent.ExecutionContext
@@ -210,7 +210,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
   private def unmarshalKubernetesCluster(cr: KubernetesClusterRecord,
                                          nodepools: Set[Nodepool],
-                                         namespaces: Set[KubernetesNamespaceName],
+                                         namespaces: Set[NamespaceName],
                                          labels: LabelMap): KubernetesCluster =
     KubernetesCluster(
       cr.id,

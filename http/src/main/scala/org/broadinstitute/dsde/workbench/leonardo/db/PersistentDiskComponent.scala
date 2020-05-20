@@ -112,6 +112,12 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       .map(d => (d.status, d.destroyedDate, d.dateAccessed))
       .update((DiskStatus.Deleted, destroyedDate, destroyedDate))
 
+  def updateGoogleId(id: DiskId, googleId: GoogleId, dateAccessed: Instant) =
+    findByIdQuery(id).map(d => (d.googleId, d.dateAccessed)).update((Some(googleId), dateAccessed))
+
+  def updateSize(id: DiskId, newSize: DiskSize, dateAccessed: Instant) =
+    findByIdQuery(id).map(d => (d.size, d.dateAccessed)).update((newSize, dateAccessed))
+
   // TODO add other queries as needed
 
   private[db] def marshalPersistentDisk(disk: PersistentDisk): PersistentDiskRecord =

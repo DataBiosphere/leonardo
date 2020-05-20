@@ -191,10 +191,8 @@ object DiskRoutes {
   implicit val updateDiskRequestDecoder: Decoder[UpdateDiskRequest] = Decoder.instance { x =>
     for {
       l <- x.downField("labels").as[LabelMap]
-      us <- x.downField("updateSize").as[Option[DiskSize]]
-      ud <- x.downField("updateDiskType").as[Option[DiskType]]
-      ub <- x.downField("updateBlockSize").as[Option[BlockSize]]
-    } yield UpdateDiskRequest(l, us, ud, ub)
+      us <- x.downField("size").as[DiskSize]
+    } yield UpdateDiskRequest(l, us)
   }
 
   implicit val getDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
@@ -303,7 +301,4 @@ final case class CreateDiskRequest(labels: LabelMap,
                                    diskType: Option[DiskType],
                                    blockSize: Option[BlockSize])
 
-final case class UpdateDiskRequest(labels: LabelMap,
-                                   size: Option[DiskSize],
-                                   diskType: Option[DiskType],
-                                   blockSize: Option[BlockSize])
+final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)

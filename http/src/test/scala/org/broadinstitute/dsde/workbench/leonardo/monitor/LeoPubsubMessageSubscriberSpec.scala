@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
@@ -19,12 +20,20 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeConfigQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{MockGoogleComputeService, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  persistentDiskQuery,
+  RuntimeConfigQueries,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  ClusterInvalidState,
+  DiskInvalidState
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -70,6 +79,7 @@ class LeoPubsubMessageSubscriberSpec
                                                    vpcInterp,
                                                    gdDAO,
                                                    MockGoogleComputeService,
+                                                   MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    iamDAO,
                                                    projectDAO,
@@ -79,6 +89,7 @@ class LeoPubsubMessageSubscriberSpec
                                          bucketHelper,
                                          vpcInterp,
                                          MockGoogleComputeService,
+                                         MockGoogleDiskService,
                                          mockWelderDAO,
                                          blocker)
   implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
@@ -337,6 +348,76 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
+  it should "handle CreateDiskMessage and create disk" in isolatedDbTest {
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res = for {
+      samResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = samResourceId, status = DiskStatus.Creating).save()
+      tr <- traceId.ask
+      now <- IO(Instant.now)
+      _ <- leoSubscriber.messageResponder(CreateDiskMessage.fromDisk(disk, Some(tr)), now)
+      updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
+    } yield {
+      updatedDisk shouldBe 'defined
+      updatedDisk.get.googleId.get.value shouldBe "target"
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle DeleteDiskMessage and delete disk" in isolatedDbTest {
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res = for {
+      now <- IO(Instant.now)
+      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Deleting).save()
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(DeleteDiskMessage(disk.id, Some(tr)), now)
+      updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
+    } yield {
+      updatedDisk shouldBe 'defined
+      updatedDisk.get.status shouldBe DiskStatus.Deleting
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "not handle DeleteDiskMessage when disk is not in Deleting status" in isolatedDbTest {
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res = for {
+      now <- IO(Instant.now)
+      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Ready).save()
+      tr <- traceId.ask
+      message = DeleteDiskMessage(disk.id, Some(tr))
+      attempt <- leoSubscriber.messageResponder(message, now).attempt
+    } yield {
+      attempt shouldBe Left(DiskInvalidState(disk.id, disk.projectNameString, disk, message))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle UpdateDiskMessage and update disk size" in isolatedDbTest {
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res = for {
+      now <- IO(Instant.now)
+      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Ready).save()
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(UpdateDiskMessage(disk.id, DiskSize(550), Some(tr)), now)
+      updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
+    } yield {
+      updatedDisk shouldBe 'defined
+      updatedDisk.get.size shouldBe DiskSize(550)
+    }
+
+    res.unsafeRunSync()
+  }
+
   def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
                           InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync) = {
@@ -345,6 +426,7 @@ class LeoPubsubMessageSubscriberSpec
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
     new LeoPubsubMessageSubscriber[IO](LeoPubsubMessageSubscriberConfig(1, 30 seconds),
                                        googleSubscriber,
-                                       asyncTaskQueue)
+                                       asyncTaskQueue,
+                                       MockGoogleDiskService)
   }
 }

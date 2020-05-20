@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -21,7 +21,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              samResourceId: KubernetesClusterSamResourceId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
-                             namespaces: Set[KubernetesNamespaceName],
+                             namespaces: Set[NamespaceName],
                              labels: LabelMap,
                              nodepools: Set[Nodepool],
                              //TODO: populate this

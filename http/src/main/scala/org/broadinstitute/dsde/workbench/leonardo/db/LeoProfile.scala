@@ -8,7 +8,7 @@ import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -132,8 +132,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
 
     implicit val kubernetesNamespaceIdColumnType: BaseColumnType[KubernetesNamespaceId] =
       MappedColumnType.base[KubernetesNamespaceId, Long](_.id, KubernetesNamespaceId.apply)
-    implicit val kubernetesNamespaceNameColumnType: BaseColumnType[KubernetesNamespaceName] =
-      MappedColumnType.base[KubernetesNamespaceName, String](_.value, KubernetesNamespaceName.apply)
+    implicit val kubernetesNamespaceNameColumnType: BaseColumnType[NamespaceName] =
+      MappedColumnType.base[NamespaceName, String](_.value, NamespaceName.apply)
 
     implicit val nodepoolIdColumnType: BaseColumnType[NodepoolLeoId] =
       MappedColumnType.base[NodepoolLeoId, Long](_.id, NodepoolLeoId.apply)

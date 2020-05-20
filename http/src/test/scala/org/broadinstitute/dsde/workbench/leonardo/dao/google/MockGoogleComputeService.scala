@@ -5,7 +5,6 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
   FirewallRuleName,
   GoogleComputeService,
   InstanceName,
@@ -69,10 +68,6 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
   override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Option[MachineType]] = IO.pure(Some(MachineType.newBuilder().setMemoryMb(7680).build))
-
-  override def resizeDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName, newSizeGb: Int)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Unit] = IO.unit
 
   override def getZones(project: GoogleProject, regionName: RegionName)(
     implicit ev: ApplicativeAsk[IO, TraceId]

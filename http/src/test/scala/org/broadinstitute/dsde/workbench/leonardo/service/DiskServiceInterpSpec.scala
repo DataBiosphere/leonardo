@@ -181,7 +181,7 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
         val res = for {
           diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
           disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource, status = status).save()
-          req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
+          req = UpdateDiskRequest(Map.empty, DiskSize(600))
           fail <- diskService
             .updateDisk(userInfo, disk.googleProject, disk.name, req)
             .attempt
@@ -199,11 +199,11 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       context <- ctx.ask
       diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
-      req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
+      req = UpdateDiskRequest(Map.empty, DiskSize(600))
       _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)
       message <- publisherQueue.dequeue1
     } yield {
-      val expectedMessage = UpdateDiskMessage(disk.id, Some(DiskSize(600)), None, None, Some(context.traceId))
+      val expectedMessage = UpdateDiskMessage(disk.id, DiskSize(600), Some(context.traceId))
       message shouldBe expectedMessage
     }
 

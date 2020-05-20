@@ -150,11 +150,7 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateRuntime
   }
 
-  final case class UpdateDiskMessage(diskId: DiskId,
-                                     newSize: Option[DiskSize],
-                                     newDiskType: Option[DiskType],
-                                     newBlockSize: Option[BlockSize],
-                                     traceId: Option[TraceId])
+  final case class UpdateDiskMessage(diskId: DiskId, newSize: DiskSize, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
@@ -200,7 +196,7 @@ object LeoPubsubCodec {
                         "traceId")(CreateDiskMessage.apply)
 
   implicit val updateDiskDecoder: Decoder[UpdateDiskMessage] =
-    Decoder.forProduct5("diskId", "newSize", "newDiskType", "newBlockSize", "traceId")(UpdateDiskMessage.apply)
+    Decoder.forProduct3("diskId", "newSize", "traceId")(UpdateDiskMessage.apply)
 
   implicit val deleteDiskDecoder: Decoder[DeleteDiskMessage] =
     Decoder.forProduct2("diskId", "traceId")(DeleteDiskMessage.apply)
@@ -345,8 +341,8 @@ object LeoPubsubCodec {
     )
 
   implicit val updateDiskMessageEncoder: Encoder[UpdateDiskMessage] =
-    Encoder.forProduct6("messageType", "diskId", "newSize", "newDiskType", "newBlockSize", "traceId")(x =>
-      (x.messageType, x.diskId, x.newSize, x.newDiskType, x.newBlockSize, x.traceId)
+    Encoder.forProduct4("messageType", "diskId", "newSize", "traceId")(x =>
+      (x.messageType, x.diskId, x.newSize, x.traceId)
     )
 
   implicit val deleteDiskMessageEncoder: Encoder[DeleteDiskMessage] =

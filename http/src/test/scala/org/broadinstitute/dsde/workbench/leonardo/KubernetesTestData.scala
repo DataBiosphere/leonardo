@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 
@@ -14,8 +14,8 @@ object KubernetesTestData {
   val location = Location("us-central1-a")
 
   val apiServerIp = KubernetesApiServerIp("0.0.0.0")
-  val namespace0 = KubernetesNamespaceName("namespace00")
-  val namespace1 = KubernetesNamespaceName("namespace01")
+  val namespace0 = NamespaceName("namespace00")
+  val namespace1 = NamespaceName("namespace01")
 
   val nodepoolName0 = NodepoolName("nodepoolname00")
   val nodepoolName1 = NodepoolName("nodepoolname01")

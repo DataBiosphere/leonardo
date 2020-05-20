@@ -8,10 +8,11 @@ import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import com.google.cloud.compute.v1.Disk
+import fs2.Stream
+import org.broadinstitute.dsde.workbench.google2.{Event, GoogleDiskService, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -27,7 +28,8 @@ import scala.util.control.NoStackTrace
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   config: LeoPubsubMessageSubscriberConfig,
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  asyncTasks: InspectableQueue[F, Task[F]]
+  asyncTasks: InspectableQueue[F, Task[F]],
+  googleDiskService: GoogleDiskService[F]
 )(implicit executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
   logger: StructuredLogger[F],
@@ -47,7 +49,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         handleStartRuntimeMessage(msg, now)
       case msg: UpdateRuntimeMessage =>
         handleUpdateRuntimeMessage(msg, now)
-      case _ => throw new NotImplementedError("disk events are not implemented yet") //TODO: put disk messages here
+      case msg: CreateDiskMessage =>
+        handleCreateDiskMessage(msg, now)
+      case msg: DeleteDiskMessage =>
+        handleDeleteDiskMessage(msg, now)
+      case msg: UpdateDiskMessage =>
+        handleUpdateDiskMessage(msg, now)
     }
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
@@ -328,6 +335,62 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       _ <- runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting).compile.drain
     } yield ()
 
+  private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    val createDisk = for {
+      diskResult <- googleDiskService.createDisk(
+        msg.googleProject,
+        msg.zone,
+        Disk
+          .newBuilder()
+          .setName(msg.name.value)
+          .setSizeGb(msg.size.asString)
+          .setZone(msg.zone.value)
+          .setType(msg.diskType.googleString)
+          .setPhysicalBlockSizeBytes(msg.blockSize.bytes.toString)
+          .build()
+      )
+      _ <- persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(diskResult.getTargetId), now).transaction[F]
+    } yield ()
+    createDisk.handleErrorWith {
+      case e =>
+        for {
+          _ <- logger.error(e)(s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}")
+          _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, now).transaction[F]
+        } yield ()
+    }
+  }
+
+  private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      diskOpt <- persistentDiskQuery.getById(msg.diskId).transaction
+      disk <- diskOpt.fold(
+        F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId, msg))
+      )(F.pure)
+      _ <- if (disk.status != DiskStatus.Deleting)
+        F.raiseError[Unit](
+          PubsubHandleMessageError.DiskInvalidState(msg.diskId, disk.projectNameString, disk, msg)
+        )
+      else F.unit
+      _ <- googleDiskService.deleteDisk(disk.googleProject, disk.zone, disk.name)
+    } yield ()
+
+  private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage, now: Instant)(
+    implicit traceId: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      diskOpt <- persistentDiskQuery.getById(msg.diskId).transaction
+      disk <- diskOpt.fold(
+        F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId, msg))
+      )(F.pure)
+      _ <- googleDiskService.resizeDisk(disk.googleProject, disk.zone, disk.name, msg.newSize.gb)
+      // TODO: needs to be updated after monitoring is added
+      _ <- persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]
+    } yield ()
+
   private def logError(projectAndName: String): Throwable => F[Unit] =
     t => logger.error(t)(s"Fail to monitor ${projectAndName}")
 }
@@ -341,6 +404,7 @@ object PubsubHandleMessageError {
       s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
     val isRetryable: Boolean = false
   }
+
   final case class ClusterNotStopped(clusterId: Long,
                                      projectName: String,
                                      clusterStatus: RuntimeStatus,
@@ -350,6 +414,7 @@ object PubsubHandleMessageError {
       s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
     val isRetryable: Boolean = false
   }
+
   final case class ClusterInvalidState(clusterId: Long,
                                        projectName: String,
                                        cluster: Runtime,
@@ -357,6 +422,22 @@ object PubsubHandleMessageError {
       extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
+    val isRetryable: Boolean = false
+  }
+
+  final case class DiskNotFound(diskId: DiskId, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process message ${message} for disk ${diskId.value} because it was not found in the database"
+    val isRetryable: Boolean = false
+  }
+
+  final case class DiskInvalidState(diskId: DiskId,
+                                    projectName: String,
+                                    disk: PersistentDisk,
+                                    message: LeoPubsubMessage)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"${diskId}, ${projectName}, ${message} | Unable to process disk because not in correct state. Disk details: ${disk}"
     val isRetryable: Boolean = false
   }
 }
