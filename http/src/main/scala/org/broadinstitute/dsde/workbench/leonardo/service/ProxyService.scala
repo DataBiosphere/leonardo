@@ -191,8 +191,8 @@ class ProxyService(
   private def proxyInternal(googleProject: GoogleProject,
                             clusterName: RuntimeName,
                             request: HttpRequest,
-                            now: Instant) = {
-    logger.debug(
+                            now: Instant): IO[HttpResponse] = {
+    logger.info(
       s"Received proxy request for ${googleProject}/${clusterName}: ${clusterDnsCache.stats} / ${clusterDnsCache.size}"
     )
     getTargetHost(googleProject, clusterName) flatMap {

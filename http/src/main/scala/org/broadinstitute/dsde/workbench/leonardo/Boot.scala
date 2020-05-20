@@ -6,8 +6,8 @@ import akka.http.scaladsl.Http
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
-import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.{
+import _root_.com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
+import _root_.com.typesafe.sslconfig.ssl.{
   ConfigSSLContextBuilder,
   DefaultKeyManagerFactoryWrapper,
   DefaultTrustManagerFactoryWrapper,
