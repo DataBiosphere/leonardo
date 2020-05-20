@@ -102,10 +102,10 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
   private def hostToIpEntry(r: Runtime): (Host, IP) = host(r) -> r.asyncRuntimeFields.flatMap(_.hostIp).get
 
   private def hostStatusByProjectAndCluster(r: Runtime): HostStatus =
-    if (r.status.isStartable)
-      HostPaused
-    else if (r.asyncRuntimeFields.flatMap(_.hostIp).isDefined)
+    if (r.asyncRuntimeFields.flatMap(_.hostIp).isDefined)
       HostReady(host(r))
+    else if (r.status.isStartable)
+      HostPaused
     else
       HostNotReady
 

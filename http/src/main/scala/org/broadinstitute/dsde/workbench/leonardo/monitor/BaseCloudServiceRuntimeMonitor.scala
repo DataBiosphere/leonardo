@@ -93,13 +93,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def readyRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                    publicIp: IP,
                    monitorContext: MonitorContext,
-                   dataprocInstances: Set[DataprocInstance])(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CheckResult] =
+                   dataprocInstances: Set[DataprocInstance]): F[CheckResult] =
     for {
-      ctx <- ev.ask
+      now <- nowInstant
       _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances)
-      _ <- clusterQuery.setToRunning(runtimeAndRuntimeConfig.runtime.id, publicIp, ctx.now).transaction
+      _ <- clusterQuery.setToRunning(runtimeAndRuntimeConfig.runtime.id, publicIp, now).transaction
       _ <- RuntimeMonitor.recordStatusTransitionMetrics(
         monitorContext.start,
         RuntimeMonitor.getRuntimeUI(runtimeAndRuntimeConfig.runtime),
@@ -115,7 +113,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           runtimeAndRuntimeConfig.runtimeConfig.cloudService
         )
       else F.unit
-      timeElapsed = (ctx.now.toEpochMilli - monitorContext.start.toEpochMilli).milliseconds
+      timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).milliseconds
       _ <- logger.info(
         s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is ready for use after ${timeElapsed.toSeconds} seconds!"
       )
@@ -317,7 +315,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
       res <- availableTools match {
         case a if a.forall(_._2) =>
-          timer.sleep(30 seconds) >> readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
+          readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
           checkAgain(
