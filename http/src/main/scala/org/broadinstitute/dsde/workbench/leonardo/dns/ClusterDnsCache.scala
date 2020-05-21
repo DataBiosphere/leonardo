@@ -63,7 +63,7 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
     .build(
       new CacheLoader[DnsCacheKey, HostStatus] {
         def load(key: DnsCacheKey): HostStatus = {
-          logger.info(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
+          logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
           val res = dbRef
             .inTransaction {
               clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
