@@ -470,6 +470,11 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
+      # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
+      # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
+      # kernel tries to connect to it.
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
+
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
 
