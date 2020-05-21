@@ -110,7 +110,8 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should have DESeq2 automatically installed" in { runtimeFixture =>
+    // TODO: this is fixed in the new bioc (R 4.0) image
+    "should have DESeq2 automatically installed" ignore { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""DESeq2" %in% installed.packages()""") shouldBe Some("TRUE")
