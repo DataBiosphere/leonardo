@@ -81,6 +81,18 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )(onError)
     } yield res
 
+  def getListOfResourcePermissions[A](resourceId: String,
+                            resourceTypeName: ResourceTypeName,
+                            authHeader: Authorization): List[A] =
+    httpClient.expectOr[List[A]](
+      Request[F](
+        method = Method.GET,
+        uri = config.samUri.withPath(s"/api/resources/v1/${resourceTypeName.toString}/${resourceId}/action"),
+        headers = Headers.of(authHeader)
+      )
+    )(onError)
+
+
   def getResourcePolicies[A](
     authHeader: Authorization,
     resourceType: SamResourceType

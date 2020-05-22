@@ -51,6 +51,17 @@ trait LeoAuthProvider[F[_]] {
                            action: RuntimeAction,
                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
+
+  /**
+   *
+   * @param internalId
+   * @return returns a list of Cluster Actions that the user has access to
+   */
+  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo): List[String]
+
+
+
+
   def hasPersistentDiskPermission(samResource: PersistentDiskSamResource,
                                   userInfo: UserInfo,
                                   action: PersistentDiskAction,

@@ -206,15 +206,22 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      hasPermission <- authProvider.hasRuntimePermission(runtime.samResource, userInfo, GetRuntimeStatus, googleProject)
+
+      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+
+      hasStatusPermission = listOfPermissions.contains("status")
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done first hasNotebookClusterPermission")))
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+
+      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+
       // throw 403 if no DeleteCluster permission
-      hasDeletePermission <- authProvider.hasRuntimePermission(runtime.samResource,
-                                                               userInfo,
-                                                               DeleteRuntime,
-                                                               googleProject)
+
+
+      hasDeletePermission = listOfPermissions.contains("delete")
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done 2nd hasNotebookClusterPermission")))
+
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
@@ -253,15 +260,20 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      hasPermission <- authProvider.hasRuntimePermission(runtime.samResource, userInfo, GetRuntimeStatus, googleProject)
+
+      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+
+      hasStatusPermission = listOfPermissions.contains("status")
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+
+      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+
       // throw 403 if no StopStartCluster permission
-      hasStopPermission <- authProvider.hasRuntimePermission(runtime.samResource,
-                                                             userInfo,
-                                                             StopStartRuntime,
-                                                             googleProject)
+      hasStopPermission = listOfPermissions.contains("stop_start")
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done 2nd sam hasNotebookClusterPermission check")))
+
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not stoppable
       _ <- if (runtime.status.isStoppable) F.unit
@@ -284,16 +296,24 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      hasPermission <- authProvider.hasRuntimePermission(runtime.samResource, userInfo, GetRuntimeStatus, googleProject)
+
+      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+
+      hasStatusPermission = listOfPermissions.contains("status")
+
+      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+
+
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
-      // throw 403 if no StopStartCluster permission
-      hasStartPermission <- authProvider.hasRuntimePermission(runtime.samResource,
-                                                              userInfo,
-                                                              StopStartRuntime,
-                                                              googleProject)
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done 2nd Sam call for cluster permission")))
+
+      hasStartPermission = listOfPermissions.contains("stop_start")
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+
+      // throw 403 if no StopStartCluster permission
+
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done 2nd Sam call for cluster permission")))
+
       // throw 409 if the cluster is not startable
       _ <- if (runtime.status.isStartable) F.unit
       else
@@ -318,12 +338,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      hasPermission <- authProvider.hasRuntimePermission(runtime.samResource, userInfo, GetRuntimeStatus, googleProject)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
-      hasModifyPermission <- authProvider.hasRuntimePermission(runtime.samResource,
-                                                               userInfo,
-                                                               ModifyRuntime,
-                                                               googleProject)
+
+      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+
+      hasStatusPermission = listOfPermissions.contains("status")
+
+      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+
+
+      // throw 403 if no ModifyCluster permission
+      hasModifyPermission = listOfPermissions.contains("modify")
+
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not updatable
       _ <- if (runtime.status.isUpdatable) F.unit
