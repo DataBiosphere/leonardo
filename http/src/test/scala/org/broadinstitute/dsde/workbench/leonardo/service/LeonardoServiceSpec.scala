@@ -13,6 +13,7 @@ import akka.testkit.TestKit
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
@@ -26,11 +27,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeSe
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{FakeGoogleStorageService, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.StopUpdateMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito.{never, verify, _}
@@ -83,9 +85,11 @@ class LeonardoServiceSpec
 
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     directoryDAO
-      .createGroup(dataprocImageProjectGroupName,
-                   dataprocImageProjectGroupEmail,
-                   Option(directoryDAO.lockedDownGroupSettings))
+      .createGroup(
+        Config.googleGroupsConfig.dataprocImageProjectGroupName,
+        Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
+        Option(directoryDAO.lockedDownGroupSettings)
+      )
       .futureValue
 
     samDao = serviceAccountProvider.samDao
@@ -119,7 +123,7 @@ class LeonardoServiceSpec
                               proxyConfig,
                               swaggerConfig,
                               autoFreezeConfig,
-                              zombieMonitorConfig,
+                              Config.zombieRuntimeMonitorConfig,
                               welderConfig,
                               mockPetGoogleDAO,
                               authProvider,
@@ -249,7 +253,7 @@ class LeonardoServiceSpec
                                          proxyConfig,
                                          swaggerConfig,
                                          autoFreezeConfig,
-                                         zombieMonitorConfig,
+                                         Config.zombieRuntimeMonitorConfig,
                                          welderConfig,
                                          mockPetGoogleDAO,
                                          authProvider,
@@ -515,20 +519,21 @@ class LeonardoServiceSpec
       new MockGoogleStorageDAO
     }
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+    val publisherQueue = QueueFactory.makePublisherQueue()
     val leoForTest = new LeonardoService(dataprocConfig,
                                          imageConfig,
                                          MockWelderDAO,
                                          proxyConfig,
                                          swaggerConfig,
                                          autoFreezeConfig,
-                                         zombieMonitorConfig,
+                                         Config.zombieRuntimeMonitorConfig,
                                          welderConfig,
                                          mockPetGoogleStorageDAO,
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
                                          new MockDockerDAO,
-                                         QueueFactory.makePublisherQueue())
+                                         publisherQueue)
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -552,10 +557,17 @@ class LeonardoServiceSpec
     // delete the cluster
     leoForTest.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
-    // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
-    dbFutureValue(clusterQuery.getActiveClusterByName(project, name1))
-      .map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+    val validateStatus = withLeoPublisher(publisherQueue) {
+      for {
+        status <- clusterQuery.getClusterStatus(cluster.id).transaction
+        message <- publisherQueue.tryDequeue1
+      } yield {
+        status shouldBe Some(RuntimeStatus.Deleting)
+        message shouldBe (None)
+      }
+    }
 
+    validateStatus.unsafeRunSync()
     // the auth provider should have not yet been notified of deletion
     verify(spyProvider, never).notifyClusterDeleted(
       RuntimeInternalId(mockitoEq(cluster.internalId.asString)),
@@ -573,20 +585,21 @@ class LeonardoServiceSpec
       new MockGoogleStorageDAO
     }
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+    val publisherQueue = QueueFactory.makePublisherQueue()
     val leoForTest = new LeonardoService(dataprocConfig,
                                          imageConfig,
                                          MockWelderDAO,
                                          proxyConfig,
                                          swaggerConfig,
                                          autoFreezeConfig,
-                                         zombieMonitorConfig,
+                                         Config.zombieRuntimeMonitorConfig,
                                          welderConfig,
                                          mockPetGoogleStorageDAO,
                                          spyProvider,
                                          serviceAccountProvider,
                                          bucketHelper,
                                          new MockDockerDAO,
-                                         QueueFactory.makePublisherQueue())
+                                         publisherQueue)
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -611,9 +624,17 @@ class LeonardoServiceSpec
     // delete the cluster
     leoForTest.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
-    // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
-    dbFutureValue(clusterQuery.getActiveClusterByName(project, name1))
-      .map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+    val validateStatus = withLeoPublisher(publisherQueue) {
+      for {
+        status <- clusterQuery.getClusterStatus(cluster.id).transaction
+        message <- publisherQueue.tryDequeue1
+      } yield {
+        status shouldBe Some(RuntimeStatus.Deleting)
+        message shouldBe (None)
+      }
+    }
+
+    validateStatus.unsafeRunSync()
 
     // the auth provider should have not yet been notified of deletion
     verify(spyProvider, never).notifyClusterDeleted(
@@ -626,6 +647,9 @@ class LeonardoServiceSpec
   }
 
   it should "delete a cluster's instances" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+    val leo = makeLeo(publisherQueue)
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -657,10 +681,17 @@ class LeonardoServiceSpec
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
-    // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
-    dbFutureValue(clusterQuery.getActiveClusterByName(project, name1))
-      .map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+    val validateStatus = withLeoPublisher(publisherQueue) {
+      for {
+        status <- clusterQuery.getClusterStatus(cluster.id).transaction
+        message <- publisherQueue.tryDequeue1
+      } yield {
+        status shouldBe Some(RuntimeStatus.Deleting)
+        message shouldBe (None)
+      }
+    }
 
+    validateStatus.unsafeRunSync()
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
     val getClusterIdKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
     val instances = dbFutureValue(instanceQuery.getAllForCluster(getClusterId(getClusterIdKey)))
@@ -929,6 +960,9 @@ class LeonardoServiceSpec
   }
 
   it should "stop a cluster" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+    val leo = makeLeo(publisherQueue)
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -951,9 +985,17 @@ class LeonardoServiceSpec
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
-    // cluster status should be Stopping in the DB
-    dbFutureValue(clusterQuery.getClusterByUniqueKey(getClusterKey)).get.status shouldBe RuntimeStatus.Stopping
+    val validateStatus = withLeoPublisher(publisherQueue) {
+      for {
+        status <- clusterQuery.getClusterStatus(cluster.id).transaction
+        message <- publisherQueue.tryDequeue1
+      } yield {
+        status shouldBe Some(RuntimeStatus.Stopping)
+        message shouldBe (None)
+      }
+    }
 
+    validateStatus.unsafeRunSync()
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
     val instances = dbFutureValue(instanceQuery.getAllForCluster(getClusterId(getClusterKey)))
@@ -1181,7 +1223,7 @@ class LeonardoServiceSpec
                                   proxyConfig,
                                   swaggerConfig,
                                   autoFreezeConfig,
-                                  zombieMonitorConfig,
+                                  Config.zombieRuntimeMonitorConfig,
                                   welderConfig,
                                   mockPetGoogleDAO,
                                   authProvider,
@@ -1398,6 +1440,10 @@ class LeonardoServiceSpec
   }
 
   it should "start a cluster" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+    val leo = makeLeo(publisherQueue)
+
     // create the cluster
     val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -1421,8 +1467,17 @@ class LeonardoServiceSpec
     leo.startCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
     // cluster status should be Starting in the DB
-    dbFutureValue(clusterQuery.getClusterByUniqueKey(getClusterKey)).get.status shouldBe RuntimeStatus.Starting
+    val validateStatus = withLeoPublisher(publisherQueue) {
+      for {
+        status <- clusterQuery.getClusterStatus(cluster.id).transaction
+        message <- publisherQueue.tryDequeue1
+      } yield {
+        status shouldBe Some(RuntimeStatus.Starting)
+        message shouldBe (None)
+      }
+    }
 
+    validateStatus.unsafeRunSync()
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status
     val instances = dbFutureValue {
@@ -1441,6 +1496,9 @@ class LeonardoServiceSpec
 
   // TODO: remove this test once data syncing release is complete
   it should "label and start an outdated cluster" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+    val leo = makeLeo(publisherQueue)
     // create the cluster
     val request = testClusterRequest.copy(labels = Map("TEST_ONLY_DEPLOY_WELDER" -> "yes"))
     val cluster = leo.createCluster(userInfo, project, name1, request).unsafeToFuture.futureValue
@@ -1461,7 +1519,16 @@ class LeonardoServiceSpec
     // cluster status should Starting and have new label
     val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
     val dbCluster = dbFutureValue(clusterQuery.getClusterByUniqueKey(getClusterKey)).get
-    dbCluster.status shouldBe RuntimeStatus.Starting
+    val validateStatus = withLeoPublisher(publisherQueue) {
+      for {
+        status <- clusterQuery.getClusterStatus(cluster.id).transaction
+        message <- publisherQueue.tryDequeue1
+      } yield {
+        status shouldBe Some(RuntimeStatus.Starting)
+        message shouldBe (None)
+      }
+    }
+
     dbCluster.labels.exists(_ == "welderInstallFailed" -> "true")
   }
 
@@ -1520,4 +1587,30 @@ class LeonardoServiceSpec
     LeonardoService.processLabelMap(duplicateLabel) shouldBe (Right(Map("foo" -> "biz")))
   }
 
+  private def withLeoPublisher(
+    publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, FakeGooglePublisher)
+    withInfiniteStream(leoPublisher.process, validations)
+  }
+
+  private def makeLeo(
+    queue: InspectableQueue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
+  )(implicit system: ActorSystem,
+    metrics: OpenTelemetryMetrics[IO],
+    runtimeInstances: RuntimeInstances[IO]): LeonardoService =
+    new LeonardoService(dataprocConfig,
+                        imageConfig,
+                        MockWelderDAO,
+                        proxyConfig,
+                        swaggerConfig,
+                        autoFreezeConfig,
+                        Config.zombieRuntimeMonitorConfig,
+                        welderConfig,
+                        mockPetGoogleDAO,
+                        authProvider,
+                        serviceAccountProvider,
+                        bucketHelper,
+                        new MockDockerDAO,
+                        queue)
 }

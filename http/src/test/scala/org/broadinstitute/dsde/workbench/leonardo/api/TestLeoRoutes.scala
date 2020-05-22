@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleDirectoryDAO,
@@ -29,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeServiceInterp,
   StatusService
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.{
   BucketHelper,
   BucketHelperConfig,
@@ -56,7 +57,9 @@ trait TestLeoRoutes {
     val mockGoogleDirectoryDAOPatience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
     val dao = new MockGoogleDirectoryDAO()
     dao
-      .createGroup(dataprocImageProjectGroupName, dataprocImageProjectGroupEmail, Option(dao.lockedDownGroupSettings))
+      .createGroup(Config.googleGroupsConfig.dataprocImageProjectGroupName,
+                   Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
+                   Option(dao.lockedDownGroupSettings))
       .futureValue(mockGoogleDirectoryDAOPatience, Position.here)
     dao
   }
@@ -77,7 +80,6 @@ trait TestLeoRoutes {
     petMock
   }
   // Route tests don't currently do cluster monitoring, so use NoopActor
-  val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
@@ -110,7 +112,7 @@ trait TestLeoRoutes {
     proxyConfig,
     swaggerConfig,
     autoFreezeConfig,
-    zombieMonitorConfig,
+    Config.zombieRuntimeMonitorConfig,
     welderConfig,
     mockPetGoogleStorageDAO,
     whitelistAuthProvider,
@@ -118,14 +120,32 @@ trait TestLeoRoutes {
     bucketHelper,
     new MockDockerDAO,
     QueueFactory.makePublisherQueue()
-  )(executor, system, loggerIO, cs, timer, metrics, dbRef, runtimeInstances)
+  )(executor, system, loggerIO, cs, testTimer, metrics, testDbRef, runtimeInstances)
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
+  def makeLeonardoService(publisherQueue: InspectableQueue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()) =
+    new LeonardoService(
+      dataprocConfig,
+      imageConfig,
+      MockWelderDAO,
+      proxyConfig,
+      swaggerConfig,
+      autoFreezeConfig,
+      Config.zombieRuntimeMonitorConfig,
+      welderConfig,
+      mockPetGoogleStorageDAO,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      bucketHelper,
+      new MockDockerDAO,
+      publisherQueue
+    )(executor, system, loggerIO, cs, testTimer, metrics, testDbRef, runtimeInstances)
+
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, testDbRef, dnsCacheConfig, blocker)
 
   val proxyService =
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache)
   val statusService =
-    new StatusService(mockGoogleDataprocDAO, mockSamDAO, dbRef, applicationConfig, pollInterval = 1.second)
+    new StatusService(mockGoogleDataprocDAO, mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
   val corsSupport = new CorsSupport(contentSecurityPolicy)
   val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
@@ -143,7 +163,7 @@ trait TestLeoRoutes {
     RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                          imageConfig,
                          autoFreezeConfig,
-                         zombieMonitorConfig,
+                         Config.zombieRuntimeMonitorConfig,
                          dataprocConfig,
                          Config.gceConfig),
     whitelistAuthProvider,

@@ -8,48 +8,46 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  labelQuery,
-  LabelResourceType,
-  RuntimeConfigQueries,
-  TestComponent
-}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   CreateRuntime2Request,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.scalatest.FlatSpec
+import org.scalatest.{Assertion, FlatSpec}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
-  val runtimeService = new RuntimeServiceInterp(
-    RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                         imageConfig,
-                         autoFreezeConfig,
-                         zombieMonitorConfig,
-                         dataprocConfig,
-                         Config.gceConfig),
-    whitelistAuthProvider,
-    serviceAccountProvider,
-    new MockDockerDAO,
-    FakeGoogleStorageInterpreter,
-    publisherQueue
-  )
+  def makeRuntimeService(publisherQueue: InspectableQueue[IO, LeoPubsubMessage]) =
+    new RuntimeServiceInterp(
+      RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
+                           imageConfig,
+                           autoFreezeConfig,
+                           Config.zombieRuntimeMonitorConfig,
+                           dataprocConfig,
+                           Config.gceConfig),
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      new MockDockerDAO,
+      FakeGoogleStorageInterpreter,
+      publisherQueue
+    )
+  val runtimeService = makeRuntimeService(publisherQueue)
   val emptyCreateRuntimeReq = CreateRuntime2Request(
     Map.empty,
     None,
@@ -300,21 +298,24 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      context <- ctx.ask
+      publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      service = makeRuntimeService(publisherQueue)
       internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
 
-      _ <- runtimeService.deleteRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
-      dbRuntimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
-        .transaction
-      dbRuntime = dbRuntimeOpt.get
-      message <- publisherQueue.dequeue1
-    } yield {
-      dbRuntime.status shouldBe RuntimeStatus.Deleting
-      val expectedMessage = DeleteRuntimeMessage(testRuntime.id, Some(context.traceId))
-      message shouldBe expectedMessage
-    }
+      _ <- service.deleteRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      res <- withLeoPublisher(publisherQueue) {
+        for {
+          dbRuntimeOpt <- clusterQuery
+            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .transaction
+          message <- publisherQueue.tryDequeue1
+        } yield {
+          dbRuntimeOpt.get.status shouldBe RuntimeStatus.Deleting
+          message shouldBe (None)
+        }
+      }
+    } yield res
 
     res.unsafeRunSync()
   }
@@ -323,21 +324,24 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      context <- ctx.ask
+      publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      service = makeRuntimeService(publisherQueue)
       internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
 
-      _ <- runtimeService.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
-      dbRuntimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
-        .transaction
-      dbRuntime = dbRuntimeOpt.get
-      message <- publisherQueue.dequeue1
-    } yield {
-      dbRuntime.status shouldBe RuntimeStatus.Stopping
-      val expectedMessage = StopRuntimeMessage(testRuntime.id, Some(context.traceId))
-      message shouldBe expectedMessage
-    }
+      _ <- service.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      res <- withLeoPublisher(publisherQueue) {
+        for {
+          dbRuntimeOpt <- clusterQuery
+            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .transaction
+          message <- publisherQueue.tryDequeue1
+        } yield {
+          dbRuntimeOpt.get.status shouldBe RuntimeStatus.Stopping
+          message shouldBe (None)
+        }
+      }
+    } yield res
 
     res.unsafeRunSync()
   }
@@ -346,21 +350,24 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      context <- ctx.ask
+      publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      service = makeRuntimeService(publisherQueue)
       internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(internalId = internalId, status = RuntimeStatus.Stopped).save())
 
-      _ <- runtimeService.startRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
-      dbRuntimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
-        .transaction
-      dbRuntime = dbRuntimeOpt.get
-      message <- publisherQueue.dequeue1
-    } yield {
-      dbRuntime.status shouldBe RuntimeStatus.Starting
-      val expectedMessage = StartRuntimeMessage(testRuntime.id, Some(context.traceId))
-      message shouldBe expectedMessage
-    }
+      _ <- service.startRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      res <- withLeoPublisher(publisherQueue) {
+        for {
+          dbRuntimeOpt <- clusterQuery
+            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .transaction
+          message <- publisherQueue.tryDequeue1
+        } yield {
+          dbRuntimeOpt.get.status shouldBe RuntimeStatus.Starting
+          message shouldBe (None)
+        }
+      }
+    } yield res
 
     res.unsafeRunSync()
   }
@@ -656,4 +663,10 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     res.attempt.unsafeRunSync() shouldBe Left(RuntimeDiskSizeCannotBeDecreasedException(testCluster))
   }
 
+  private def withLeoPublisher(
+    publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, FakeGooglePublisher)
+    withInfiniteStream(leoPublisher.process, validations)
+  }
 }

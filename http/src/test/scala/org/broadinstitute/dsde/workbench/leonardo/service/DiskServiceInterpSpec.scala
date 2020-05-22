@@ -11,6 +11,7 @@ import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateDiskRequest, UpdateDiskRequest}
@@ -26,7 +27,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val diskService = new DiskServiceInterp(
-    persistentDiskConfig,
+    Config.persistentDiskConfig,
     whitelistAuthProvider,
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,

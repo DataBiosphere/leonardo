@@ -25,13 +25,13 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
 
   "RuntimeServiceDbQueries" should "list runtimes" in isolatedDbTest {
     val res = for {
-      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
       c1 <- IO(makeCluster(1).save())
       list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
       c2 <- IO(makeCluster(2).save())
       list3 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
-      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
@@ -48,7 +48,7 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
 
   it should "list runtimes by labels" in isolatedDbTest {
     val res = for {
-      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       c1 <- IO(makeCluster(1).save())
       c2 <- IO(makeCluster(2).save())
       labels1 = Map("googleProject" -> c1.googleProject.value,
@@ -66,7 +66,7 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       list5 <- RuntimeServiceDbQueries
         .listClusters(Map("googleProject" -> c1.googleProject.value), false, None)
         .transaction
-      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
@@ -85,12 +85,12 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
 
   it should "list runtimes by project" in isolatedDbTest {
     val res = for {
-      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       c1 <- IO(makeCluster(1).save())
       c2 <- IO(makeCluster(2).save())
       list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, Some(project)).transaction
       list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, Some(project2)).transaction
-      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
@@ -106,13 +106,13 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
 
   it should "list runtimes including deleted" in isolatedDbTest {
     val res = for {
-      start <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       c1 <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleted).save())
       c2 <- IO(makeCluster(2).copy(status = RuntimeStatus.Deleted).save())
       c3 <- IO(makeCluster(3).save())
       list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, true, None).transaction
       list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
-      end <- timer.clock.monotonic(TimeUnit.MILLISECONDS)
+      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {

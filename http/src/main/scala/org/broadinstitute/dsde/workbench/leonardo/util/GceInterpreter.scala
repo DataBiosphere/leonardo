@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import akka.actor.ActorSystem
 import cats.Parallel
 import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
@@ -45,10 +44,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   googleComputeService: GoogleComputeService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
-)(implicit val executionContext: ExecutionContext,
-  val system: ActorSystem,
-  metrics: OpenTelemetryMetrics[F],
-  dbRef: DbReference[F])
+)(implicit val executionContext: ExecutionContext, metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F] {
 

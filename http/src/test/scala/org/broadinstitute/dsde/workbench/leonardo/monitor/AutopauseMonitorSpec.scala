@@ -39,7 +39,7 @@ class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComp
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
       event <- queue.tryDequeue1
     } yield {
-      status.get shouldBe (RuntimeStatus.Stopping)
+      status.get shouldBe (RuntimeStatus.PreStopping)
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
@@ -93,7 +93,7 @@ class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComp
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
       event <- queue.tryDequeue1
     } yield {
-      status.get shouldBe (RuntimeStatus.Stopping)
+      status.get shouldBe (RuntimeStatus.PreStopping)
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
@@ -124,7 +124,7 @@ class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComp
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
       event <- queue.tryDequeue1
     } yield {
-      status.get shouldBe (RuntimeStatus.Stopping)
+      status.get shouldBe (RuntimeStatus.PreStopping)
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 

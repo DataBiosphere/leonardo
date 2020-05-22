@@ -71,6 +71,17 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
     }
   }
 
+  implicit val runtimeStatusFormat: RootJsonWriter[RuntimeStatus] = (status: RuntimeStatus) => {
+    val stringFormat = status match {
+      case RuntimeStatus.PreCreating => RuntimeStatus.Creating.toString
+      case RuntimeStatus.PreStarting => RuntimeStatus.Starting.toString
+      case RuntimeStatus.PreStopping => RuntimeStatus.Stopping.toString
+      case RuntimeStatus.PreDeleting => RuntimeStatus.Deleting.toString
+      case _                         => status.toString
+    }
+    JsString(stringFormat)
+  }
+
   implicit val listRuntimeResponseWriter: RootJsonWriter[ListRuntimeResponse] = (obj: ListRuntimeResponse) => {
     val allFields = Map(
       "id" -> obj.id.toJson,
@@ -82,7 +93,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "machineConfig" -> obj.machineConfig.toJson,
       "clusterUrl" -> obj.clusterUrl.toString.toJson,
       "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value.toJson).getOrElse(JsNull),
-      "status" -> obj.status.toString.toJson,
+      "status" -> obj.status.toJson,
       "hostIp" -> obj.asyncRuntimeFields.flatMap(_.hostIp.map(_.value.toJson)).getOrElse(JsNull),
       "creator" -> obj.auditInfo.creator.toJson,
       "createdDate" -> obj.auditInfo.createdDate.toJson,
@@ -155,7 +166,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "machineConfig" -> obj.runtimeConfig.toJson,
       "clusterUrl" -> obj.clusterUrl.toString.toJson,
       "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,
-      "status" -> obj.status.toString.toJson,
+      "status" -> obj.status.toJson,
       "hostIp" -> obj.asyncRuntimeFields.flatMap(_.hostIp.map(_.value.toJson)).getOrElse(JsNull),
       "creator" -> obj.auditInfo.creator.toJson,
       "createdDate" -> obj.auditInfo.createdDate.toJson,
@@ -199,7 +210,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
         "machineConfig" -> obj.runtimeConfig.toJson,
         "clusterUrl" -> obj.clusterUrl.toString.toJson,
         "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,
-        "status" -> obj.status.toString.toJson,
+        "status" -> obj.status.toJson,
         "hostIp" -> obj.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)).toJson,
         "creator" -> obj.auditInfo.creator.toJson,
         "createdDate" -> obj.auditInfo.createdDate.toJson,
@@ -240,7 +251,7 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "machineConfig" -> obj.runtimeConfig.toJson, //Note, for this response, we're still encoding runtimeConfig as machineConfig
       "clusterUrl" -> obj.clusterUrl.toString.toJson,
       "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,
-      "status" -> obj.status.toString.toJson,
+      "status" -> obj.status.toJson,
       "hostIp" -> obj.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)).toJson,
       "creator" -> obj.auditInfo.creator.toJson,
       "createdDate" -> obj.auditInfo.createdDate.toJson,

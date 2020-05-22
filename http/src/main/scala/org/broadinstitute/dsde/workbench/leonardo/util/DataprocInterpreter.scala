@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import _root_.io.chrisdavenport.log4cats.Logger
-import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.OptionT
@@ -15,23 +14,23 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
+import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
-import org.broadinstitute.dsde.workbench.leonardo.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidDataprocMachineConfigException
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.util.Retry
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
+
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
     extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
@@ -48,7 +47,7 @@ final case class ClusterResourceConstaintsException(clusterProjectAndName: Runti
       s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}"
     )
 
-class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
+class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   config: DataprocInterpreterConfig,
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
@@ -60,14 +59,12 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   welderDao: WelderDAO[F],
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
-  val system: ActorSystem,
   contextShift: ContextShift[IO], // needed for IO.fromFuture(...)
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F]
-    with LazyLogging
-    with Retry {
+    with LazyLogging {
 
   import dbRef._
 
@@ -156,33 +153,30 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
             params.scopes,
             subnetwork,
             dataprocImage,
-            config.monitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating, 1 hour)
+            config.runtimeCreationTimeout
           )
-          for { // Create the cluster
-            retryResult <- Async[F].liftIO(
+
+          val createCluster: F[GoogleOperation] =
+            Async[F].liftIO(
               IO.fromFuture(
                 IO(
-                  retryExponentially(whenGoogleZoneCapacityIssue,
-                                     "Cluster creation failed because zone with adequate resources was not found") {
-                    () =>
-                      gdDAO.createCluster(params.runtimeProjectAndName.googleProject,
-                                          params.runtimeProjectAndName.runtimeName,
-                                          createClusterConfig)
-                  }
+                  gdDAO.createCluster(params.runtimeProjectAndName.googleProject,
+                                      params.runtimeProjectAndName.runtimeName,
+                                      createClusterConfig)
                 )
               )
             )
+
+          for { // Create the cluster
+            retryResult <- retry(createCluster, whenGoogleZoneCapacityIssue).attempt
             operation <- retryResult match {
-              case Right((errors, op)) if errors == List.empty => Async[F].pure(op)
-              case Right((errors, op)) =>
-                metrics
-                  .incrementCounter("zoneCapacityClusterCreationFailure", errors.length)
-                  .as(op)
-              case Left(errors) =>
-                metrics
-                  .incrementCounter("zoneCapacityClusterCreationFailure",
-                                    errors.filter(whenGoogleZoneCapacityIssue).length)
-                  .flatMap(_ => Async[F].raiseError[GoogleOperation](errors.head))
+              case Right(op) => Async[F].pure(op)
+              case Left(error) =>
+                if (whenGoogleZoneCapacityIssue(error))
+                  metrics.incrementCounter("zoneCapacityClusterCreationFailure") >> Async[F]
+                    .raiseError[GoogleOperation](error)
+                else
+                  Async[F].raiseError[GoogleOperation](error)
             }
 
             asyncRuntimeFields = AsyncRuntimeFields(operation.id, operation.name, stagingBucketName, None)
@@ -372,7 +366,7 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   def setupDataprocImageGoogleGroup(): F[Unit] =
     createDataprocImageUserGoogleGroupIfItDoesntExist() >>
-      addIamRoleToDataprocImageGroup(config.dataprocConfig.customDataprocImage)
+      addIamRoleToDataprocImageGroup
 
   /**
    * Add the user's service account to the Google group.
@@ -490,18 +484,18 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   private def updateClusterIamRoles(googleProject: GoogleProject,
                                     serviceAccountInfo: WorkbenchEmail,
                                     createCluster: Boolean): F[Unit] = {
-    val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => F[Unit] = (project, email, roles) =>
-      Async[F].liftIO(
-        IO.fromFuture[Unit](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") {
-          () =>
-            if (createCluster) {
-              googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void
-            } else {
-              googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void
-            }
-        }))
-      )
-
+    def retryIam(project: GoogleProject, email: WorkbenchEmail, roles: Set[String]): F[Unit] = {
+      val action = if (createCluster) {
+        Async[F].liftIO(
+          IO.fromFuture(IO(googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void))
+        )
+      } else {
+        Async[F].liftIO(
+          IO.fromFuture(IO(googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void))
+        )
+      }
+      retry(action, when409)
+    }
     // Note: don't remove the role if there are existing active clusters owned by the same user,
     // because it could potentially break other clusters. We only check this for the 'remove' case,
     // it's ok to re-add the roles.
@@ -558,8 +552,9 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
           )
       }
 
-  private def addIamRoleToDataprocImageGroup(customDataprocImage: DataprocCustomImage): F[Unit] = {
+  private val addIamRoleToDataprocImageGroup: F[Unit] = {
     val computeImageUserRole = Set("roles/compute.imageUser")
+
     parseImageProject(config.dataprocConfig.customDataprocImage).fold(
       Async[F].raiseError[Unit](ImageProjectNotFoundException)
     ) { imageProject =>
@@ -567,20 +562,16 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         _ <- Logger[F].debug(
           s"Attempting to grant 'compute.imageUser' permissions to '${config.groupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
         )
-        _ <- Async[F].liftIO(
-          IO.fromFuture[Boolean](
+        _ <- retry(
+          Async[F].liftIO(
             IO(
-              retryExponentially(
-                when409,
-                s"IAM policy change failed for '${config.groupsConfig.dataprocImageProjectGroupEmail}' on Google project '$imageProject'."
-              ) { () =>
-                googleIamDAO.addIamRoles(imageProject,
-                                         config.groupsConfig.dataprocImageProjectGroupEmail,
-                                         MemberType.Group,
-                                         computeImageUserRole)
-              }
+              googleIamDAO.addIamRoles(imageProject,
+                                       config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       MemberType.Group,
+                                       computeImageUserRole)
             )
-          )
+          ),
+          when409
         )
       } yield ()
     }
@@ -588,24 +579,38 @@ class DataprocInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
   private def updateGroupMembership(groupEmail: WorkbenchEmail,
                                     memberEmail: WorkbenchEmail,
-                                    addToGroup: Boolean): F[Unit] =
-    Async[F].liftIO(IO.fromFuture[Unit] {
-      IO {
-        retryExponentially(when409, s"Could not update group '$groupEmail' for member '$memberEmail'") {
-          () =>
-            logger.debug(s"Checking if '$memberEmail' is part of group '$groupEmail'...")
-            googleDirectoryDAO.isGroupMember(groupEmail, memberEmail).flatMap {
-              case false if (addToGroup) =>
-                logger.debug(s"Adding '$memberEmail' to group '$groupEmail'...")
-                googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail)
-              case true if (!addToGroup) =>
-                logger.debug(s"Removing '$memberEmail' from group '$groupEmail'...")
-                googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail)
-              case _ => Future.unit
-            }
-        }
+                                    addToGroup: Boolean): F[Unit] = {
+    val checkIsMember = retry(
+      Async[F].liftIO(IO.fromFuture(IO(googleDirectoryDAO.isGroupMember(groupEmail, memberEmail)))),
+      when409
+    )
+    val addMemberToGroup = retry(
+      Async[F].liftIO(IO.fromFuture(IO(googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail)))),
+      when409
+    )
+    val removeMemberFromGroup = retry(
+      Async[F].liftIO(IO.fromFuture(IO(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail)))),
+      when409
+    )
+
+    for {
+      isMember <- checkIsMember
+      _ <- (isMember, addToGroup) match {
+        case (false, true) =>
+          Logger[F].debug(s"Adding '$memberEmail' to group '$groupEmail'...") >> addMemberToGroup
+        case (true, false) =>
+          Logger[F].debug(s"Removing '$memberEmail' from group '$groupEmail'...") >> removeMemberFromGroup
+        case _ =>
+          Async[F].unit
       }
-    })
+    } yield ()
+  }
+
+  private def retry[A](ioa: F[A], retryable: Throwable => Boolean): F[A] =
+    fs2.Stream
+      .retry(ioa, 2 seconds, x => x * 2, 5, retryable)
+      .compile
+      .lastOrError
 
   // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri
   private def parseImageProject(customDataprocImage: DataprocCustomImage): Option[GoogleProject] = {

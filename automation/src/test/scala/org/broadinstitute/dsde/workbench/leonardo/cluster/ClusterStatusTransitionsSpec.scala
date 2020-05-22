@@ -72,7 +72,7 @@ class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       logger.info("Starting ClusterStatusTransitionsSpec: error'd clusters should transition correctly")
 
       // make an Error'd cluster
-      withNewErroredCluster(billingProject) { cluster =>
+      withNewErroredCluster(billingProject, CloudService.Dataproc) { cluster =>
         // cluster should be in Error status
         cluster.status shouldBe ClusterStatus.Error
 

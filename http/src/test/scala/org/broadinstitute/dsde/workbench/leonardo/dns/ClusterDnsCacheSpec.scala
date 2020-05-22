@@ -46,7 +46,7 @@ class ClusterDnsCacheSpec
     s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
   )
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, dnsCacheConfig, blocker)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, testDbRef, dnsCacheConfig, blocker)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db

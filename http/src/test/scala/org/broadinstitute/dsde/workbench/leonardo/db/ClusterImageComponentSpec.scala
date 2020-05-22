@@ -21,21 +21,22 @@ class ClusterImageComponentSpec extends FlatSpecLike with TestComponent {
   it should "save and get all for cluster" in isolatedDbTest {
     val cluster = makeCluster(1).save()
 
-    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe Set(jupyterImage)
+    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe cluster.runtimeImages
     dbFutureValue(clusterImageQuery.saveAllForCluster(cluster.id, Seq(rstudioImage)))
-    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe Set(jupyterImage, rstudioImage)
+    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe (cluster.runtimeImages + rstudioImage)
     dbFutureValue(clusterImageQuery.getAllForCluster(-1)).toSet shouldBe Set.empty
   }
 
   it should "upsert" in isolatedDbTest {
     val cluster = makeCluster(1).save()
 
-    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe Set(jupyterImage)
+    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe cluster.runtimeImages
 
     val newImage = jupyterImage.copy(imageUrl = "newImageString")
     dbFutureValue(clusterImageQuery.upsert(cluster.id, newImage))
 
-    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe Set(newImage)
+    val expectedImages = (cluster.runtimeImages - jupyterImage) + newImage
+    dbFutureValue(clusterImageQuery.getAllForCluster(cluster.id)).toSet shouldBe expectedImages
   }
 
 }

@@ -32,9 +32,6 @@ trait GoogleDataprocDAO {
   def getClusterMasterInstance(googleProject: GoogleProject,
                                clusterName: RuntimeName): Future[Option[DataprocInstanceKey]]
 
-  def getClusterInstances(googleProject: GoogleProject,
-                          clusterName: RuntimeName): Future[Map[DataprocRole, Set[DataprocInstanceKey]]]
-
   def getClusterStagingBucket(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[GcsBucketName]]
 
   def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[RuntimeErrorDetails]]

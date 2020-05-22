@@ -94,7 +94,6 @@ object JsonCodec {
       case x: RuntimeConfig.GceConfig      => x.asJson
     }
   )
-  implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
   implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct7(
     "clusterName",
     "googleProject",

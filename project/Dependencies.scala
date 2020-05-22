@@ -3,8 +3,8 @@ import sbt._
 object Dependencies {
   val scalaV = "2.12"
 
-  val akkaV = "2.6.3"
-  val akkaHttpV = "10.1.11"
+  val akkaV = "2.6.5"
+  val akkaHttpV = "10.1.12"
   val jacksonV = "2.9.9"
   val jacksonDatabindV = "2.9.9.2" // jackson-databind has a security patch on the 2.9.9 branch
   val googleV = "1.23.0"
@@ -19,12 +19,12 @@ object Dependencies {
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
   val workbenchGoogleV = "0.21-2a218f3"
-  val workbenchGoogle2V = "0.8-e08439a"
+  val workbenchGoogle2V = "0.9-8051635"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchOpenTelemetryV = "0.1-73d6a64"
 
-  val excludeAkkaActor = ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
+  val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = "akka-stream_2.12")
   val excludeAkkaHttpSprayJson = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http-spray-json_2.12")
   val excludeGuavaJDK5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeGuava = ExclusionRule(organization = "com.google.guava", name = "guava")
@@ -66,10 +66,10 @@ object Dependencies {
   val httpClient: ModuleID =      "org.apache.httpcomponents"   % "httpclient"      % "4.5.5" // upgrading a transitive dependency to avoid security warnings
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.5.13"
 
-  val akkaActor: ModuleID =         "com.typesafe.akka" %% "akka-actor"           % akkaV excludeAll (excludeTypesafeSslConfig)
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
-  val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV excludeAll (excludeAkkaActor)
+  val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
   val akkaHttpSprayJson: ModuleID = "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV
+  val akkaStream: ModuleID = "com.typesafe.akka" %% "akka-stream" % akkaV
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
@@ -147,14 +147,14 @@ object Dependencies {
     scalaLogging,
     swaggerUi,
     ficus,
-    httpClient,
     enumeratum,
-    akkaActor,
     akkaSlf4j,
     akkaHttp,
     akkaHttpSprayJson,
     akkaTestKit,
     akkaHttpTestKit,
+    akkaStream,
+    "de.heikoseeberger" %% "akka-http-circe" % "1.32.0" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleDataproc,
     googleRpc,
     googleOAuth2,
@@ -169,8 +169,7 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     mysql,
-    liquibase,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.31.0"
+    liquibase
   )
 
   val serviceTestV = "0.16-e6493d5"
@@ -196,7 +195,6 @@ object Dependencies {
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
-    "com.typesafe.akka" %% "akka-actor" % akkaV,
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,

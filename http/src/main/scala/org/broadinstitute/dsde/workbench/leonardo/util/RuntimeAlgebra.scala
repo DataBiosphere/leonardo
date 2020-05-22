@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Creat
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
+import scala.concurrent.duration.FiniteDuration
+
 /**
  * Defines an algebra for manipulating Leo Runtimes.
  * Currently has interpreters for Dataproc and GCE.
@@ -20,7 +22,7 @@ trait RuntimeAlgebra[F[_]] {
   def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus]
   def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-  def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]]
+  def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Option[Operation]]
   def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
@@ -85,7 +87,7 @@ sealed trait RuntimeInterpreterConfig {
   def proxyConfig: ProxyConfig
   def clusterResourcesConfig: ClusterResourcesConfig
   def clusterFilesConfig: ClusterFilesConfig
-  def monitorConfig: MonitorConfig
+  def runtimeCreationTimeout: FiniteDuration
 }
 object RuntimeInterpreterConfig {
   final case class DataprocInterpreterConfig(dataprocConfig: DataprocConfig,
@@ -96,7 +98,7 @@ object RuntimeInterpreterConfig {
                                              vpcConfig: VPCConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: ClusterFilesConfig,
-                                             monitorConfig: MonitorConfig)
+                                             runtimeCreationTimeout: FiniteDuration)
       extends RuntimeInterpreterConfig
 
   final case class GceInterpreterConfig(gceConfig: GceConfig,
@@ -106,6 +108,6 @@ object RuntimeInterpreterConfig {
                                         vpcConfig: VPCConfig,
                                         clusterResourcesConfig: ClusterResourcesConfig,
                                         clusterFilesConfig: ClusterFilesConfig,
-                                        monitorConfig: MonitorConfig)
+                                        runtimeCreationTimeout: FiniteDuration)
       extends RuntimeInterpreterConfig
 }

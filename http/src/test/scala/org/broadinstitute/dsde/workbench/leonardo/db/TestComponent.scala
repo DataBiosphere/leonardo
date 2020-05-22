@@ -39,10 +39,10 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
 
   // Not using beforeAll because the dbRef is needed before beforeAll is called
-  implicit protected lazy val dbRef: DbRef[IO] = initDbRef.unsafeRunSync()
+  implicit protected lazy val testDbRef: DbRef[IO] = initDbRef.unsafeRunSync()
 
   override def afterAll(): Unit = {
-    dbRef.close()
+    testDbRef.close()
     super.afterAll()
   }
 
@@ -65,19 +65,19 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       else IO.unit
     } yield new DbRef[IO](dbConfig, db, concurrentPermits, blocker)
 
-  def dbFutureValue[T](f: DBIO[T]): T = dbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()
+  def dbFutureValue[T](f: DBIO[T]): T = testDbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()
   def dbFailure[T](f: DBIO[T]): Throwable =
-    dbRef.inTransaction(f).attempt.timeout(30 seconds).unsafeRunSync().swap.toOption.get
+    testDbRef.inTransaction(f).attempt.timeout(30 seconds).unsafeRunSync().swap.toOption.get
 
   // clean up after tests
   def isolatedDbTest[T](testCode: => T): T =
     try {
-      dbFutureValue(dbRef.dataAccess.truncateAll)
+      dbFutureValue(testDbRef.dataAccess.truncateAll)
       testCode
     } catch {
       case t: Throwable => t.printStackTrace(); throw t
     } finally {
-      dbFutureValue(dbRef.dataAccess.truncateAll)
+      dbFutureValue(testDbRef.dataAccess.truncateAll)
     }
 
   protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =
@@ -118,7 +118,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   }
 
   implicit class DiskExtensions(disk: PersistentDisk) {
-    def save(): IO[PersistentDisk] = dbRef.inTransaction(persistentDiskQuery.save(disk))
+    def save(): IO[PersistentDisk] = testDbRef.inTransaction(persistentDiskQuery.save(disk))
   }
 
   implicit class KubernetesClusterExtensions(c: KubernetesCluster) {

@@ -55,8 +55,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 
   final override def stopRuntime(
     params: StopRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Option[Operation]] =
     for {
+      ctx <- ev.ask
       // Flush the welder cache to disk
       _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
         welderDao
@@ -68,6 +69,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
             )
           )
       } else Async[F].unit
+
+      _ <- clusterQuery.updateClusterHostIp(params.runtimeAndRuntimeConfig.runtime.id, None, ctx.now).transaction
 
       // Stop the cluster in Google
       r <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)

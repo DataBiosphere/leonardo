@@ -113,7 +113,7 @@ class ClusterToolMonitorSpec
                                                           ArgumentMatchers.any[Map[String, String]])
         }
 
-        val res = timer.sleep(clusterToolConfig.pollPeriod) >> IO(
+        val res = testTimer.sleep(clusterToolConfig.pollPeriod) >> IO(
           verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                          ArgumentMatchers.anyLong(),
                                                          ArgumentMatchers.any[Map[String, String]])
@@ -146,7 +146,7 @@ class ClusterToolMonitorSpec
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, rstudioDAO)
 
     val actor = system.actorOf(
-      ClusterToolMonitor.props(clusterToolConfig, dbRef, metrics)
+      ClusterToolMonitor.props(clusterToolConfig, testDbRef, metrics)
     )
     val testResult = Try(testCode(actor, metrics))
 
