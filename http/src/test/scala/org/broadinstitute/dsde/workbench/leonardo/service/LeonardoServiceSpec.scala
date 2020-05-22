@@ -26,11 +26,10 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeSe
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito.{never, verify, _}
@@ -1126,9 +1125,7 @@ class LeonardoServiceSpec
 
   private def makeLeo(
     queue: InspectableQueue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
-  )(implicit system: ActorSystem,
-    metrics: OpenTelemetryMetrics[IO],
-    runtimeInstances: RuntimeInstances[IO]): LeonardoService =
+  )(implicit system: ActorSystem, runtimeInstances: RuntimeInstances[IO]): LeonardoService =
     new LeonardoService(dataprocConfig,
                         imageConfig,
                         MockWelderDAO,

@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageServ
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, nowInstant}
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.CheckResult
 import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.TraceId

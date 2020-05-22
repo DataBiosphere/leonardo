@@ -168,26 +168,6 @@ object LeoPubsubCodec {
   implicit val runtimePatchDetailsDecoder: Decoder[RuntimePatchDetails] =
     Decoder.forProduct2("clusterId", "clusterStatus")(RuntimePatchDetails.apply)
 
-  implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct16(
-      "id",
-      "clusterProjectAndName",
-      "serviceAccountInfo",
-      "dataprocInfo",
-      "auditInfo",
-      "jupyterUserScriptUri",
-      "jupyterStartUserScriptUri",
-      "userJupyterExtensionConfig",
-      "defaultClientId",
-      "clusterImages",
-      "scopes",
-      "welderEnabled",
-      "customClusterEnvironmentVariables",
-      "runtimeConfig",
-      "stopAfterCreation",
-      "traceId"
-    )(CreateRuntimeMessage.apply)
-
   implicit val deleteRuntimeDecoder: Decoder[DeleteRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(DeleteRuntimeMessage.apply)
 
