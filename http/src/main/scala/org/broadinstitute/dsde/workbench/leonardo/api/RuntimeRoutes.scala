@@ -8,8 +8,8 @@ import java.util.UUID
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
-import akka.http.scaladsl.server.{Directive, Directive1}
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{Directive, Directive1}
 import cats.effect.{IO, Timer}
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -25,7 +25,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeConfigRequest,
   RuntimeService
 }
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import io.opencensus.trace.{AttributeValue, Span}
@@ -397,8 +398,7 @@ object RuntimeRoutes {
     }
   }
 
-
-  implicit val diskConfigEncoder: Encoder[DiskConfig] = Encoder.forProduct5(
+  implicit val diskConfigEncoder: Encoder[DiskConfig] = Encoder.forProduct4(
     "name",
     "size",
     "diskType",

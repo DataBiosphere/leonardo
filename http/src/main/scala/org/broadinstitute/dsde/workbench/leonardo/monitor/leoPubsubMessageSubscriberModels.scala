@@ -229,7 +229,7 @@ object LeoPubsubCodec {
     Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.runtimeId, x.runtimeStatus))
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct16(
+    Encoder.forProduct17(
       "messageType",
       "id",
       "clusterProjectAndName",

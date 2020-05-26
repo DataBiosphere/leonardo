@@ -5,6 +5,7 @@ package service
 import java.time.Instant
 import java.util.UUID
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.effect.Async
 import cats.implicits._
