@@ -8,7 +8,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
@@ -17,10 +17,14 @@ import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport.runtimeConfigRequestEncoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateDiskRequest,
   CreateRuntime2Request,
+  GetPersistentDiskResponse,
   HttpRoutes,
+  ListPersistentDiskResponse,
   ListRuntimeResponse2,
   TestLeoRoutes,
+  UpdateDiskRequest,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
@@ -55,7 +59,7 @@ class HttpRoutesSpec
     contentSecurityPolicy
   )
 
-  "HttpRoutes" should "create runtime" in {
+  "RuntimeRoutes" should "create runtime" in {
     val request = CreateRuntime2Request(
       Map("lbl1" -> "true"),
       None,
@@ -179,7 +183,81 @@ class HttpRoutesSpec
     }
   }
 
-  it should "not handle unrecognized routes" in {
+  "DiskRoutes" should "create a disk" in {
+    val diskCreateRequest = CreateDiskRequest(
+      Map("foo" -> "bar"),
+      Some(DiskSize(500)),
+      Some(DiskType.Standard),
+      Some(BlockSize(65536))
+    )
+    Post("/api/google/v1/disks/googleProject1/disk1")
+      .withEntity(ContentTypes.`application/json`, diskCreateRequest.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "create a disk with default parameters" in {
+    Post("/api/google/v1/disks/googleProject1/disk1")
+      .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "get a disk" in {
+    Get("/api/google/v1/disks/googleProject/disk1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[GetPersistentDiskResponse].name shouldBe CommonTestData.diskName
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list all disks" in {
+    Get("/api/google/v1/disks") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list all disks within a project" in {
+    Get("/api/google/v1/disks/googleProject") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list disks with parameters" in {
+    Get("/api/google/v1/disks?project=foo&creator=bar") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "delete a disk" in {
+    Delete("/api/google/v1/disks/googleProject1/disk1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "update a disk" in {
+    val request = UpdateDiskRequest(
+      Map("foo" -> "bar"),
+      Some(DiskSize(1024)),
+      None,
+      None
+    )
+    Patch("/api/google/v1/disks/googleProject1/disk1", request.asJson) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  "HttpRoutes" should "not handle unrecognized routes" in {
     Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
       handled shouldBe false
     }
@@ -190,6 +268,12 @@ class HttpRoutesSpec
       handled shouldBe false
     }
     Post("/api/google/v1/runtime/googleProject1/runtime1") ~> routes.route ~> check {
+      handled shouldBe false
+    }
+    Post("/api/google/v1/disk/googleProject1/disk1") ~> routes.route ~> check {
+      handled shouldBe false
+    }
+    Get("/api/google/v1/disks/googleProject1/disk1/foo") ~> routes.route ~> check {
       handled shouldBe false
     }
   }
@@ -268,6 +352,34 @@ object HttpRoutesSpec {
     )
   )
 
+  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct4(
+    "labels",
+    "size",
+    "diskType",
+    "blockSize"
+  )(x =>
+    (
+      x.labels,
+      x.size,
+      x.diskType,
+      x.blockSize
+    )
+  )
+
+  implicit val updateDiskRequestEncoder: Encoder[UpdateDiskRequest] = Encoder.forProduct4(
+    "labels",
+    "size",
+    "diskType",
+    "blockSize"
+  )(x =>
+    (
+      x.labels,
+      x.size,
+      x.diskType,
+      x.blockSize
+    )
+  )
+
   implicit val getClusterResponseDecoder: Decoder[GetRuntimeResponse] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]
@@ -342,6 +454,60 @@ object HttpRoutesSpec {
       labels,
       patchInProgress,
       None
+    )
+  }
+
+  implicit val getDiskResponseDecoder: Decoder[GetPersistentDiskResponse] = Decoder.instance { x =>
+    for {
+      id <- x.downField("id").as[DiskId]
+      googleProject <- x.downField("googleProject").as[GoogleProject]
+      zone <- x.downField("zone").as[ZoneName]
+      name <- x.downField("name").as[DiskName]
+      googleId <- x.downField("googleId").as[Option[GoogleId]]
+      samResourceId <- x.downField("samResourceId").as[DiskSamResourceId]
+      status <- x.downField("status").as[DiskStatus]
+      auditInfo <- x.downField("auditInfo").as[AuditInfo]
+      size <- x.downField("size").as[DiskSize]
+      diskType <- x.downField("diskType").as[DiskType]
+      blockSize <- x.downField("blockSize").as[BlockSize]
+      labels <- x.downField("labels").as[LabelMap]
+    } yield GetPersistentDiskResponse(
+      id,
+      googleProject,
+      zone,
+      name,
+      googleId,
+      samResourceId,
+      status,
+      auditInfo,
+      size,
+      diskType,
+      blockSize,
+      labels
+    )
+  }
+
+  implicit val listDiskResponseDecoder: Decoder[ListPersistentDiskResponse] = Decoder.instance { x =>
+    for {
+      id <- x.downField("id").as[DiskId]
+      googleProject <- x.downField("googleProject").as[GoogleProject]
+      zone <- x.downField("zone").as[ZoneName]
+      name <- x.downField("name").as[DiskName]
+      status <- x.downField("status").as[DiskStatus]
+      auditInfo <- x.downField("auditInfo").as[AuditInfo]
+      size <- x.downField("size").as[DiskSize]
+      diskType <- x.downField("diskType").as[DiskType]
+      blockSize <- x.downField("blockSize").as[BlockSize]
+    } yield ListPersistentDiskResponse(
+      id,
+      googleProject,
+      zone,
+      name,
+      status,
+      auditInfo,
+      size,
+      diskType,
+      blockSize
     )
   }
 }
