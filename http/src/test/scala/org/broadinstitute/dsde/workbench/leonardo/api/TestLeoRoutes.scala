@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   StatusService
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.service.MockDiskServiceInterp
 import org.broadinstitute.dsde.workbench.leonardo.util.{
   BucketHelper,
   BucketHelperConfig,
@@ -168,6 +169,7 @@ trait TestLeoRoutes {
                          Config.zombieRuntimeMonitorConfig,
                          dataprocConfig,
                          Config.gceConfig),
+    Config.persistentDiskConfig,
     whitelistAuthProvider,
     serviceAccountProvider,
     new MockDockerDAO,
@@ -180,6 +182,7 @@ trait TestLeoRoutes {
     proxyService,
     leonardoService,
     runtimeService,
+    MockDiskServiceInterp,
     userInfoDirectives,
     contentSecurityPolicy
   )
@@ -188,6 +191,7 @@ trait TestLeoRoutes {
                                        proxyService,
                                        leonardoService,
                                        runtimeService,
+                                       MockDiskServiceInterp,
                                        timedUserInfoDirectives,
                                        contentSecurityPolicy)
 

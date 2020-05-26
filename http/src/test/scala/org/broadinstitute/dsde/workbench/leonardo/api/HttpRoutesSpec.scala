@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.leonardo.service.MockRuntimeServiceInterp
+import org.broadinstitute.dsde.workbench.leonardo.service.{MockDiskServiceInterp, MockRuntimeServiceInterp}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.concurrent.ScalaFutures
@@ -50,6 +50,7 @@ class HttpRoutesSpec
     proxyService,
     leonardoService,
     MockRuntimeServiceInterp,
+    MockDiskServiceInterp,
     timedUserInfoDirectives,
     contentSecurityPolicy
   )
@@ -67,7 +68,8 @@ class HttpRoutesSpec
       Some(ContainerImage.DockerHub("myrepo/myimage")),
       Some(ContainerImage.DockerHub("broadinstitute/welder")),
       Set.empty,
-      Map.empty
+      Map.empty,
+      None
     )
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, request.asJson.spaces2) ~> routes.route ~> check {
@@ -312,7 +314,8 @@ object HttpRoutesSpec {
       scopes,
       true,
       false,
-      Map.empty
+      Map.empty,
+      None
     )
   }
 
@@ -337,7 +340,8 @@ object HttpRoutesSpec {
       clusterUrl,
       status,
       labels,
-      patchInProgress
+      patchInProgress,
+      None
     )
   }
 }

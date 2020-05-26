@@ -45,11 +45,11 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
   it should "list runtimes" in isolatedDbTest {
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       c1 <- IO(makeCluster(1).save())
-      list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       c2 <- IO(makeCluster(2).save())
-      list3 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
+      list3 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -76,14 +76,14 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       labels2 = Map("googleProject" -> c2.googleProject.value,
                     "clusterName" -> c2.runtimeName.asString,
                     "creator" -> c2.auditInfo.creator.value)
-      list1 <- RuntimeServiceDbQueries.listClusters(labels1, false, None).transaction
-      list2 <- RuntimeServiceDbQueries.listClusters(labels2, false, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(labels2, false, None).transaction
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
       _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
-      list3 <- RuntimeServiceDbQueries.listClusters(labels1, false, None).transaction
-      list4 <- RuntimeServiceDbQueries.listClusters(labels2, false, None).transaction
+      list3 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
+      list4 <- RuntimeServiceDbQueries.listRuntimes(labels2, false, None).transaction
       list5 <- RuntimeServiceDbQueries
-        .listClusters(Map("googleProject" -> c1.googleProject.value), false, None)
+        .listRuntimes(Map("googleProject" -> c1.googleProject.value), false, None)
         .transaction
       end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
@@ -107,8 +107,8 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       c1 <- IO(makeCluster(1).save())
       c2 <- IO(makeCluster(2).save())
-      list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, Some(project)).transaction
-      list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, Some(project2)).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project)).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project2)).transaction
       end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -129,8 +129,8 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       c1 <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleted).save())
       c2 <- IO(makeCluster(2).copy(status = RuntimeStatus.Deleted).save())
       c3 <- IO(makeCluster(3).save())
-      list1 <- RuntimeServiceDbQueries.listClusters(Map.empty, true, None).transaction
-      list2 <- RuntimeServiceDbQueries.listClusters(Map.empty, false, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -161,7 +161,8 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
                           labels),
       runtime.status,
       labels,
-      false
+      false,
+      None
     )
 
 }

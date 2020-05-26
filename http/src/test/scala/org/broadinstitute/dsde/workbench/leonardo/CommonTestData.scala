@@ -226,7 +226,8 @@ object CommonTestData {
       welderEnabled = false,
       customEnvironmentVariables = Map.empty,
       runtimeConfigId = RuntimeConfigId(-1),
-      patchInProgress = false
+      patchInProgress = false,
+      persistentDiskId = None
     )
   }
 
@@ -260,7 +261,8 @@ object CommonTestData {
     welderEnabled = true,
     customEnvironmentVariables = Map.empty,
     runtimeConfigId = RuntimeConfigId(-1),
-    patchInProgress = false
+    patchInProgress = false,
+    persistentDiskId = None
   )
 
   val readyInstance = Instance

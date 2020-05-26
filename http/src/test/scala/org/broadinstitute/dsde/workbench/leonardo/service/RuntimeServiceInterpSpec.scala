@@ -42,6 +42,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
                            Config.zombieRuntimeMonitorConfig,
                            dataprocConfig,
                            Config.gceConfig),
+      Config.persistentDiskConfig,
       whitelistAuthProvider,
       serviceAccountProvider,
       new MockDockerDAO,
@@ -61,7 +62,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     None,
     None,
     Set.empty,
-    Map.empty
+    Map.empty,
+    None
   )
 
   implicit val ctx: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const[IO, AppContext](
