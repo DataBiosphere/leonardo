@@ -20,6 +20,8 @@ lazy val automation = project.in(file("automation"))
   .settings(automationSettings)
   .dependsOn(core % "test->test;compile->compile")
 
+scalafixDependencies in ThisBuild += "org.scalatest" %% "autofix" % "3.1.0.0"
+
 Revolver.settings
 
 Revolver.enableDebugging(port = 5051, suspend = false)

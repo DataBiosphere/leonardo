@@ -11,13 +11,13 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
-import org.scalatest.FlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
+class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue(clusterQuery.listWithLabels) shouldEqual Seq()
 

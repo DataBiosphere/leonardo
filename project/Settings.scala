@@ -5,6 +5,8 @@ import Version._
 import sbt.Keys._
 import sbt._
 import sbtassembly.AssemblyPlugin.autoImport._
+import scalafix.sbt.ScalafixPlugin.autoImport.scalafixSemanticdb
+
 import scala.collection.JavaConverters._
 
 object Settings {
@@ -24,7 +26,8 @@ object Settings {
     scalacOptions in (Test, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
     scalacOptions in Test --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
-    addCompilerPlugin("org.typelevel" % "kind-projector_2.12.11" % "0.11.0")
+    addCompilerPlugin("org.typelevel" % "kind-projector_2.12.11" % "0.11.0"),
+    addCompilerPlugin(scalafixSemanticdb)
   )
 
   val commonCompilerSettings = Seq(
@@ -38,7 +41,7 @@ object Settings {
     "-language:implicitConversions",     // Allow definition of implicit functions called views
     "-unchecked",                        // Enable additional warnings where generated code depends on assumptions.
     "-Xcheckinit",                       // Wrap field accessors to throw an exception on uninitialized access.
-    "-Xfatal-warnings",                  // Fail the compilation if there are any warnings.
+//    "-Xfatal-warnings",                  // Fail the compilation if there are any warnings.
     "-Xfuture",                          // Turn on future language features.
 //    "-Xlint:adapted-args",               // Warn if an argument list is modified to match the receiver.
     "-Xlint:by-name-right-associative",  // By-name parameter of right associative operator.

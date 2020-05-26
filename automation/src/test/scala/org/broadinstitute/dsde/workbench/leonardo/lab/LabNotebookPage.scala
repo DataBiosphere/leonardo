@@ -3,14 +3,14 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.scalatest.Matchers.convertToAnyShouldWrapper
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
-
+import org.scalatestplus.selenium.WebBrowser._
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.language.postfixOps

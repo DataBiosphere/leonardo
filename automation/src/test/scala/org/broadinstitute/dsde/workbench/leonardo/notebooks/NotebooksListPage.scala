@@ -5,6 +5,7 @@ import java.io.File
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
+import org.scalatestplus.selenium.WebBrowser._
 
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._

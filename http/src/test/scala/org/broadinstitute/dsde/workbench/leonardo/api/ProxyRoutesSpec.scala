@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec}
+import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -25,12 +25,13 @@ import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
  * Created by rtitle on 8/10/17.
  */
 class ProxyRoutesSpec
-    extends FlatSpec
+    extends AnyFlatSpec
     with BeforeAndAfterAll
     with BeforeAndAfter
     with ScalatestRouteTest

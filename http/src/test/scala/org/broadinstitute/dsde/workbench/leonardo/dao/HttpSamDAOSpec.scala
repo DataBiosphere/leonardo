@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, Subsy
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.{HttpApp, Response, Status, Uri}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterAll
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -23,8 +23,10 @@ import cats.mtl.ApplicativeAsk
 import org.http4s.client.middleware.{Retry, RetryPolicy}
 
 import scala.util.control.NoStackTrace
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
+class HttpSamDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
   implicit val timer = IO.timer(global)
   implicit val cs = IO.contextShift(global)
   val blocker = Blocker.liftExecutionContext(global)

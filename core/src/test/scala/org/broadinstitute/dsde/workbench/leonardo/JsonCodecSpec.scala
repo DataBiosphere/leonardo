@@ -1,13 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.scalatest.{FlatSpecLike, Matchers}
 import JsonCodec._
 import io.circe.CursorOp.DownField
 import io.circe.DecodingFailure
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 
-class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
+import scala.util.Either.LeftProjection
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
+
+class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   "JsonCodec" should "decode DataprocConfig properly" in {
     val inputString =
       """

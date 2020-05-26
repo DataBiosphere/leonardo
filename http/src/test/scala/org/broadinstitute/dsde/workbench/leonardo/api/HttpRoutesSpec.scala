@@ -29,12 +29,13 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 class HttpRoutesSpec
-    extends FlatSpec
+    extends AnyFlatSpec
     with ScalatestRouteTest
     with LeonardoTestSuite
     with ScalaFutures

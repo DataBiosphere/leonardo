@@ -38,10 +38,13 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 
 class LeonardoServiceSpec
     extends TestKit(ActorSystem("leonardotest"))
-    with FlatSpecLike
+    with AnyFlatSpecLike
     with Matchers
     with BeforeAndAfter
     with BeforeAndAfterAll

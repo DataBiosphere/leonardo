@@ -24,13 +24,14 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.scalatestplus.mockito.MockitoSugar
-import org.scalatest.{Assertion, FlatSpec}
+import org.scalatest.Assertion
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.mock.MockitoSugar
 
-class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
+class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
   def makeRuntimeService(publisherQueue: InspectableQueue[IO, LeoPubsubMessage]) =
     new RuntimeServiceInterp(

@@ -8,7 +8,8 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.Matchers.convertToAnyShouldWrapper
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
+import org.scalatestplus.selenium.WebBrowser._
 
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
@@ -16,8 +17,8 @@ import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 
-class NotebookPage(override val url: String)(implicit override val authToken: AuthToken,
-                                             implicit override val webDriver: WebDriver)
+class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
+                                    implicit override val webDriver: WebDriver)
     extends JupyterPage
     with Eventually
     with LazyLogging {

@@ -13,17 +13,18 @@ import cats.implicits._
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+import org.scalatest.BeforeAndAfterAll
 import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.Try
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 //TODO: running this spec results in lots of match `scala.MatchError: null`, investigate why that is
 class ClusterToolMonitorSpec
     extends TestKit(ActorSystem("leonardotest"))
-    with FlatSpecLike
+    with AnyFlatSpecLike
     with LazyLogging
     with BeforeAndAfterAll
     with TestComponent

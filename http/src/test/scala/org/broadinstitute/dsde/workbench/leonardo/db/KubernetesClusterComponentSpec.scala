@@ -10,11 +10,11 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesClusterStatus,
   NodepoolStatus
 }
-import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class KubernetesClusterComponentSpec extends FlatSpecLike with TestComponent {
+class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent {
 
   it should "save, get, and delete" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1)

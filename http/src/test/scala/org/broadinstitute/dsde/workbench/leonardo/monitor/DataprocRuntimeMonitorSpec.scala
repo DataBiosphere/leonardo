@@ -28,12 +28,15 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.google.cloud.dataproc.v1.ClusterStatus.State
-import org.scalatest.{EitherValues, FlatSpec}
+import org.scalatest.EitherValues
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
+import org.scalatest.flatspec.AnyFlatSpec
 
-class DataprocRuntimeMonitorSpec extends FlatSpec with TestComponent with LeonardoTestSuite with EitherValues {
+class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with LeonardoTestSuite with EitherValues {
+  implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
+
   "creatingRuntime" should "check again if cluster doesn't exist yet" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,

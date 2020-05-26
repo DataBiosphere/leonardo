@@ -33,14 +33,15 @@ import org.scalatest.time.{Seconds, Span}
 import org.scalatestplus.mockito.MockitoSugar
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{eq => mockitoEq}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec}
+import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
 
 class ZombieRuntimeMonitorSpec
-    extends FlatSpec
+    extends AnyFlatSpec
     with BeforeAndAfterAll
     with LeonardoTestSuite
     with TestComponent

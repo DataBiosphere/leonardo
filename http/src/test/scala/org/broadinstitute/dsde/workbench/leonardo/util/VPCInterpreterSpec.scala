@@ -14,12 +14,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.FlatSpecLike
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class VPCInterpreterSpec extends FlatSpecLike with LeonardoTestSuite {
+class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   "VPCInterpreter" should "get a subnet from a project label" in {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,

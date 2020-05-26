@@ -358,7 +358,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       ctx <- ev.ask
       duration = (ctx.now.toEpochMilli - monitorContext.start.toEpochMilli).millis
       _ <- logger.info(
-        s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
+        s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
       )
 
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted

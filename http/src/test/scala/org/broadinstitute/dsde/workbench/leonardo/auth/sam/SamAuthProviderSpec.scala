@@ -25,10 +25,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.{
 }
 
 import scala.concurrent.duration._
+import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.should.Matchers
 
 class SamAuthProviderSpec
     extends TestKit(ActorSystem("leonardotest"))
-    with FreeSpecLike
+    with AnyFreeSpecLike
     with Matchers
     with TestComponent
     with ScalaFutures

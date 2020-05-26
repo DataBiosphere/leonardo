@@ -6,13 +6,14 @@ import cats.effect.{Blocker, ContextShift, IO, Timer}
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
-import org.scalatest.{Assertion, Assertions, Matchers}
+import org.scalatest.{Assertion, Assertions}
 import fs2.Stream
 import org.scalatest.prop.Configuration
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.global
+import org.scalatest.matchers.should.Matchers
 
 trait LeonardoTestSuite extends Matchers {
   implicit val metrics = FakeOpenTelemetryMetricsInterpreter

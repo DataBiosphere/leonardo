@@ -4,12 +4,12 @@ package db
 import java.sql.SQLException
 
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Random
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class ExtensionComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
+class ExtensionComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils {
   "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
       .copy(userJupyterExtensionConfig = Some(userExtConfig), jupyterUserScriptUri = Some(jupyterUserScriptUri))
