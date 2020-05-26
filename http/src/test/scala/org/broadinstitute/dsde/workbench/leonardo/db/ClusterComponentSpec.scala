@@ -6,6 +6,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -314,5 +315,20 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
       .saveWithRuntimeConfig(runtimeConfig)
 
     dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster.runtimeConfigId)) shouldBe runtimeConfig
+  }
+
+  it should "persist persistentDiskId foreign key" in isolatedDbTest {
+    val res = for {
+      savedDisk <- makePersistentDisk(DiskId(1)).save()
+      savedRuntime <- IO(makeCluster(1).copy(persistentDiskId = Some(savedDisk.id)).save())
+      retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
+      error <- IO(makeCluster(2).copy(persistentDiskId = Some(DiskId(-1))).save()).attempt
+    } yield {
+      retrievedRuntime shouldBe 'defined
+      retrievedRuntime.get.persistentDiskId shouldBe Some(savedDisk.id)
+      error.isLeft shouldBe true
+    }
+
+    res.unsafeRunSync()
   }
 }

@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
+import org.broadinstitute.dsde.workbench.leonardo.http.service.GetRuntimeResponse
 import org.scalatest.FlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 
@@ -141,6 +142,19 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       list1.toSet shouldEqual Set(c1Expected, c2Expected, c3Expected)
       list2 shouldEqual List(c3Expected)
       elapsed should be < maxElapsed
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "get a runtime" in isolatedDbTest {
+    val res = for {
+      c1 <- IO(makeCluster(1).save())
+      get1 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, c1.runtimeName).transaction
+      get2 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, RuntimeName("does-not-exist")).transaction.attempt
+    } yield {
+      get1 shouldBe GetRuntimeResponse.fromRuntime(c1, CommonTestData.defaultDataprocRuntimeConfig, None)
+      get2.isLeft shouldBe true
     }
 
     res.unsafeRunSync()
