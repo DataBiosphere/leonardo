@@ -207,7 +207,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+      listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
       hasStatusPermission = listOfPermissions.contains("status")
 
@@ -261,7 +261,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+      listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
       hasStatusPermission = listOfPermissions.contains("status")
 
@@ -297,7 +297,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+      listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
       hasStatusPermission = listOfPermissions.contains("status")
 
@@ -339,7 +339,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions = authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
+      listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
       hasStatusPermission = listOfPermissions.contains("status")
 

@@ -54,10 +54,11 @@ trait LeoAuthProvider[F[_]] {
 
   /**
    *
+   *
    * @param internalId
    * @return returns a list of Cluster Actions that the user has access to
    */
-  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo): List[String]
+  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[F, TraceId]): F[List[String]]
 
 
 

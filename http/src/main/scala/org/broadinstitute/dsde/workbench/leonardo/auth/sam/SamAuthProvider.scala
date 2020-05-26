@@ -153,11 +153,9 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     checkPersistentDiskPermissionWithProjectFallback(samResource, authorization, action, googleProject)
   }
 
-
-  //We want to return a list of Notebookclusteractions List[NotebookClusterActions.NotebookClusterAction]
-  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo): List[String] = {
+  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[F, TraceId]): F[List[String]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    samDao.getListOfResourcePermissions[String](internalId.asString,
+    samDao.getListOfResourcePermissions(internalId.asString,
       ResourceTypeName.NotebookCluster,
       authorization)
   }

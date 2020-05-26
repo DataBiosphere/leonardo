@@ -29,9 +29,10 @@ trait SamDAO[F[_]] {
                      creatorEmail: WorkbenchEmail,
                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
-  def getListOfResourcePermissions[A](resourceId: String,
+
+  def getListOfResourcePermissions(resourceId: String,
                                       resourceTypeName: ResourceTypeName,
-                                      authHeader: Authorization): List[A]
+                                      authHeader: Authorization)(implicit ev: ApplicativeAsk[F, TraceId]): F[List[String]]
 
 
 
