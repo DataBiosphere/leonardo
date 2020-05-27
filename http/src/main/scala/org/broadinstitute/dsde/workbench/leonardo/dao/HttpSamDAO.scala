@@ -4,6 +4,8 @@ package dao
 import java.io.ByteArrayInputStream
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets.UTF_8
 
 import _root_.io.circe.{Decoder, Json, KeyDecoder}
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
@@ -283,7 +285,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       httpClient.expectOptionOr[WorkbenchEmail](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${userEmail.value}"),
+          uri = config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${URLEncoder.encode(userEmail.value, UTF_8.name)}"),
           headers = Headers.of(authHeader)
         )
       )(onError)
@@ -317,7 +319,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         userPetKey <- httpClient.expectOptionOr[Json](
           Request[F](
             method = Method.GET,
-            uri = config.samUri.withPath(s"/api/google/v1/petServiceAccount/${googleProject.value}/${userEmail.value}"),
+            uri = config.samUri.withPath(s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"),
             headers = Headers.of(leoAuth)
           )
         )(onError)
