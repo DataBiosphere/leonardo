@@ -1920,6 +1920,8 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the runtime.
+        diskConfig:
+          $ref: "#/components/schemas/DiskConfig"
     ListClusterResponse:
       description: ""
       required:
@@ -2022,6 +2024,8 @@ components:
         patchInProgress:
           type: boolean
           description: Whether there is a patch in progress on the runtime. Is used to indicate updates that require status transitions.
+        diskConfig:
+          $ref: "#/components/schemas/DiskConfig"
     ListPersistentDiskResponse:
       description: ""
       required:
@@ -2052,13 +2056,13 @@ components:
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         size:
-          type: string
+          type: integer
           description: Size of persistent disk in GB
         diskType:
           type: string
           description: Type of persistent disk
         blockSize:
-          type: string
+          type: integer
           description: Block size of persistent disk in bytes
 
     GetPersistentDiskResponse:
@@ -2100,13 +2104,13 @@ components:
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         size:
-          type: string
+          type: integer
           description: Size of persistent disk in GB
         diskType:
           type: string
           description: Type of persistent disk
         blockSize:
-          type: string
+          type: integer
           description: Block size of persistent disk in bytes
         labels:
           type: object
@@ -2343,6 +2347,13 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
+        diskConfig:
+          oneOf:
+            - $ref: "#/components/schemas/CreateDiskConfigRequest"
+            - $ref: "#/components/schemas/ReferenceDiskConfigRequest"
+          discriminator:
+            propertyName: create
+
     UpdateGceConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
@@ -2678,3 +2689,65 @@ components:
         systems:
           type: object
           description: Map[String, SubsystemStatus]
+
+    DiskConfig:
+      description: The configuration of a persistent disk, returned in runtime responses
+      type: object
+      required:
+        - name
+        - size
+        - diskType
+        - blockSize
+      properties:
+        name:
+          type: string
+          description: Name of the persistent disk
+        size:
+          type: integer
+          description: Size of persistent disk in GB
+        diskType:
+          type: string
+          description: Type of persistent disk
+        blockSize:
+          type: integer
+          description: Block size of persistent disk in bytes
+
+    DiskConfigRequest:
+      description: The configuration of a persistent disk as part of runtime creation
+      type: object
+      required:
+        - name
+        - create
+      properties:
+        name:
+          type: string
+          description: Name of the persistent disk
+        create:
+          type: boolean
+          description: >
+            If true, creates a new persistent disk with the given configuration (maps to CreateDiskConfigRequest).
+            If false, uses an existing disk with the given name (maps to ReferenceDiskConfigRequest).
+
+    CreateDiskConfigRequest:
+      description: Creates a persistent disk as part of runtime creation
+      allOf:
+        - $ref: '#/components/schemas/DiskConfigRequest'
+        - type: object
+          properties:
+            size:
+              type: integer
+              description: Size of persistent disk in GB
+            diskType:
+              type: string
+              description: Type of persistent disk
+            blockSize:
+              type: integer
+              description: Block size of persistent disk in bytes
+            labels:
+              type: object
+              description: The labels to be placed on the disk
+
+    ReferenceDiskConfigRequest:
+      description: References a persistent disk as part of runtime creation
+      allOf:
+        - $ref: '#/components/schemas/DiskConfigRequest'
