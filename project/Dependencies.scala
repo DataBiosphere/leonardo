@@ -22,7 +22,7 @@ object Dependencies {
   val workbenchGoogleV = "0.21-2a218f3"
   val workbenchGoogle2V = "0.9-8051635"
   val workbenchMetricsV = "0.3-c5b80d2"
-  val workbenchOpenTelemetryV = "0.1-c170737-SNAP"
+  val workbenchOpenTelemetryV = "0.1-e66171c"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = "akka-stream_2.12")

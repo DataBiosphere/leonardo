@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
+import RuntimeFixtureSpec._
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -53,36 +54,8 @@ abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
    */
   def createRonRuntime(billingProject: GoogleProject): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    ronCluster = createNewRuntime(billingProject, request = getRuntimeRequest())(ronAuthToken)
-  }
-
-  def getRuntimeRequest(cloudService: CloudService = CloudService.GCE): RuntimeRequest = {
-
-    val machineConfig = cloudService match {
-      case CloudService.GCE =>
-        RuntimeConfigRequest.GceConfig(
-          machineType = Some("n1-standard-4"),
-          diskSize = Some(500)
-        )
-      case CloudService.Dataproc =>
-        RuntimeConfigRequest.DataprocConfig(
-          numberOfWorkers = Some(0),
-          masterDiskSize = Some(500),
-          masterMachineType = Some("n1-standard-8"),
-          workerMachineType = Some("n1-standard-8"),
-          workerDiskSize = None,
-          numberOfWorkerLocalSSDs = None,
-          numberOfPreemptibleWorkers = None,
-          properties = Map.empty
-        )
-
-    }
-
-    RuntimeRequest(
-      runtimeConfig = Some(machineConfig),
-      toolDockerImage = toolDockerImage,
-      autopause = Some(false)
-    )
+    ronCluster =
+      createNewRuntime(billingProject, request = getRuntimeRequest(CloudService.GCE, toolDockerImage))(ronAuthToken)
   }
 
   /**
@@ -120,5 +93,36 @@ abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     }
 
     super.afterAll()
+  }
+}
+
+object RuntimeFixtureSpec {
+  def getRuntimeRequest(cloudService: CloudService, toolDockerImage: Option[String]): RuntimeRequest = {
+
+    val machineConfig = cloudService match {
+      case CloudService.GCE =>
+        RuntimeConfigRequest.GceConfig(
+          machineType = Some("n1-standard-4"),
+          diskSize = Some(500)
+        )
+      case CloudService.Dataproc =>
+        RuntimeConfigRequest.DataprocConfig(
+          numberOfWorkers = Some(0),
+          masterDiskSize = Some(500),
+          masterMachineType = Some("n1-standard-8"),
+          workerMachineType = Some("n1-standard-8"),
+          workerDiskSize = None,
+          numberOfWorkerLocalSSDs = None,
+          numberOfPreemptibleWorkers = None,
+          properties = Map.empty
+        )
+
+    }
+
+    RuntimeRequest(
+      runtimeConfig = Some(machineConfig),
+      toolDockerImage = toolDockerImage,
+      autopause = Some(false)
+    )
   }
 }

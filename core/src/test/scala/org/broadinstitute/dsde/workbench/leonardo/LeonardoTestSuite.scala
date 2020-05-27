@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.util.UUID
-
 import cats.implicits._
 import cats.effect.concurrent.{Deferred, Semaphore}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
