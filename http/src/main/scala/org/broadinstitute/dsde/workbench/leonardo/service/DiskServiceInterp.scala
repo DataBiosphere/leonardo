@@ -11,7 +11,7 @@ import cats.effect.Async
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleStorageService, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
@@ -234,7 +234,7 @@ object DiskServiceInterp {
     } yield PersistentDisk(
       DiskId(0),
       googleProject,
-      ZoneName("example"),
+      config.zone,
       diskName,
       None,
       serviceAccount,
@@ -244,7 +244,7 @@ object DiskServiceInterp {
       req.size.getOrElse(config.defaultDiskSizeGB),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
-      allLabels
+      labels
     )
   }
 }

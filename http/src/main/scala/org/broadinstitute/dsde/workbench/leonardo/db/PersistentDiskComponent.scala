@@ -90,6 +90,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
     for {
       diskId <- (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
+      _ <- labelQuery.saveAllForResource(diskId.value, LabelResourceType.PersistentDisk, disk.labels)
     } yield disk.copy(diskId)
 
   def getById(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
