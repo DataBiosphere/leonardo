@@ -96,7 +96,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
             runtimeImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
-            gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
+            diskOpt <- req.diskConfig.traverse(x =>
+              processDiskConfigRequest(x,
+                                       googleProject,
+                                       req.runtimeConfig.map(_.cloudService).getOrElse(CloudService.GCE),
+                                       userInfo)
+            )
+            // For GCE, make diskConfig.size take precedence over runtimeConfig.diskSize
+            gceRuntimeDefaults = diskOpt match {
+              case Some(disk) => config.gceConfig.runtimeConfigDefaults.copy(diskSize = disk.size)
+              case None       => config.gceConfig.runtimeConfigDefaults
+            }
             runtimeConfig = req.runtimeConfig
               .fold[RuntimeConfig](gceRuntimeDefaults) { // default to gce if no runtime specific config is provided
                 c =>
@@ -104,13 +114,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     case gce: RuntimeConfigRequest.GceConfig =>
                       RuntimeConfig.GceConfig(
                         gce.machineType.getOrElse(gceRuntimeDefaults.machineType),
-                        gce.diskSize.getOrElse(gceRuntimeDefaults.diskSize)
+                        diskOpt.map(_.size).orElse(gce.diskSize).getOrElse(gceRuntimeDefaults.diskSize)
                       ): RuntimeConfig
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
                       dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
                   }
               }
-            diskOpt <- req.diskConfig.traverse(x => processDiskConfigRequest(x, googleProject, runtimeConfig, userInfo))
             runtime <- F.fromEither(
               convertToRuntime(userInfo,
                                petSA,
@@ -518,11 +527,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   private[service] def processDiskConfigRequest(
     req: DiskConfigRequest,
     googleProject: GoogleProject,
-    runtimeConfig: RuntimeConfig,
+    cloudService: CloudService,
     userInfo: UserInfo
   )(implicit as: ApplicativeAsk[F, AppContext]): F[PersistentDisk] =
-    (req, runtimeConfig) match {
-      case (DiskConfigRequest.Reference(name), RuntimeConfig.GceConfig(_, _)) =>
+    (req, cloudService) match {
+      case (DiskConfigRequest.Reference(name), CloudService.GCE) =>
         for {
           diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
           disk <- F.fromEither(diskOpt.toRight(DiskNotFoundException(googleProject, name)))
@@ -534,7 +543,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                                           googleProject)
           _ <- if (hasAttachPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
         } yield disk
-      case (createReq @ DiskConfigRequest.Create(name, _, _, _, _), RuntimeConfig.GceConfig(_, _)) =>
+      case (createReq @ DiskConfigRequest.Create(name, _, _, _, _), CloudService.GCE) =>
         for {
           diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
           _ <- diskOpt.fold(F.unit)(d =>
@@ -563,7 +572,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           savedDisk <- persistentDiskQuery.save(disk).transaction
 
         } yield savedDisk
-      case (_, RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _)) =>
+      case (_, CloudService.Dataproc) =>
         F.raiseError(DiskNotSupportedException)
     }
 
