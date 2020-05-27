@@ -46,7 +46,7 @@ object RuntimeServiceDbQueries {
       .join(runtimeConfigs)
       .on(_._1.runtimeConfigId === _.id)
       .joinLeft(persistentDiskQuery)
-      .on { case (a, b) => a._1._1.persistentDiskId.fold(false)(_ == b.id) }
+      .on { case (a, b) => a._1._1.persistentDiskId.isDefined && a._1._1.persistentDiskId === b.id }
     activeRuntime.result.flatMap { recs =>
       val runtimeRecs = recs.map(_._1._1)
       val res = for {
@@ -97,7 +97,7 @@ object RuntimeServiceDbQueries {
     val runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatchAndDisk =
       runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch
         .joinLeft(persistentDiskQuery)
-        .on { case (a, b) => a._1._1._1.persistentDiskId.fold(false)(_ == b.id) }
+        .on { case (a, b) => a._1._1._1.persistentDiskId.isDefined && a._1._1._1.persistentDiskId === b.id }
 
     runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatchAndDisk.result.map { x =>
       val runtimeLabelMap
