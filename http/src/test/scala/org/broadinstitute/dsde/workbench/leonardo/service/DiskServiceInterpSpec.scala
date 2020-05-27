@@ -174,6 +174,21 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     res.unsafeRunSync()
   }
 
+  it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId).save()
+      _ <- IO(makeCluster(1).copy(persistentDiskId = Some(disk.id)).save())
+      err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt
+    } yield {
+      err shouldBe Left(DiskAlreadyAttachedException(project, disk.name))
+    }
+
+    res.unsafeRunSync()
+  }
+
   List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
     status =>
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed

@@ -159,7 +159,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 409 if the disk is not deletable
       _ <- if (disk.status.isDeletable) F.unit
       else F.raiseError[Unit](DiskCannotBeDeletedException(disk.googleProject, disk.name, disk.status))
-      // delete the runtime
+      // throw 409 if the disk is attached to a runtime
+      attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk).transaction
+      _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, diskName)) else F.unit
+      // delete the disk
       ctx <- as.ask
       _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction.void >> publisherQueue.enqueue1(
         DeleteDiskMessage(disk.id, Some(ctx.traceId))
