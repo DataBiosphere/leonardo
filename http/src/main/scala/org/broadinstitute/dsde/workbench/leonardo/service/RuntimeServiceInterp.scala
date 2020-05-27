@@ -208,9 +208,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
       listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
-
       hasStatusPermission = listOfPermissions.contains("status")
-
+      
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done first hasNotebookClusterPermission")))
 
       _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
@@ -263,9 +262,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
+
       hasStatusPermission = listOfPermissions.contains("status")
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
+
 
       _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
 
@@ -306,6 +307,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
+
 
       hasStartPermission = listOfPermissions.contains("stop_start")
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))

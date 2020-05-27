@@ -87,7 +87,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     httpClient.expectOr[List[String]](
       Request[F](
         method = Method.GET,
-        uri = config.samUri.withPath(s"/api/resources/v1/${resourceTypeName.toString}/${resourceId}/action"),
+        uri = config.samUri.withPath(s"/api/resources/v1/${resourceTypeName.toString}/${resourceId}/actions"),
         headers = Headers.of(authHeader)
       )
     )(onError)
