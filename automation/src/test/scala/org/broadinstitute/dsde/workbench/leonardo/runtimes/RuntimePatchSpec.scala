@@ -66,8 +66,10 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils {
       createNewRuntime(googleProject, request = getRuntimeRequest(CloudService.Dataproc, None))(ronAuthToken)
 
     val newMasterMachineType = "n1-standard-2"
-    val runtimeConfig = UpdateRuntimeConfigRequestCopy.GceConfig(
+    val runtimeConfig = UpdateRuntimeConfigRequestCopy.DataprocConfig(
       Some(newMasterMachineType),
+      None,
+      None,
       None
     )
 

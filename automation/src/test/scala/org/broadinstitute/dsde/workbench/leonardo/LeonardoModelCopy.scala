@@ -188,15 +188,16 @@ sealed trait UpdateRuntimeConfigRequestCopy extends Product with Serializable {
   def cloudService: String
 }
 object UpdateRuntimeConfigRequestCopy {
-  final case class GceConfig(machineType: Option[String],
-                             diskSize: Option[Int],
-                             cloudService: String = CloudService.GCE.asString)
-      extends UpdateRuntimeConfigRequestCopy
+  final case class GceConfig(machineType: Option[String], diskSize: Option[Int])
+      extends UpdateRuntimeConfigRequestCopy {
+    val cloudService: String = CloudService.GCE.asString
+  }
 
   final case class DataprocConfig(masterMachineType: Option[String],
                                   masterDiskSize: Option[Int],
                                   numberOfWorkers: Option[Int],
-                                  numberOfPreemptibleWorkers: Option[Int],
-                                  cloudService: String = CloudService.Dataproc.asString)
-      extends UpdateRuntimeConfigRequestCopy
+                                  numberOfPreemptibleWorkers: Option[Int])
+      extends UpdateRuntimeConfigRequestCopy {
+    val cloudService: String = CloudService.Dataproc.asString
+  }
 }
