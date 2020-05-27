@@ -1,5 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo
-package auth
+package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import cats.effect.IO
 import cats.implicits._
@@ -7,10 +6,7 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction
-import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
