@@ -141,7 +141,6 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     }
   }
 
-
   override def hasPersistentDiskPermission(
     samResource: PersistentDiskSamResource,
     userInfo: UserInfo,
@@ -153,11 +152,10 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     checkPersistentDiskPermissionWithProjectFallback(samResource, authorization, action, googleProject)
   }
 
-  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[F, TraceId]): F[List[String]] = {
+  def getNotebookClusterActions(internalId: RuntimeInternalId,
+                                userInfo: UserInfo)(implicit ev: ApplicativeAsk[F, TraceId]): F[List[String]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    samDao.getListOfResourcePermissions(internalId.asString,
-      ResourceTypeName.NotebookCluster,
-      authorization)
+    samDao.getListOfResourcePermissions(internalId.asString, ResourceTypeName.NotebookCluster, authorization)
   }
 
   private def checkRuntimePermissionWithProjectFallback(

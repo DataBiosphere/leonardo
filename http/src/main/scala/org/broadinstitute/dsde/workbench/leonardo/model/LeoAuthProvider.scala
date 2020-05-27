@@ -51,15 +51,15 @@ trait LeoAuthProvider[F[_]] {
                            action: RuntimeAction,
                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
-
   /**
    *
    *
    * @param internalId
    * @return returns a list of Cluster Actions that the user has access to
    */
-  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[F, TraceId]): F[List[String]]
-
+  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[List[String]]
 
 
 

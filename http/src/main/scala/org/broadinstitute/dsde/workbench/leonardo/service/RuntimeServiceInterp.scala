@@ -262,7 +262,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
-
       hasStatusPermission = listOfPermissions.contains("status")
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
@@ -346,7 +345,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       hasStatusPermission = listOfPermissions.contains("status")
 
       _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
-
 
       // throw 403 if no ModifyCluster permission
       hasModifyPermission = listOfPermissions.contains("modify")
