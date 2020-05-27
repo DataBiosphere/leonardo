@@ -18,11 +18,12 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleSubscriber
 }
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
-  NotebookClusterAction,
   PersistentDiskAction,
   ProjectAction,
+  RuntimeAction,
   ServiceAccountProvider
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -74,43 +75,41 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
   override def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Boolean] = ???
-  override def hasNotebookClusterPermission(
-    internalId: RuntimeInternalId,
+  override def hasRuntimePermission(
+    samResource: RuntimeSamResource,
     userInfo: UserInfo,
-    action: NotebookClusterAction,
-    googleProject: GoogleProject,
-    runtimeName: RuntimeName
+    action: RuntimeAction,
+    googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
   override def hasPersistentDiskPermission(
-    internalId: DiskSamResourceId,
+    samResource: PersistentDiskSamResource,
     userInfo: UserInfo,
     action: PersistentDiskAction,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
+  override def filterUserVisibleRuntimes(userInfo: UserInfo, runtimes: List[(GoogleProject, RuntimeSamResource)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, RuntimeInternalId)]] = ???
+  ): IO[List[(GoogleProject, RuntimeSamResource)]] = ???
   override def filterUserVisiblePersistentDisks(
     userInfo: UserInfo,
-    clusters: List[(GoogleProject, DiskSamResourceId)]
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, DiskSamResourceId)]] = ???
-  override def notifyClusterCreated(internalId: RuntimeInternalId,
+    disks: List[(GoogleProject, PersistentDiskSamResource)]
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, PersistentDiskSamResource)]] = ???
+  override def notifyRuntimeCreated(samResource: RuntimeSamResource,
                                     creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject,
-                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
-  override def notifyClusterDeleted(internalId: RuntimeInternalId,
+                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    ???
+  override def notifyRuntimeDeleted(samResource: RuntimeSamResource,
                                     userEmail: WorkbenchEmail,
                                     creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject,
-                                    runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
   override def notifyPersistentDiskCreated(
-    internalId: DiskSamResourceId,
+    samResource: PersistentDiskSamResource,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
   override def notifyPersistentDiskDeleted(
-    internalId: DiskSamResourceId,
+    samResource: PersistentDiskSamResource,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

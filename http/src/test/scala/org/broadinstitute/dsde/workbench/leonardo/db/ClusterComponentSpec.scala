@@ -90,7 +90,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     dbFutureValue(clusterQuery.getClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)
     dbFutureValue(clusterQuery.getClusterById(savedCluster3.id)) shouldEqual Some(savedCluster3)
 
-    dbFutureValue(clusterQuery.countActiveByClusterServiceAccount(clusterServiceAccount)) shouldEqual 2
+    dbFutureValue(clusterQuery.countActiveByClusterServiceAccount(serviceAccount)) shouldEqual 2
     dbFutureValue(clusterQuery.countActiveByProject(project)) shouldEqual 3
 
     // (project, name) unique key test

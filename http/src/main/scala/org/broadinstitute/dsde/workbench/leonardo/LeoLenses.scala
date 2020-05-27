@@ -40,7 +40,7 @@ object LeoLenses {
   val createRuntimeRespToListRuntimeResp = Lens[CreateRuntimeResponse, ListRuntimeResponse](x =>
     ListRuntimeResponse(
       x.id,
-      x.internalId,
+      x.samResource,
       x.clusterName,
       x.googleProject,
       x.serviceAccountInfo,
@@ -63,7 +63,7 @@ object LeoLenses {
     c =>
       c.copy(
         id = x.id,
-        internalId = x.internalId,
+        samResource = x.samResource,
         clusterName = x.clusterName,
         googleProject = x.googleProject,
         serviceAccountInfo = x.serviceAccountInfo,

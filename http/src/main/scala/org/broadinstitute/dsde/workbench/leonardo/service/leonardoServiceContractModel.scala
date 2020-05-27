@@ -6,6 +6,7 @@ import java.net.URL
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
@@ -92,7 +93,7 @@ final case class CreateRuntimeRequest(labels: LabelMap = Map.empty,
 
 object CreateRuntimeRequest {
   def toRuntime(request: CreateRuntimeRequest,
-                internalId: RuntimeInternalId,
+                samResource: RuntimeSamResource,
                 userEmail: WorkbenchEmail,
                 runtimeName: RuntimeName,
                 googleProject: GoogleProject,
@@ -104,7 +105,7 @@ object CreateRuntimeRequest {
                 timestamp: Instant): Runtime =
     Runtime(
       id = -1,
-      internalId = internalId,
+      samResource = samResource,
       runtimeName = runtimeName,
       googleProject = googleProject,
       serviceAccount = serviceAccountInfo,
@@ -135,7 +136,7 @@ object CreateRuntimeRequest {
 // Currently, CreateRuntimeResponse has exactly the same fields as GetRuntimeResponse, but going forward, when we can,
 // we should deprecate and remove some of fields for createRuntime request
 final case class CreateRuntimeResponse(id: Long,
-                                       internalId: RuntimeInternalId,
+                                       samResource: RuntimeSamResource,
                                        clusterName: RuntimeName,
                                        googleProject: GoogleProject,
                                        serviceAccountInfo: WorkbenchEmail,
@@ -164,7 +165,7 @@ final case class CreateRuntimeResponse(id: Long,
 object CreateRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig) = CreateRuntimeResponse(
     runtime.id,
-    runtime.internalId,
+    runtime.samResource,
     runtime.runtimeName,
     runtime.googleProject,
     runtime.serviceAccount,
@@ -193,7 +194,7 @@ object CreateRuntimeResponse {
 }
 
 final case class ListRuntimeResponse(id: Long,
-                                     internalId: RuntimeInternalId,
+                                     samResource: RuntimeSamResource,
                                      clusterName: RuntimeName,
                                      googleProject: GoogleProject,
                                      serviceAccountInfo: WorkbenchEmail,
@@ -216,7 +217,7 @@ object ListRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig): ListRuntimeResponse =
     ListRuntimeResponse(
       runtime.id,
-      runtime.internalId,
+      runtime.samResource,
       runtime.runtimeName,
       runtime.googleProject,
       runtime.serviceAccount,
@@ -238,7 +239,7 @@ object ListRuntimeResponse {
 }
 
 final case class GetRuntimeResponse(id: Long,
-                                    internalId: RuntimeInternalId,
+                                    samResource: RuntimeSamResource,
                                     clusterName: RuntimeName,
                                     googleProject: GoogleProject,
                                     serviceAccountInfo: WorkbenchEmail,
@@ -266,7 +267,7 @@ final case class GetRuntimeResponse(id: Long,
 object GetRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig) = GetRuntimeResponse(
     runtime.id,
-    runtime.internalId,
+    runtime.samResource,
     runtime.runtimeName,
     runtime.googleProject,
     runtime.serviceAccount,

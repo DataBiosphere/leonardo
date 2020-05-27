@@ -6,7 +6,8 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction
 import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
@@ -25,26 +26,25 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   ): IO[Boolean] =
     checkWhitelist(userInfo)
 
-  override def hasNotebookClusterPermission(
-    internalId: RuntimeInternalId,
+  override def hasRuntimePermission(
+    samResource: RuntimeSamResource,
     userInfo: UserInfo,
-    action: NotebookClusterAction,
-    googleProject: GoogleProject,
-    runtimeName: RuntimeName
+    action: RuntimeAction,
+    googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     checkWhitelist(userInfo)
 
   override def hasPersistentDiskPermission(
-    internalId: DiskSamResourceId,
+    samResource: PersistentDiskSamResource,
     userInfo: UserInfo,
     action: PersistentDiskAction,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
     checkWhitelist(userInfo)
 
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
+  override def filterUserVisibleRuntimes(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeSamResource)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, RuntimeInternalId)]] =
+  ): IO[List[(GoogleProject, RuntimeSamResource)]] =
     clusters.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
@@ -52,9 +52,10 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       }
     }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, DiskSamResourceId)])(
+  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
+                                                disks: List[(GoogleProject, PersistentDiskSamResource)])(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, DiskSamResourceId)]] =
+  ): IO[List[(GoogleProject, PersistentDiskSamResource)]] =
     disks.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
@@ -62,25 +63,23 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       }
     }
 
-  def notifyClusterCreated(internalId: RuntimeInternalId,
-                           creatorEmail: WorkbenchEmail,
-                           googleProject: GoogleProject,
-                           runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  def notifyRuntimeCreated(samResource: RuntimeSamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] = IO.unit
 
-  def notifyClusterDeleted(internalId: RuntimeInternalId,
+  def notifyRuntimeDeleted(samResource: RuntimeSamResource,
                            userEmail: WorkbenchEmail,
                            creatorEmail: WorkbenchEmail,
-                           googleProject: GoogleProject,
-                           runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def notifyPersistentDiskCreated(
-    internalId: DiskSamResourceId,
+    samResource: PersistentDiskSamResource,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def notifyPersistentDiskDeleted(
-    internalId: DiskSamResourceId,
+    samResource: PersistentDiskSamResource,
     userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject

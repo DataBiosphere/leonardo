@@ -16,6 +16,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
@@ -500,7 +501,7 @@ final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntime
                                       updateAutopauseThreshold: Option[FiniteDuration])
 
 final case class ListRuntimeResponse2(id: Long,
-                                      internalId: RuntimeInternalId,
+                                      samResource: RuntimeSamResource,
                                       clusterName: RuntimeName,
                                       googleProject: GoogleProject,
                                       auditInfo: AuditInfo,

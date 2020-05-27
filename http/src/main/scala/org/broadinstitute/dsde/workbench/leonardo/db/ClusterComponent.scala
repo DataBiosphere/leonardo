@@ -18,10 +18,10 @@ import org.broadinstitute.dsde.workbench.model.google.{
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor
-
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -372,13 +372,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def getActiveClusterInternalIdByName(project: GoogleProject, name: RuntimeName)(
     implicit ec: ExecutionContext
-  ): DBIO[Option[RuntimeInternalId]] =
+  ): DBIO[Option[RuntimeSamResource]] =
     clusterQuery
       .filter(_.googleProject === project)
       .filter(_.clusterName === name)
       .filter(_.destroyedDate === dummyDate)
       .result
-      .map(recs => recs.headOption.map(clusterRec => RuntimeInternalId(clusterRec.internalId)))
+      .map(recs => recs.headOption.map(clusterRec => RuntimeSamResource(clusterRec.internalId)))
 
   private[leonardo] def getIdByUniqueKey(cluster: Runtime)(implicit ec: ExecutionContext): DBIO[Option[Long]] =
     getIdByUniqueKey(cluster.googleProject, cluster.runtimeName, cluster.auditInfo.destroyedDate)
@@ -548,7 +548,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                              serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
-      runtime.internalId.asString,
+      runtime.samResource.resourceId,
       runtime.runtimeName,
       runtime.asyncRuntimeFields.map(_.googleId),
       runtime.googleProject,
@@ -697,7 +697,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
     Runtime(
       clusterRecord.id,
-      RuntimeInternalId(clusterRecord.internalId),
+      RuntimeSamResource(clusterRecord.internalId),
       name,
       project,
       clusterRecord.serviceAccountInfo,

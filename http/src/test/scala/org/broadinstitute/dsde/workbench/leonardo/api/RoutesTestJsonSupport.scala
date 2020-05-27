@@ -9,6 +9,7 @@ import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   CreateRuntimeRequest,
   GetRuntimeResponse,
@@ -23,7 +24,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
   implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]
-      internalId <- x.downField("internalId").as[RuntimeInternalId]
+      internalId <- x.downField("internalId").as[RuntimeSamResource]
       clusterName <- x.downField("clusterName").as[RuntimeName]
       googleProject <- x.downField("googleProject").as[GoogleProject]
       serviceAccountInfo <- x.downField("googleServiceAccount").as[WorkbenchEmail]
@@ -76,7 +77,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
   implicit val getClusterResponseDecoder: Decoder[GetRuntimeResponse] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]
-      internalId <- x.downField("internalId").as[RuntimeInternalId]
+      internalId <- x.downField("internalId").as[RuntimeSamResource]
       clusterName <- x.downField("clusterName").as[RuntimeName]
       googleProject <- x.downField("googleProject").as[GoogleProject]
       serviceAccountInfo <- x.downField("serviceAccountInfo").as[WorkbenchEmail]

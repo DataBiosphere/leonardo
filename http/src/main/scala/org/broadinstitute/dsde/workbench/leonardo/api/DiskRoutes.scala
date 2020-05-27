@@ -15,11 +15,12 @@ import cats.mtl.ApplicativeAsk
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit timer: Timer[IO]
@@ -202,7 +203,7 @@ object DiskRoutes {
     "zone",
     "name",
     "googleId",
-    "samResourceId",
+    "serviceAccount",
     "status",
     "auditInfo",
     "size",
@@ -216,7 +217,7 @@ object DiskRoutes {
       x.zone,
       x.name,
       x.googleId,
-      x.samResourceId,
+      x.serviceAccount,
       x.status,
       x.auditInfo,
       x.size,
@@ -288,7 +289,8 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            zone: ZoneName,
                                            name: DiskName,
                                            googleId: Option[GoogleId],
-                                           samResourceId: DiskSamResourceId,
+                                           serviceAccount: WorkbenchEmail,
+                                           samResource: PersistentDiskSamResource,
                                            status: DiskStatus,
                                            auditInfo: AuditInfo,
                                            size: DiskSize,

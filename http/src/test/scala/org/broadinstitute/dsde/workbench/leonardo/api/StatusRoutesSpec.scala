@@ -9,7 +9,7 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -63,43 +63,25 @@ class StatusRoutesSpec
         IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
 
       override def hasResourcePermission(
-        resourceId: String,
+        resource: SamResource,
         action: String,
-        resourceTypeName: ResourceTypeName,
         authHeader: Authorization
       )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
 
-      override def getResourcePolicies[A](authHeader: Authorization, resourseTypeName: ResourceTypeName)(
+      override def getResourcePolicies[A](authHeader: Authorization, resourceType: SamResourceType)(
         implicit decoder: EntityDecoder[IO, List[A]],
         ev: ApplicativeAsk[IO, TraceId]
       ): IO[List[A]] = ???
 
-      override def createClusterResource(internalId: RuntimeInternalId,
-                                         creatorEmail: WorkbenchEmail,
-                                         googleProject: GoogleProject,
-                                         clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+      override def createResource(resource: SamResource,
+                                  creatorEmail: WorkbenchEmail,
+                                  googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         ???
 
-      override def deleteClusterResource(internalId: RuntimeInternalId,
-                                         userEmail: WorkbenchEmail,
-                                         creatorEmail: WorkbenchEmail,
-                                         googleProject: GoogleProject,
-                                         clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-        ???
-
-      override def createPersistentDiskResource(
-        internalId: DiskSamResourceId,
-        creatorEmail: WorkbenchEmail,
-        googleProject: GoogleProject
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-        ???
-
-      override def deletePersistentDiskResource(
-        internalId: DiskSamResourceId,
-        userEmail: WorkbenchEmail,
-        creatorEmail: WorkbenchEmail,
-        googleProject: GoogleProject
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+      override def deleteResource(resource: SamResource,
+                                  userEmail: WorkbenchEmail,
+                                  creatorEmail: WorkbenchEmail,
+                                  googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         ???
 
       override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(

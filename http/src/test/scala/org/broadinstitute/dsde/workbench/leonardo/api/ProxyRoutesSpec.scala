@@ -63,8 +63,8 @@ class ProxyRoutesSpec
 
   before {
     proxyService.googleTokenCache.invalidateAll()
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
-                                            Some(runtimeInternalId))
+    proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
+                                             Some(runtimeSamResource))
   }
 
   val prefix = "proxy"
@@ -81,8 +81,8 @@ class ProxyRoutesSpec
       validateCors()
     }
     val newName = "aDifferentClusterName"
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)),
-                                            Some(runtimeInternalId))
+    proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(newName)),
+                                             Some(runtimeSamResource))
     Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.NotFound
@@ -104,8 +104,8 @@ class ProxyRoutesSpec
       status shouldEqual StatusCodes.NotFound
     }
     // should still 404 even if a cache entry is present
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(newName)),
-                                            Some(runtimeInternalId))
+    proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(newName)),
+                                             Some(runtimeSamResource))
     Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
@@ -145,8 +145,8 @@ class ProxyRoutesSpec
     val queue = InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync
     val proxyService =
       new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache, Some(queue))
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
-                                            Some(runtimeInternalId))
+    proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
+                                             Some(runtimeSamResource))
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
     Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.OK

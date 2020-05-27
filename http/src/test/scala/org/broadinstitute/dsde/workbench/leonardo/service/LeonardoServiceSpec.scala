@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.GCR
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
@@ -564,12 +565,11 @@ class LeonardoServiceSpec
 
     validateStatus.unsafeRunSync()
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyClusterDeleted(
-      RuntimeInternalId(mockitoEq(cluster.internalId.asString)),
+    verify(spyProvider, never).notifyRuntimeDeleted(
+      RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
-      mockitoEq(project),
-      RuntimeName(mockitoEq(name1.asString))
+      mockitoEq(project)
     )(any[ApplicativeAsk[IO, TraceId]])
   }
 
@@ -632,12 +632,11 @@ class LeonardoServiceSpec
     validateStatus.unsafeRunSync()
 
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyClusterDeleted(
-      RuntimeInternalId(mockitoEq(cluster.internalId.asString)),
+    verify(spyProvider, never).notifyRuntimeDeleted(
+      RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
-      mockitoEq(project),
-      RuntimeName(mockitoEq(name1.asString))
+      mockitoEq(project)
     )(any[ApplicativeAsk[IO, TraceId]])
   }
 

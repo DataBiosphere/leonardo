@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -10,7 +11,8 @@ final case class PersistentDisk(id: DiskId,
                                 zone: ZoneName,
                                 name: DiskName,
                                 googleId: Option[GoogleId],
-                                samResourceId: DiskSamResourceId,
+                                serviceAccount: WorkbenchEmail,
+                                samResource: PersistentDiskSamResource,
                                 status: DiskStatus,
                                 auditInfo: AuditInfo,
                                 size: DiskSize,
@@ -21,15 +23,18 @@ final case class PersistentDisk(id: DiskId,
 }
 
 final case class DiskId(value: Long) extends AnyVal
-final case class DiskSamResourceId(asString: String) extends AnyVal
 
 /** Default persistent disk labels */
-case class DefaultDiskLabels(diskName: DiskName, googleProject: GoogleProject, creator: WorkbenchEmail) {
+case class DefaultDiskLabels(diskName: DiskName,
+                             googleProject: GoogleProject,
+                             creator: WorkbenchEmail,
+                             serviceAccount: WorkbenchEmail) {
   def toMap: LabelMap =
     Map(
       "diskName" -> diskName.value,
       "googleProject" -> googleProject.value,
-      "creator" -> creator.value
+      "creator" -> creator.value,
+      "serviceAccount" -> serviceAccount.value
     ).filterNot(_._2 == null)
 }
 

@@ -5,6 +5,7 @@ import java.time.Instant
 
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
@@ -18,7 +19,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       zone: ZoneName,
                                       name: DiskName,
                                       googleId: Option[GoogleId],
-                                      samResourceId: DiskSamResourceId,
+                                      serviceAccount: WorkbenchEmail,
+                                      samResource: PersistentDiskSamResource,
                                       status: DiskStatus,
                                       creator: WorkbenchEmail,
                                       createdDate: Instant,
@@ -34,7 +36,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def zone = column[ZoneName]("zone", O.Length(255))
   def name = column[DiskName]("name", O.Length(255))
   def googleId = column[Option[GoogleId]]("googleId", O.Length(255))
-  def samResourceId = column[DiskSamResourceId]("samResourceId", O.Length(255))
+  def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(255))
+  def samResourceId = column[PersistentDiskSamResource]("samResourceId", O.Length(255))
   def status = column[DiskStatus]("status", O.Length(255))
   def creator = column[WorkbenchEmail]("creator", O.Length(255))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
@@ -50,6 +53,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      zone,
      name,
      googleId,
+     serviceAccount,
      samResourceId,
      status,
      creator,
@@ -117,7 +121,8 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       disk.zone,
       disk.name,
       disk.googleId,
-      disk.samResourceId,
+      disk.serviceAccount,
+      disk.samResource,
       disk.status,
       disk.auditInfo.creator,
       disk.auditInfo.createdDate,
@@ -151,7 +156,8 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       rec.zone,
       rec.name,
       rec.googleId,
-      rec.samResourceId,
+      rec.serviceAccount,
+      rec.samResource,
       rec.status,
       AuditInfo(
         rec.creator,

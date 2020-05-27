@@ -17,6 +17,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
@@ -25,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -35,20 +36,20 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
-final case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: RuntimeName)
+final case class RuntimeNotReadyException(googleProject: GoogleProject, runtimeName: RuntimeName)
     extends LeoException(
-      s"Cluster ${googleProject.value}/${clusterName.asString} is not ready yet. It may be updating, try again later",
+      s"Runtime ${googleProject.value}/${runtimeName.asString} is not ready yet. It may be updating, try again later",
       StatusCodes.Locked
     )
 
-final case class ClusterPausedException(googleProject: GoogleProject, clusterName: RuntimeName)
+final case class RuntimePausedException(googleProject: GoogleProject, runtimeName: RuntimeName)
     extends LeoException(
-      s"Cluster ${googleProject.value}/${clusterName.asString} is stopped. Start your cluster before proceeding.",
+      s"Runtime ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding.",
       StatusCodes.UnprocessableEntity
     )
 
-final case class ProxyException(googleProject: GoogleProject, clusterName: RuntimeName)
-    extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.asString}",
+final case class ProxyException(googleProject: GoogleProject, runtimeName: RuntimeName)
+    extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${runtimeName.asString}",
                          StatusCodes.InternalServerError)
 
 final case object AccessTokenExpiredException
@@ -100,66 +101,66 @@ class ProxyService(
       }
     } yield res
 
-  /* Cache for the cluster internal id from the database */
-  private[leonardo] val clusterInternalIdCache = CacheBuilder
+  /* Cache for the runtime sam resource from the database */
+  private[leonardo] val runtimeSamResourceCache = CacheBuilder
     .newBuilder()
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
-      new CacheLoader[(GoogleProject, RuntimeName), Option[RuntimeInternalId]] {
-        def load(key: (GoogleProject, RuntimeName)): Option[RuntimeInternalId] = {
-          val (googleProject, clusterName) = key
+      new CacheLoader[(GoogleProject, RuntimeName), Option[RuntimeSamResource]] {
+        def load(key: (GoogleProject, RuntimeName)): Option[RuntimeSamResource] = {
+          val (googleProject, runtimeName) = key
           clusterQuery
-            .getActiveClusterInternalIdByName(googleProject, clusterName)
+            .getActiveClusterInternalIdByName(googleProject, runtimeName)
             .transaction
             .unsafeRunSync()
         }
       }
     )
 
-  def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: RuntimeName)(
+  def getCachedRuntimeSamResource(googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[RuntimeInternalId] =
-    blocker.blockOn(IO(clusterInternalIdCache.get((googleProject, clusterName)))).flatMap {
-      case Some(clusterInternalId) => IO.pure(clusterInternalId)
+  ): IO[RuntimeSamResource] =
+    blocker.blockOn(IO(runtimeSamResourceCache.get((googleProject, runtimeName)))).flatMap {
+      case Some(runtimeSamResource) => IO.pure(runtimeSamResource)
       case None =>
         IO(
           logger.error(
-            s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.asString}"
+            s"${ev.ask.unsafeRunSync()} | Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
           )
-        ) >> IO.raiseError[RuntimeInternalId](RuntimeNotFoundException(googleProject, clusterName))
+        ) >> IO.raiseError[RuntimeSamResource](RuntimeNotFoundException(googleProject, runtimeName))
     }
 
   /*
-   * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the cluster exists
+   * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the runtime exists
    */
   private[leonardo] def authCheck(
     userInfo: UserInfo,
     googleProject: GoogleProject,
-    clusterName: RuntimeName,
-    notebookAction: NotebookClusterAction
+    runtimeName: RuntimeName,
+    notebookAction: RuntimeAction
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
-      internalId <- getCachedClusterInternalId(googleProject, clusterName)
+      samResource <- getCachedRuntimeSamResource(googleProject, runtimeName)
       hasViewPermission <- authProvider
-        .hasNotebookClusterPermission(internalId, userInfo, GetClusterStatus, googleProject, clusterName)
+        .hasRuntimePermission(samResource, userInfo, GetRuntimeStatus, googleProject)
       //TODO: combine the sam calls into one
       hasRequiredPermission <- authProvider
-        .hasNotebookClusterPermission(internalId, userInfo, notebookAction, googleProject, clusterName)
+        .hasRuntimePermission(samResource, userInfo, notebookAction, googleProject)
       _ <- if (!hasViewPermission) {
-        IO.raiseError(RuntimeNotFoundException(googleProject, clusterName))
+        IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName))
       } else if (!hasRequiredPermission) {
         IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
       } else IO.unit
     } yield ()
 
-  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName, request: HttpRequest)(
+  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[HttpResponse] =
     for {
-      _ <- authCheck(userInfo, googleProject, clusterName, SyncDataToCluster)
+      _ <- authCheck(userInfo, googleProject, runtimeName, SyncDataToRuntime)
       now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      r <- proxyInternal(googleProject, clusterName, request, Instant.ofEpochMilli(now))
+      r <- proxyInternal(googleProject, runtimeName, request, Instant.ofEpochMilli(now))
     } yield r
 
   def invalidateAccessToken(token: String): IO[Unit] =
@@ -171,37 +172,37 @@ class ProxyService(
    * Returns NotFound if a notebook server IP could not be found for the project/cluster name.
    * @param userInfo the current user
    * @param googleProject the Google project
-   * @param clusterName the cluster name
+   * @param runtimeName the cluster name
    * @param request the HTTP request to proxy
    * @return HttpResponse future representing the proxied response, or NotFound if a notebook
    *         server IP could not be found.
    */
-  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName, request: HttpRequest)(
+  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[HttpResponse] =
     for {
-      _ <- authCheck(userInfo, googleProject, clusterName, ConnectToCluster)
+      _ <- authCheck(userInfo, googleProject, runtimeName, ConnectToRuntime)
       now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      r <- proxyInternal(googleProject, clusterName, request, Instant.ofEpochMilli(now))
+      r <- proxyInternal(googleProject, runtimeName, request, Instant.ofEpochMilli(now))
     } yield r
 
-  def getTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
-    Proxy.getTargetHost[IO](clusterDnsCache, googleProject, clusterName)
+  def getTargetHost(googleProject: GoogleProject, runtimeName: RuntimeName): IO[HostStatus] =
+    Proxy.getTargetHost[IO](clusterDnsCache, googleProject, runtimeName)
 
   private def proxyInternal(googleProject: GoogleProject,
-                            clusterName: RuntimeName,
+                            runtimeName: RuntimeName,
                             request: HttpRequest,
                             now: Instant): IO[HttpResponse] = {
     logger.debug(
-      s"Received proxy request for ${googleProject}/${clusterName}: ${clusterDnsCache.stats} / ${clusterDnsCache.size}"
+      s"Received proxy request for ${googleProject}/${runtimeName}: ${clusterDnsCache.stats} / ${clusterDnsCache.size}"
     )
-    getTargetHost(googleProject, clusterName) flatMap {
+    getTargetHost(googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
         // The presence of this header distinguishes WebSocket from http requests.
         val res = for {
-          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(clusterName, googleProject, now))
+          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, now))
           response <- request.header[UpgradeToWebSocket] match {
             case Some(upgrade) =>
               IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
@@ -216,20 +217,20 @@ class ProxyService(
         res.recoverWith {
           case e =>
             IO(logger.error("Error occurred in proxy", e)) >> IO.raiseError[HttpResponse](
-              ProxyException(googleProject, clusterName)
+              ProxyException(googleProject, runtimeName)
             )
         }
       case HostNotReady =>
-        IO(logger.warn(s"proxy host not ready for ${googleProject}/${clusterName}")) >> IO.raiseError(
-          ClusterNotReadyException(googleProject, clusterName)
+        IO(logger.warn(s"proxy host not ready for ${googleProject}/${runtimeName}")) >> IO.raiseError(
+          RuntimeNotReadyException(googleProject, runtimeName)
         )
       case HostPaused =>
-        IO(logger.warn(s"proxy host paused for ${googleProject}/${clusterName}")) >> IO.raiseError(
-          ClusterPausedException(googleProject, clusterName)
+        IO(logger.warn(s"proxy host paused for ${googleProject}/${runtimeName}")) >> IO.raiseError(
+          RuntimePausedException(googleProject, runtimeName)
         )
       case HostNotFound =>
-        IO(logger.warn(s"proxy host not found for ${googleProject}/${clusterName}")) >> IO.raiseError(
-          RuntimeNotFoundException(googleProject, clusterName)
+        IO(logger.warn(s"proxy host not found for ${googleProject}/${runtimeName}")) >> IO.raiseError(
+          RuntimeNotFoundException(googleProject, runtimeName)
         )
     }
   }

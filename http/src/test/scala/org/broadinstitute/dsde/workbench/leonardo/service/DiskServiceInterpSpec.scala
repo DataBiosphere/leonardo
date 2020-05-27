@@ -9,10 +9,9 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateDiskRequest, UpdateDiskRequest}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -29,8 +28,7 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
   val diskService = new DiskServiceInterp(
     Config.persistentDiskConfig,
     whitelistAuthProvider,
-    new MockDockerDAO,
-    FakeGoogleStorageInterpreter,
+    serviceAccountProvider,
     publisherQueue
   )
   val emptyCreateDiskReq = CreateDiskRequest(
@@ -96,14 +94,14 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      samResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = samResourceId).save()
+      samResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(DiskId(1)).copy(samResource = samResource).save()
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label1", "value1").transaction
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label2", "value2").transaction
       labelResp <- labelQuery.getAllForResource(disk.id.value, LabelResourceType.PersistentDisk).transaction
       getResponse <- diskService.getDisk(userInfo, disk.googleProject, disk.name)
     } yield {
-      getResponse.samResourceId shouldBe disk.samResourceId
+      getResponse.samResource shouldBe disk.samResource
       getResponse.labels shouldBe labelResp
     }
     res.unsafeRunSync()
@@ -158,8 +156,8 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
 
     val res = for {
       context <- ctx.ask
-      diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId).save()
+      diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
 
       _ <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name)
       dbDiskOpt <- persistentDiskQuery
@@ -181,8 +179,8 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val res = for {
-          diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-          disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId, status = status).save()
+          diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+          disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
           fail <- diskService
             .updateDisk(userInfo, disk.googleProject, disk.name, req)
@@ -199,8 +197,8 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
 
     val res = for {
       context <- ctx.ask
-      diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId).save()
+      diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, Some(DiskSize(600)), None, None)
       _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)
       message <- publisherQueue.dequeue1

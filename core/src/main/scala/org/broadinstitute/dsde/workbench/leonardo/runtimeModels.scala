@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ValueObject, WorkbenchEmail}
 
@@ -19,7 +20,7 @@ import scala.collection.immutable
  */
 /** The runtime itself */
 final case class Runtime(id: Long,
-                         internalId: RuntimeInternalId,
+                         samResource: RuntimeSamResource,
                          runtimeName: RuntimeName,
                          googleProject: GoogleProject,
                          serviceAccount: WorkbenchEmail,
@@ -381,7 +382,7 @@ final case class RunningRuntime(googleProject: GoogleProject,
                                 runtimeName: RuntimeName,
                                 containers: List[RuntimeContainerServiceType])
 
-final case class RuntimeInternalId(asString: String) extends AnyVal
+//final case class RuntimeInternalId(asString: String) extends AnyVal
 final case class RuntimeName(asString: String) extends AnyVal
 final case class RuntimeError(errorMessage: String, errorCode: Int, timestamp: Instant)
 final case class RuntimeErrorDetails(longMessage: String,

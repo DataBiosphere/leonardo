@@ -12,6 +12,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, _}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -236,11 +237,11 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
+      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
       getResponse <- runtimeService.getRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
     } yield {
-      getResponse.internalId shouldBe testRuntime.internalId
+      getResponse.samResource shouldBe testRuntime.samResource
     }
     res.unsafeRunSync()
   }
@@ -249,13 +250,13 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      internalId1 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      internalId2 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      _ <- IO(makeCluster(1).copy(internalId = internalId1).save())
-      _ <- IO(makeCluster(2).copy(internalId = internalId2).save())
+      samResource1 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
+      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
     } yield {
-      listResponse.map(_.internalId).toSet shouldBe Set(internalId1, internalId2)
+      listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
     }
 
     res.unsafeRunSync()
@@ -265,13 +266,13 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      internalId1 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      internalId2 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      _ <- IO(makeCluster(1).copy(internalId = internalId1).save())
-      _ <- IO(makeCluster(2).copy(internalId = internalId2).save())
+      samResource1 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
+      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, Some(project), Map.empty)
     } yield {
-      listResponse.map(_.internalId).toSet shouldBe Set(internalId1, internalId2)
+      listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
     }
 
     res.unsafeRunSync()
@@ -281,14 +282,14 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      internalId1 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      internalId2 <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      runtime1 <- IO(makeCluster(1).copy(internalId = internalId1).save())
-      _ <- IO(makeCluster(2).copy(internalId = internalId2).save())
+      samResource1 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
+      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map("foo" -> "bar"))
     } yield {
-      listResponse.map(_.internalId).toSet shouldBe Set(internalId1)
+      listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
     }
 
     res.unsafeRunSync()
@@ -300,8 +301,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
-      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
+      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
 
       _ <- service.deleteRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
       res <- withLeoPublisher(publisherQueue) {
@@ -326,8 +327,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
-      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      testRuntime <- IO(makeCluster(1).copy(internalId = internalId).save())
+      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
 
       _ <- service.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
       res <- withLeoPublisher(publisherQueue) {
@@ -352,8 +353,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
-      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      testRuntime <- IO(makeCluster(1).copy(internalId = internalId, status = RuntimeStatus.Stopped).save())
+      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Stopped).save())
 
       _ <- service.startRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
       res <- withLeoPublisher(publisherQueue) {
@@ -376,8 +377,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-      testRuntime <- IO(makeCluster(1).copy(internalId = internalId, status = RuntimeStatus.Running).save())
+      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
       req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
 
       _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
@@ -399,8 +400,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
       it should s"fail to update a runtime in $status status" in isolatedDbTest {
         val res = for {
-          internalId <- IO(RuntimeInternalId(UUID.randomUUID.toString))
-          testRuntime <- IO(makeCluster(1).copy(internalId = internalId, status = status).save())
+          samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+          testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
           req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
           fail <- runtimeService
             .updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
