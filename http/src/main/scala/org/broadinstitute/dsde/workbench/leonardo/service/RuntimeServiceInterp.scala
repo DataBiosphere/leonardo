@@ -168,7 +168,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimes <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listCluster db query")))
       samVisibleRuntimes <- authProvider
-        .filterUserVisibleClusters(userInfo, runtimes.map(c => (c.googleProject, c.samResource)))
+        .filterUserVisibleRuntimes(userInfo, runtimes.map(c => (c.googleProject, c.samResource)))
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible clusters")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create
