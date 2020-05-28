@@ -102,6 +102,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                        req.runtimeConfig.map(_.cloudService).getOrElse(CloudService.GCE),
                                        userInfo)
             )
+            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done process disk config")))
             // For GCE, make diskConfig.size take precedence over runtimeConfig.diskSize
             gceRuntimeDefaults = diskOpt match {
               case Some(disk) => config.gceConfig.runtimeConfigDefaults.copy(diskSize = disk.size)
@@ -183,9 +184,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       paramMap <- F.fromEither(processListParameters(params))
       runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listCluster db query")))
-      samVisibleRuntimes <- authProvider
-        .filterUserVisibleRuntimes(userInfo, runtimes.map(c => (c.googleProject, c.samResource)))
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible clusters")))
+      samVisibleClusters <- authProvider
+        .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visiable clusters")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
