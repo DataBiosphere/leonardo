@@ -62,10 +62,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // Grab the service accounts from serviceAccountProvider for use later
-      clusterServiceAccountOpt <- serviceAccountProvider
+      serviceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
       petSA <- F.fromEither(
-        clusterServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
+        serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
       diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
