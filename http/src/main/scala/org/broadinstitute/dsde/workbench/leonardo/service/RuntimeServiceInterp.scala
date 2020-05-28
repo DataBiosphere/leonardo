@@ -34,10 +34,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.Att
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimePatchDetails}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 
@@ -51,7 +52,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   implicit F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
-  ec: ExecutionContext
+  ec: ExecutionContext,
+  metrics: OpenTelemetryMetrics[F]
 ) extends RuntimeService[F] {
 
   override def createRuntime(
@@ -422,23 +424,35 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                          runtime: Runtime,
                                                          runtimeConfig: RuntimeConfig,
                                                          traceId: TraceId): F[Unit] =
-    (runtimeConfig, request) match {
-      case (gceConfig @ RuntimeConfig.GceConfig(_, _), req @ UpdateRuntimeConfigRequest.GceConfig(_, _)) =>
-        processUpdateGceConfigRequest(req, allowStop, runtime, gceConfig, traceId)
+    for {
 
-      case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _),
-            req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>
-        processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig, traceId)
+      msg <- (runtimeConfig, request) match {
+        case (gceConfig @ RuntimeConfig.GceConfig(_, _), req @ UpdateRuntimeConfigRequest.GceConfig(_, _)) =>
+          processUpdateGceConfigRequest(req, allowStop, runtime, gceConfig, traceId)
+        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _),
+              req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>
+          processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig, traceId)
 
-      case _ =>
-        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService, traceId))
-    }
+        case _ =>
+          Async[F].raiseError[Option[UpdateRuntimeMessage]](
+            WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService, traceId)
+          )
+      }
+      _ <- msg.traverse_ { m =>
+        if (m.stopToUpdateMachineType) {
+          val patchDetails = RuntimePatchDetails(runtime.id, RuntimeStatus.Stopped)
+          patchQuery.save(patchDetails, m.newMachineType).transaction.void >> metrics.incrementCounter(
+            "patchStopToUpdateMachineType"
+          )
+        } else F.unit
+      }
+    } yield ()
 
   private[service] def processUpdateGceConfigRequest(req: UpdateRuntimeConfigRequest.GceConfig,
                                                      allowStop: Boolean,
                                                      runtime: Runtime,
                                                      gceConfig: RuntimeConfig.GceConfig,
-                                                     traceId: TraceId): F[Unit] =
+                                                     traceId: TraceId): F[Option[UpdateRuntimeMessage]] =
     for {
       // should machine type be updated?
       targetMachineType <- traverseIfChanged(req.updatedMachineType, gceConfig.machineType) { mt =>
@@ -456,7 +470,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           Async[F].pure(d)
       }
       // if either of the above is defined, send a PubSub message
-      _ <- (targetMachineType orElse targetDiskSize).traverse_ { _ =>
+      msg <- (targetMachineType orElse targetDiskSize).traverse { _ =>
         val message = UpdateRuntimeMessage(runtime.id,
                                            targetMachineType.map(_._1),
                                            targetMachineType.map(_._2).getOrElse(false),
@@ -464,15 +478,15 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            None,
                                            None,
                                            Some(traceId))
-        publisherQueue.enqueue1(message)
+        publisherQueue.enqueue1(message).as(message)
       }
-    } yield ()
+    } yield msg
 
   private[service] def processUpdateDataprocConfigRequest(req: UpdateRuntimeConfigRequest.DataprocConfig,
                                                           allowStop: Boolean,
                                                           runtime: Runtime,
                                                           dataprocConfig: RuntimeConfig.DataprocConfig,
-                                                          traceId: TraceId): F[Unit] =
+                                                          traceId: TraceId): F[Option[UpdateRuntimeMessage]] =
     for {
       // should num workers be updated?
       targetNumWorkers <- traverseIfChanged(req.updatedNumberOfWorkers, dataprocConfig.numberOfWorkers)(Async[F].pure)
@@ -504,8 +518,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           Async[F].pure(d)
       }
       // if any of the above is defined, send a PubSub message
-      _ <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
-        .traverse_ { _ =>
+      msg <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
+        .traverse { _ =>
           val message = UpdateRuntimeMessage(
             runtime.id,
             targetMasterMachineType.map(_._1),
@@ -515,9 +529,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             targetNumPreemptibles,
             Some(traceId)
           )
-          publisherQueue.enqueue1(message)
+          publisherQueue.enqueue1(message).as(message)
         }
-    } yield ()
+    } yield msg
 
   private[service] def processDiskConfigRequest(
     req: DiskConfigRequest,

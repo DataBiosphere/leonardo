@@ -237,7 +237,8 @@ object Boot extends IOApp {
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitor.process // check database to autopause runtimes periodically
           )
-        } else List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
+        } else
+          List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
 
         List(
           appDependencies.leoPublisher.process, //start the publisher queue .dequeue
