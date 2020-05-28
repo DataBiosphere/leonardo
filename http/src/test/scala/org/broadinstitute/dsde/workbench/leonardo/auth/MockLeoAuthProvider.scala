@@ -80,30 +80,15 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
     else
       IO.raiseError(new RuntimeException("boom"))
 
-  override def notifyRuntimeCreated(samResource: RuntimeSamResource,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def notifyResourceCreated(samResource: SamResource,
+                                     creatorEmail: WorkbenchEmail,
+                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
-  override def notifyRuntimeDeleted(samResource: RuntimeSamResource,
-                                    userEmail: WorkbenchEmail,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    notifyInternal
-
-  override def notifyPersistentDiskCreated(
-    internalId: PersistentDiskSamResource,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    notifyInternal
-
-  override def notifyPersistentDiskDeleted(
-    internalId: PersistentDiskSamResource,
-    userEmail: WorkbenchEmail,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def notifyResourceDeleted(samResource: SamResource,
+                                     userEmail: WorkbenchEmail,
+                                     creatorEmail: WorkbenchEmail,
+                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
 }

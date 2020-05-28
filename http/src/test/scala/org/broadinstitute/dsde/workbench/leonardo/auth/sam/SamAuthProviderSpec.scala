@@ -92,7 +92,7 @@ class SamAuthProviderSpec
     }
 
     // creating a cluster would call notify
-    samAuthProvider.notifyRuntimeCreated(runtimeSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider.notifyResourceCreated(runtimeSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
 
     // check the resource exists for the user and actions
     defaultPermittedActions.foreach { action =>
@@ -102,7 +102,7 @@ class SamAuthProviderSpec
     }
     // deleting a cluster would call notify
     samAuthProvider
-      .notifyRuntimeDeleted(runtimeSamResource, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
+      .notifyResourceDeleted(runtimeSamResource, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
       .unsafeRunSync()
 
     mockSam.runtimes shouldBe empty
@@ -144,7 +144,7 @@ class SamAuthProviderSpec
 
   "notifyClusterCreated should create a new cluster resource" in {
     mockSam.runtimes shouldBe empty
-    samAuthProvider.notifyRuntimeCreated(runtimeSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider.notifyResourceCreated(runtimeSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
     mockSam.runtimes.toList should contain(
       (runtimeSamResource, fakeUserAuthorization) -> Set("connect", "read_policies", "status", "delete", "sync")
     )
@@ -155,7 +155,7 @@ class SamAuthProviderSpec
     mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set()
 
     samAuthProvider
-      .notifyRuntimeDeleted(runtimeSamResource, userInfo.userEmail, userInfo.userEmail, project)
+      .notifyResourceDeleted(runtimeSamResource, userInfo.userEmail, userInfo.userEmail, project)
       .unsafeRunSync()
     mockSam.runtimes.toList should not contain ((runtimeSamResource, fakeUserAuthorization) -> Set(
       "connect",
@@ -255,7 +255,7 @@ class SamAuthProviderSpec
     }
 
     // creating a disk would call notify
-    samAuthProvider.notifyPersistentDiskCreated(diskSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider.notifyResourceCreated(diskSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
 
     // check the resource exists for the user and actions
     defaultPermittedActions.foreach { action =>
@@ -265,7 +265,7 @@ class SamAuthProviderSpec
     }
     // deleting a disk would call notify
     samAuthProvider
-      .notifyPersistentDiskDeleted(diskSamResource, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
+      .notifyResourceDeleted(diskSamResource, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
       .unsafeRunSync()
 
     mockSam.persistentDisks shouldBe empty
@@ -306,7 +306,7 @@ class SamAuthProviderSpec
 
   "notifyPersistentDiskCreated should create a new persistent disk resource" in {
     mockSam.persistentDisks shouldBe empty
-    samAuthProvider.notifyPersistentDiskCreated(diskSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider.notifyResourceCreated(diskSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
     mockSam.persistentDisks.toList should contain(
       (diskSamResource, fakeUserAuthorization) -> Set("read", "read_policies", "attach", "modify", "delete")
     )
@@ -317,7 +317,7 @@ class SamAuthProviderSpec
     mockSam.persistentDisks += (diskSamResource, fakeUserAuthorization) -> Set()
 
     samAuthProvider
-      .notifyPersistentDiskDeleted(diskSamResource, userInfo.userEmail, userInfo.userEmail, project)
+      .notifyResourceDeleted(diskSamResource, userInfo.userEmail, userInfo.userEmail, project)
       .unsafeRunSync()
     mockSam.persistentDisks.toList should not contain ((diskSamResource, fakeUserAuthorization) -> Set("read",
                                                                                                        "attach",

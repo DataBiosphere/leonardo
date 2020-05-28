@@ -23,20 +23,16 @@ object SamResource {
 
 sealed trait SamResourceType extends Product with Serializable {
   def asString: String
-  type ResourcePolicy
 }
 object SamResourceType {
   final case object Project extends SamResourceType {
     val asString = "billing-project"
-    override type ResourcePolicy = SamProjectPolicy
   }
   final case object Runtime extends SamResourceType {
     val asString = "notebook-cluster"
-    override type ResourcePolicy = SamRuntimePolicy
   }
   final case object PersistentDisk extends SamResourceType {
     val asString = "persistent-disk"
-    override type ResourcePolicy = SamPersistentDiskPolicy
   }
   val stringToSamResourceType: Map[String, SamResourceType] =
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap

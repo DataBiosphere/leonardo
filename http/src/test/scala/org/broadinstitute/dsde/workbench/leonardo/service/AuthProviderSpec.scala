@@ -182,12 +182,12 @@ class AuthProviderSpec
       leo.deleteCluster(userInfo, project, cluster1Name).unsafeRunSync()
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyRuntimeCreated(any[String].asInstanceOf[RuntimeSamResource],
-                                               any[WorkbenchEmail],
-                                               any[GoogleProject])(any[ApplicativeAsk[IO, TraceId]])
+      verify(spyProvider).notifyResourceCreated(any[String].asInstanceOf[RuntimeSamResource],
+                                                any[WorkbenchEmail],
+                                                any[GoogleProject])(any[ApplicativeAsk[IO, TraceId]])
 
       // notification of deletion happens only after it has been fully deleted
-      verify(spyProvider, never).notifyRuntimeDeleted(
+      verify(spyProvider, never).notifyResourceDeleted(
         any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
@@ -242,12 +242,12 @@ class AuthProviderSpec
       clusterNotFoundAgain shouldBe a[RuntimeNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyRuntimeCreated(
+      verify(spyProvider, Mockito.never).notifyResourceCreated(
         any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[GoogleProject]
       )(any[ApplicativeAsk[IO, TraceId]])
-      verify(spyProvider, Mockito.never).notifyRuntimeDeleted(
+      verify(spyProvider, Mockito.never).notifyResourceDeleted(
         any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
@@ -305,12 +305,12 @@ class AuthProviderSpec
       clusterDestroyException shouldBe a[AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyRuntimeCreated(
+      verify(spyProvider, Mockito.never).notifyResourceCreated(
         any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[GoogleProject]
       )(any[ApplicativeAsk[IO, TraceId]])
-      verify(spyProvider, Mockito.never).notifyRuntimeDeleted(
+      verify(spyProvider, Mockito.never).notifyResourceDeleted(
         any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
@@ -337,9 +337,9 @@ class AuthProviderSpec
       mockGoogleDataprocDAO.clusters should not contain key(cluster1Name)
 
       // creation notifications should have been fired
-      verify(spyProvider).notifyRuntimeCreated(any[String].asInstanceOf[RuntimeSamResource],
-                                               any[WorkbenchEmail],
-                                               any[GoogleProject])(any[ApplicativeAsk[IO, TraceId]])
+      verify(spyProvider).notifyResourceCreated(any[String].asInstanceOf[RuntimeSamResource],
+                                                any[WorkbenchEmail],
+                                                any[GoogleProject])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should return clusters the user created even if the auth provider doesn't" in isolatedDbTest {

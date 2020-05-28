@@ -74,12 +74,12 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         case Some(c) => F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, diskName, c.status))
         case None =>
           for {
-            samResourceId <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
+            samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
             disk <- F.fromEither(
-              convertToDisk(userInfo, petSA, googleProject, diskName, samResourceId, config, req, ctx.now)
+              convertToDisk(userInfo, petSA, googleProject, diskName, samResource, config, req, ctx.now)
             )
             _ <- authProvider
-              .notifyPersistentDiskCreated(samResourceId, userInfo.userEmail, googleProject)
+              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"

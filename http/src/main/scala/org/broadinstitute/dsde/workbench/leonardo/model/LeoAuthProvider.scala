@@ -66,21 +66,12 @@ trait LeoAuthProvider[F[_]] {
 
   //Notifications that Leo has created/destroyed resources. Allows the auth provider to register things.
 
-  def notifyRuntimeCreated(samResource: RuntimeSamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+  def notifyResourceCreated(samResource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
-  def notifyRuntimeDeleted(samResource: RuntimeSamResource,
-                           userEmail: WorkbenchEmail,
-                           creatorEmail: WorkbenchEmail,
-                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-
-  def notifyPersistentDiskCreated(samResource: PersistentDiskSamResource,
-                                  creatorEmail: WorkbenchEmail,
-                                  googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-
-  def notifyPersistentDiskDeleted(samResource: PersistentDiskSamResource,
-                                  userEmail: WorkbenchEmail,
-                                  creatorEmail: WorkbenchEmail,
-                                  googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def notifyResourceDeleted(samResource: SamResource,
+                            userEmail: WorkbenchEmail,
+                            creatorEmail: WorkbenchEmail,
+                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 }

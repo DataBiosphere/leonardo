@@ -395,7 +395,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
           }
 
           _ <- authProvider
-            .notifyRuntimeDeleted(
+            .notifyResourceDeleted(
               runtimeAndRuntimeConfig.runtime.samResource,
               runtimeAndRuntimeConfig.runtime.auditInfo.creator,
               runtimeAndRuntimeConfig.runtime.auditInfo.creator,

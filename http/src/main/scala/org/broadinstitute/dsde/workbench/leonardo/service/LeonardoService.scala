@@ -303,7 +303,7 @@ class LeonardoService(
         .info(
           s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
         )
-      _ <- authProvider.notifyRuntimeCreated(internalId, userEmail, googleProject).handleErrorWith { t =>
+      _ <- authProvider.notifyResourceCreated(internalId, userEmail, googleProject).handleErrorWith { t =>
         log.info(
           s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
         ) >> IO.raiseError(t)

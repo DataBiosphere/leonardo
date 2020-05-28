@@ -382,7 +382,6 @@ final case class RunningRuntime(googleProject: GoogleProject,
                                 runtimeName: RuntimeName,
                                 containers: List[RuntimeContainerServiceType])
 
-//final case class RuntimeInternalId(asString: String) extends AnyVal
 final case class RuntimeName(asString: String) extends AnyVal
 final case class RuntimeError(errorMessage: String, errorCode: Int, timestamp: Instant)
 final case class RuntimeErrorDetails(longMessage: String,

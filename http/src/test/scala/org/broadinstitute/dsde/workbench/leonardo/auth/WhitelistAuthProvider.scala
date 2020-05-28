@@ -5,6 +5,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -59,27 +60,14 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       }
     }
 
-  def notifyRuntimeCreated(samResource: RuntimeSamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+  def notifyResourceCreated(samResource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] = IO.unit
 
-  def notifyRuntimeDeleted(samResource: RuntimeSamResource,
-                           userEmail: WorkbenchEmail,
-                           creatorEmail: WorkbenchEmail,
-                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
-
-  override def notifyPersistentDiskCreated(
-    samResource: PersistentDiskSamResource,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
-
-  override def notifyPersistentDiskDeleted(
-    samResource: PersistentDiskSamResource,
-    userEmail: WorkbenchEmail,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  def notifyResourceDeleted(samResource: SamResource,
+                            userEmail: WorkbenchEmail,
+                            creatorEmail: WorkbenchEmail,
+                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 }

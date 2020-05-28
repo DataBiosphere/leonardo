@@ -118,7 +118,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
             _ <- authProvider
-              .notifyRuntimeCreated(samResource, userInfo.userEmail, googleProject)
+              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${context.traceId}] Failed to notify the AuthProvider for creation of runtime ${runtime.projectNameString}"
@@ -212,7 +212,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             DeleteRuntimeMessage(runtime.id, Some(ctx.traceId))
           )
       } else {
-        clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyRuntimeDeleted(
+        clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyResourceDeleted(
           runtime.samResource,
           runtime.auditInfo.creator,
           runtime.auditInfo.creator,

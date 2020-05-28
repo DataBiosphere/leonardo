@@ -94,26 +94,15 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     userInfo: UserInfo,
     disks: List[(GoogleProject, PersistentDiskSamResource)]
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, PersistentDiskSamResource)]] = ???
-  override def notifyRuntimeCreated(samResource: RuntimeSamResource,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def notifyResourceCreated(samResource: SamResource,
+                                     creatorEmail: WorkbenchEmail,
+                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     ???
-  override def notifyRuntimeDeleted(samResource: RuntimeSamResource,
-                                    userEmail: WorkbenchEmail,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def notifyResourceDeleted(samResource: SamResource,
+                                     userEmail: WorkbenchEmail,
+                                     creatorEmail: WorkbenchEmail,
+                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
-  override def notifyPersistentDiskCreated(
-    samResource: PersistentDiskSamResource,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
-  override def notifyPersistentDiskDeleted(
-    samResource: PersistentDiskSamResource,
-    userEmail: WorkbenchEmail,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

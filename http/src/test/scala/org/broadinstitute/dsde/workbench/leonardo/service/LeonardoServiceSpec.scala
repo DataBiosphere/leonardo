@@ -565,7 +565,7 @@ class LeonardoServiceSpec
 
     validateStatus.unsafeRunSync()
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyRuntimeDeleted(
+    verify(spyProvider, never).notifyResourceDeleted(
       RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
@@ -632,7 +632,7 @@ class LeonardoServiceSpec
     validateStatus.unsafeRunSync()
 
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyRuntimeDeleted(
+    verify(spyProvider, never).notifyResourceDeleted(
       RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),

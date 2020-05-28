@@ -266,32 +266,18 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     }
   }
 
-  override def notifyRuntimeCreated(samResource: RuntimeSamResource,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def notifyResourceCreated(samResource: SamResource,
+                                     creatorEmail: WorkbenchEmail,
+                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.createResource(samResource, creatorEmail, googleProject)
 
-  override def notifyRuntimeDeleted(samResource: RuntimeSamResource,
-                                    userEmail: WorkbenchEmail,
-                                    creatorEmail: WorkbenchEmail,
-                                    googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    samDao.deleteResource(samResource, userEmail, creatorEmail, googleProject)
-
-  override def notifyPersistentDiskCreated(
-    samResource: PersistentDiskSamResource,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    samDao.createResource(samResource, creatorEmail, googleProject)
-
-  override def notifyPersistentDiskDeleted(
-    samResource: PersistentDiskSamResource,
-    userEmail: WorkbenchEmail,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def notifyResourceDeleted(samResource: SamResource,
+                                     userEmail: WorkbenchEmail,
+                                     creatorEmail: WorkbenchEmail,
+                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, userEmail, creatorEmail, googleProject)
 }
+
 final case class SamAuthProviderConfig(notebookAuthCacheEnabled: Boolean,
                                        notebookAuthCacheMaxSize: Int = 1000,
                                        notebookAuthCacheExpiryTime: FiniteDuration = 15 minutes)
