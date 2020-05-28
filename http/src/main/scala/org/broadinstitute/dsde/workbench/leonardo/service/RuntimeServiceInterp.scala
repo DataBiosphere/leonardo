@@ -208,16 +208,15 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
       listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
-      hasStatusPermission = listOfPermissions.contains("status")
-      
+      hasStatusPermission = listOfPermissions.toSet.contains(NotebookClusterAction.GetClusterStatus)
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done first hasNotebookClusterPermission")))
 
       _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
 
       // throw 403 if no DeleteCluster permission
 
-
-      hasDeletePermission = listOfPermissions.contains("delete")
+      hasDeletePermission = listOfPermissions.toSet.contains(NotebookClusterAction.DeleteCluster)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done 2nd hasNotebookClusterPermission")))
 
@@ -246,7 +245,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey,
               "false")
         .transaction
-      _ <- log.info(s"AT THE END OF DELETE")
     } yield ()
 
   def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
@@ -264,15 +262,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
-      hasStatusPermission = listOfPermissions.contains("status")
+      hasStatusPermission = listOfPermissions.toSet.contains(NotebookClusterAction.GetClusterStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-
 
       _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
 
       // throw 403 if no StopStartCluster permission
-      hasStopPermission = listOfPermissions.contains("stop_start")
+      hasStopPermission = listOfPermissions.toSet.contains(NotebookClusterAction.StopStartCluster)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done 2nd sam hasNotebookClusterPermission check")))
 
@@ -301,16 +298,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
-      hasStatusPermission = listOfPermissions.contains("status")
+      hasStatusPermission = listOfPermissions.toSet.contains(NotebookClusterAction.GetClusterStatus)
 
       _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
 
-
-
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
 
-
-      hasStartPermission = listOfPermissions.contains("stop_start")
+      hasStartPermission = listOfPermissions.contains(NotebookClusterAction.StopStartCluster)
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
 
       // throw 403 if no StopStartCluster permission
@@ -344,12 +338,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getNotebookClusterActions(runtime.internalId, userInfo)
 
-      hasStatusPermission = listOfPermissions.contains("status")
+      hasStatusPermission = listOfPermissions.toSet.contains(NotebookClusterAction.GetClusterStatus)
 
       _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
 
       // throw 403 if no ModifyCluster permission
-      hasModifyPermission = listOfPermissions.contains("modify")
+      hasModifyPermission = listOfPermissions.contains(NotebookClusterAction.ModifyCluster)
 
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not updatable

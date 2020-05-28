@@ -59,7 +59,7 @@ trait LeoAuthProvider[F[_]] {
    */
   def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[String]]
+  ): F[List[NotebookClusterAction]]
 
 
 
