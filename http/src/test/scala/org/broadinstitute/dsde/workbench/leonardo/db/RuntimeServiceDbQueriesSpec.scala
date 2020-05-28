@@ -58,8 +58,8 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       list1 shouldEqual List.empty
-      val c1Expected = toListRuntimeResponse(c1, Map.empty, Some(DiskConfig.fromPersistentDisk(d1)))
-      val c2Expected = toListRuntimeResponse(c2, Map.empty, Some(DiskConfig.fromPersistentDisk(d2)))
+      val c1Expected = toListRuntimeResponse(c1, Map.empty)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty)
       list2 shouldEqual List(c1Expected)
       list3.toSet shouldEqual Set(c1Expected, c2Expected)
       elapsed should be < maxElapsed
@@ -96,8 +96,8 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
     } yield {
       list1 shouldEqual List.empty
       list2 shouldEqual List.empty
-      val c1Expected = toListRuntimeResponse(c1, labels1, Some(DiskConfig.fromPersistentDisk(d1)))
-      val c2Expected = toListRuntimeResponse(c2, labels2, Some(DiskConfig.fromPersistentDisk(d2)))
+      val c1Expected = toListRuntimeResponse(c1, labels1)
+      val c2Expected = toListRuntimeResponse(c2, labels2)
       list3 shouldEqual List(c1Expected)
       list4 shouldEqual List(c2Expected)
       list5.toSet shouldEqual Set(c1Expected, c2Expected)
@@ -120,8 +120,8 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
-      val c1Expected = toListRuntimeResponse(c1, Map.empty, Some(DiskConfig.fromPersistentDisk(d1)))
-      val c2Expected = toListRuntimeResponse(c2, Map.empty, Some(DiskConfig.fromPersistentDisk(d2)))
+      val c1Expected = toListRuntimeResponse(c1, Map.empty)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty)
       list1.toSet shouldEqual Set(c1Expected, c2Expected)
       list2 shouldEqual List.empty
       elapsed should be < maxElapsed
@@ -145,9 +145,9 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
-      val c1Expected = toListRuntimeResponse(c1, Map.empty, Some(DiskConfig.fromPersistentDisk(d1)))
-      val c2Expected = toListRuntimeResponse(c2, Map.empty, Some(DiskConfig.fromPersistentDisk(d2)))
-      val c3Expected = toListRuntimeResponse(c3, Map.empty, Some(DiskConfig.fromPersistentDisk(d3)))
+      val c1Expected = toListRuntimeResponse(c1, Map.empty)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty)
+      val c3Expected = toListRuntimeResponse(c3, Map.empty)
       list1.toSet shouldEqual Set(c1Expected, c2Expected, c3Expected)
       list2 shouldEqual List(c3Expected)
       elapsed should be < maxElapsed
@@ -172,9 +172,7 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
     res.unsafeRunSync()
   }
 
-  private def toListRuntimeResponse(runtime: Runtime,
-                                    labels: LabelMap,
-                                    diskConfig: Option[DiskConfig]): ListRuntimeResponse2 =
+  private def toListRuntimeResponse(runtime: Runtime, labels: LabelMap): ListRuntimeResponse2 =
     ListRuntimeResponse2(
       runtime.id,
       runtime.samResource,
@@ -189,8 +187,7 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
                           labels),
       runtime.status,
       labels,
-      false,
-      diskConfig
+      false
     )
 
 }

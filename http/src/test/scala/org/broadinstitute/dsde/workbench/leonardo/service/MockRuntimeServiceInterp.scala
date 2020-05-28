@@ -43,8 +43,7 @@ object MockRuntimeServiceInterp extends RuntimeService[IO] {
           CommonTestData.testCluster.proxyUrl,
           CommonTestData.testCluster.status,
           CommonTestData.testCluster.labels,
-          CommonTestData.testCluster.patchInProgress,
-          None
+          CommonTestData.testCluster.patchInProgress
         )
       )
     )

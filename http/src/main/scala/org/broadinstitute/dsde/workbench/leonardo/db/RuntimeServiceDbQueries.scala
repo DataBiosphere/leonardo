@@ -95,25 +95,16 @@ object RuntimeServiceDbQueries {
       runtimeQueryFilteredByLabel
     )
 
-    val runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatchAndDisk =
-      runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch
-        .joinLeft(persistentDiskQuery)
-        .on { case (a, b) => a._1._1._1.persistentDiskId.isDefined && a._1._1._1.persistentDiskId === b.id }
-
-    runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatchAndDisk.result.map { x =>
-      val runtimeLabelMap
-        : Map[(ClusterRecord, RuntimeConfig, Option[PatchRecord], Option[DiskConfig]), Map[String, Chain[String]]] =
+    runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
+      val runtimeLabelMap: Map[(ClusterRecord, RuntimeConfig, Option[PatchRecord]), Map[String, Chain[String]]] =
         x.toList.foldMap {
-          case ((((runtimeRec, labelRecOpt), runtimeConfigRec), patchRecOpt), diskRecOpt) =>
+          case (((runtimeRec, labelRecOpt), runtimeConfigRec), patchRecOpt) =>
             val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-            val diskConfigOpt = diskRecOpt
-              .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
-              .map(DiskConfig.fromPersistentDisk)
-            Map((runtimeRec, runtimeConfigRec.runtimeConfig, patchRecOpt, diskConfigOpt) -> labelMap)
+            Map((runtimeRec, runtimeConfigRec.runtimeConfig, patchRecOpt) -> labelMap)
         }
 
       runtimeLabelMap.map {
-        case ((runtimeRec, runtimeConfig, patchRecOpt, diskConfigOpt), labelMap) =>
+        case ((runtimeRec, runtimeConfig, patchRecOpt), labelMap) =>
           val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
 
           val patchInProgress = patchRecOpt match {
@@ -134,8 +125,7 @@ object RuntimeServiceDbQueries {
                                 lmp),
             RuntimeStatus.withName(runtimeRec.status),
             lmp,
-            patchInProgress,
-            diskConfigOpt
+            patchInProgress
           )
       }.toList
     }

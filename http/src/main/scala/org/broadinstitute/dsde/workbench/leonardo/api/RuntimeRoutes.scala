@@ -455,7 +455,7 @@ object RuntimeRoutes {
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct10(
+  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct9(
     "id",
     "runtimeName",
     "googleProject",
@@ -464,8 +464,7 @@ object RuntimeRoutes {
     "proxyUrl",
     "status",
     "labels",
-    "patchInProgress",
-    "diskConfig"
+    "patchInProgress"
   )(x =>
     (
       x.id,
@@ -476,8 +475,7 @@ object RuntimeRoutes {
       x.proxyUrl,
       x.status,
       x.labels,
-      x.patchInProgress,
-      x.diskConfig
+      x.patchInProgress
     )
   )
 
@@ -549,8 +547,7 @@ final case class ListRuntimeResponse2(id: Long,
                                       proxyUrl: URL,
                                       status: RuntimeStatus,
                                       labels: LabelMap,
-                                      patchInProgress: Boolean,
-                                      diskConfig: Option[DiskConfig])
+                                      patchInProgress: Boolean)
 
 sealed trait DiskConfigRequest extends Product with Serializable {
   def name: DiskName

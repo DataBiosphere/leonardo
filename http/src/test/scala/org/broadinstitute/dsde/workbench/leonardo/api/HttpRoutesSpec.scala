@@ -452,8 +452,7 @@ object HttpRoutesSpec {
       clusterUrl,
       status,
       labels,
-      patchInProgress,
-      None
+      patchInProgress
     )
   }
 
