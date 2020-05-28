@@ -4,6 +4,7 @@ package db
 import cats.data.Chain
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
@@ -15,6 +16,18 @@ import scala.concurrent.ExecutionContext
 object RuntimeServiceDbQueries {
 
   type ClusterJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
+
+  def getStatusByName(project: GoogleProject,
+                      name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] = {
+    val res = clusterQuery
+      .filter(_.googleProject === project)
+      .filter(_.clusterName === name)
+      .filter(_.destroyedDate === dummyDate)
+      .map(_.status)
+      .result
+
+    res.map(recs => recs.headOption.flatMap(x => RuntimeStatus.withNameInsensitiveOption(x)))
+  }
 
   def clusterLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): ClusterJoinLabel =
     for {

@@ -19,13 +19,6 @@ sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Produ
 object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   val values = findValues
 
-  // TODO: remove when LeonardoService is removed. UpdateRuntime is used instead.
-  final case object StopUpdate extends LeoPubsubMessageType {
-    val asString = "stopUpdate"
-  }
-  final case object TransitionFinished extends LeoPubsubMessageType {
-    val asString = "transitionFinished"
-  }
   final case object CreateRuntime extends LeoPubsubMessageType {
     val asString = "createRuntime"
   }
@@ -59,18 +52,6 @@ sealed trait LeoPubsubMessage {
 }
 
 object LeoPubsubMessage {
-  // TODO: remove when LeonardoService is removed. UpdateRuntimeMessage is used instead.
-  final case class StopUpdateMessage(updatedMachineConfig: RuntimeConfig, runtimeId: Long, traceId: Option[TraceId])
-      extends LeoPubsubMessage {
-    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopUpdate
-  }
-
-  final case class RuntimeTransitionMessage(runtimePatchDetails: RuntimePatchDetails, traceId: Option[TraceId])
-      extends LeoPubsubMessage {
-    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.TransitionFinished
-    val runtimeId = runtimePatchDetails.runtimeId
-  }
-
   final case class CreateRuntimeMessage(runtimeId: Long,
                                         runtimeProjectAndName: RuntimeProjectAndName,
                                         serviceAccountInfo: WorkbenchEmail,
@@ -184,14 +165,8 @@ final case class RuntimePatchDetails(runtimeId: Long, runtimeStatus: RuntimeStat
 final case class PubsubException(message: String) extends WorkbenchException(message)
 
 object LeoPubsubCodec {
-  implicit val stopUpdateMessageDecoder: Decoder[StopUpdateMessage] =
-    Decoder.forProduct3("updatedMachineConfig", "clusterId", "traceId")(StopUpdateMessage.apply)
-
   implicit val runtimePatchDetailsDecoder: Decoder[RuntimePatchDetails] =
     Decoder.forProduct2("clusterId", "clusterStatus")(RuntimePatchDetails.apply)
-
-  implicit val clusterTransitionFinishedDecoder: Decoder[RuntimeTransitionMessage] =
-    Decoder.forProduct2("clusterPatchDetails", "traceId")(RuntimeTransitionMessage.apply)
 
   implicit val deleteRuntimeDecoder: Decoder[DeleteRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(DeleteRuntimeMessage.apply)
@@ -238,34 +213,24 @@ object LeoPubsubCodec {
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       value <- messageType match {
-        case LeoPubsubMessageType.StopUpdate         => message.as[StopUpdateMessage]
-        case LeoPubsubMessageType.TransitionFinished => message.as[RuntimeTransitionMessage]
-        case LeoPubsubMessageType.CreateRuntime      => message.as[CreateRuntimeMessage]
-        case LeoPubsubMessageType.DeleteRuntime      => message.as[DeleteRuntimeMessage]
-        case LeoPubsubMessageType.StopRuntime        => message.as[StopRuntimeMessage]
-        case LeoPubsubMessageType.StartRuntime       => message.as[StartRuntimeMessage]
-        case LeoPubsubMessageType.UpdateRuntime      => message.as[UpdateRuntimeMessage]
-        case LeoPubsubMessageType.CreateDisk         => message.as[CreateDiskMessage]
-        case LeoPubsubMessageType.UpdateDisk         => message.as[UpdateDiskMessage]
-        case LeoPubsubMessageType.DeleteDisk         => message.as[DeleteDiskMessage]
+        case LeoPubsubMessageType.CreateDisk    => message.as[CreateDiskMessage]
+        case LeoPubsubMessageType.UpdateDisk    => message.as[UpdateDiskMessage]
+        case LeoPubsubMessageType.DeleteDisk    => message.as[DeleteDiskMessage]
+        case LeoPubsubMessageType.CreateRuntime => message.as[CreateRuntimeMessage]
+        case LeoPubsubMessageType.DeleteRuntime => message.as[DeleteRuntimeMessage]
+        case LeoPubsubMessageType.StopRuntime   => message.as[StopRuntimeMessage]
+        case LeoPubsubMessageType.StartRuntime  => message.as[StartRuntimeMessage]
+        case LeoPubsubMessageType.UpdateRuntime => message.as[UpdateRuntimeMessage]
       }
     } yield value
   }
 
   implicit val leoPubsubMessageTypeEncoder: Encoder[LeoPubsubMessageType] = Encoder.encodeString.contramap(_.asString)
 
-  implicit val stopUpdateMessageEncoder: Encoder[StopUpdateMessage] =
-    Encoder.forProduct3("messageType", "updatedMachineConfig", "clusterId")(x =>
-      (x.messageType, x.updatedMachineConfig, x.runtimeId)
-    )
-
   implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap(_.toString)
 
   implicit val runtimePatchDetailsEncoder: Encoder[RuntimePatchDetails] =
     Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.runtimeId, x.runtimeStatus))
-
-  implicit val runtimeTransitionFinishedEncoder: Encoder[RuntimeTransitionMessage] =
-    Encoder.forProduct2("messageType", "clusterPatchDetails")(x => (x.messageType, x.runtimePatchDetails))
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
     Encoder.forProduct17(
@@ -389,16 +354,14 @@ object LeoPubsubCodec {
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
     message match {
-      case m: StopUpdateMessage        => m.asJson
-      case m: RuntimeTransitionMessage => m.asJson
-      case m: CreateRuntimeMessage     => m.asJson
-      case m: DeleteRuntimeMessage     => m.asJson
-      case m: StopRuntimeMessage       => m.asJson
-      case m: StartRuntimeMessage      => m.asJson
-      case m: UpdateRuntimeMessage     => m.asJson
-      case m: CreateDiskMessage        => m.asJson
-      case m: UpdateDiskMessage        => m.asJson
-      case m: DeleteDiskMessage        => m.asJson
+      case m: CreateDiskMessage    => m.asJson
+      case m: UpdateDiskMessage    => m.asJson
+      case m: DeleteDiskMessage    => m.asJson
+      case m: CreateRuntimeMessage => m.asJson
+      case m: DeleteRuntimeMessage => m.asJson
+      case m: StopRuntimeMessage   => m.asJson
+      case m: StartRuntimeMessage  => m.asJson
+      case m: UpdateRuntimeMessage => m.asJson
     }
   }
 }

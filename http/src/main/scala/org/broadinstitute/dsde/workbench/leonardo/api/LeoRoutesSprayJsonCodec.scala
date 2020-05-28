@@ -5,8 +5,7 @@ package api
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   CreateRuntimeResponse,
   GetRuntimeResponse,
-  ListRuntimeResponse,
-  UpdateRuntimeResponse
+  ListRuntimeResponse
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
@@ -239,43 +238,4 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       JsObject(presentFields: _*)
 
     }
-
-  implicit val UpdateRuntimeResponseFormat: RootJsonWriter[UpdateRuntimeResponse] = (obj: UpdateRuntimeResponse) => {
-    val allFields = List(
-      "id" -> obj.id.toJson,
-      "internalId" -> obj.internalId.asString.toJson,
-      "clusterName" -> obj.clusterName.asString.toJson,
-      "googleId" -> obj.asyncRuntimeFields.map(_.googleId.value).toJson,
-      "googleProject" -> obj.googleProject.toJson,
-      "googleServiceAccount" -> obj.serviceAccountInfo.toJson,
-      "machineConfig" -> obj.runtimeConfig.toJson, //Note, for this response, we're still encoding runtimeConfig as machineConfig
-      "clusterUrl" -> obj.clusterUrl.toString.toJson,
-      "operationName" -> obj.asyncRuntimeFields.map(_.operationName.value).toJson,
-      "status" -> obj.status.toJson,
-      "hostIp" -> obj.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)).toJson,
-      "creator" -> obj.auditInfo.creator.toJson,
-      "createdDate" -> obj.auditInfo.createdDate.toJson,
-      "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-      "kernelFoundBusyDate" -> obj.kernelFoundBusyDate.toJson,
-      "labels" -> obj.labels.toJson,
-      "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.map(_.asString).toJson,
-      "jupyterStartUserScriptUri" -> obj.jupyterStartUserScriptUri.map(_.asString).toJson,
-      "stagingBucket" -> obj.asyncRuntimeFields.map(_.stagingBucket).toJson,
-      "errors" -> obj.errors.toJson,
-      "instances" -> obj.dataprocInstances.toJson,
-      "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
-      "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-      "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-      "defaultClientId" -> obj.defaultClientId.toJson,
-      "stopAfterCreation" -> obj.stopAfterCreation.toJson,
-      "clusterImages" -> obj.clusterImages.toJson,
-      "scopes" -> obj.scopes.toJson,
-      "welderEnabled" -> obj.welderEnabled.toJson,
-      "patchInProgress" -> obj.patchInProgress.toJson
-    )
-
-    val presentFields = allFields.filter(_._2 != JsNull)
-
-    JsObject(presentFields: _*)
-  }
 }

@@ -305,7 +305,7 @@ class ProxyService(
   private def handleWebSocketRequest(targetHost: Host,
                                      request: HttpRequest,
                                      upgrade: UpgradeToWebSocket): Future[HttpResponse] = {
-    logger.debug(s"Opening websocket connection to ${targetHost.address}")
+    logger.info(s"Opening websocket connection to ${targetHost.address}")
 
     // This is a similar idea to handleHttpRequest(), we're just using WebSocket APIs instead of HTTP ones.
     // The basis for this method was lifted from https://github.com/akka/akka-http/issues/1289#issuecomment-316269886.

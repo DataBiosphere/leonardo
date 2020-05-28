@@ -12,7 +12,6 @@ import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.{Event, GoogleSubscriber, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.{Starting, Stopped}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -38,10 +37,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   private[monitor] def messageResponder(message: LeoPubsubMessage,
                                         now: Instant)(implicit traceId: ApplicativeAsk[F, AppContext]): F[Unit] =
     message match {
-      case msg: StopUpdateMessage =>
-        handleStopUpdateMessage(msg, now) //TODO: does this need monitor?
-      case msg: RuntimeTransitionMessage =>
-        handleRuntimeTransitionFinished(msg, now)
       case msg: CreateRuntimeMessage =>
         handleCreateRuntimeMessage(msg, now)
       case msg: DeleteRuntimeMessage =>
@@ -94,97 +89,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     logger.info(s"acking message: ${event}") >> F.delay(
       event.consumer.ack()
     )
-
-  private def handleStopUpdateMessage(message: StopUpdateMessage,
-                                      now: Instant)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
-    dbRef
-      .inTransaction(clusterQuery.getClusterById(message.runtimeId))
-      .flatMap {
-        case Some(resolvedCluster) if RuntimeStatus.stoppableStatuses.contains(resolvedCluster.status) =>
-          for {
-            _ <- logger.info(
-              s"stopping cluster ${resolvedCluster.projectNameString} in messageResponder"
-            )
-            _ <- dbRef.inTransaction(
-              clusterQuery.setToStopping(message.runtimeId, now)
-            )
-            runtimeConfig <- dbRef.inTransaction(
-              RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId)
-            )
-            _ <- runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(resolvedCluster, runtimeConfig), now))
-          } yield ()
-        case Some(resolvedCluster) =>
-          F.raiseError(
-            PubsubHandleMessageError
-              .ClusterInvalidState(message.runtimeId, resolvedCluster.projectNameString, resolvedCluster, message)
-          )
-        case None =>
-          F.raiseError(PubsubHandleMessageError.ClusterNotFound(message.runtimeId, message))
-      }
-
-  // This can be deprecated once we have Dataproc also moved to fs2.Stream for monitoring
-  private def handleRuntimeTransitionFinished(
-    message: RuntimeTransitionMessage,
-    now: Instant
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
-    message.runtimePatchDetails.runtimeStatus match {
-      case Stopped =>
-        for {
-          clusterOpt <- dbRef.inTransaction {
-            clusterQuery.getClusterById(message.runtimePatchDetails.runtimeId)
-          }
-          savedMasterMachineType <- dbRef.inTransaction {
-            patchQuery.getPatchAction(message.runtimePatchDetails.runtimeId)
-          }
-
-          result <- clusterOpt match {
-            case Some(resolvedCluster)
-                if resolvedCluster.status != RuntimeStatus.Stopped && savedMasterMachineType.isDefined =>
-              F.raiseError[Unit](
-                PubsubHandleMessageError.ClusterNotStopped(resolvedCluster.id,
-                                                           resolvedCluster.projectNameString,
-                                                           resolvedCluster.status,
-                                                           message)
-              )
-            case Some(resolvedCluster) =>
-              savedMasterMachineType match {
-                case Some(machineType) =>
-                  for {
-                    runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(resolvedCluster.runtimeConfigId).transaction
-                    _ <- runtimeConfig.cloudService.interpreter
-                      .updateMachineType(UpdateMachineTypeParams(resolvedCluster, machineType, now))
-                    _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(resolvedCluster, now))
-                    _ <- dbRef.inTransaction {
-                      clusterQuery.updateClusterStatus(
-                        resolvedCluster.id,
-                        RuntimeStatus.Starting,
-                        now
-                      )
-                    }
-                  } yield ()
-                case None => F.unit //the database has no record of a follow-up being needed. This is a no-op
-              }
-
-            case None =>
-              F.raiseError[Unit](
-                PubsubHandleMessageError.ClusterNotFound(message.runtimePatchDetails.runtimeId, message)
-              )
-          }
-        } yield result
-
-      case Starting =>
-        for {
-          _ <- dbRef.inTransaction {
-            patchQuery.updatePatchAsComplete(message.runtimePatchDetails.runtimeId)
-          }
-          // TODO: should eventually check if the resulting machine config is what the user requested to see if the patch worked correctly
-        } yield ()
-
-      //No actions for other statuses yet. There is some logic that will be needed for all other cases (i.e. the 'None' case where no cluster is found in the db and possibly the case that checks for the data in the DB)
-      // TODO: Refactor once there is more than one case
-      case _ => F.unit
-    }
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage, now: Instant)(
     implicit ev: ApplicativeAsk[F, AppContext]

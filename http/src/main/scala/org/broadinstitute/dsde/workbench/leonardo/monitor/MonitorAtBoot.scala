@@ -10,18 +10,15 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.leonardo.db.patchQuery
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.RuntimeTransitionMessage
 import org.broadinstitute.dsde.workbench.leonardo.http.cloudServiceSyntax
 
 import scala.concurrent.ExecutionContext
 
-class MonitorAtBoot[F[_]](
-  publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage]
-)(implicit F: Async[F],
-  dbRef: DbReference[F],
-  logger: Logger[F],
-  ec: ExecutionContext,
-  monitor: RuntimeMonitor[F, CloudService]) {
+class MonitorAtBoot[F[_]](implicit F: Async[F],
+                          dbRef: DbReference[F],
+                          logger: Logger[F],
+                          ec: ExecutionContext,
+                          monitor: RuntimeMonitor[F, CloudService]) {
   val process: Stream[F, Unit] = {
     implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId("BootMonitoring"))
     val res = clusterQuery.listMonitored
@@ -41,7 +38,6 @@ class MonitorAtBoot[F[_]](
                     s <- F.fromEither(
                       statusOpt.toRight(new Exception(s"${c.id} not found after transition. This is very weird!"))
                     )
-                    _ <- publisherQueue.enqueue1(RuntimeTransitionMessage(RuntimePatchDetails(c.id, s), Some(tid)))
                   } yield ()
                 } else F.unit
               } yield ()

@@ -22,7 +22,7 @@ class AsyncTaskProcessorSpec extends FlatSpec with Matchers with LeonardoTestSui
   it should "execute tasks concurrently" in {
     val start = Instant.now()
     val res = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
-      val tid = traceId.ask.unsafeRunSync()
+      val traceId = appContext.ask.unsafeRunSync().traceId
 
       def io(x: Int): IO[Unit] =
         for {
@@ -39,7 +39,7 @@ class AsyncTaskProcessorSpec extends FlatSpec with Matchers with LeonardoTestSui
       val tasks = Stream
         .emits(1 to 10)
         .covary[IO]
-        .map(x => Task(tid, io(x), None, Instant.now()))
+        .map(x => Task(traceId, io(x), None, Instant.now()))
 
       val stream = tasks.through(queue.enqueue) ++ asyncTaskProcessor.process
       stream.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ())))

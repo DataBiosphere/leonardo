@@ -34,8 +34,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 
 class DataprocRuntimeMonitorSpec extends FlatSpec with TestComponent with LeonardoTestSuite with EitherValues {
-  implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
-
   "creatingRuntime" should "check again if cluster doesn't exist yet" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,

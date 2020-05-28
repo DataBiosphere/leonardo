@@ -9,7 +9,7 @@ import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
-import cats.data.{Ior, OptionT}
+import cats.data.OptionT
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
@@ -28,19 +28,16 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition.
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateRuntimeMessage,
   DeleteRuntimeMessage,
   StartRuntimeMessage,
-  StopRuntimeMessage,
-  StopUpdateMessage
+  StopRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchException}
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.ExecutionContext
@@ -181,7 +178,6 @@ class LeonardoService(
   log: Logger[IO],
   cs: ContextShift[IO],
   timer: Timer[IO],
-  metrics: OpenTelemetryMetrics[IO],
   dbRef: DbReference[IO],
   runtimeInstances: RuntimeInstances[IO])
     extends LazyLogging
@@ -354,134 +350,6 @@ class LeonardoService(
       case Some(cluster) => IO.pure(cluster)
     }
 
-  def updateCluster(
-    userInfo: UserInfo,
-    googleProject: GoogleProject,
-    clusterName: RuntimeName,
-    clusterRequest: CreateRuntimeRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateRuntimeResponse] =
-    for {
-      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if nonexistent or no auth
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
-      updatedCluster <- internalUpdateCluster(cluster, clusterRequest, runtimeConfig)
-    } yield UpdateRuntimeResponse.fromCluster(updatedCluster, runtimeConfig)
-
-  def internalUpdateCluster(
-    existingCluster: Runtime,
-    clusterRequest: CreateRuntimeRequest,
-    existingRuntimeConfig: RuntimeConfig
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Runtime] =
-    if (existingCluster.status.isUpdatable) {
-      for {
-        autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster,
-                                                          clusterRequest.autopause,
-                                                          clusterRequest.autopauseThreshold).attempt
-
-        (error, shouldUpdate, followUpAction) <- (existingRuntimeConfig, clusterRequest.runtimeConfig) match {
-          case (existing, Some(target)) =>
-            existing match {
-              case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedError("GCE is not supported yet"))
-              case existingRuntimeConfig: RuntimeConfig.DataprocConfig =>
-                target match {
-                  case _: RuntimeConfigRequest.GceConfig =>
-                    IO.raiseError(
-                      new WorkbenchException(
-                        "Bad request. This runtime is created with GCE, and can not be updated to use dataproc"
-                      )
-                    ) //TODO: use better exception
-                  case x: RuntimeConfigRequest.DataprocConfig =>
-                    for {
-                      now <- nowInstant
-                      clusterResized <- maybeResizeCluster(existingCluster,
-                                                           existingRuntimeConfig,
-                                                           x.numberOfWorkers,
-                                                           x.numberOfPreemptibleWorkers).attempt
-                      masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster,
-                                                                               existingRuntimeConfig,
-                                                                               x.masterMachineType,
-                                                                               clusterRequest.allowStop,
-                                                                               now).attempt
-                      masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster,
-                                                                         existingRuntimeConfig,
-                                                                         x.masterDiskSize,
-                                                                         now).attempt
-                    } yield {
-                      val res = List(
-                        autopauseChanged.map(_ => false),
-                        clusterResized.map(_.hasUpdateSucceded),
-                        masterMachineTypeChanged.map(_ => false),
-                        masterDiskSizeChanged.map(_ => false)
-                      ).separate
-                      // Just return the first error; we don't have a great mechanism to return all errors
-                      (
-                        res._1.headOption,
-                        res._2.exists(identity),
-                        masterMachineTypeChanged.toOption.flatMap(_.followupAction)
-                      )
-                    }
-                }
-            }
-          case _ =>
-            IO.pure((None, false, None))
-        }
-
-        // Set the cluster status to Updating if the cluster was resized
-        now <- nowInstant
-        _ <- if (shouldUpdate) {
-          clusterQuery.updateClusterStatus(existingCluster.id, RuntimeStatus.Updating, now).transaction.void
-        } else IO.unit
-
-        //maybeMasterMachineTypeChanged will throw an error if the appropriate flag hasn't been set to allow special update transitions
-        _ <- followUpAction match {
-          case Some(action) =>
-            //we do not support follow-up transitions when the cluster is set to an updating status
-            if (!shouldUpdate) {
-              logger.info(
-                s"detected follow-up action necessary for update on cluster ${existingCluster.projectNameString}: ${action}"
-              )
-              handleClusterTransition(existingCluster, action, now)
-            } else
-              IO.raiseError(
-                RuntimeCannotBeUpdatedException(
-                  existingCluster.projectNameString,
-                  existingCluster.status,
-                  "You cannot update the CPUs/Memory and the number of workers at the same time. We recommend you do this one at a time. The number of workers will be updated."
-                )
-              )
-          case None =>
-            IO(
-              logger.debug(
-                s"detected no follow-up action necessary for update on runtime ${existingCluster.projectNameString}"
-              )
-            )
-        }
-
-        cluster <- error match {
-          case None    => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.runtimeName)
-          case Some(e) => IO.raiseError(e)
-        }
-      } yield cluster
-
-    } else IO.raiseError(RuntimeCannotBeUpdatedException(existingCluster.projectNameString, existingCluster.status))
-
-  private def handleClusterTransition(existingCluster: Runtime, transition: UpdateTransition, now: Instant)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Unit] =
-    transition match {
-      case StopStartTransition(machineConfig) =>
-        for {
-          traceId <- ev.ask
-          _ <- metrics.incrementCounter(s"pubsub/LeonardoService/StopStartTransition")
-          //sends a message with the config to google pub/sub queue for processing by back leo
-          patchDetails = RuntimePatchDetails(existingCluster.id, RuntimeStatus.Stopped)
-          _ <- patchQuery.save(patchDetails, Some(machineConfig.machineType)).transaction
-          _ <- publisherQueue.enqueue1(StopUpdateMessage(machineConfig, existingCluster.id, Some(traceId)))
-        } yield ()
-
-      //TODO: we currently do not support this
-      case DeleteCreateTransition(_) => IO.raiseError(new NotImplementedError())
-    }
-
   private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] =
     (existing, updated) match {
       case (None, Some(0)) =>
@@ -489,90 +357,6 @@ class LeonardoService(
       case (_, Some(x)) if updated != existing => Some(x)
       case _                                   => None
     }
-
-  def maybeUpdateAutopauseThreshold(existingCluster: Runtime,
-                                    autopause: Option[Boolean],
-                                    autopauseThreshold: Option[Int]): IO[UpdateResult] = {
-    val updatedAutopauseThresholdOpt = getUpdatedValueIfChanged(
-      Option(existingCluster.autopauseThreshold),
-      Option(calculateAutopauseThreshold(autopause, autopauseThreshold, autoFreezeConfig))
-    )
-    updatedAutopauseThresholdOpt match {
-      case Some(updatedAutopauseThreshold) =>
-        for {
-          _ <- log.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
-          now <- nowInstant
-          res <- clusterQuery
-            .updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold, now)
-            .transaction
-            .as(UpdateResult(true, None))
-        } yield res
-
-      case None => IO.pure(UpdateResult(false, None))
-    }
-  }
-
-  //returns true if cluster was resized, otherwise returns false
-  def maybeResizeCluster(
-    existingCluster: Runtime,
-    existingRuntimeConfig: RuntimeConfig.DataprocConfig,
-    targetNumberOfWorkers: Option[Int],
-    targetNumberOfPreemptibleWorkers: Option[Int]
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
-    //machineConfig.numberOfPreemtible undefined, and a 0 is passed in
-    val updatedNumWorkersAndPreemptiblesOpt =
-      Ior.fromOptions(
-        getUpdatedValueIfChanged(Some(existingRuntimeConfig.numberOfWorkers), targetNumberOfWorkers),
-        getUpdatedValueIfChanged(existingRuntimeConfig.numberOfPreemptibleWorkers, targetNumberOfPreemptibleWorkers)
-      )
-
-    updatedNumWorkersAndPreemptiblesOpt match {
-      case Some(updatedNumWorkersAndPreemptibles) =>
-        if (existingCluster.status != RuntimeStatus.Stopped) { //updating the number of workers in a stopped cluster can take forever, so we forbid it
-          for {
-            _ <- log.info(
-              s"New numberOfWorkers($targetNumberOfWorkers) or numberOfPreemptibleWorkers($targetNumberOfPreemptibleWorkers) present. Resizing cluster ${existingCluster.projectNameString}..."
-            )
-            // Resize the cluster
-            _ <- CloudService.Dataproc.interpreter.resizeCluster(
-              ResizeClusterParams(existingCluster,
-                                  updatedNumWorkersAndPreemptibles.left,
-                                  updatedNumWorkersAndPreemptibles.right)
-            )
-
-            // Update the DB
-            now <- nowInstant
-            _ <- dbRef.inTransaction {
-              updatedNumWorkersAndPreemptibles.fold(
-                a => RuntimeConfigQueries.updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now),
-                a =>
-                  RuntimeConfigQueries
-                    .updateNumberOfPreemptibleWorkers(existingCluster.runtimeConfigId, Option(a), now),
-                (a, b) =>
-                  RuntimeConfigQueries
-                    .updateNumberOfWorkers(existingCluster.runtimeConfigId, a, now)
-                    .flatMap(_ =>
-                      RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(
-                        existingCluster.runtimeConfigId,
-                        Option(b),
-                        now
-                      )
-                    )
-              )
-            }
-          } yield UpdateResult(true, None)
-        } else
-          IO.raiseError(
-            RuntimeCannotBeUpdatedException(
-              existingCluster.projectNameString,
-              existingCluster.status,
-              "You cannot update the number of workers in a stopped cluster. Please start your cluster to perform this action"
-            )
-          )
-
-      case None => IO.pure(UpdateResult(false, None))
-    }
-  }
 
   def maybeChangeMasterMachineType(existingCluster: Runtime,
                                    existingRuntimeConfig: RuntimeConfig,
@@ -609,41 +393,6 @@ class LeonardoService(
 
       case None =>
         logger.debug("detected no cluster in maybeChangeMasterMachineType")
-        IO.pure(UpdateResult(false, None))
-    }
-  }
-
-  def maybeChangeMasterDiskSize(
-    existingCluster: Runtime,
-    existingRuntimeConfig: RuntimeConfig,
-    targetMachineSize: Option[DiskSize],
-    now: Instant
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
-    val updatedMasterDiskSizeOpt =
-      getUpdatedValueIfChanged(Some(existingRuntimeConfig.diskSize), targetMachineSize)
-
-    // Note: GCE allows you to increase a persistent disk, but not decrease. Throw an exception if the user tries to decrease their disk.
-    def diskSizeIncreased(newSize: DiskSize): Boolean = existingRuntimeConfig.diskSize.gb < newSize.gb
-
-    updatedMasterDiskSizeOpt match {
-      case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>
-        for {
-          _ <- log.info(
-            s"New target machine size present. Changing master disk size to $updatedMasterDiskSize GB for cluster ${existingCluster.projectNameString}..."
-          )
-          // Update the disk in Google
-          _ <- CloudService.Dataproc.interpreter
-            .updateDiskSize(UpdateDiskSizeParams(existingCluster, updatedMasterDiskSize))
-          // Update the DB
-          _ <- RuntimeConfigQueries
-            .updateDiskSize(existingCluster.runtimeConfigId, updatedMasterDiskSize, now)
-            .transaction
-        } yield UpdateResult(true, None)
-
-      case Some(_) =>
-        IO.raiseError(RuntimeDiskSizeCannotBeDecreasedException(existingCluster))
-
-      case None =>
         IO.pure(UpdateResult(false, None))
     }
   }
@@ -691,11 +440,13 @@ class LeonardoService(
     } else IO.unit
 
   def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[Unit] =
     for {
+      ctx <- ev.ask
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
+      _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done getActiveClusterDetails")))
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
       _ <- checkClusterPermission(userInfo,
@@ -703,6 +454,7 @@ class LeonardoService(
                                   cluster.internalId,
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
+      _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done check sam permission")))
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
@@ -713,19 +465,23 @@ class LeonardoService(
       else
         IO.raiseError[Unit](RuntimeCannotBeStoppedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
-      // stop the runtime
-      traceId <- ev.ask
+      // Update the cluster status to Stopping in the DB
       now <- nowInstant
       _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.PreStopping, now).transaction
-      _ <- publisherQueue.enqueue1(StopRuntimeMessage(cluster.id, Some(traceId)))
+
+      _ <- ctx.span.traverse(s => IO(s.addAnnotation("before enqueue message")))
+      // stop the runtime
+      _ <- publisherQueue.enqueue1(StopRuntimeMessage(cluster.id, Some(ctx.traceId)))
     } yield ()
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[Unit] =
     for {
+      ctx <- ev.ask
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
+      _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done getActiveClusterDetails")))
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
       _ <- checkClusterPermission(userInfo,
@@ -733,7 +489,7 @@ class LeonardoService(
                                   cluster.internalId,
                                   RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
                                   throw403 = true)
-
+      _ <- ctx.span.traverse(s => IO(s.addAnnotation("Check stopStartCluster permission")))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
       else IO.raiseError(CloudServiceNotSupportedException(runtimeConfig.cloudService))
@@ -744,10 +500,11 @@ class LeonardoService(
         IO.raiseError[Unit](RuntimeCannotBeStartedException(cluster.googleProject, cluster.runtimeName, cluster.status))
 
       // start the runtime
-      traceId <- ev.ask
       now <- nowInstant
       _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.PreStarting, now).transaction
-      _ <- publisherQueue.enqueue1(StartRuntimeMessage(cluster.id, Some(traceId)))
+      _ <- ctx.span.traverse(s => IO(s.addAnnotation("before enqueue message")))
+
+      _ <- publisherQueue.enqueue1(StartRuntimeMessage(cluster.id, Some(ctx.traceId)))
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(

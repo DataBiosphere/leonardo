@@ -1,8 +1,8 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.{DockerHub, GCR}
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
@@ -76,10 +76,10 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll wi
   it should s"detect ImageParseException" in withDockerDAO { dockerDAO =>
     val image = GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base") // non existent tag
     val res = for {
-      tid <- traceId.ask
+      ctx <- appContext.ask
       response <- dockerDAO.detectTool(image).attempt
     } yield {
-      response shouldBe Left(ImageParseException(tid, image))
+      response shouldBe Left(ImageParseException(ctx.traceId, image))
     }
     res.unsafeRunSync()
   }
@@ -88,10 +88,10 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll wi
     dockerDAO =>
       val image = GCR("us.gcr.io/broad-dsp-gcr-public/welder-server:latest") // not a supported tool
       val res = for {
-        tid <- traceId.ask
+        ctx <- appContext.ask
         response <- dockerDAO.detectTool(image).attempt
       } yield {
-        response shouldBe Left(InvalidImage(tid, image))
+        response shouldBe Left(InvalidImage(ctx.traceId, image))
       }
       res.unsafeRunSync()
   }
@@ -100,10 +100,10 @@ class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll wi
     dockerDAO =>
       val image = DockerHub("library/nginx:latest") // not a supported tool
       val res = for {
-        tid <- traceId.ask
+        ctx <- appContext.ask
         response <- dockerDAO.detectTool(image).attempt
       } yield {
-        response shouldBe Left(InvalidImage(tid, image))
+        response shouldBe Left(InvalidImage(ctx.traceId, image))
       }
       res.unsafeRunSync()
   }

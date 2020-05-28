@@ -113,42 +113,6 @@ class LeoRoutesSpec
     }
   }
 
-  it should "202 when resizing a running cluster" in isolatedDbTest {
-    val newCluster = defaultClusterRequest
-    val clusterName = "my-cluster"
-
-    Put(s"/cluster/v2/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-
-    // simulate the cluster transitioning to Running
-    dbFutureValue {
-      clusterQuery.getActiveClusterByName(googleProject, RuntimeName(clusterName)).flatMap {
-        case Some(cluster) => clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"), Instant.now)
-        case None          => DBIO.successful(0)
-      }
-    }
-
-    Patch(s"/cluster/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-  }
-
-  it should "409 when updating a non-running cluster" in isolatedDbTest {
-    val newCluster = defaultClusterRequest
-    val clusterName = "my-cluster"
-
-    Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedHttpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-
-    //make sure to leave the cluster in Creating status for this next part
-
-    Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.asJson) ~> timedHttpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Conflict
-    }
-  }
-
   it should "200 when listing no clusters" in isolatedDbTest {
     Get("/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK

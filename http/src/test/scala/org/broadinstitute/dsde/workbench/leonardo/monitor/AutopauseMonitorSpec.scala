@@ -10,7 +10,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, nowInstant}
+import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.FlatSpec
 

@@ -49,8 +49,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
           checkNotebookClusterPermissionWithProjectFallback(key.internalId,
                                                             key.authorization,
                                                             key.action,
-                                                            key.googleProject,
-                                                            key.clusterName).toIO.unsafeRunSync()
+                                                            key.googleProject).toIO.unsafeRunSync()
         }
       }
     )
@@ -136,7 +135,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
         )
       )
     } else {
-      checkNotebookClusterPermissionWithProjectFallback(internalId, authorization, action, googleProject, clusterName)
+      checkNotebookClusterPermissionWithProjectFallback(internalId, authorization, action, googleProject)
     }
   }
 
@@ -155,8 +154,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     internalId: RuntimeInternalId,
     authorization: Authorization,
     action: NotebookClusterAction,
-    googleProject: GoogleProject,
-    clusterName: RuntimeName
+    googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
       traceId <- ev.ask

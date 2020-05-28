@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, nowInstant}
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -26,7 +26,6 @@ import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
 class BaseCloudServiceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent with LeonardoTestSuite {
-  implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
   it should "terminate monitoring process if cluster status is changed in the middle of it" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(true)
 

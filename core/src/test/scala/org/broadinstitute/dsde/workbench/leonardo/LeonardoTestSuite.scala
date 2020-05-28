@@ -1,14 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.util.UUID
-
 import cats.implicits._
 import cats.effect.concurrent.{Deferred, Semaphore}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
-import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
 import org.scalatest.{Assertion, Assertions, Matchers}
 import fs2.Stream
@@ -21,7 +17,7 @@ trait LeonardoTestSuite extends Matchers {
   implicit val testTimer: Timer[IO] = IO.timer(global)
   implicit val cs: ContextShift[IO] = IO.contextShift(global)
   implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
-  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+  implicit val appContext = AppContext.lift[IO](None).unsafeRunSync()
 
   val blocker = Blocker.liftExecutionContext(global)
   val semaphore = Semaphore[IO](10).unsafeRunSync()

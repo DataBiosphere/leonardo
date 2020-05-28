@@ -113,7 +113,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                                      diskName: DiskName,
                                      req: CreateDiskRequest): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]
+      context <- AppContext.generate[IO]()
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -129,7 +129,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                                   googleProject: GoogleProject,
                                   diskName: DiskName): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]
+      context <- AppContext.generate[IO]()
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -140,7 +140,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                                     googleProject: Option[GoogleProject],
                                     params: Map[String, String]): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]
+      context <- AppContext.generate[IO]()
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -151,7 +151,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                                      googleProject: GoogleProject,
                                      diskName: DiskName): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]
+      context <- AppContext.generate[IO]()
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
@@ -163,7 +163,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                                      diskName: DiskName,
                                      req: UpdateDiskRequest): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]
+      context <- AppContext.generate[IO]()
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
