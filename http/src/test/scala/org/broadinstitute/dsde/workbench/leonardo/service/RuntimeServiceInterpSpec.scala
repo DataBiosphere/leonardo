@@ -369,6 +369,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
             .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
             .transaction
           message <- publisherQueue.tryDequeue1
+
+
         } yield {
           dbRuntimeOpt.get.status shouldBe RuntimeStatus.Deleting
           message shouldBe (None)

@@ -226,6 +226,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (runtime.status.isDeletable) F.unit
       else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
       // delete the runtime
+
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreDeleting, ctx.now).transaction >> publisherQueue
           .enqueue1(
@@ -245,6 +246,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey,
               "false")
         .transaction
+      _ <- log.info(s"AT THE END OF DELETE")
     } yield ()
 
   def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
