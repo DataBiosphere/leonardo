@@ -11,35 +11,23 @@ import org.http4s.headers.Authorization
 trait SamDAO[F[_]] {
   def getStatus(implicit ev: ApplicativeAsk[F, TraceId]): F[StatusCheckResponse]
 
-  def hasResourcePermission(resourceId: String,
-                            action: String,
-                            resourceTypeName: ResourceTypeName,
-                            authHeader: Authorization)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
+  def hasResourcePermission(resource: SamResource, action: String, authHeader: Authorization)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Boolean]
 
-  def getResourcePolicies[A](authHeader: Authorization, resourseTypeName: ResourceTypeName)(
+  def getResourcePolicies[A](authHeader: Authorization, resourceType: SamResourceType)(
     implicit decoder: EntityDecoder[F, List[A]],
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[A]]
 
-  def createClusterResource(internalId: RuntimeInternalId,
-                            creatorEmail: WorkbenchEmail,
-                            googleProject: GoogleProject,
-                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit]
 
-  def deleteClusterResource(internalId: RuntimeInternalId,
-                            userEmail: WorkbenchEmail,
-                            creatorEmail: WorkbenchEmail,
-                            googleProject: GoogleProject,
-                            runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-
-  def createPersistentDiskResource(internalId: DiskSamResourceId,
-                                   creatorEmail: WorkbenchEmail,
-                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-
-  def deletePersistentDiskResource(internalId: DiskSamResourceId,
-                                   userEmail: WorkbenchEmail,
-                                   creatorEmail: WorkbenchEmail,
-                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def deleteResource(resource: SamResource,
+                     userEmail: WorkbenchEmail,
+                     creatorEmail: WorkbenchEmail,
+                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]

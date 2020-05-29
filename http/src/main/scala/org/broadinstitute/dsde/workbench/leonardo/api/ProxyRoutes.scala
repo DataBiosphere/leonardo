@@ -17,7 +17,7 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.stream.Materializer
 import cats.effect.{ContextShift, IO}
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction.ConnectToCluster
+import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
@@ -42,7 +42,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
               get {
                 // Check the user for ConnectToCluster privileges and set a cookie in the response
                 onSuccess(
-                  proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster).unsafeToFuture()
+                  proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToRuntime).unsafeToFuture()
                 ) {
                   CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
                     complete {

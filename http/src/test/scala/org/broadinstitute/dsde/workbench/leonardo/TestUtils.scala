@@ -99,7 +99,7 @@ object TestUtils extends Matchers {
 
   def compareClusterAndCreateClusterAPIResponse(c: Runtime, createCluster: CreateRuntimeResponse): Assertion = {
     c.id shouldBe createCluster.id
-    c.internalId shouldBe createCluster.internalId
+    c.samResource shouldBe createCluster.samResource
     c.runtimeName shouldBe createCluster.clusterName
     c.googleProject shouldBe createCluster.googleProject
     c.serviceAccount shouldBe createCluster.serviceAccountInfo

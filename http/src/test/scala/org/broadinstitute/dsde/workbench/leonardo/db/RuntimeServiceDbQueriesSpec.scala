@@ -149,7 +149,7 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
   private def toListRuntimeResponse(runtime: Runtime, labels: LabelMap): ListRuntimeResponse2 =
     ListRuntimeResponse2(
       runtime.id,
-      runtime.internalId,
+      runtime.samResource,
       runtime.runtimeName,
       runtime.googleProject,
       runtime.auditInfo,

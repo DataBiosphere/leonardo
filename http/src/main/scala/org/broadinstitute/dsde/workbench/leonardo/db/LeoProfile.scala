@@ -7,9 +7,10 @@ import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.KubernetesNamespaceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
@@ -93,8 +94,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[ZoneName, String](_.value, ZoneName.apply)
     implicit val diskNameMappedColumnType: BaseColumnType[DiskName] =
       MappedColumnType.base[DiskName, String](_.value, DiskName.apply)
-    implicit val diskSamResourceIdMappedColumnType: BaseColumnType[DiskSamResourceId] =
-      MappedColumnType.base[DiskSamResourceId, String](_.asString, DiskSamResourceId.apply)
+    implicit val diskSamResourceMappedColumnType: BaseColumnType[PersistentDiskSamResource] =
+      MappedColumnType.base[PersistentDiskSamResource, String](_.resourceId, PersistentDiskSamResource.apply)
     implicit val diskStatusMappedColumnType: BaseColumnType[DiskStatus] =
       MappedColumnType.base[DiskStatus, String](_.entryName, DiskStatus.withName)
     implicit val diskTypeMappedColumnType: BaseColumnType[DiskType] =

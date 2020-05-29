@@ -395,12 +395,11 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
           }
 
           _ <- authProvider
-            .notifyClusterDeleted(
-              runtimeAndRuntimeConfig.runtime.internalId,
+            .notifyResourceDeleted(
+              runtimeAndRuntimeConfig.runtime.samResource,
               runtimeAndRuntimeConfig.runtime.auditInfo.creator,
               runtimeAndRuntimeConfig.runtime.auditInfo.creator,
-              runtimeAndRuntimeConfig.runtime.googleProject,
-              runtimeAndRuntimeConfig.runtime.runtimeName
+              runtimeAndRuntimeConfig.runtime.googleProject
             )
 
           // Record metrics in NewRelic

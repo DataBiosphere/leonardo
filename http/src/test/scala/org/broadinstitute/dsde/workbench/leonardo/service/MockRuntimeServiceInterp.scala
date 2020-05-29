@@ -33,7 +33,7 @@ object MockRuntimeServiceInterp extends RuntimeService[IO] {
       Vector(
         ListRuntimeResponse2(
           CommonTestData.testCluster.id,
-          CommonTestData.testCluster.internalId,
+          CommonTestData.testCluster.samResource,
           CommonTestData.testCluster.runtimeName,
           CommonTestData.testCluster.googleProject,
           CommonTestData.testCluster.auditInfo,

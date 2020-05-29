@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -43,7 +44,7 @@ object CommonTestData {
   val name1 = RuntimeName("clustername1")
   val name2 = RuntimeName("clustername2")
   val name3 = RuntimeName("clustername3")
-  val runtimeInternalId = RuntimeInternalId("067e2867-5d4a-47f3-a53c-fd711529b287")
+  val runtimeSamResource = RuntimeSamResource("067e2867-5d4a-47f3-a53c-fd711529b287")
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
@@ -82,7 +83,7 @@ object CommonTestData {
   val zone = ZoneName("us-central1-a")
   val diskName = DiskName("diskName")
   val googleId = GoogleId("google-id")
-  val diskSamResourceId = DiskSamResourceId("disk-resource-id")
+  val diskSamResource = PersistentDiskSamResource("disk-resource-id")
   val diskSize = DiskSize(500)
   val diskType = DiskType.Standard
   val blockSize = BlockSize(4096)
@@ -160,7 +161,7 @@ object CommonTestData {
   val ipRange = IpRange("0.0.0.0/20")
   val networkFields = NetworkFields(networkName, subNetworkName, ipRange)
 
-  val clusterServiceAccount = WorkbenchEmail("testClusterServiceAccount@example.com")
+  val serviceAccount = WorkbenchEmail("testServiceAccount@example.com")
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
   val olderRuntimeAuditInfo = AuditInfo(userEmail, Instant.now().minus(1, ChronoUnit.DAYS), None, Instant.now())
@@ -202,9 +203,9 @@ object CommonTestData {
     Runtime(
       id = -1,
       runtimeName = clusterName,
-      internalId = runtimeInternalId,
+      samResource = runtimeSamResource,
       googleProject = project,
-      serviceAccount = clusterServiceAccount,
+      serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
       kernelFoundBusyDate = None,
@@ -232,9 +233,9 @@ object CommonTestData {
   val testCluster = new Runtime(
     id = -1,
     runtimeName = name1,
-    internalId = runtimeInternalId,
+    samResource = runtimeSamResource,
     googleProject = project,
-    serviceAccount = clusterServiceAccount,
+    serviceAccount = serviceAccount,
     asyncRuntimeFields = Some(
       AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
     ),
@@ -290,7 +291,8 @@ object CommonTestData {
     zone,
     DiskName(diskName.value + id),
     Some(googleId),
-    diskSamResourceId,
+    serviceAccount,
+    diskSamResource,
     DiskStatus.Ready,
     auditInfo,
     diskSize,

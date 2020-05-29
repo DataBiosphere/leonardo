@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
@@ -59,11 +60,11 @@ class AuthProviderSpec
     new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
   private val alwaysNoProvider =
     new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
-  private val noVisibleClustersProvider =
+  private val noVisibleRuntimesProvider =
     new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
-      override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeInternalId)])(
+      override def filterUserVisibleRuntimes(userInfo: UserInfo, runtimes: List[(GoogleProject, RuntimeSamResource)])(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[List[(GoogleProject, RuntimeInternalId)]] =
+      ): IO[List[(GoogleProject, RuntimeSamResource)]] =
         IO.pure(List.empty)
     }
 
@@ -181,18 +182,16 @@ class AuthProviderSpec
       leo.deleteCluster(userInfo, project, cluster1Name).unsafeRunSync()
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[RuntimeInternalId],
-                                               any[WorkbenchEmail],
-                                               any[GoogleProject],
-                                               any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
+      verify(spyProvider).notifyResourceCreated(any[String].asInstanceOf[RuntimeSamResource],
+                                                any[WorkbenchEmail],
+                                                any[GoogleProject])(any[ApplicativeAsk[IO, TraceId]])
 
       // notification of deletion happens only after it has been fully deleted
-      verify(spyProvider, never).notifyClusterDeleted(
-        any[String].asInstanceOf[RuntimeInternalId],
+      verify(spyProvider, never).notifyResourceDeleted(
+        any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
-        any[GoogleProject],
-        any[String].asInstanceOf[RuntimeName]
+        any[GoogleProject]
       )(any[ApplicativeAsk[IO, TraceId]])
     }
 
@@ -243,18 +242,16 @@ class AuthProviderSpec
       clusterNotFoundAgain shouldBe a[RuntimeNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(
-        any[String].asInstanceOf[RuntimeInternalId],
+      verify(spyProvider, Mockito.never).notifyResourceCreated(
+        any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
-        any[GoogleProject],
-        any[String].asInstanceOf[RuntimeName]
+        any[GoogleProject]
       )(any[ApplicativeAsk[IO, TraceId]])
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(
-        any[String].asInstanceOf[RuntimeInternalId],
+      verify(spyProvider, Mockito.never).notifyResourceDeleted(
+        any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
-        any[GoogleProject],
-        any[String].asInstanceOf[RuntimeName]
+        any[GoogleProject]
       )(any[ApplicativeAsk[IO, TraceId]])
     }
 
@@ -272,7 +269,7 @@ class AuthProviderSpec
         .getActiveClusterDetails(userInfo, project, cluster1.runtimeName)
         .unsafeToFuture
         .futureValue
-        .internalId shouldEqual cluster1.internalId
+        .samResource shouldEqual cluster1.samResource
 
       // list should work for this user
       //list all clusters should be fine, but empty
@@ -308,18 +305,16 @@ class AuthProviderSpec
       clusterDestroyException shouldBe a[AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(
-        any[String].asInstanceOf[RuntimeInternalId],
+      verify(spyProvider, Mockito.never).notifyResourceCreated(
+        any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
-        any[GoogleProject],
-        any[String].asInstanceOf[RuntimeName]
+        any[GoogleProject]
       )(any[ApplicativeAsk[IO, TraceId]])
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(
-        any[String].asInstanceOf[RuntimeInternalId],
+      verify(spyProvider, Mockito.never).notifyResourceDeleted(
+        any[String].asInstanceOf[RuntimeSamResource],
         any[WorkbenchEmail],
         any[WorkbenchEmail],
-        any[GoogleProject],
-        any[String].asInstanceOf[RuntimeName]
+        any[GoogleProject]
       )(any[ApplicativeAsk[IO, TraceId]])
     }
 
@@ -342,14 +337,13 @@ class AuthProviderSpec
       mockGoogleDataprocDAO.clusters should not contain key(cluster1Name)
 
       // creation notifications should have been fired
-      verify(spyProvider).notifyClusterCreated(any[String].asInstanceOf[RuntimeInternalId],
-                                               any[WorkbenchEmail],
-                                               any[GoogleProject],
-                                               any[String].asInstanceOf[RuntimeName])(any[ApplicativeAsk[IO, TraceId]])
+      verify(spyProvider).notifyResourceCreated(any[String].asInstanceOf[RuntimeSamResource],
+                                                any[WorkbenchEmail],
+                                                any[GoogleProject])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should return clusters the user created even if the auth provider doesn't" in isolatedDbTest {
-      val leo = leoWithAuthProvider(noVisibleClustersProvider)
+      val leo = leoWithAuthProvider(noVisibleRuntimesProvider)
 
       // create
       val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).unsafeToFuture.futureValue

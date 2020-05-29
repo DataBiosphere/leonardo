@@ -5,6 +5,7 @@ import java.util.UUID
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -17,91 +18,75 @@ import scala.collection.mutable
 
 class MockSamDAO extends SamDAO[IO] {
   val billingProjects: mutable.Map[(GoogleProject, Authorization), Set[String]] = new TrieMap()
-  val notebookClusters: mutable.Map[(RuntimeInternalId, Authorization), Set[String]] = new TrieMap()
-  val persistentDisks: mutable.Map[(DiskSamResourceId, Authorization), Set[String]] = new TrieMap()
+  val runtimes: mutable.Map[(RuntimeSamResource, Authorization), Set[String]] = new TrieMap()
+  val persistentDisks: mutable.Map[(PersistentDiskSamResource, Authorization), Set[String]] = new TrieMap()
   val projectOwners: mutable.Map[Authorization, Set[SamProjectPolicy]] = new TrieMap()
-  val clusterCreators: mutable.Map[Authorization, Set[SamNotebookClusterPolicy]] = new TrieMap()
+  val runtimeCreators: mutable.Map[Authorization, Set[SamRuntimePolicy]] = new TrieMap()
   val diskCreators: mutable.Map[Authorization, Set[SamPersistentDiskPolicy]] = new TrieMap()
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
+  val runtimeActions = Set("status", "connect", "sync", "delete", "read_policies")
+  val diskActions = Set("read", "attach", "modify", "delete", "read_policies")
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
-  override def hasResourcePermission(resourceId: String,
-                                     action: String,
-                                     resourceTypeName: ResourceTypeName,
-                                     authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
-    resourceTypeName match {
-      case ResourceTypeName.BillingProject =>
+  override def hasResourcePermission(resource: SamResource, action: String, authHeader: Authorization)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Boolean] =
+    resource.resourceType match {
+      case SamResourceType.Project =>
         val res = billingProjects
-          .get((GoogleProject(resourceId), authHeader)) //look it up: Option[Set]
+          .get((GoogleProject(resource.resourceId), authHeader)) //look it up: Option[Set]
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
           .getOrElse(false) //unpack the resulting option and handle the project never having existed
         IO.pure(res)
-      case ResourceTypeName.NotebookCluster =>
-        val res = notebookClusters
-          .get((RuntimeInternalId(resourceId), authHeader)) //look it up: Option[Set]
+      case SamResourceType.Runtime =>
+        val res = runtimes
+          .get((RuntimeSamResource(resource.resourceId), authHeader)) //look it up: Option[Set]
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
-          .getOrElse(false) //unpack the resulting option and handle the project never having existed
+          .getOrElse(false) //unpack the resulting option and handle the runtime never having existed
         IO.pure(res)
-      case ResourceTypeName.PersistentDisk =>
+      case SamResourceType.PersistentDisk =>
         val res = persistentDisks
-          .get((DiskSamResourceId(resourceId), authHeader)) //look it up: Option[Set]
+          .get((PersistentDiskSamResource(resource.resourceId), authHeader)) //look it up: Option[Set]
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
-          .getOrElse(false) //unpack the resulting option and handle the project never having existed
+          .getOrElse(false) //unpack the resulting option and handle the disk never having existed
         IO.pure(res)
     }
 
   override def getResourcePolicies[A](
     authHeader: Authorization,
-    resourseTypeName: ResourceTypeName
+    resourceType: SamResourceType
   )(implicit decoder: EntityDecoder[IO, List[A]], ev: ApplicativeAsk[IO, TraceId]): IO[List[A]] =
-    resourseTypeName match {
-      case ResourceTypeName.NotebookCluster =>
-        IO.pure(clusterCreators.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
-      case ResourceTypeName.BillingProject =>
+    resourceType match {
+      case SamResourceType.Runtime =>
+        IO.pure(runtimeCreators.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
+      case SamResourceType.Project =>
         IO.pure(projectOwners.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
-      case ResourceTypeName.PersistentDisk =>
+      case SamResourceType.PersistentDisk =>
         IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
     }
 
-  override def createClusterResource(internalId: RuntimeInternalId,
-                                     creatorEmail: WorkbenchEmail,
-                                     googleProject: GoogleProject,
-                                     clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO(
-      notebookClusters += (internalId, userEmailToAuthorization(creatorEmail)) -> Set("status",
-                                                                                      "connect",
-                                                                                      "sync",
-                                                                                      "delete",
-                                                                                      "read_policies")
-    )
+  override def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] =
+    resource match {
+      case r: RuntimeSamResource =>
+        IO(runtimes += (r, userEmailToAuthorization(creatorEmail)) -> runtimeActions)
+      case r: PersistentDiskSamResource =>
+        IO(persistentDisks += (r, userEmailToAuthorization(creatorEmail)) -> diskActions)
+      case _ => IO(throw new Exception("Invalid resource to create"))
+    }
 
-  override def deleteClusterResource(internalId: RuntimeInternalId,
-                                     userEmail: WorkbenchEmail,
-                                     creatorEmail: WorkbenchEmail,
-                                     googleProject: GoogleProject,
-                                     clusterName: RuntimeName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO(notebookClusters.remove((internalId, userEmailToAuthorization(userEmail))))
-
-  override def createPersistentDiskResource(
-    internalId: DiskSamResourceId,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO(
-      persistentDisks += (internalId, userEmailToAuthorization(creatorEmail)) -> Set("read",
-                                                                                     "attach",
-                                                                                     "modify",
-                                                                                     "delete",
-                                                                                     "read_policies")
-    )
-
-  override def deletePersistentDiskResource(
-    internalId: DiskSamResourceId,
-    userEmail: WorkbenchEmail,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO(persistentDisks.remove((internalId, userEmailToAuthorization(userEmail))))
+  override def deleteResource(resource: SamResource,
+                              userEmail: WorkbenchEmail,
+                              creatorEmail: WorkbenchEmail,
+                              googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    resource match {
+      case r: RuntimeSamResource =>
+        IO(runtimes.remove((r, userEmailToAuthorization(userEmail))))
+      case r: PersistentDiskSamResource =>
+        IO(persistentDisks.remove((r, userEmailToAuthorization(userEmail))))
+      case _ => IO(throw new Exception("Invalid resource to delete"))
+    }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[IO, TraceId]

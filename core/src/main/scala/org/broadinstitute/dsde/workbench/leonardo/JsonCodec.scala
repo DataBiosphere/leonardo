@@ -7,6 +7,11 @@ import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  PersistentDiskSamResource,
+  ProjectSamResource,
+  RuntimeSamResource
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -41,7 +46,8 @@ object JsonCodec {
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.toString)
   implicit val diskNameEncoder: Encoder[DiskName] = Encoder.encodeString.contramap(_.value)
-  implicit val diskSamResourceIdEncoder: Encoder[DiskSamResourceId] = Encoder.encodeString.contramap(_.asString)
+  implicit val diskSamResourceIdEncoder: Encoder[PersistentDiskSamResource] =
+    Encoder.encodeString.contramap(_.resourceId)
   implicit val diskSizeEncoder: Encoder[DiskSize] = Encoder.encodeInt.contramap(_.gb)
   implicit val blockSizeEncoder: Encoder[BlockSize] = Encoder.encodeInt.contramap(_.bytes)
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
@@ -128,7 +134,6 @@ object JsonCodec {
     Decoder.decodeString.emap(s => CloudService.withNameInsensitiveOption(s).toRight(s"Unsupported cloud service ${s}"))
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
   implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
-  implicit val runtimeInternalIdDecoder: Decoder[RuntimeInternalId] = Decoder.decodeString.map(RuntimeInternalId)
   implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
     if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
   )
@@ -217,9 +222,15 @@ object JsonCodec {
   implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName)
   implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.map(DiskName)
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
-  implicit val DiskSamResourceIdDecoder: Decoder[DiskSamResourceId] = Decoder.decodeString.map(DiskSamResourceId)
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.withNameInsensitiveOption(x).toRight(s"Invalid disk type: $x"))
+
+  implicit val runtimeSamResourceDecoder: Decoder[RuntimeSamResource] =
+    Decoder.decodeString.map(RuntimeSamResource)
+  implicit val persistentDiskSamResourceDecoder: Decoder[PersistentDiskSamResource] =
+    Decoder.decodeString.map(PersistentDiskSamResource)
+  implicit val projectSamResourceDecoder: Decoder[ProjectSamResource] =
+    Decoder.decodeString.map(x => ProjectSamResource(GoogleProject(x)))
 }

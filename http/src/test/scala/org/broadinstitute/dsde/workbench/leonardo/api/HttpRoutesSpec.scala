@@ -11,6 +11,7 @@ import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -288,7 +289,7 @@ object HttpRoutesSpec {
       scopes <- x.downField("scopes").as[Set[String]]
     } yield GetRuntimeResponse(
       id,
-      RuntimeInternalId(""),
+      RuntimeSamResource(""),
       clusterName,
       googleProject,
       serviceAccount,
@@ -328,7 +329,7 @@ object HttpRoutesSpec {
       patchInProgress <- x.downField("patchInProgress").as[Boolean]
     } yield ListRuntimeResponse2(
       id,
-      RuntimeInternalId("fakeId"),
+      RuntimeSamResource("fakeId"),
       clusterName,
       googleProject,
       auditInfo,
