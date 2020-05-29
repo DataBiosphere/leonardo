@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
@@ -352,8 +351,7 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      samResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = samResourceId, status = DiskStatus.Creating).save()
+      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Creating).save()
       tr <- traceId.ask
       now <- IO(Instant.now)
       _ <- leoSubscriber.messageResponder(CreateDiskMessage.fromDisk(disk, Some(tr)), now)
