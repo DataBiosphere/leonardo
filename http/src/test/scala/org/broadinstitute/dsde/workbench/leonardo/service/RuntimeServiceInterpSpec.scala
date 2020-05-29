@@ -502,11 +502,19 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val runtime = testCluster.copy(status = RuntimeStatus.Running)
     val res = for {
       traceId <- traceId.ask
-      _ <- IO(runtime.save())
-      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, true, runtime, gceRuntimeConfig, traceId)
-      patchInProgress <- patchQuery.isInprogress(runtime.id).transaction
+      savedRuntime <- IO(runtime.save())
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, true, savedRuntime, gceRuntimeConfig, traceId)
+      patchInProgress <- patchQuery.isInprogress(savedRuntime.id).transaction
+      message <- publisherQueue.dequeue1
     } yield {
       patchInProgress shouldBe (true)
+      message shouldBe UpdateRuntimeMessage(savedRuntime.id,
+                                            Some(MachineTypeName("n1-standard-8")),
+                                            true,
+                                            None,
+                                            None,
+                                            None,
+                                            Some(traceId))
     }
     res.unsafeRunSync()
   }
