@@ -97,5 +97,5 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
    * @param internalId
    * @return returns a list of Cluster Actions that the user has access to
    */
-  override def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[String]] = IO.pure(List.empty)
+  override def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[NotebookClusterAction]] = IO.pure(List.empty)
 }
