@@ -78,6 +78,7 @@ sealed trait DiskType extends EnumEntry {
 }
 object DiskType extends Enum[DiskType] {
   val values = findValues
+  val googleStringToValues = values.map(v => v.googleString -> v).toMap
 
   final case object Standard extends DiskType {
     override def googleString: String = "pd-standard"

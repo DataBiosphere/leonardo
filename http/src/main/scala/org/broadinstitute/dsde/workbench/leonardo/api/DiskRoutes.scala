@@ -300,5 +300,9 @@ final case class CreateDiskRequest(labels: LabelMap,
                                    size: Option[DiskSize],
                                    diskType: Option[DiskType],
                                    blockSize: Option[BlockSize])
+object CreateDiskRequest {
+  def fromDiskConfigRequest(create: DiskConfigRequest.Create): CreateDiskRequest =
+    CreateDiskRequest(create.labels, create.size, create.diskType, create.blockSize)
+}
 
 final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)

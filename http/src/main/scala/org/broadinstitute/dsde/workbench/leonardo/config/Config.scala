@@ -266,7 +266,8 @@ object Config {
     PersistentDiskConfig(
       config.as[DiskSize]("defaultDiskSizeGB"),
       config.as[DiskType]("defaultDiskType"),
-      config.as[BlockSize]("defaultBlockSizeBytes")
+      config.as[BlockSize]("defaultBlockSizeBytes"),
+      config.as[ZoneName]("zone")
     )
   }
 

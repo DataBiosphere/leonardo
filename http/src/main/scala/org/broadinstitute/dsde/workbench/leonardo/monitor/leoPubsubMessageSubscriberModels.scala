@@ -67,6 +67,7 @@ object LeoPubsubMessage {
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfig,
                                         stopAfterCreation: Boolean = false,
+                                        persistentDiskId: Option[DiskId],
                                         traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
@@ -90,6 +91,7 @@ object LeoPubsubMessage {
         runtime.customEnvironmentVariables,
         runtimeConfig,
         runtime.stopAfterCreation,
+        runtime.persistentDiskId,
         traceId
       )
   }
@@ -229,7 +231,7 @@ object LeoPubsubCodec {
     Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.runtimeId, x.runtimeStatus))
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct17(
+    Encoder.forProduct18(
       "messageType",
       "id",
       "clusterProjectAndName",
@@ -246,6 +248,7 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "stopAfterCreation",
+      "persistentDiskId",
       "traceId"
     )(x =>
       (x.messageType,
@@ -264,11 +267,12 @@ object LeoPubsubCodec {
        x.customEnvironmentVariables,
        x.runtimeConfig,
        x.stopAfterCreation,
+       x.persistentDiskId,
        x.traceId)
     )
 
   implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct16(
+    Decoder.forProduct17(
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
@@ -284,6 +288,7 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "stopAfterCreation",
+      "persistentDiskId",
       "traceId"
     )(CreateRuntimeMessage.apply)
 

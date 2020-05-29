@@ -7,6 +7,7 @@ import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
+import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
@@ -18,6 +19,7 @@ sealed trait RuntimeConfigRequest extends Product with Serializable {
 object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
+    // diskSize deprecated in favor of CreateRuntime2Request.diskConfig
     diskSize: Option[DiskSize]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
@@ -129,7 +131,8 @@ object CreateRuntimeRequest {
       welderEnabled = request.enableWelder.getOrElse(false),
       customEnvironmentVariables = request.customClusterEnvironmentVariables,
       runtimeConfigId = RuntimeConfigId(-1),
-      patchInProgress = false
+      patchInProgress = false,
+      None
     )
 }
 
@@ -262,10 +265,11 @@ final case class GetRuntimeResponse(id: Long,
                                     scopes: Set[String],
                                     welderEnabled: Boolean,
                                     patchInProgress: Boolean,
-                                    customClusterEnvironmentVariables: Map[String, String])
+                                    customClusterEnvironmentVariables: Map[String, String],
+                                    diskConfig: Option[DiskConfig])
 
 object GetRuntimeResponse {
-  def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig) = GetRuntimeResponse(
+  def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig, diskConfig: Option[DiskConfig]) = GetRuntimeResponse(
     runtime.id,
     runtime.samResource,
     runtime.runtimeName,
@@ -290,6 +294,7 @@ object GetRuntimeResponse {
     runtime.scopes,
     runtime.welderEnabled,
     runtime.patchInProgress,
-    runtime.customEnvironmentVariables
+    runtime.customEnvironmentVariables,
+    diskConfig
   )
 }

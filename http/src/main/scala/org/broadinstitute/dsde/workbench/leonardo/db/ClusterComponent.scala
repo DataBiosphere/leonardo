@@ -44,7 +44,8 @@ final case class ClusterRecord(id: Long,
                                stopAfterCreation: Boolean,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String],
-                               runtimeConfigId: RuntimeConfigId)
+                               runtimeConfigId: RuntimeConfigId,
+                               persistentDiskId: Option[DiskId])
 
 class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -71,6 +72,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def welderEnabled = column[Boolean]("welderEnabled")
   def runtimeConfigId = column[RuntimeConfigId]("runtimeConfigId")
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
+  def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
 
   def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -100,7 +102,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       stopAfterCreation,
       welderEnabled,
       customClusterEnvironmentVariables,
-      runtimeConfigId
+      runtimeConfigId,
+      persistentDiskId
     ).shaped <> ({
       case (id,
             internalId,
@@ -122,7 +125,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             stopAfterCreation,
             welderEnabled,
             customClusterEnvironmentVariables,
-            runtimeConfigId) =>
+            runtimeConfigId,
+            persistentDiskId) =>
         ClusterRecord(
           id,
           internalId,
@@ -149,7 +153,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           stopAfterCreation,
           welderEnabled,
           customClusterEnvironmentVariables.getOrElse(Map.empty),
-          runtimeConfigId
+          runtimeConfigId,
+          persistentDiskId
         )
     }, { c: ClusterRecord =>
       def ai(_ai: AuditInfo) = (
@@ -180,7 +185,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.stopAfterCreation,
           c.welderEnabled,
           if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables),
-          c.runtimeConfigId
+          c.runtimeConfigId,
+          c.persistentDiskId
         )
       )
     })
@@ -567,7 +573,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.stopAfterCreation,
       runtime.welderEnabled,
       runtime.customEnvironmentVariables,
-      runtime.runtimeConfigId
+      runtime.runtimeConfigId,
+      runtime.persistentDiskId
     )
 
   private def unmarshalMinimalCluster(
@@ -721,7 +728,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterRecord.welderEnabled,
       clusterRecord.customClusterEnvironmentVariables,
       clusterRecord.runtimeConfigId.value,
-      patchInProgress
+      patchInProgress,
+      clusterRecord.persistentDiskId
     )
   }
 }

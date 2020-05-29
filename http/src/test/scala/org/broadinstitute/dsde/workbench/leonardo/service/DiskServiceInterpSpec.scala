@@ -174,11 +174,28 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     res.unsafeRunSync()
   }
 
+  it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      t <- ctx.ask
+      diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
+      _ <- IO(makeCluster(1).copy(persistentDiskId = Some(disk.id)).save())
+      err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt
+    } yield {
+      err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))
+    }
+
+    res.unsafeRunSync()
+  }
+
   List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
     status =>
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val res = for {
+          t <- ctx.ask
           diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
           disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, DiskSize(600))
@@ -186,7 +203,7 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
             .updateDisk(userInfo, disk.googleProject, disk.name, req)
             .attempt
         } yield {
-          fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status))
+          fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = t.traceId))
         }
         res.unsafeRunSync()
       }

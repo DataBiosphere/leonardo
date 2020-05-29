@@ -24,7 +24,9 @@ object MockRuntimeServiceInterp extends RuntimeService[IO] {
   override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit as: ApplicativeAsk[IO, AppContext]
   ): IO[GetRuntimeResponse] =
-    IO.pure(GetRuntimeResponse.fromRuntime(CommonTestData.testCluster, CommonTestData.defaultDataprocRuntimeConfig))
+    IO.pure(
+      GetRuntimeResponse.fromRuntime(CommonTestData.testCluster, CommonTestData.defaultDataprocRuntimeConfig, None)
+    )
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
     implicit as: ApplicativeAsk[IO, AppContext]

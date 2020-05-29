@@ -14,28 +14,25 @@ import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GcsBlobName, GoogleStorageService, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  AutoFreezeConfig,
-  DataprocConfig,
-  GceConfig,
-  ImageConfig,
-  ZombieRuntimeMonitorConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  CreateDiskRequest,
   CreateRuntime2Request,
+  DiskConfigRequest,
   ListRuntimeResponse2,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.AttachPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -45,6 +42,7 @@ import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, Workb
 import scala.concurrent.ExecutionContext
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
+                                           diskConfig: PersistentDiskConfig,
                                            authProvider: LeoAuthProvider[F],
                                            serviceAccountProvider: ServiceAccountProvider[F],
                                            dockerDAO: DockerDAO[F],
@@ -92,6 +90,32 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
             runtimeImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
+            diskOpt <- req.diskConfig.traverse(x =>
+              processDiskConfigRequest(x,
+                                       googleProject,
+                                       req.runtimeConfig.map(_.cloudService).getOrElse(CloudService.GCE),
+                                       userInfo,
+                                       petSA)
+            )
+            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done process disk config")))
+            // For GCE, make diskConfig.size take precedence over runtimeConfig.diskSize
+            gceRuntimeDefaults = diskOpt match {
+              case Some(disk) => config.gceConfig.runtimeConfigDefaults.copy(diskSize = disk.size)
+              case None       => config.gceConfig.runtimeConfigDefaults
+            }
+            runtimeConfig = req.runtimeConfig
+              .fold[RuntimeConfig](gceRuntimeDefaults) { // default to gce if no runtime specific config is provided
+                c =>
+                  c match {
+                    case gce: RuntimeConfigRequest.GceConfig =>
+                      RuntimeConfig.GceConfig(
+                        gce.machineType.getOrElse(gceRuntimeDefaults.machineType),
+                        diskOpt.map(_.size).orElse(gce.diskSize).getOrElse(gceRuntimeDefaults.diskSize)
+                      ): RuntimeConfig
+                    case dataproc: RuntimeConfigRequest.DataprocConfig =>
+                      dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
+                  }
+              }
             runtime <- F.fromEither(
               convertToRuntime(userInfo,
                                petSA,
@@ -101,7 +125,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                runtimeImages,
                                config,
                                req,
-                               context.now)
+                               context.now,
+                               diskOpt.map(_.id))
             )
             gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
               .map(config =>
@@ -126,24 +151,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
 
-            gceRuntimeDefaults = config.gceConfig.runtimeConfigDefaults
-            runtimeCofig = req.runtimeConfig
-              .fold[RuntimeConfig](gceRuntimeDefaults) { // default to gce if no runtime specific config is provided
-                c =>
-                  c match {
-                    case gce: RuntimeConfigRequest.GceConfig =>
-                      RuntimeConfig.GceConfig(
-                        gce.machineType.getOrElse(gceRuntimeDefaults.machineType),
-                        gce.diskSize.getOrElse(gceRuntimeDefaults.diskSize)
-                      ): RuntimeConfig
-                    case dataproc: RuntimeConfigRequest.DataprocConfig =>
-                      dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
-                  }
-              }
-
-            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeCofig, now = context.now)
+            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
-            _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(runtime, runtimeCofig, Some(context.traceId)))
+            _ <- publisherQueue.enqueue1(
+              CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
+            )
           } yield ()
       }
     } yield ()
@@ -153,7 +165,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[GetRuntimeResponse] =
     for {
       // throws 404 if not existent
-      resp <- LeonardoServiceDbQueries.getGetClusterResponse(googleProject, runtimeName).transaction
+      resp <- RuntimeServiceDbQueries.getRuntime(googleProject, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
       hasPermission <- authProvider.hasRuntimePermission(resp.samResource, userInfo, GetRuntimeStatus, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
@@ -165,11 +177,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      runtimes <- RuntimeServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProject).transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listCluster db query")))
+      runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       samVisibleRuntimes <- authProvider
-        .filterUserVisibleRuntimes(userInfo, runtimes.map(c => (c.googleProject, c.samResource)))
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible clusters")))
+        .filterUserVisibleRuntimes(userInfo, runtimes.map(r => (r.googleProject, r.samResource)))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
@@ -419,7 +431,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig, traceId)
 
       case _ =>
-        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService))
+        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService, traceId))
     }
 
   private[service] def processUpdateGceConfigRequest(req: UpdateRuntimeConfigRequest.GceConfig,
@@ -507,6 +519,62 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         }
     } yield ()
 
+  private[service] def processDiskConfigRequest(
+    req: DiskConfigRequest,
+    googleProject: GoogleProject,
+    cloudService: CloudService,
+    userInfo: UserInfo,
+    serviceAccount: WorkbenchEmail
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[PersistentDisk] =
+    (req, cloudService) match {
+      case (DiskConfigRequest.Reference(name), CloudService.GCE) =>
+        for {
+          ctx <- as.ask
+          diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
+          disk <- F.fromEither(diskOpt.toRight(DiskNotFoundException(googleProject, name, ctx.traceId)))
+          attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk).transaction
+          _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, name, ctx.traceId))
+          else F.unit
+          hasAttachPermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
+                                                                          userInfo,
+                                                                          AttachPersistentDisk,
+                                                                          googleProject)
+          _ <- if (hasAttachPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+        } yield disk
+      case (createReq @ DiskConfigRequest.Create(name, _, _, _, _), CloudService.GCE) =>
+        for {
+          ctx <- as.ask
+          diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
+          _ <- diskOpt.fold(F.unit)(d =>
+            F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, name, d.status, ctx.traceId))
+          )
+          hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
+          _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+          samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
+          ctx <- as.ask
+          disk <- F.fromEither(
+            DiskServiceInterp.convertToDisk(userInfo,
+                                            serviceAccount,
+                                            googleProject,
+                                            name,
+                                            samResource,
+                                            diskConfig,
+                                            CreateDiskRequest.fromDiskConfigRequest(createReq),
+                                            ctx.now)
+          )
+          _ <- authProvider
+            .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
+            .handleErrorWith { t =>
+              log.error(t)(
+                s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
+              ) >> F.raiseError(t)
+            }
+          savedDisk <- persistentDiskQuery.save(disk).transaction
+
+        } yield savedDisk
+      case (_, CloudService.Dataproc) =>
+        as.ask.flatMap(ctx => F.raiseError(DiskNotSupportedException(ctx.traceId)))
+    }
 }
 
 object RuntimeServiceInterp {
@@ -518,7 +586,8 @@ object RuntimeServiceInterp {
                                clusterImages: Set[RuntimeImage],
                                config: RuntimeServiceConfig,
                                req: CreateRuntime2Request,
-                               now: Instant): Either[Throwable, Runtime] = {
+                               now: Instant,
+                               diskIdOpt: Option[DiskId]): Either[Throwable, Runtime] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
@@ -580,7 +649,8 @@ object RuntimeServiceInterp {
       allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
       stopAfterCreation = false,
-      patchInProgress = false
+      patchInProgress = false,
+      persistentDiskId = diskIdOpt
     )
   }
 
@@ -600,8 +670,22 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig)
 
-final case class WrongCloudServiceException(runtimeCloudService: CloudService, updateCloudService: CloudService)
+final case class WrongCloudServiceException(runtimeCloudService: CloudService,
+                                            updateCloudService: CloudService,
+                                            traceId: TraceId)
     extends LeoException(
-      s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
+      s"${traceId} | Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
+      StatusCodes.Conflict
+    )
+
+final case class DiskNotSupportedException(traceId: TraceId)
+    extends LeoException(
+      s"${traceId} | Persistent disks are not supported on Google Cloud Dataproc",
+      StatusCodes.Conflict
+    )
+
+final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName, traceId: TraceId)
+    extends LeoException(
+      s"${traceId} | Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
       StatusCodes.Conflict
     )

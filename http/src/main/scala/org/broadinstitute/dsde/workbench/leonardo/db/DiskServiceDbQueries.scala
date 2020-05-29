@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.ExecutionContext
 
@@ -58,7 +59,7 @@ object DiskServiceDbQueries {
     }
   }
 
-  def getGetPersistentDiskResponse(googleProject: GoogleProject, diskName: DiskName)(
+  def getGetPersistentDiskResponse(googleProject: GoogleProject, diskName: DiskName, traceId: TraceId)(
     implicit executionContext: ExecutionContext
   ): DBIO[GetPersistentDiskResponse] = {
     val diskQuery = persistentDiskQuery.findByNameQuery(googleProject, diskName)
@@ -70,29 +71,30 @@ object DiskServiceDbQueries {
           val labelMap = labelRecOpt.map(labelRec => labelRec.key -> labelRec.value).toMap
           Map(diskRec -> labelMap)
       }.headOption
-      diskWithLabel.fold[DBIO[GetPersistentDiskResponse]](DBIO.failed(DiskNotFoundException(googleProject, diskName))) {
-        d =>
-          val diskRec = d._1
-          val labelMap = d._2
-          val getDiskResponse = GetPersistentDiskResponse(
-            diskRec.id,
-            diskRec.googleProject,
-            diskRec.zone,
-            diskRec.name,
-            diskRec.googleId,
-            diskRec.serviceAccount,
-            diskRec.samResource,
-            diskRec.status,
-            AuditInfo(diskRec.creator,
-                      diskRec.createdDate,
-                      unmarshalDestroyedDate(diskRec.destroyedDate),
-                      diskRec.dateAccessed),
-            diskRec.size,
-            diskRec.diskType,
-            diskRec.blockSize,
-            labelMap
-          )
-          DBIO.successful(getDiskResponse)
+      diskWithLabel.fold[DBIO[GetPersistentDiskResponse]](
+        DBIO.failed(DiskNotFoundException(googleProject, diskName, traceId))
+      ) { d =>
+        val diskRec = d._1
+        val labelMap = d._2
+        val getDiskResponse = GetPersistentDiskResponse(
+          diskRec.id,
+          diskRec.googleProject,
+          diskRec.zone,
+          diskRec.name,
+          diskRec.googleId,
+          diskRec.serviceAccount,
+          diskRec.samResource,
+          diskRec.status,
+          AuditInfo(diskRec.creator,
+                    diskRec.createdDate,
+                    unmarshalDestroyedDate(diskRec.destroyedDate),
+                    diskRec.dateAccessed),
+          diskRec.size,
+          diskRec.diskType,
+          diskRec.blockSize,
+          labelMap
+        )
+        DBIO.successful(getDiskResponse)
       }
     }
   }

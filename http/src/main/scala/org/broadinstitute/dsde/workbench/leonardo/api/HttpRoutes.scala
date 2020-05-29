@@ -32,6 +32,7 @@ class HttpRoutes(
   proxyService: ProxyService,
   leonardoService: LeonardoService,
   runtimeService: RuntimeService[IO],
+  diskService: DiskService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String
 )(implicit timer: Timer[IO], ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO]) {
@@ -41,6 +42,7 @@ class HttpRoutes(
   private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
   private val leonardoRoutes = new LeoRoutes(leonardoService, userInfoDirectives)
   private val runtimeRoutes = new RuntimeRoutes(runtimeService, userInfoDirectives)
+  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
 
   private val myExceptionHandler = {
     ExceptionHandler {
@@ -62,7 +64,13 @@ class HttpRoutes(
         complete(StatusCodes.InternalServerError -> report)
       case e: Throwable =>
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
-        complete(StatusCodes.InternalServerError -> ErrorReport(e.getMessage, Some(StatusCodes.InternalServerError), Seq(), Seq(), Some(e.getClass)))
+        complete(
+          StatusCodes.InternalServerError -> ErrorReport(e.getMessage,
+                                                         Some(StatusCodes.InternalServerError),
+                                                         Seq(),
+                                                         Seq(),
+                                                         Some(e.getClass))
+        )
     }
   }
 
@@ -95,7 +103,7 @@ class HttpRoutes(
     (logRequestResult & handleExceptions(myExceptionHandler)) {
       swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
         pathPrefix("api") {
-          leonardoRoutes.route ~ runtimeRoutes.routes
+          leonardoRoutes.route ~ runtimeRoutes.routes ~ diskRoutes.routes
         }
     }
   }

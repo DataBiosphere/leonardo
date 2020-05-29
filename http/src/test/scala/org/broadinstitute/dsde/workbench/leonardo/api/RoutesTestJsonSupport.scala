@@ -134,7 +134,8 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       scopes,
       welderEnabled,
       patchInProgress,
-      Map.empty // custom cluster env vars
+      Map.empty, // custom cluster env vars
+      None // disk config
     )
   }
 

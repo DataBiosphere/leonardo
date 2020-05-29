@@ -178,7 +178,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       httpClient.expectOptionOr[WorkbenchEmail](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${URLEncoder.encode(userEmail.value, UTF_8.name)}"),
+          uri =
+            config.samUri.withPath(s"/api/google/v1/user/proxyGroup/${URLEncoder.encode(userEmail.value, UTF_8.name)}"),
           headers = Headers.of(authHeader)
         )
       )(onError)
@@ -212,7 +213,9 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         userPetKey <- httpClient.expectOptionOr[Json](
           Request[F](
             method = Method.GET,
-            uri = config.samUri.withPath(s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"),
+            uri = config.samUri.withPath(
+              s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"
+            ),
             headers = Headers.of(leoAuth)
           )
         )(onError)

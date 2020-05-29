@@ -8,17 +8,13 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
-import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{fullClusterQueryByUniqueKey, unmarshalFullCluster}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  GetRuntimeResponse,
-  ListRuntimeResponse,
-  RuntimeNotFoundException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ListRuntimeResponse
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
 import scala.concurrent.ExecutionContext
 
 // TODO deprecated in favor of RuntimeServiceDbQueries
+// This object is only used by the deprecated LeonardoService
 object LeonardoServiceDbQueries {
 
   type ClusterJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
@@ -31,26 +27,6 @@ object LeonardoServiceDbQueries {
       }
     } yield (cluster, label)
 
-  def getGetClusterResponse(googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit executionContext: ExecutionContext
-  ): DBIO[GetRuntimeResponse] = {
-    val activeCluster = fullClusterQueryByUniqueKey(googleProject, clusterName, None)
-      .joinLeft(runtimeConfigs)
-      .on(_._1.runtimeConfigId === _.id)
-    activeCluster.result.flatMap { recs =>
-      val clusterRecs = recs.map(_._1)
-      val res = for {
-        cluster <- unmarshalFullCluster(clusterRecs).headOption
-        runtimeConfig <- recs.headOption.flatMap(_._2)
-      } yield GetRuntimeResponse.fromRuntime(cluster, runtimeConfig.runtimeConfig)
-      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, clusterName)))(r =>
-        DBIO.successful(r)
-      )
-    }
-  }
-
-  // new runtime route return a lot less fields than legacy listCluster API
-  // Once we remove listCluster API, we can optimize this query
   def listClusters(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
     implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse]] = {
@@ -77,17 +53,16 @@ object LeonardoServiceDbQueries {
       }
     }
 
-    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = clusterLabelRuntimeConfigQuery(
+    val clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = runtimeLabelRuntimeConfigQuery(
       clusterQueryFilteredByLabel
     )
 
     clusterQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
-      val clusterLabelMap
-        : Map[(ClusterRecord, Option[RuntimeConfig], Option[PatchRecord]), Map[String, Chain[String]]] =
+      val clusterLabelMap: Map[(ClusterRecord, RuntimeConfig, Option[PatchRecord]), Map[String, Chain[String]]] =
         x.toList.foldMap {
-          case (((clusterRec, labelRecOpt), runTimeConfigRecOpt), patchRecOpt) =>
+          case (((clusterRec, labelRecOpt), runTimeConfigRec), patchRecOpt) =>
             val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-            Map((clusterRec, runTimeConfigRecOpt.map(_.runtimeConfig), patchRecOpt) -> labelMap)
+            Map((clusterRec, runTimeConfigRec.runtimeConfig, patchRecOpt) -> labelMap)
         }
 
       clusterLabelMap.map {
@@ -114,10 +89,7 @@ object LeonardoServiceDbQueries {
             dataprocInfo,
             clusterRec.auditInfo,
             clusterRec.kernelFoundBusyDate,
-            runTimeConfigRecOpt
-              .getOrElse(
-                throw new Exception(s"No runtimeConfig found for cluster with id ${clusterRec.id}")
-              ), //In theory, the exception should never happen because it's enforced by db foreign key
+            runTimeConfigRecOpt,
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
                                 clusterRec.googleProject,
                                 clusterRec.clusterName,

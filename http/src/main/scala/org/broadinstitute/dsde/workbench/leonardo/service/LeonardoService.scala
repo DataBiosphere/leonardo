@@ -16,7 +16,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
@@ -51,27 +51,9 @@ case class AuthorizationError(email: Option[WorkbenchEmail] = None)
 case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: RuntimeName)
     extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found", StatusCodes.NotFound)
 
-case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskName)
-    extends LeoException(s"Persistent disk ${googleProject.value}/${diskName.value} not found", StatusCodes.NotFound)
-
-case class DiskNotResizableException(googleProject: GoogleProject,
-                                     diskName: DiskName,
-                                     currentDiskSize: DiskSize,
-                                     newDiskSize: DiskSize)
-    extends LeoException(
-      s"Invalid value for disk size. New disk size ${newDiskSize.asString}GB must be larger than existing size of ${currentDiskSize.asString}GB for persistent disk ${googleProject.value}/${diskName.value}",
-      StatusCodes.BadRequest
-    )
-
 case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
       s"Runtime ${googleProject.value}/${runtimeName.asString} already exists in ${status.toString} status",
-      StatusCodes.Conflict
-    )
-
-case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject, diskName: DiskName, status: DiskStatus)
-    extends LeoException(
-      s"Persistent disk ${googleProject.value}/${diskName.value} already exists in ${status.toString} status",
       StatusCodes.Conflict
     )
 
@@ -86,12 +68,6 @@ case class RuntimeCannotBeStoppedException(googleProject: GoogleProject,
 case class RuntimeCannotBeDeletedException(googleProject: GoogleProject, runtimeName: RuntimeName)
     extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be deleted in Creating status",
                          StatusCodes.Conflict)
-
-case class DiskCannotBeDeletedException(googleProject: GoogleProject, diskName: DiskName, status: DiskStatus)
-    extends LeoException(
-      s"Persistent disk ${googleProject.value}/${diskName.value} cannot be deleted in ${status} status",
-      StatusCodes.Conflict
-    )
 
 case class RuntimeCannotBeStartedException(googleProject: GoogleProject,
                                            runtimeName: RuntimeName,
@@ -111,10 +87,6 @@ case class RuntimeOutOfDateException()
 
 case class RuntimeCannotBeUpdatedException(projectNameString: String, status: RuntimeStatus, userHint: String = "")
     extends LeoException(s"Runtime ${projectNameString} cannot be updated in ${status} status. ${userHint}",
-                         StatusCodes.Conflict)
-
-case class DiskCannotBeUpdatedException(projectNameString: String, status: DiskStatus, userHint: String = "")
-    extends LeoException(s"Persistent disk ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict)
 
 case class RuntimeMachineTypeCannotBeChangedException(runtime: Runtime)
@@ -344,8 +316,8 @@ class LeonardoService(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[GetRuntimeResponse] =
     for {
-      resp <- LeonardoServiceDbQueries
-        .getGetClusterResponse(googleProject, clusterName)
+      resp <- RuntimeServiceDbQueries
+        .getRuntime(googleProject, clusterName)
         .transaction //throws 404 if nonexistent
       _ <- checkClusterPermission(userInfo,
                                   GetRuntimeStatus,
