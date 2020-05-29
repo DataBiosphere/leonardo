@@ -182,8 +182,9 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
       _ <- IO(makeCluster(1).copy(persistentDiskId = Some(disk.id)).save())
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt
+      t <- traceId.ask
     } yield {
-      err shouldBe Left(DiskAlreadyAttachedException(project, disk.name))
+      err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t))
     }
 
     res.unsafeRunSync()
@@ -200,8 +201,9 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
           fail <- diskService
             .updateDisk(userInfo, disk.googleProject, disk.name, req)
             .attempt
+          t <- traceId.ask
         } yield {
-          fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status))
+          fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = t))
         }
         res.unsafeRunSync()
       }

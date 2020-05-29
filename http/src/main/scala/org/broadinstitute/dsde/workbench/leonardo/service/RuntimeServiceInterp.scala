@@ -178,10 +178,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
       runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listCluster db query")))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       samVisibleRuntimes <- authProvider
         .filterUserVisibleRuntimes(userInfo, runtimes.map(r => (r.googleProject, r.samResource)))
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visiable clusters")))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
@@ -431,7 +431,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig, traceId)
 
       case _ =>
-        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService))
+        Async[F].raiseError(WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService, traceId))
     }
 
   private[service] def processUpdateGceConfigRequest(req: UpdateRuntimeConfigRequest.GceConfig,
@@ -529,10 +529,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     (req, cloudService) match {
       case (DiskConfigRequest.Reference(name), CloudService.GCE) =>
         for {
+          ctx <- as.ask
           diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
-          disk <- F.fromEither(diskOpt.toRight(DiskNotFoundException(googleProject, name)))
+          disk <- F.fromEither(diskOpt.toRight(DiskNotFoundException(googleProject, name, ctx.traceId)))
           attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk).transaction
-          _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, name)) else F.unit
+          _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, name, ctx.traceId))
+          else F.unit
           hasAttachPermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
                                                                           userInfo,
                                                                           AttachPersistentDisk,
@@ -541,9 +543,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         } yield disk
       case (createReq @ DiskConfigRequest.Create(name, _, _, _, _), CloudService.GCE) =>
         for {
+          ctx <- as.ask
           diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
           _ <- diskOpt.fold(F.unit)(d =>
-            F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, name, d.status))
+            F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, name, d.status, ctx.traceId))
           )
           hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
           _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
@@ -570,9 +573,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
         } yield savedDisk
       case (_, CloudService.Dataproc) =>
-        F.raiseError(DiskNotSupportedException)
+        as.ask.flatMap(ctx => F.raiseError(DiskNotSupportedException(ctx.traceId)))
     }
-
 }
 
 object RuntimeServiceInterp {
@@ -668,20 +670,22 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig)
 
-final case class WrongCloudServiceException(runtimeCloudService: CloudService, updateCloudService: CloudService)
+final case class WrongCloudServiceException(runtimeCloudService: CloudService,
+                                            updateCloudService: CloudService,
+                                            traceId: TraceId)
     extends LeoException(
-      s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
+      s"${traceId} | Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
       StatusCodes.Conflict
     )
 
-final case object DiskNotSupportedException
+final case class DiskNotSupportedException(traceId: TraceId)
     extends LeoException(
-      s"Persistent disks are not supported on Google Cloud Dataproc",
+      s"${traceId} | Persistent disks are not supported on Google Cloud Dataproc",
       StatusCodes.Conflict
     )
 
-final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName)
+final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
+      s"${traceId} | Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
       StatusCodes.Conflict
     )

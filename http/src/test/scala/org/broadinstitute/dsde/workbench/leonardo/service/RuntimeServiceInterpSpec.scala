@@ -474,10 +474,14 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
   "RuntimeServiceInterp.processUpdateRuntimeConfigRequest" should "fail to update the wrong cloud service type" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(100)), None, None)
     val res = for {
-      traceId <- traceId.ask
-      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, gceRuntimeConfig, traceId)
-    } yield ()
-    res.attempt.unsafeRunSync() shouldBe Left(WrongCloudServiceException(CloudService.GCE, CloudService.Dataproc))
+      t <- traceId.ask
+      fail <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, gceRuntimeConfig, t).attempt
+    } yield {
+      fail shouldBe Left(
+        WrongCloudServiceException(CloudService.GCE, CloudService.Dataproc, t)
+      )
+    }
+    res.unsafeRunSync()
   }
 
   "RuntimeServiceInterp.processUpdateGceConfigRequest" should "not update a GCE runtime when there are no changes" in {
@@ -766,8 +770,9 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       disk <- makePersistentDisk(DiskId(1)).save()
       req = DiskConfigRequest.Create(disk.name, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
       err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
+      t <- traceId.ask
     } yield {
-      err shouldBe Left(PersistentDiskAlreadyExistsException(project, disk.name, disk.status))
+      err shouldBe Left(PersistentDiskAlreadyExistsException(project, disk.name, disk.status, t))
     }
 
     res.unsafeRunSync()
@@ -801,8 +806,9 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       _ <- IO(makeCluster(1).copy(persistentDiskId = Some(savedDisk.id)).save())
       req = DiskConfigRequest.Reference(savedDisk.name)
       err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
+      t <- traceId.ask
     } yield {
-      err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name))
+      err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t))
     }
 
     res.unsafeRunSync()
