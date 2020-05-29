@@ -104,14 +104,7 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
                                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
 
-  /**
-   *
-   *
-   * @param internalId
-   * @return returns a list of Cluster Actions that the user has access to
-   */
-
-  override def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[NotebookClusterAction]] = ???
+  override def getRuntimeActions(samResource: SamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] = ???
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

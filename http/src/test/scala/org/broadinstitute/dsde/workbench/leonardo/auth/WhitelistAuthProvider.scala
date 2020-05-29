@@ -70,4 +70,9 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
                             googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
+
+  override def getRuntimeActions(samResource: SamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] =
+    if (checkWhitelist(userInfo) == IO.pure(true)) IO.pure(RuntimeAction.allActions.toList)
+    else IO.pure(List.empty)
+
 }

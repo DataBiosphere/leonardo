@@ -105,7 +105,7 @@ class MockSamDAO extends SamDAO[IO] {
   override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] =
     IO.pure(StatusCheckResponse(true, Map.empty))
 
-  override def getListOfResourcePermissions(resourceId: String, resourceTypeName: ResourceTypeName, authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[String]] = IO.pure(List.empty)
+  override def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[String]] = IO.pure(List.empty)
 }
 
 object MockSamDAO {

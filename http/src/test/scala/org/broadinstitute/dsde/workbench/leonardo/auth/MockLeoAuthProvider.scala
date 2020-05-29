@@ -91,11 +91,6 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
                                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
-  /**
-   *
-   *
-   * @param internalId
-   * @return returns a list of Cluster Actions that the user has access to
-   */
-  override def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[NotebookClusterAction]] = IO.pure(List.empty)
+
+  override def getRuntimeActions(samResource: SamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] = IO.pure(List.empty)
 }

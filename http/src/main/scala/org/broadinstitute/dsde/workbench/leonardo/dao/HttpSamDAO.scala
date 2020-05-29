@@ -81,13 +81,14 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )(onError)
     } yield res
 
-  def getListOfResourcePermissions(resourceId: String, resourceTypeName: ResourceTypeName, authHeader: Authorization)(
+  def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[String]] =
     httpClient.expectOr[List[String]](
       Request[F](
         method = Method.GET,
-        uri = config.samUri.withPath(s"/api/resources/v1/${resourceTypeName.toString}/${resourceId}/actions"),
+        uri =
+          config.samUri.withPath(s"/api/resources/v1/${resource.resourceType.asString}/${resource.resourceId}/actions"),
         headers = Headers.of(authHeader)
       )
     )(onError)
@@ -103,7 +104,6 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         headers = Headers.of(authHeader)
       )
     )(onError)
-
 
   def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]

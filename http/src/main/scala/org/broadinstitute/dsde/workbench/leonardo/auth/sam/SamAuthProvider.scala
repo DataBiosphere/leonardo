@@ -66,7 +66,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
         )
       )
 
-  private def getNotebookActionString(action: LeoAuthAction): Either[Throwable, String] =
+  private def getNotebookActionString(action: RuntimeAction): Either[Throwable, String] =
     runtimeActionMap
       .get(action)
       .toRight(
@@ -75,7 +75,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
         )
       )
 
-  private def getPersistentDiskActionString(action: LeoAuthAction): Either[Throwable, String] =
+  private def getPersistentDiskActionString(action: PersistentDiskAction): Either[Throwable, String] =
     persistentDiskActionMap
       .get(action)
       .toRight(
@@ -94,7 +94,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     DeletePersistentDisk -> "delete_persistent_disk"
   )
 
-  private val runtimeActionMap: Map[LeoAuthAction, String] = Map(
+  private val runtimeActionMap: Map[RuntimeAction, String] = Map(
     GetRuntimeStatus -> "status",
     ConnectToRuntime -> "connect",
     SyncDataToRuntime -> "sync",
@@ -103,7 +103,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     StopStartRuntime -> "stop_start"
   )
 
-  private val persistentDiskActionMap: Map[LeoAuthAction, String] = Map(
+  private val persistentDiskActionMap: Map[PersistentDiskAction, String] = Map(
     ReadPersistentDisk -> "read",
     AttachPersistentDisk -> "attach",
     ModifyPersistentDisk -> "modify",
@@ -152,35 +152,26 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     checkPersistentDiskPermissionWithProjectFallback(samResource, authorization, action, googleProject)
   }
 
-  private def convertNotebookClusterActionsToString(action: String): NotebookClusterAction =
-    action match {
-      case "connect"    => NotebookClusterAction.ConnectToCluster
-      case "modify"     => NotebookClusterAction.ModifyCluster
-      case "sync"       => NotebookClusterAction.SyncDataToCluster
-      case "stop_start" => NotebookClusterAction.StopStartCluster
-      case "delete"     => NotebookClusterAction.DeleteCluster
-    }
-
-  def getNotebookClusterActions(internalId: RuntimeInternalId, userInfo: UserInfo)(
+  def getRuntimeActions(samResource: SamResource, userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[NotebookClusterAction]] = {
+  ): F[List[RuntimeAction]] = {
 
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
 
     for {
       listOfPermissions <- samDao
-        .getListOfResourcePermissions(internalId.asString, ResourceTypeName.NotebookCluster, authorization)
+        .getListOfResourcePermissions(samResource, authorization)
 
     } yield {
-      listOfPermissions.map(x => convertNotebookClusterActionsToString(x))
+      listOfPermissions.map(x => runtimeActionMap.find(_._2 == x).map(_._1).get)
     }
   }
 
   private def checkRuntimePermissionWithProjectFallback(
-                                                         samResource: RuntimeSamResource,
-                                                         authorization: Authorization,
-                                                         action: RuntimeAction,
-                                                         googleProject: GoogleProject
+    samResource: RuntimeSamResource,
+    authorization: Authorization,
+    action: RuntimeAction,
+    googleProject: GoogleProject
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
       traceId <- ev.ask
@@ -225,7 +216,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
   private def hasProjectPermissionInternal(
     googleProject: GoogleProject,
-    action: LeoAuthAction,
+    action: LeoAuthAction, //for projectfallback
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
@@ -235,7 +226,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
   private def hasRuntimePermissionInternal(
     samResource: RuntimeSamResource,
-    action: LeoAuthAction,
+    action: RuntimeAction,
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
@@ -245,7 +236,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
   private def hasPersistentDiskPermissionInternal(
     samResource: PersistentDiskSamResource,
-    action: LeoAuthAction,
+    action: PersistentDiskAction,
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
