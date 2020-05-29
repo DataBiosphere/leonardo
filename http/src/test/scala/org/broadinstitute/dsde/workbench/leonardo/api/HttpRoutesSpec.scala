@@ -72,8 +72,7 @@ class HttpRoutesSpec
       Some(ContainerImage.DockerHub("myrepo/myimage")),
       Some(ContainerImage.DockerHub("broadinstitute/welder")),
       Set.empty,
-      Map.empty,
-      None
+      Map.empty
     )
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, request.asJson.spaces2) ~> routes.route ~> check {

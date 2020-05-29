@@ -1623,7 +1623,7 @@ components:
             $ref: "#/components/schemas/CreateDiskRequest"
           example:
             size: 500
-            diskType: "Standard"
+            diskType: "pd-standard"
             blockSize: 4096
     UpdateDiskRequest:
       content:
@@ -2438,6 +2438,9 @@ components:
           description: The size of the persistent disk to be created in GB.
         diskType:
           type: string
+          enum:
+            - pd-standard
+            - pd-ssd
           description: The type of the persistent disk to be created. Can be "Standard" or "SSD".
         blockSize:
           type: integer
@@ -2549,6 +2552,23 @@ components:
               description: >
                 Optional, the size in gigabytes of the disk on the GCE VM.
                 Minimum size is 50GB. If unspecified, default size is 100GB.
+            machineType:
+              type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the master node. For example "n1-standard-16"
+
+                or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+                see https://cloud.google.com/compute/docs/machine-types
+    GceWithPDConfig:
+      description: Configuration for Google Compute Engine instances.
+      allOf:
+        - $ref: '#/components/schemas/RuntimeConfig'
+        - type: object
+          properties:
+            persistentDisk:
+              $ref: "#/components/schemas/PersistentDiskConfig"
             machineType:
               type: string
               description: >
@@ -2711,6 +2731,31 @@ components:
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
+
+    PersistentDiskConfig:
+      description: The configuration of a persistent disk, returned in runtime responses
+      type: object
+      required:
+        - name
+        - size
+        - diskType
+        - blockSize
+      properties:
+        name:
+          type: string
+          description: Name of the persistent disk
+        size:
+          type: integer
+          description: Size of persistent disk in GB
+        diskType:
+          type: string
+          description: Type of persistent disk
+        blockSize:
+          type: integer
+          description: Block size of persistent disk in bytes
+        labels:
+          type: object
+          description: The labels to be placed on the disk
 
     DiskConfigRequest:
       description: The configuration of a persistent disk as part of runtime creation

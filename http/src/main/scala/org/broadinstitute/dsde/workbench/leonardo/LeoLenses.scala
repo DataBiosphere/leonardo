@@ -85,4 +85,17 @@ object LeoLenses {
   )
 
   val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
+
+  val pdInRuntimeConfig: Lens[PersistentDisk, PersistentDiskInRuntimeConfig] =
+    Lens[PersistentDisk, PersistentDiskInRuntimeConfig](x =>
+      PersistentDiskInRuntimeConfig(x.id, x.zone, x.name, x.status, x.size, x.diskType, x.blockSize)
+    )(prc =>
+      pd =>
+        pd.copy(id = prc.id,
+                zone = prc.zone,
+                status = prc.status,
+                size = prc.size,
+                diskType = prc.diskType,
+                blockSize = prc.blockSize)
+    )
 }

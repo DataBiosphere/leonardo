@@ -167,8 +167,9 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
 
   implicit val runtimeConfigRequestEncoder: Encoder[RuntimeConfigRequest] = Encoder.instance { x =>
     x match {
-      case x: RuntimeConfigRequest.DataprocConfig => x.asJson
-      case x: RuntimeConfigRequest.GceConfig      => x.asJson
+      case x: RuntimeConfigRequest.DataprocConfig  => x.asJson
+      case x: RuntimeConfigRequest.GceConfig       => x.asJson
+      case _: RuntimeConfigRequest.GceWithPdConfig => throw new Exception("Persistent Disk is not supported")
     }
   }
   implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct16(

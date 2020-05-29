@@ -128,7 +128,13 @@ class ProxyService(
           logger.error(
             s"${ev.ask.unsafeRunSync()} | Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
           )
-        ) >> IO.raiseError[RuntimeSamResource](RuntimeNotFoundException(googleProject, runtimeName))
+        ) >> IO.raiseError[RuntimeSamResource](
+          RuntimeNotFoundException(
+            googleProject,
+            runtimeName,
+            s"Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
+          )
+        )
     }
 
   /*
@@ -148,7 +154,7 @@ class ProxyService(
       hasRequiredPermission <- authProvider
         .hasRuntimePermission(samResource, userInfo, notebookAction, googleProject)
       _ <- if (!hasViewPermission) {
-        IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName))
+        IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName, s"${notebookAction} permission is required"))
       } else if (!hasRequiredPermission) {
         IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
       } else IO.unit
@@ -230,7 +236,7 @@ class ProxyService(
         )
       case HostNotFound =>
         IO(logger.warn(s"proxy host not found for ${googleProject}/${runtimeName}")) >> IO.raiseError(
-          RuntimeNotFoundException(googleProject, runtimeName)
+          RuntimeNotFoundException(googleProject, runtimeName, "proxy host not found")
         )
     }
   }

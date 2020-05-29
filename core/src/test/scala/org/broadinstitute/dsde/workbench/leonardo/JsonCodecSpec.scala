@@ -7,8 +7,6 @@ import io.circe.DecodingFailure
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 
-import scala.util.Either.LeftProjection
-
 class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
   "JsonCodec" should "decode DataprocConfig properly" in {
     val inputString =
@@ -65,9 +63,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res.left shouldBe LeftProjection(
-      Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("diskSize"))))
-    )
+    res.left shouldBe Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("diskSize"))))
   }
 
   it should "fail with minimumDiskSizeDecodingFailure when Dataproc diskSize is less than 50" in {
@@ -83,13 +79,11 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res.left shouldBe LeftProjection(
-      Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("masterDiskSize"))))
-    )
+    res shouldBe Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("masterDiskSize"))))
   }
 
   it should "fail with minimumDiskSizeDecodingFailure when decoding a disk size of 10" in {
     val res = decode[DiskSize]("10")
-    res.left shouldBe LeftProjection(Left(DecodingFailure("Minimum required disk size is 50GB", List())))
+    res shouldBe Left(DecodingFailure("Minimum required disk size is 50GB", List()))
   }
 }

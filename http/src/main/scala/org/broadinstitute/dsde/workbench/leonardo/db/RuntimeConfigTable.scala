@@ -84,6 +84,10 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              Some(r.properties)),
             x.dateAccessed
           )
+        case r: RuntimeConfig.GceWithPdConfig =>
+          Some(x.id,
+               (CloudService.GCE: CloudService, 0, r.machineType, r.diskSize, None, None, None, None, None),
+               x.dateAccessed)
       }
     })
 }

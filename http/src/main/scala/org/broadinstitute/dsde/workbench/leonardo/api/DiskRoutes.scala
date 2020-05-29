@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamR
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -190,9 +191,9 @@ object DiskRoutes {
 
   implicit val updateDiskRequestDecoder: Decoder[UpdateDiskRequest] = Decoder.instance { x =>
     for {
-      l <- x.downField("labels").as[LabelMap]
+      l <- x.downField("labels").as[Option[LabelMap]]
       us <- x.downField("size").as[DiskSize]
-    } yield UpdateDiskRequest(l, us)
+    } yield UpdateDiskRequest(l.getOrElse(Map.empty), us)
   }
 
   implicit val getDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
@@ -301,7 +302,7 @@ final case class CreateDiskRequest(labels: LabelMap,
                                    diskType: Option[DiskType],
                                    blockSize: Option[BlockSize])
 object CreateDiskRequest {
-  def fromDiskConfigRequest(create: DiskConfigRequest.Create): CreateDiskRequest =
+  def fromDiskConfigRequest(create: PersistentDiskRequest): CreateDiskRequest =
     CreateDiskRequest(create.labels, create.size, create.diskType, create.blockSize)
 }
 

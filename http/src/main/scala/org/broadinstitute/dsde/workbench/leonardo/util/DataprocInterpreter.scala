@@ -148,7 +148,8 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       else config.dataprocConfig.customDataprocImage
 
       res <- params.runtimeConfig match {
-        case _: RuntimeConfig.GceConfig => Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
+        case _: RuntimeConfig.GceConfig | _: RuntimeConfig.GceWithPdConfig =>
+          Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
         case x: RuntimeConfig.DataprocConfig =>
           val createClusterConfig = CreateClusterConfig(
             x,

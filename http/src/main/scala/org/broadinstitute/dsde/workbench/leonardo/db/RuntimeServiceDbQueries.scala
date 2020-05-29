@@ -59,9 +59,9 @@ object RuntimeServiceDbQueries {
       } yield GetRuntimeResponse.fromRuntime(runtime,
                                              runtimeConfig.runtimeConfig,
                                              persistentDisk.map(DiskConfig.fromPersistentDisk))
-      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, runtimeName)))(r =>
-        DBIO.successful(r)
-      )
+      res.fold[DBIO[GetRuntimeResponse]](
+        DBIO.failed(RuntimeNotFoundException(googleProject, runtimeName, "Not found in database"))
+      )(r => DBIO.successful(r))
     }
   }
 

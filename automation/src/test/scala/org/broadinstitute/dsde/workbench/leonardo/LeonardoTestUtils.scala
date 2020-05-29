@@ -5,16 +5,15 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import akka.actor.ActorSystem
+import cats.effect.IO
 import cats.effect.concurrent.Semaphore
-import cats.effect.{Blocker, IO}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
+import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -28,7 +27,6 @@ import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{Matchers, Suite}
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Success, Try}
 
@@ -39,6 +37,7 @@ case class TimeResult[R](result: R, duration: FiniteDuration)
 
 trait LeonardoTestUtils
     extends WebBrowserSpec
+    with LeonardoTestSuite
     with Matchers
     with Eventually
     with LocalFileUtil
@@ -81,11 +80,9 @@ trait LeonardoTestUtils
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )
 
-  implicit val cs = IO.contextShift(global)
-  implicit val t = IO.timer(global)
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val blocker = Blocker.liftExecutionContext(global)
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker)
+  val googleDiskService =
+    GoogleDiskService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
   val concurrentClusterCreationPermits
     : Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
 
@@ -713,11 +710,14 @@ trait LeonardoTestUtils
     testResult.get
   }
 
-  def withNewRuntime[T](googleProject: GoogleProject,
-                        name: RuntimeName = randomClusterName,
-                        request: RuntimeRequest = defaultRuntimeRequest,
-                        monitorCreate: Boolean = true,
-                        monitorDelete: Boolean = false)(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
+  def withNewRuntime[T](
+    googleProject: GoogleProject,
+    name: RuntimeName = randomClusterName,
+    request: RuntimeRequest = defaultRuntimeRequest,
+    monitorCreate: Boolean = true,
+    monitorDelete: Boolean = false,
+    deleteRuntimeAfter: Boolean = true
+  )(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
     val cluster = createNewRuntime(googleProject, name, request, monitorCreate)
     val testResult: Try[T] = Try {
       testCode(cluster)
@@ -737,7 +737,8 @@ trait LeonardoTestUtils
     }
 
     // delete before checking testCode status, which may throw
-    deleteRuntime(googleProject, cluster.clusterName, monitorDelete)
+    if (deleteRuntimeAfter)
+      deleteRuntime(googleProject, cluster.clusterName, monitorDelete)
     testResult.get
   }
 

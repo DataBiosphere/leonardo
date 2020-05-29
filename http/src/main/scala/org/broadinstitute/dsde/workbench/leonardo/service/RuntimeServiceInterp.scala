@@ -23,14 +23,12 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   CreateDiskRequest,
   CreateRuntime2Request,
-  DiskConfigRequest,
   ListRuntimeResponse2,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.AttachPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -92,30 +90,29 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
             runtimeImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
-            diskOpt <- req.diskConfig.traverse(x =>
-              processDiskConfigRequest(x,
-                                       googleProject,
-                                       req.runtimeConfig.map(_.cloudService).getOrElse(CloudService.GCE),
-                                       userInfo,
-                                       petSA)
-            )
-            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done process disk config")))
-            // For GCE, make diskConfig.size take precedence over runtimeConfig.diskSize
-            gceRuntimeDefaults = diskOpt match {
-              case Some(disk) => config.gceConfig.runtimeConfigDefaults.copy(diskSize = disk.size)
-              case None       => config.gceConfig.runtimeConfigDefaults
-            }
-            runtimeConfig = req.runtimeConfig
-              .fold[RuntimeConfig](gceRuntimeDefaults) { // default to gce if no runtime specific config is provided
+            runtimeConfig <- req.runtimeConfig
+              .fold[F[RuntimeConfig]](F.pure(config.gceConfig.runtimeConfigDefaults)) { // default to gce if no runtime specific config is provided
                 c =>
                   c match {
                     case gce: RuntimeConfigRequest.GceConfig =>
-                      RuntimeConfig.GceConfig(
-                        gce.machineType.getOrElse(gceRuntimeDefaults.machineType),
-                        diskOpt.map(_.size).orElse(gce.diskSize).getOrElse(gceRuntimeDefaults.diskSize)
-                      ): RuntimeConfig
+                      F.pure(
+                        RuntimeConfig.GceConfig(
+                          gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
+                          gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize)
+                        ): RuntimeConfig
+                      )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
-                      dataproc.toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
+                      F.pure(
+                        dataproc
+                          .toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
+                      )
+                    case gce: RuntimeConfigRequest.GceWithPdConfig =>
+                      processGceWithPd(gce.persistentDisk, googleProject, userInfo, petSA).map(disk =>
+                        RuntimeConfig.GceWithPdConfig(
+                          gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
+                          LeoLenses.pdInRuntimeConfig.get(disk)
+                        ): RuntimeConfig
+                      )
                   }
               }
             runtime <- F.fromEither(
@@ -128,7 +125,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                config,
                                req,
                                context.now,
-                               diskOpt.map(_.id))
+                               runtimeConfig.diskId)
             )
             gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
               .map(config =>
@@ -170,7 +167,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       resp <- RuntimeServiceDbQueries.getRuntime(googleProject, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
       hasPermission <- authProvider.hasRuntimePermission(resp.samResource, userInfo, GetRuntimeStatus, googleProject)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      _ <- if (hasPermission) F.unit
+      else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName, "permission denied"))
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
@@ -202,7 +200,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done getActiveClusterByNameMinimal")))
-      runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
+      runtime <- runtimeOpt.fold(
+        F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
+      )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
@@ -213,7 +213,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
-      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      _ <- if (hasStatusPermission) F.unit
+      else
+        F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName, "no active runtime record in database"))
 
       // throw 403 if no DeleteCluster permission
 
@@ -254,7 +256,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Finish query for active runtime")))
-      runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
+      runtime <- runtimeOpt.fold(
+        F.raiseError[Runtime](
+          RuntimeNotFoundException(googleProject, runtimeName, "no active runtime found in database")
+        )
+      )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
@@ -265,7 +271,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
-      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      _ <- if (hasStatusPermission) F.unit
+      else
+        F.raiseError[Unit](
+          RuntimeNotFoundException(googleProject,
+                                   runtimeName,
+                                   "GetRuntimeStatus permission is required for stopRuntime")
+        )
 
       // throw 403 if no StopStartCluster permission
       hasStopPermission = listOfPermissions.toSet.contains(RuntimeAction.StopStartRuntime)
@@ -288,7 +300,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done query for active runtime")))
-      runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
+      runtime <- runtimeOpt.fold(
+        F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
+      )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
@@ -297,7 +311,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
-      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      _ <- if (hasStatusPermission) F.unit
+      else
+        F.raiseError[Unit](
+          RuntimeNotFoundException(googleProject, runtimeName, "GetRuntimeStatus permission is required")
+        )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
@@ -325,7 +343,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
-      runtime <- runtimeOpt.fold(F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName)))(F.pure)
+      runtime <- runtimeOpt.fold(
+        F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
+      )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
@@ -334,7 +354,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
-      _ <- if (hasStatusPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
+      _ <- if (hasStatusPermission) F.unit
+      else
+        F.raiseError[Unit](
+          RuntimeNotFoundException(googleProject,
+                                   runtimeName,
+                                   "GetRuntimeStatus permission is required for update runtime")
+        )
 
       // throw 403 if no ModifyCluster permission
       hasModifyPermission = listOfPermissions.contains(RuntimeAction.ModifyRuntime)
@@ -548,62 +574,43 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         }
     } yield msg
 
-  private[service] def processDiskConfigRequest(
-    req: DiskConfigRequest,
+  private[service] def processGceWithPd(
+    req: PersistentDiskRequest,
     googleProject: GoogleProject,
-    cloudService: CloudService,
     userInfo: UserInfo,
     serviceAccount: WorkbenchEmail
   )(implicit as: ApplicativeAsk[F, AppContext]): F[PersistentDisk] =
-    (req, cloudService) match {
-      case (DiskConfigRequest.Reference(name), CloudService.GCE) =>
-        for {
-          ctx <- as.ask
-          diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
-          disk <- F.fromEither(diskOpt.toRight(DiskNotFoundException(googleProject, name, ctx.traceId)))
-          attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk).transaction
-          _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, name, ctx.traceId))
-          else F.unit
-          hasAttachPermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
-                                                                          userInfo,
-                                                                          AttachPersistentDisk,
-                                                                          googleProject)
-          _ <- if (hasAttachPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
-        } yield disk
-      case (createReq @ DiskConfigRequest.Create(name, _, _, _, _), CloudService.GCE) =>
-        for {
-          ctx <- as.ask
-          diskOpt <- persistentDiskQuery.getActiveByName(googleProject, name).transaction
-          _ <- diskOpt.fold(F.unit)(d =>
-            F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, name, d.status, ctx.traceId))
-          )
-          hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
-          _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
-          samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
-          ctx <- as.ask
-          disk <- F.fromEither(
-            DiskServiceInterp.convertToDisk(userInfo,
-                                            serviceAccount,
-                                            googleProject,
-                                            name,
-                                            samResource,
-                                            diskConfig,
-                                            CreateDiskRequest.fromDiskConfigRequest(createReq),
-                                            ctx.now)
-          )
-          _ <- authProvider
-            .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
-            .handleErrorWith { t =>
-              log.error(t)(
-                s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
-              ) >> F.raiseError(t)
-            }
-          savedDisk <- persistentDiskQuery.save(disk).transaction
-
-        } yield savedDisk
-      case (_, CloudService.Dataproc) =>
-        as.ask.flatMap(ctx => F.raiseError(DiskNotSupportedException(ctx.traceId)))
-    }
+    for {
+      ctx <- as.ask
+      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, req.name).transaction
+      disk <- diskOpt match {
+        case Some(pd) => F.pure(pd)
+        case None =>
+          for {
+            hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+            samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
+            disk <- F.fromEither(
+              DiskServiceInterp.convertToDisk(userInfo,
+                                              serviceAccount,
+                                              googleProject,
+                                              req.name,
+                                              samResource,
+                                              diskConfig,
+                                              CreateDiskRequest.fromDiskConfigRequest(req),
+                                              ctx.now)
+            )
+            _ <- authProvider
+              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
+              .handleErrorWith { t =>
+                log.error(t)(
+                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
+                ) >> F.raiseError(t)
+              }
+            pd <- persistentDiskQuery.save(disk).transaction
+          } yield pd
+      }
+    } yield disk
 }
 
 object RuntimeServiceInterp {

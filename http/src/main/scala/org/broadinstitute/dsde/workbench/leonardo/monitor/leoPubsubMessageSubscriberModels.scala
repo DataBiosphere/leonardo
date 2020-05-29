@@ -67,7 +67,6 @@ object LeoPubsubMessage {
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfig,
                                         stopAfterCreation: Boolean = false,
-                                        persistentDiskId: Option[DiskId],
                                         traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
@@ -91,7 +90,6 @@ object LeoPubsubMessage {
         runtime.customEnvironmentVariables,
         runtimeConfig,
         runtime.stopAfterCreation,
-        runtime.persistentDiskId,
         traceId
       )
   }
@@ -100,7 +98,6 @@ object LeoPubsubMessage {
                                      googleProject: GoogleProject,
                                      name: DiskName,
                                      zone: ZoneName,
-                                     auditInfo: AuditInfo,
                                      size: DiskSize,
                                      diskType: DiskType,
                                      blockSize: BlockSize,
@@ -116,7 +113,6 @@ object LeoPubsubMessage {
         disk.googleProject,
         disk.name,
         disk.zone,
-        disk.auditInfo,
         disk.size,
         disk.diskType,
         disk.blockSize,
@@ -187,15 +183,9 @@ object LeoPubsubCodec {
     )
 
   implicit val createDiskDecoder: Decoder[CreateDiskMessage] =
-    Decoder.forProduct9("diskId",
-                        "googleProject",
-                        "name",
-                        "zone",
-                        "auditInfo",
-                        "size",
-                        "diskType",
-                        "blockSize",
-                        "traceId")(CreateDiskMessage.apply)
+    Decoder.forProduct8("diskId", "googleProject", "name", "zone", "size", "diskType", "blockSize", "traceId")(
+      CreateDiskMessage.apply
+    )
 
   implicit val updateDiskDecoder: Decoder[UpdateDiskMessage] =
     Decoder.forProduct3("diskId", "newSize", "traceId")(UpdateDiskMessage.apply)
@@ -231,7 +221,7 @@ object LeoPubsubCodec {
     Encoder.forProduct2("clusterId", "clusterStatus")(x => (x.runtimeId, x.runtimeStatus))
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct18(
+    Encoder.forProduct17(
       "messageType",
       "id",
       "clusterProjectAndName",
@@ -248,7 +238,6 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "stopAfterCreation",
-      "persistentDiskId",
       "traceId"
     )(x =>
       (x.messageType,
@@ -267,12 +256,11 @@ object LeoPubsubCodec {
        x.customEnvironmentVariables,
        x.runtimeConfig,
        x.stopAfterCreation,
-       x.persistentDiskId,
        x.traceId)
     )
 
   implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct17(
+    Decoder.forProduct16(
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
@@ -288,7 +276,6 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "stopAfterCreation",
-      "persistentDiskId",
       "traceId"
     )(CreateRuntimeMessage.apply)
 
@@ -321,23 +308,21 @@ object LeoPubsubCodec {
     )
 
   implicit val createDiskMessageEncoder: Encoder[CreateDiskMessage] =
-    Encoder.forProduct10("messageType",
-                         "diskId",
-                         "googleProject",
-                         "name",
-                         "zone",
-                         "auditInfo",
-                         "size",
-                         "diskType",
-                         "blockSize",
-                         "traceId")(x =>
+    Encoder.forProduct9("messageType",
+                        "diskId",
+                        "googleProject",
+                        "name",
+                        "zone",
+                        "size",
+                        "diskType",
+                        "blockSize",
+                        "traceId")(x =>
       (
         x.messageType,
         x.diskId,
         x.googleProject,
         x.name,
         x.zone,
-        x.auditInfo,
         x.size,
         x.diskType,
         x.blockSize,

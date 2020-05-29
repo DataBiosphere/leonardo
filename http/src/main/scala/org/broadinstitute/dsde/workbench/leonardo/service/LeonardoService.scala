@@ -48,8 +48,9 @@ case class AuthorizationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized",
                          StatusCodes.Forbidden)
 
-case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: RuntimeName)
-    extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found", StatusCodes.NotFound)
+case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: RuntimeName, msg: String)
+    extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found. Details: ${msg}",
+                         StatusCodes.NotFound)
 
 case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
@@ -198,7 +199,9 @@ class LeonardoService(
                 IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
               else
                 IO.raiseError(
-                  RuntimeNotFoundException(runtimeProjectAndName.googleProject, runtimeProjectAndName.runtimeName)
+                  RuntimeNotFoundException(runtimeProjectAndName.googleProject,
+                                           runtimeProjectAndName.runtimeName,
+                                           s"${runtimeSamResource} permission is required")
                 )
             }
         case true => IO.unit
@@ -327,7 +330,7 @@ class LeonardoService(
 
   private def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: RuntimeName): IO[Runtime] =
     clusterQuery.getActiveClusterByName(googleProject, clusterName).transaction.flatMap {
-      case None          => IO.raiseError(RuntimeNotFoundException(googleProject, clusterName))
+      case None          => IO.raiseError(RuntimeNotFoundException(googleProject, clusterName, "no runtime found in database"))
       case Some(cluster) => IO.pure(cluster)
     }
 
@@ -369,7 +372,7 @@ class LeonardoService(
               )
               IO.pure(UpdateResult(false, Some(transition)))
             } else IO.raiseError(RuntimeMachineTypeCannotBeChangedException(existingCluster))
-          case _: RuntimeConfig.GceConfig => IO.raiseError(new NotImplementedError("GCE is not implemented"))
+          case _ => IO.raiseError(new NotImplementedError("GCE is not implemented"))
         }
 
       case None =>

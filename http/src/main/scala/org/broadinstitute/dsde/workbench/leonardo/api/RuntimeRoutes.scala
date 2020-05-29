@@ -5,6 +5,7 @@ package api
 import java.net.URL
 import java.util.UUID
 
+import cats.implicits._
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
@@ -22,6 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.da
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   GetRuntimeResponse,
+  PersistentDiskRequest,
   RuntimeConfigRequest,
   RuntimeService
 }
@@ -180,6 +182,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
         runtimeName,
         req
       )
+      _ <- IO(span.end())
     } yield StatusCodes.Accepted
   }
 
@@ -192,6 +195,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       resp <- runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+      _ <- IO(span.end())
     } yield StatusCodes.OK -> resp
   }
 
@@ -204,6 +208,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       resp <- runtimeService.listRuntimes(userInfo, googleProject, params)
+      _ <- IO(span.end())
     } yield StatusCodes.OK -> resp
   }
 
@@ -216,6 +221,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       _ <- runtimeService.deleteRuntime(userInfo, googleProject, runtimeName)
+      _ <- IO(span.end())
     } yield StatusCodes.Accepted
   }
 
@@ -260,6 +266,25 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 }
 
 object RuntimeRoutes {
+  implicit val persistentDiskDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
+    for {
+      n <- x.downField("name").as[DiskName]
+      s <- x.downField("size").as[Option[DiskSize]]
+      t <- x.downField("diskType").as[Option[DiskType]]
+      b <- x.downField("blockSize").as[Option[BlockSize]]
+      l <- x.downField("labels").as[Option[LabelMap]]
+    } yield PersistentDiskRequest(n, s, t, b, l.getOrElse(Map.empty))
+  }
+
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfigRequest.GceWithPdConfig] = Decoder.instance { x =>
+    for {
+      machineType <- x.downField("machineType").as[Option[MachineTypeName]]
+      pd <- x
+        .downField("persistentDisk")
+        .as[PersistentDiskRequest]
+    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd)
+  }
+
   implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
     for {
       machineType <- x.downField("machineType").as[Option[MachineTypeName]]
@@ -277,35 +302,9 @@ object RuntimeRoutes {
         case CloudService.Dataproc =>
           x.as[RuntimeConfigRequest.DataprocConfig]
         case CloudService.GCE =>
-          x.as[RuntimeConfigRequest.GceConfig]
+          x.as[RuntimeConfigRequest.GceWithPdConfig] orElse x.as[RuntimeConfigRequest.GceConfig]
       }
     } yield r
-  }
-
-  implicit val diskConfigRequestCreateDecoder: Decoder[DiskConfigRequest.Create] = Decoder.instance { x =>
-    for {
-      n <- x.downField("name").as[DiskName]
-      s <- x.downField("size").as[Option[DiskSize]]
-      t <- x.downField("diskType").as[Option[DiskType]]
-      b <- x.downField("blockSize").as[Option[BlockSize]]
-      l <- x.downField("labels").as[Option[LabelMap]]
-    } yield DiskConfigRequest.Create(n, s, t, b, l.getOrElse(Map.empty))
-  }
-
-  implicit val diskConfigRequestReferenceDecoder: Decoder[DiskConfigRequest.Reference] = Decoder.instance { x =>
-    for {
-      n <- x.downField("name").as[DiskName]
-    } yield DiskConfigRequest.Reference(n)
-  }
-
-  implicit val diskConfigRequestDecoder: Decoder[DiskConfigRequest] = Decoder.instance { x =>
-    for {
-      create <- x.downField("create").as[Boolean]
-      d <- if (create)
-        x.as[DiskConfigRequest.Create]
-      else
-        x.as[DiskConfigRequest.Reference]
-    } yield d
   }
 
   implicit val createRuntimeRequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
@@ -322,7 +321,6 @@ object RuntimeRoutes {
       wdi <- c.downField("welderDockerImage").as[Option[ContainerImage]]
       s <- c.downField("scopes").as[Option[Set[String]]]
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
-      d <- c.downField("diskConfig").as[Option[DiskConfigRequest]]
     } yield CreateRuntime2Request(
       l.getOrElse(Map.empty),
       jus,
@@ -335,8 +333,7 @@ object RuntimeRoutes {
       tdi,
       wdi,
       s.getOrElse(Set.empty),
-      cv.getOrElse(Map.empty),
-      d
+      cv.getOrElse(Map.empty)
     )
   }
 
@@ -513,8 +510,7 @@ final case class CreateRuntime2Request(labels: LabelMap,
                                        toolDockerImage: Option[ContainerImage],
                                        welderDockerImage: Option[ContainerImage],
                                        scopes: Set[String],
-                                       customEnvironmentVariables: Map[String, String],
-                                       diskConfig: Option[DiskConfigRequest])
+                                       customEnvironmentVariables: Map[String, String])
 
 sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
   def cloudService: CloudService

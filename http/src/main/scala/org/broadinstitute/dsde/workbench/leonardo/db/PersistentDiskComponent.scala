@@ -96,6 +96,9 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def getById(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
 
+  def getPersistentDiskRecord(id: DiskId): DBIO[Option[PersistentDiskRecord]] =
+    findByIdQuery(id).result.headOption
+
   def getActiveByName(googleProject: GoogleProject,
                       name: DiskName)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(googleProject, name)).result.map(aggregateLabels).map(_.headOption)

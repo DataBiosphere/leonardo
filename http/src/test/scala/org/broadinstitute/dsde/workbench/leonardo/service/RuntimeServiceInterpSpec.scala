@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   CreateRuntime2Request,
-  DiskConfigRequest,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
@@ -63,8 +62,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     None,
     None,
     Set.empty,
-    Map.empty,
-    None
+    Map.empty
   )
 
   implicit val ctx: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const[IO, AppContext](
@@ -236,60 +234,60 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()
   }
 
-  it should "create a runtime with a disk config" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val req = emptyCreateRuntimeReq.copy(
-      diskConfig = Some(
-        DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map.empty)
-      ),
-      // note diskConfig.size should take precedence over runtimeConfig.diskSize
-      runtimeConfig = Some(
-        RuntimeConfigRequest.GceConfig(diskSize = Some(DiskSize(100)),
-                                       machineType = Some(MachineTypeName("n1-standard-4")))
-      )
-    )
-
-    val res = for {
-      context <- ctx.ask
-      r <- runtimeService
-        .createRuntime(
-          userInfo,
-          project,
-          name0,
-          req
-        )
-        .attempt
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(project, name0).transaction
-      runtime = runtimeOpt.get
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      diskOpt <- persistentDiskQuery.getActiveByName(project, diskName).transaction
-      disk = diskOpt.get
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      message <- publisherQueue.dequeue1
-    } yield {
-      r shouldBe Right(())
-      runtime.googleProject shouldBe project
-      runtime.runtimeName shouldBe name0
-      runtime.persistentDiskId shouldBe Some(disk.id)
-      disk.googleProject shouldBe project
-      disk.name shouldBe diskName
-      disk.size shouldBe DiskSize(500)
-      runtimeConfig shouldBe RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500))
-      val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(runtime, runtimeConfig, Some(context.traceId))
-        .copy(
-          runtimeImages = Set(
-            RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
-          ),
-          scopes = Config.gceConfig.defaultScopes
-        )
-      message shouldBe expectedMessage
-    }
-
-    res.unsafeRunSync()
-  }
+//  it should "create a runtime with a disk config" in isolatedDbTest {
+//    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+//    val req = emptyCreateRuntimeReq.copy(
+//      diskConfig = Some(
+//        DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map.empty)
+//      ),
+//      // note diskConfig.size should take precedence over runtimeConfig.diskSize
+//      runtimeConfig = Some(
+//        RuntimeConfigRequest.GceConfig(diskSize = Some(DiskSize(100)),
+//                                       machineType = Some(MachineTypeName("n1-standard-4")))
+//      )
+//    )
+//
+//    val res = for {
+//      context <- ctx.ask
+//      r <- runtimeService
+//        .createRuntime(
+//          userInfo,
+//          project,
+//          name0,
+//          req
+//        )
+//        .attempt
+//      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(project, name0).transaction
+//      runtime = runtimeOpt.get
+//      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+//      diskOpt <- persistentDiskQuery.getActiveByName(project, diskName).transaction
+//      disk = diskOpt.get
+//      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+//      message <- publisherQueue.dequeue1
+//    } yield {
+//      r shouldBe Right(())
+//      runtime.googleProject shouldBe project
+//      runtime.runtimeName shouldBe name0
+//      runtime.persistentDiskId shouldBe Some(disk.id)
+//      disk.googleProject shouldBe project
+//      disk.name shouldBe diskName
+//      disk.size shouldBe DiskSize(500)
+//      runtimeConfig shouldBe RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500))
+//      val expectedMessage = CreateRuntimeMessage
+//        .fromRuntime(runtime, runtimeConfig, Some(context.traceId))
+//        .copy(
+//          runtimeImages = Set(
+//            RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
+//            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+//            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
+//          ),
+//          scopes = Config.gceConfig.defaultScopes
+//        )
+//      message shouldBe expectedMessage
+//    }
+//
+//    res.unsafeRunSync()
+//  }
 
   it should "get a runtime" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
@@ -751,109 +749,109 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     res.attempt.unsafeRunSync() shouldBe Left(RuntimeDiskSizeCannotBeDecreasedException(testCluster))
   }
 
-  "RuntimeServiceInterp.processDiskConfigRequest" should "process a create disk request" in isolatedDbTest {
-    val req = DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
-    val res = for {
-      context <- ctx.ask
-      disk <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
-      persistedDisk <- persistentDiskQuery.getById(disk.id).transaction
-    } yield {
-      disk.googleProject shouldBe project
-      disk.zone shouldBe Config.persistentDiskConfig.zone
-      disk.name shouldBe diskName
-      disk.googleId shouldBe None
-      disk.status shouldBe DiskStatus.Creating
-      disk.auditInfo.creator shouldBe userInfo.userEmail
-      disk.auditInfo.createdDate shouldBe context.now
-      disk.auditInfo.destroyedDate shouldBe None
-      disk.auditInfo.dateAccessed shouldBe context.now
-      disk.size shouldBe DiskSize(500)
-      disk.diskType shouldBe Config.persistentDiskConfig.defaultDiskType
-      disk.blockSize shouldBe Config.persistentDiskConfig.defaultBlockSizeBytes
-      disk.labels shouldBe DefaultDiskLabels(diskName, project, userInfo.userEmail, serviceAccount).toMap ++ Map(
-        "foo" -> "bar"
-      )
+//  "RuntimeServiceInterp.processDiskConfigRequest" should "process a create disk request" in isolatedDbTest {
+//    val req = DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
+//    val res = for {
+//      context <- ctx.ask
+//      disk <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
+//      persistedDisk <- persistentDiskQuery.getById(disk.id).transaction
+//    } yield {
+//      disk.googleProject shouldBe project
+//      disk.zone shouldBe Config.persistentDiskConfig.zone
+//      disk.name shouldBe diskName
+//      disk.googleId shouldBe None
+//      disk.status shouldBe DiskStatus.Creating
+//      disk.auditInfo.creator shouldBe userInfo.userEmail
+//      disk.auditInfo.createdDate shouldBe context.now
+//      disk.auditInfo.destroyedDate shouldBe None
+//      disk.auditInfo.dateAccessed shouldBe context.now
+//      disk.size shouldBe DiskSize(500)
+//      disk.diskType shouldBe Config.persistentDiskConfig.defaultDiskType
+//      disk.blockSize shouldBe Config.persistentDiskConfig.defaultBlockSizeBytes
+//      disk.labels shouldBe DefaultDiskLabels(diskName, project, userInfo.userEmail, serviceAccount).toMap ++ Map(
+//        "foo" -> "bar"
+//      )
+//
+//      persistedDisk shouldBe 'defined
+//      persistedDisk.get shouldEqual disk
+//    }
+//
+//    res.unsafeRunSync()
+//  }
+//
+//  it should "fail when on Dataproc" in {
+//    val req = DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
+//    val res = for {
+//      t <- ctx.ask
+//      fail <- runtimeService
+//        .processDiskConfigRequest(req, project, CloudService.Dataproc, userInfo, serviceAccount)
+//        .attempt
+//    } yield {
+//      fail shouldBe Left(DiskNotSupportedException(t.traceId))
+//    }
+//
+//    res.unsafeRunSync()
+//  }
+//
+//  it should "fail to create a disk if a disk with the same name already exists" in isolatedDbTest {
+//    val res = for {
+//      t <- ctx.ask
+//      disk <- makePersistentDisk(DiskId(1)).save()
+//      req = DiskConfigRequest.Create(disk.name, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
+//      err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
+//    } yield {
+//      err shouldBe Left(PersistentDiskAlreadyExistsException(project, disk.name, disk.status, t.traceId))
+//    }
+//
+//    res.unsafeRunSync()
+//  }
 
-      persistedDisk shouldBe 'defined
-      persistedDisk.get shouldEqual disk
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "fail when on Dataproc" in {
-    val req = DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
-    val res = for {
-      t <- ctx.ask
-      fail <- runtimeService
-        .processDiskConfigRequest(req, project, CloudService.Dataproc, userInfo, serviceAccount)
-        .attempt
-    } yield {
-      fail shouldBe Left(DiskNotSupportedException(t.traceId))
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "fail to create a disk if a disk with the same name already exists" in isolatedDbTest {
-    val res = for {
-      t <- ctx.ask
-      disk <- makePersistentDisk(DiskId(1)).save()
-      req = DiskConfigRequest.Create(disk.name, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
-      err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
-    } yield {
-      err shouldBe Left(PersistentDiskAlreadyExistsException(project, disk.name, disk.status, t.traceId))
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "fail to create a disk when caller has no permission" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
-    val req = DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
-    val res = for {
-      _ <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
-    } yield ()
-
-    res.attempt.unsafeRunSync() shouldBe Left(AuthorizationError(Some(userInfo.userEmail)))
-  }
-
-  it should "process a disk reference" in isolatedDbTest {
-    val res = for {
-      savedDisk <- makePersistentDisk(DiskId(1)).save()
-      req = DiskConfigRequest.Reference(savedDisk.name)
-      disk <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
-    } yield {
-      disk shouldEqual savedDisk
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
-    val res = for {
-      t <- ctx.ask
-      savedDisk <- makePersistentDisk(DiskId(1)).save()
-      _ <- IO(makeCluster(1).copy(persistentDiskId = Some(savedDisk.id)).save())
-      req = DiskConfigRequest.Reference(savedDisk.name)
-      err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
-    } yield {
-      err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "fail to process a disk reference when caller has no permission" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
-    val res = for {
-      savedDisk <- makePersistentDisk(DiskId(1)).save()
-      req = DiskConfigRequest.Reference(savedDisk.name)
-      _ <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
-    } yield ()
-
-    res.attempt.unsafeRunSync() shouldBe Left(AuthorizationError(Some(userInfo.userEmail)))
-  }
+//  it should "fail to create a disk when caller has no permission" in isolatedDbTest {
+//    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
+//    val req = DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
+//    val res = for {
+//      _ <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
+//    } yield ()
+//
+//    res.attempt.unsafeRunSync() shouldBe Left(AuthorizationError(Some(userInfo.userEmail)))
+//  }
+//
+//  it should "process a disk reference" in isolatedDbTest {
+//    val res = for {
+//      savedDisk <- makePersistentDisk(DiskId(1)).save()
+//      req = DiskConfigRequest.Reference(savedDisk.name)
+//      disk <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
+//    } yield {
+//      disk shouldEqual savedDisk
+//    }
+//
+//    res.unsafeRunSync()
+//  }
+//
+//  it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
+//    val res = for {
+//      t <- ctx.ask
+//      savedDisk <- makePersistentDisk(DiskId(1)).save()
+//      _ <- IO(makeCluster(1).copy(persistentDiskId = Some(savedDisk.id)).save())
+//      req = DiskConfigRequest.Reference(savedDisk.name)
+//      err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
+//    } yield {
+//      err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
+//    }
+//
+//    res.unsafeRunSync()
+//  }
+//
+//  it should "fail to process a disk reference when caller has no permission" in isolatedDbTest {
+//    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
+//    val res = for {
+//      savedDisk <- makePersistentDisk(DiskId(1)).save()
+//      req = DiskConfigRequest.Reference(savedDisk.name)
+//      _ <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount)
+//    } yield ()
+//
+//    res.attempt.unsafeRunSync() shouldBe Left(AuthorizationError(Some(userInfo.userEmail)))
+//  }
 
   private def withLeoPublisher(
     publisherQueue: InspectableQueue[IO, LeoPubsubMessage]

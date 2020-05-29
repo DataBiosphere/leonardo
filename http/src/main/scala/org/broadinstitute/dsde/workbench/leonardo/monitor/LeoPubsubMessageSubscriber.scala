@@ -12,7 +12,13 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.google2.{Event, GoogleDiskService, GoogleSubscriber, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  Event,
+  GoogleDiskService,
+  GoogleSubscriber,
+  MachineTypeName
+}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -20,6 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.DoneCheckableInstances.computeDoneCheckable
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -36,25 +43,26 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F],
   monitor: RuntimeMonitor[F, CloudService]) {
-  private[monitor] def messageResponder(message: LeoPubsubMessage,
-                                        now: Instant)(implicit traceId: ApplicativeAsk[F, AppContext]): F[Unit] =
+  private[monitor] def messageResponder(
+    message: LeoPubsubMessage
+  )(implicit traceId: ApplicativeAsk[F, AppContext]): F[Unit] =
     message match {
       case msg: CreateRuntimeMessage =>
-        handleCreateRuntimeMessage(msg, now)
+        handleCreateRuntimeMessage(msg)
       case msg: DeleteRuntimeMessage =>
-        handleDeleteRuntimeMessage(msg, now)
+        handleDeleteRuntimeMessage(msg)
       case msg: StopRuntimeMessage =>
-        handleStopRuntimeMessage(msg, now)
+        handleStopRuntimeMessage(msg)
       case msg: StartRuntimeMessage =>
-        handleStartRuntimeMessage(msg, now)
+        handleStartRuntimeMessage(msg)
       case msg: UpdateRuntimeMessage =>
-        handleUpdateRuntimeMessage(msg, now)
+        handleUpdateRuntimeMessage(msg)
       case msg: CreateDiskMessage =>
-        handleCreateDiskMessage(msg, now)
+        handleCreateDiskMessage(msg)
       case msg: DeleteDiskMessage =>
-        handleDeleteDiskMessage(msg, now)
+        handleDeleteDiskMessage(msg)
       case msg: UpdateDiskMessage =>
-        handleUpdateDiskMessage(msg, now)
+        handleUpdateDiskMessage(msg)
     }
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
@@ -62,7 +70,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
     implicit val appContext = ApplicativeAsk.const[F, AppContext](AppContext(traceId, now))
     val res = for {
-      res <- messageResponder(event.msg, now)
+      res <- messageResponder(event.msg)
         .timeout(config.timeout)
         .attempt // set timeout to 55 seconds because subscriber's ack deadline is 1 minute
       _ <- res match {
@@ -97,7 +105,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       event.consumer.ack()
     )
 
-  private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage, now: Instant)(
+  private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] = {
     val createCluster = for {
@@ -109,36 +117,39 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         clusterResult.serviceAccountKey,
         msg.runtimeId,
         Some(clusterResult.asyncRuntimeFields),
-        now
+        ctx.now
       )
       // Save the VM image and async fields in the database
-      clusterImage = RuntimeImage(RuntimeImageType.VM, clusterResult.customImage.asString, now)
+      clusterImage = RuntimeImage(RuntimeImageType.VM, clusterResult.customImage.asString, ctx.now)
       _ <- (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
         msg.runtimeId,
         clusterImage
       )).transaction
       taskToRun = for {
         _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Creating).compile.drain
-        _ <- if (msg.stopAfterCreation) { //TODO: once we remove legacy /api/clusters aroute or we remove `stopAfterCreation` support, we can remove this block
+        _ <- if (msg.stopAfterCreation) { //TODO: once we remove legacy /api/clusters route or we remove `stopAfterCreation` support, we can remove this block
           for {
             _ <- clusterQuery
-              .updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, now)
+              .updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now)
               .transaction
             runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
             runtime <- F.fromEither(runtimeOpt.toRight(new Exception(s"can't find ${msg.runtimeId} in DB")))
             runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, msg.runtimeConfig)
             _ <- msg.runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
+              .stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, ctx.now))
             _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Stopping).compile.drain
           } yield ()
         } else F.unit
       } yield ()
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, taskToRun, Some(logError(msg.runtimeProjectAndName.toString)), now))
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId, taskToRun, Some(logError(msg.runtimeProjectAndName.toString)), ctx.now)
+      )
     } yield ()
 
     createCluster.handleErrorWith {
       case e =>
         for {
+          ctx <- ev.ask
           _ <- logger.error(e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
           errorMessage = e match {
             case leoEx: LeoException =>
@@ -150,15 +161,15 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
           }
           _ <- errorMessage.traverse(m =>
-            (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, now)) >>
-              clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
+            (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, ctx.now)) >>
+              clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, ctx.now)).transaction[F]
           )
         } yield ()
     }
   }
 
-  private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage, now: Instant)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+  private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -184,10 +195,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting).compile.drain
       }
-      _ <- asyncTasks.enqueue1(Task(ctx, poll, Some(logError(runtime.projectNameString)), now))
+      _ <- asyncTasks.enqueue1(Task(ctx.traceId, poll, Some(logError(runtime.projectNameString)), ctx.now))
     } yield ()
 
-  private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage, now: Instant)(
+  private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -203,7 +214,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now)
+        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
       )
       poll = op match {
         case Some(o) =>
@@ -217,7 +228,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       _ <- asyncTasks.enqueue1(Task(ctx.traceId, poll, Some(logError(runtime.projectNameString)), ctx.now))
     } yield ()
 
-  private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage, now: Instant)(
+  private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -232,7 +243,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, now))
+      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, ctx.now))
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId,
              runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
@@ -241,11 +252,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       )
     } yield ()
 
-  private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage, now: Instant)(
-    implicit traceId: ApplicativeAsk[F, TraceId]
+  private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
-      tid <- traceId.ask
+      ctx <- ev.ask
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
@@ -260,12 +271,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           _ <- runtimeConfig.cloudService.interpreter
             .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
           _ <- msg.newNumWorkers.traverse_(a =>
-            RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, now).transaction
+            RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, ctx.now).transaction
           )
           _ <- msg.newNumPreemptibles.traverse_(a =>
-            RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), now).transaction
+            RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), ctx.now).transaction
           )
-          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, now).transaction.void
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, ctx.now).transaction.void
         } yield ()
       } else F.unit
 
@@ -273,7 +284,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       _ <- msg.newDiskSize.traverse_ { d =>
         for {
           _ <- runtimeConfig.cloudService.interpreter.updateDiskSize(UpdateDiskSizeParams(runtime, d))
-          _ <- RuntimeConfigQueries.updateDiskSize(runtime.runtimeConfigId, d, now).transaction
+          _ <- RuntimeConfigQueries.updateDiskSize(runtime.runtimeConfigId, d, ctx.now).transaction
         } yield ()
       }
       // Update the machine type
@@ -283,11 +294,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           for {
             timeToStop <- nowInstant
             ctxStopping = ApplicativeAsk.const[F, AppContext](
-              AppContext(tid, timeToStop)
+              AppContext(ctx.traceId, timeToStop)
             )
-            _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, now))
+            _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
             operation <- runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), now))(ctxStopping)
+              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now))(ctxStopping)
             task = for {
               _ <- operation match {
                 case Some(op) =>
@@ -299,16 +310,16 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                   runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
               }
               now <- nowInstant
-              implicit0(ctxStarting: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
-                AppContext(tid, now)
+              ctxStarting = ApplicativeAsk.const[F, AppContext](
+                AppContext(ctx.traceId, now)
               )
-              _ <- updateRuntimeAfterStopAndStarting(runtime, m)
+              _ <- updateRuntimeAfterStopAndStarting(runtime, m)(ctxStarting)
               _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction
             } yield ()
-            _ <- asyncTasks.enqueue1(Task(tid, task, Some(logError(runtime.projectNameString)), now))
+            _ <- asyncTasks.enqueue1(Task(ctx.traceId, task, Some(logError(runtime.projectNameString)), ctx.now))
           } yield ()
         } else {
-          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, now))
+          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
         }
       }
     } yield ()
@@ -335,37 +346,52 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       _ <- runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting).compile.drain
     } yield ()
 
-  private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage, now: Instant)(
-    implicit traceId: ApplicativeAsk[F, AppContext]
+  private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] = {
     val createDisk = for {
-      diskResult <- googleDiskService.createDisk(
+      ctx <- ev.ask
+      operation <- googleDiskService.createDisk(
         msg.googleProject,
         msg.zone,
         Disk
           .newBuilder()
           .setName(msg.name.value)
-          .setSizeGb(msg.size.asString)
+          .setSizeGb(msg.size.gb.toString)
           .setZone(msg.zone.value)
-          .setType(msg.diskType.googleString)
+          .setType(msg.diskType.googleString(msg.googleProject, msg.zone))
           .setPhysicalBlockSizeBytes(msg.blockSize.bytes.toString)
           .build()
       )
-      _ <- persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(diskResult.getTargetId), now).transaction[F]
+      _ <- persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(operation.getTargetId), ctx.now).transaction[F]
+      task = for {
+        _ <- streamFUntilDone(F.pure(operation),
+                              config.persistentDiskMonitorConfig.create.maxAttempts,
+                              config.persistentDiskMonitorConfig.create.interval).compile.drain
+        _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F]
+      } yield ()
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId,
+             task,
+             Some(logError(s"${ctx.traceId.asString} | ${msg.googleProject.value}/${msg.diskId.value}")),
+             ctx.now)
+      )
     } yield ()
     createDisk.handleErrorWith {
       case e =>
         for {
+          ctx <- ev.ask
           _ <- logger.error(e)(s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}")
-          _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, now).transaction[F]
+          _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction[F]
         } yield ()
     }
   }
 
-  private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage, now: Instant)(
-    implicit traceId: ApplicativeAsk[F, AppContext]
+  private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
+      ctx <- ev.ask
       diskOpt <- persistentDiskQuery.getById(msg.diskId).transaction
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId, msg))
@@ -375,20 +401,39 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           PubsubHandleMessageError.DiskInvalidState(msg.diskId, disk.projectNameString, disk, msg)
         )
       else F.unit
-      _ <- googleDiskService.deleteDisk(disk.googleProject, disk.zone, disk.name)
+      operation <- googleDiskService.deleteDisk(disk.googleProject, disk.zone, disk.name)
+      task = for {
+        _ <- streamFUntilDone(F.pure(operation),
+                              config.persistentDiskMonitorConfig.delete.maxAttempts,
+                              config.persistentDiskMonitorConfig.delete.interval).compile.drain
+        now <- nowInstant
+        _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Deleted, now).transaction[F]
+      } yield ()
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}")), ctx.now)
+      )
     } yield ()
 
-  private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage, now: Instant)(
-    implicit traceId: ApplicativeAsk[F, AppContext]
+  private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
+      ctx <- ev.ask
       diskOpt <- persistentDiskQuery.getById(msg.diskId).transaction
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId, msg))
       )(F.pure)
-      _ <- googleDiskService.resizeDisk(disk.googleProject, disk.zone, disk.name, msg.newSize.gb)
-      // TODO: needs to be updated after monitoring is added
-      _ <- persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]
+      operation <- googleDiskService.resizeDisk(disk.googleProject, disk.zone, disk.name, msg.newSize.gb)
+      task = for {
+        _ <- streamFUntilDone(F.pure(operation),
+                              config.persistentDiskMonitorConfig.update.maxAttempts,
+                              config.persistentDiskMonitorConfig.update.interval).compile.drain
+        now <- nowInstant
+        _ <- persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]
+      } yield ()
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}")), ctx.now)
+      )
     } yield ()
 
   private def logError(projectAndName: String): Throwable => F[Unit] =
@@ -442,4 +487,10 @@ object PubsubHandleMessageError {
   }
 }
 
-final case class LeoPubsubMessageSubscriberConfig(concurrency: Int, timeout: FiniteDuration)
+final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
+final case class PersistentDiskMonitorConfig(create: PersistentDiskMonitor,
+                                             delete: PersistentDiskMonitor,
+                                             update: PersistentDiskMonitor)
+final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
+                                                  timeout: FiniteDuration,
+                                                  persistentDiskMonitorConfig: PersistentDiskMonitorConfig)

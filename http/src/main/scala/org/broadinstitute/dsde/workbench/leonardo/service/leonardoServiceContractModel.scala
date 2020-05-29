@@ -5,12 +5,18 @@ package service
 import java.net.URL
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+
+final case class PersistentDiskRequest(name: DiskName,
+                                       size: Option[DiskSize],
+                                       diskType: Option[DiskType],
+                                       blockSize: Option[BlockSize],
+                                       labels: LabelMap)
 
 /** Runtime configuration in the createRuntime request */
 sealed trait RuntimeConfigRequest extends Product with Serializable {
@@ -19,16 +25,16 @@ sealed trait RuntimeConfigRequest extends Product with Serializable {
 object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
-    // diskSize deprecated in favor of CreateRuntime2Request.diskConfig
-    diskSize: Option[DiskSize]
+    diskSize: Option[DiskSize] //TODO: should this size mean the include boot disk size?
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
+  }
 
-    def toRuntimeConfigGceConfig(default: RuntimeConfig.GceConfig): RuntimeConfig.GceConfig = {
-      val minimumDiskSize = 10
-      val diskSizeFinal = math.max(minimumDiskSize, diskSize.getOrElse(default.diskSize).gb)
-      RuntimeConfig.GceConfig(machineType.getOrElse(default.machineType), DiskSize(diskSizeFinal))
-    }
+  final case class GceWithPdConfig(
+    machineType: Option[MachineTypeName],
+    persistentDisk: PersistentDiskRequest
+  ) extends RuntimeConfigRequest {
+    val cloudService: CloudService = CloudService.GCE
   }
 
   final case class DataprocConfig(numberOfWorkers: Option[Int],

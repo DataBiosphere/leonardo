@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
@@ -29,6 +30,12 @@ case class ClusterCopy(clusterName: RuntimeName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
+final case class PersistentDiskRequest(name: String,
+                                       size: Option[Int],
+                                       diskType: Option[String],
+                                       blockSize: Option[Int],
+                                       labels: LabelMap)
+
 sealed trait RuntimeConfigRequest extends Product with Serializable {
   def typedCloudService: CloudService
 }
@@ -39,7 +46,14 @@ object RuntimeConfigRequest {
     diskSize: Option[Int]
   ) extends RuntimeConfigRequest {
     val typedCloudService: CloudService = CloudService.GCE
+  }
 
+  final case class GceWithPdConfig(
+    cloudService: String = CloudService.GCE.asString,
+    machineType: Option[MachineTypeName],
+    persistentDisk: PersistentDiskRequest
+  ) extends RuntimeConfigRequest {
+    val typedCloudService: CloudService = CloudService.GCE
   }
 
   final case class DataprocConfig(cloudService: String = CloudService.Dataproc.asString,
@@ -53,7 +67,6 @@ object RuntimeConfigRequest {
                                   properties: Map[String, String])
       extends RuntimeConfigRequest {
     val typedCloudService: CloudService = CloudService.Dataproc
-
   }
 }
 
@@ -162,7 +175,6 @@ final case class GetRuntimeResponseCopy(runtimeName: RuntimeName,
                                         clusterUrl: URL,
                                         status: ClusterStatus,
                                         labels: LabelMap,
-                                        jupyterExtensionUri: Option[GcsPath],
                                         jupyterUserScriptUri: Option[UserScriptPath],
                                         jupyterStartUserScriptUri: Option[UserScriptPath],
                                         errors: List[RuntimeError],
@@ -201,3 +213,16 @@ object UpdateRuntimeConfigRequestCopy {
     val cloudService: String = CloudService.Dataproc.asString
   }
 }
+
+final case class GetPersistentDiskResponse(id: DiskId,
+                                           googleProject: GoogleProject,
+                                           zone: ZoneName,
+                                           name: DiskName,
+                                           googleId: Option[GoogleId],
+                                           serviceAccount: WorkbenchEmail,
+                                           status: DiskStatus,
+                                           auditInfo: AuditInfo,
+                                           size: DiskSize,
+                                           diskType: DiskType,
+                                           blockSize: BlockSize,
+                                           labels: LabelMap)

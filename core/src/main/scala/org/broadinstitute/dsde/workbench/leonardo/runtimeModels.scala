@@ -5,7 +5,7 @@ import java.time.Instant
 
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
@@ -199,12 +199,23 @@ object CustomImage {
   }
 }
 
+final case class PersistentDiskInRuntimeConfig(
+  id: DiskId,
+  zone: ZoneName,
+  name: DiskName,
+  status: DiskStatus,
+  size: DiskSize,
+  diskType: DiskType,
+  blockSize: BlockSize
+)
+
 /** Configuration of the runtime such as machine types, disk size, etc */
 final case class RuntimeConfigId(id: Long) extends AnyVal
 sealed trait RuntimeConfig extends Product with Serializable {
   def cloudService: CloudService
   def machineType: MachineTypeName
   def diskSize: DiskSize
+  def diskId: Option[DiskId]
 }
 object RuntimeConfig {
   final case class GceConfig(
@@ -212,6 +223,16 @@ object RuntimeConfig {
     diskSize: DiskSize
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
+    val diskId = None
+  }
+
+  final case class GceWithPdConfig(
+    machineType: MachineTypeName,
+    persistentDisk: PersistentDiskInRuntimeConfig
+  ) extends RuntimeConfig {
+    val cloudService: CloudService = CloudService.GCE
+    override def diskSize: DiskSize = persistentDisk.size
+    val diskId = Some(persistentDisk.id)
   }
 
   final case class DataprocConfig(numberOfWorkers: Int,
@@ -227,6 +248,7 @@ object RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
+    val diskId = None
   }
 }
 
