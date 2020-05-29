@@ -247,9 +247,7 @@ class HttpRoutesSpec
   it should "update a disk" in {
     val request = UpdateDiskRequest(
       Map("foo" -> "bar"),
-      Some(DiskSize(1024)),
-      None,
-      None
+      DiskSize(1024)
     )
     Patch("/api/google/v1/disks/googleProject1/disk1", request.asJson) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -366,17 +364,13 @@ object HttpRoutesSpec {
     )
   )
 
-  implicit val updateDiskRequestEncoder: Encoder[UpdateDiskRequest] = Encoder.forProduct4(
+  implicit val updateDiskRequestEncoder: Encoder[UpdateDiskRequest] = Encoder.forProduct2(
     "labels",
-    "size",
-    "diskType",
-    "blockSize"
+    "size"
   )(x =>
     (
       x.labels,
-      x.size,
-      x.diskType,
-      x.blockSize
+      x.size
     )
   )
 

@@ -271,3 +271,12 @@ case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskNam
 case class DiskCannotBeUpdatedException(projectNameString: String, status: DiskStatus, userHint: String = "")
     extends LeoException(s"Persistent disk ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict)
+
+case class DiskNotResizableException(googleProject: GoogleProject,
+                                     diskName: DiskName,
+                                     currentDiskSize: DiskSize,
+                                     newDiskSize: DiskSize)
+    extends LeoException(
+      s"Invalid value for disk size. New disk size ${newDiskSize.asString}GB must be larger than existing size of ${currentDiskSize.asString}GB for persistent disk ${googleProject.value}/${diskName.value}",
+      StatusCodes.BadRequest
+    )
