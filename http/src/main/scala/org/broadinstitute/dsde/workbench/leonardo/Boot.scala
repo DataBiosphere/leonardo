@@ -153,6 +153,7 @@ object Boot extends IOApp {
       val diskService = new DiskServiceInterp[IO](
         persistentDiskConfig,
         appDependencies.authProvider,
+        appDependencies.serviceAccountProvider,
         appDependencies.publisherQueue
       )
 

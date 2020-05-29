@@ -16,15 +16,8 @@ import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GcsBlobName, GoogleStorageService, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  AutoFreezeConfig,
-  DataprocConfig,
-  GceConfig,
-  ImageConfig,
-  PersistentDiskConfig,
-  ZombieRuntimeMonitorConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
@@ -37,8 +30,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.AttachPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -100,7 +94,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               processDiskConfigRequest(x,
                                        googleProject,
                                        req.runtimeConfig.map(_.cloudService).getOrElse(CloudService.GCE),
-                                       userInfo)
+                                       userInfo,
+                                       petSA)
             )
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done process disk config")))
             // For GCE, make diskConfig.size take precedence over runtimeConfig.diskSize
@@ -184,8 +179,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       paramMap <- F.fromEither(processListParameters(params))
       runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listCluster db query")))
-      samVisibleClusters <- authProvider
-        .filterUserVisibleClusters(userInfo, clusters.map(c => (c.googleProject, c.internalId)))
+      samVisibleRuntimes <- authProvider
+        .filterUserVisibleRuntimes(userInfo, runtimes.map(r => (r.googleProject, r.samResource)))
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visiable clusters")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create
@@ -323,11 +318,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       hasPermission <- authProvider.hasRuntimePermission(runtime.samResource, userInfo, GetRuntimeStatus, googleProject)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName))
-      hasModifyPermission <- authProvider.hasNotebookClusterPermission(runtime.internalId,
-                                                                       userInfo,
-                                                                       ModifyCluster,
-                                                                       googleProject,
-                                                                       runtimeName)
+      hasModifyPermission <- authProvider.hasRuntimePermission(runtime.samResource,
+                                                               userInfo,
+                                                               ModifyRuntime,
+                                                               googleProject)
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
       // throw 409 if the cluster is not updatable
       _ <- if (runtime.status.isUpdatable) F.unit
@@ -529,7 +523,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     req: DiskConfigRequest,
     googleProject: GoogleProject,
     cloudService: CloudService,
-    userInfo: UserInfo
+    userInfo: UserInfo,
+    serviceAccount: WorkbenchEmail
   )(implicit as: ApplicativeAsk[F, AppContext]): F[PersistentDisk] =
     (req, cloudService) match {
       case (DiskConfigRequest.Reference(name), CloudService.GCE) =>
@@ -538,7 +533,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           disk <- F.fromEither(diskOpt.toRight(DiskNotFoundException(googleProject, name)))
           attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk).transaction
           _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, name)) else F.unit
-          hasAttachPermission <- authProvider.hasPersistentDiskPermission(disk.samResourceId,
+          hasAttachPermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
                                                                           userInfo,
                                                                           AttachPersistentDisk,
                                                                           googleProject)
@@ -552,19 +547,20 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
           hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
           _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
-          samResourceId <- F.delay(DiskSamResourceId(UUID.randomUUID().toString))
+          samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
           ctx <- as.ask
           disk <- F.fromEither(
             DiskServiceInterp.convertToDisk(userInfo,
+                                            serviceAccount,
                                             googleProject,
                                             name,
-                                            samResourceId,
+                                            samResource,
                                             diskConfig,
                                             CreateDiskRequest.fromDiskConfigRequest(createReq),
                                             ctx.now)
           )
           _ <- authProvider
-            .notifyPersistentDiskCreated(samResourceId, userInfo.userEmail, googleProject)
+            .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
             .handleErrorWith { t =>
               log.error(t)(
                 s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"

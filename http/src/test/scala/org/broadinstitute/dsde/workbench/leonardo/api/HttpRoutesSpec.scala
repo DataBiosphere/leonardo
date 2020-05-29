@@ -11,7 +11,7 @@ import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -463,7 +463,7 @@ object HttpRoutesSpec {
       zone <- x.downField("zone").as[ZoneName]
       name <- x.downField("name").as[DiskName]
       googleId <- x.downField("googleId").as[Option[GoogleId]]
-      samResourceId <- x.downField("samResourceId").as[DiskSamResourceId]
+      serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
       status <- x.downField("status").as[DiskStatus]
       auditInfo <- x.downField("auditInfo").as[AuditInfo]
       size <- x.downField("size").as[DiskSize]
@@ -476,7 +476,10 @@ object HttpRoutesSpec {
       zone,
       name,
       googleId,
-      samResourceId,
+      serviceAccount,
+      // TODO samResource probably shouldn't be in the GetPersistentDiskResponse
+      // if it's not in the encoder
+      PersistentDiskSamResource("test"),
       status,
       auditInfo,
       size,

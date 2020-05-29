@@ -11,7 +11,8 @@ import cats.effect.Async
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
@@ -25,13 +26,13 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.{
   includeDeletedKey,
   processListParameters
 }
-import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.{
   DeletePersistentDisk,
   ModifyPersistentDisk,
   ReadPersistentDisk
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateDiskMessage,
@@ -209,14 +210,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 }
 
 object DiskServiceInterp {
-  private def convertToDisk(userInfo: UserInfo,
-                            serviceAccount: WorkbenchEmail,
-                            googleProject: GoogleProject,
-                            diskName: DiskName,
-                            samResource: PersistentDiskSamResource,
-                            config: PersistentDiskConfig,
-                            req: CreateDiskRequest,
-                            now: Instant): Either[Throwable, PersistentDisk] = {
+  private[service] def convertToDisk(userInfo: UserInfo,
+                                     serviceAccount: WorkbenchEmail,
+                                     googleProject: GoogleProject,
+                                     diskName: DiskName,
+                                     samResource: PersistentDiskSamResource,
+                                     config: PersistentDiskConfig,
+                                     req: CreateDiskRequest,
+                                     now: Instant): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
       diskName,

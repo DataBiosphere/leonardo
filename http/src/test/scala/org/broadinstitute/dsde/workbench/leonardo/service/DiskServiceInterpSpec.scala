@@ -178,8 +178,8 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      diskSamResourceId <- IO(DiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResourceId = diskSamResourceId).save()
+      diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
       _ <- IO(makeCluster(1).copy(persistentDiskId = Some(disk.id)).save())
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt
     } yield {
