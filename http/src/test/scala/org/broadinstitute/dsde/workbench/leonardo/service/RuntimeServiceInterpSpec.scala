@@ -759,20 +759,25 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
   it should "fail when on Dataproc" in {
     val req = DiskConfigRequest.Create(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
     val res = for {
-      _ <- runtimeService.processDiskConfigRequest(req, project, CloudService.Dataproc, userInfo, serviceAccount)
-    } yield ()
+      t <- ctx.ask
+      fail <- runtimeService
+        .processDiskConfigRequest(req, project, CloudService.Dataproc, userInfo, serviceAccount)
+        .attempt
+    } yield {
+      fail shouldBe Left(DiskNotSupportedException(t.traceId))
+    }
 
-    res.attempt.unsafeRunSync() shouldBe Left(DiskNotSupportedException)
+    res.unsafeRunSync()
   }
 
   it should "fail to create a disk if a disk with the same name already exists" in isolatedDbTest {
     val res = for {
+      t <- ctx.ask
       disk <- makePersistentDisk(DiskId(1)).save()
       req = DiskConfigRequest.Create(disk.name, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
       err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
-      t <- traceId.ask
     } yield {
-      err shouldBe Left(PersistentDiskAlreadyExistsException(project, disk.name, disk.status, t))
+      err shouldBe Left(PersistentDiskAlreadyExistsException(project, disk.name, disk.status, t.traceId))
     }
 
     res.unsafeRunSync()
@@ -802,13 +807,13 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
 
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
     val res = for {
+      t <- ctx.ask
       savedDisk <- makePersistentDisk(DiskId(1)).save()
       _ <- IO(makeCluster(1).copy(persistentDiskId = Some(savedDisk.id)).save())
       req = DiskConfigRequest.Reference(savedDisk.name)
       err <- runtimeService.processDiskConfigRequest(req, project, CloudService.GCE, userInfo, serviceAccount).attempt
-      t <- traceId.ask
     } yield {
-      err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t))
+      err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
     }
 
     res.unsafeRunSync()
