@@ -10,13 +10,13 @@ import com.google.cloud.compute.v1.{Instance, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleDiskService, InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocInterpreter, GceInterpreter, RuntimeInstances}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -427,11 +427,12 @@ class ZombieRuntimeMonitorSpec
   private def withZombieMonitor[A](
     gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
     gce: GoogleComputeService[IO] = new MockGoogleComputeService,
+    disk: GoogleDiskService[IO] = new MockGoogleDiskService,
     googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
   )(validations: () => A): A = {
     val dataprocInterp =
-      new DataprocInterpreter(dataprocInterpreterConfig, null, null, gdDAO, gce, null, null, null, null, blocker)
-    val gceInterp = new GceInterpreter(gceInterpreterConfig, null, null, gce, null, blocker)
+      new DataprocInterpreter(dataprocInterpreterConfig, null, null, gdDAO, gce, disk,null, null, null, null, blocker)
+    val gceInterp = new GceInterpreter(gceInterpreterConfig, null, null, gce, disk,null, blocker)
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     val zombieClusterMonitor = ZombieRuntimeMonitor[IO](Config.zombieRuntimeMonitorConfig, googleProjectDAO)

@@ -32,6 +32,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   Event,
   GoogleComputeService,
   GoogleDataprocService,
+  GoogleDiskService,
   GooglePublisher,
   GoogleStorageService,
   GoogleSubscriber
@@ -90,6 +91,7 @@ object Boot extends IOApp {
                                                    vpcInterp,
                                                    appDependencies.googleDataprocDAO,
                                                    appDependencies.googleComputeService,
+                                                   appDependencies.googleDiskService,
                                                    appDependencies.googleDirectoryDAO,
                                                    appDependencies.googleIamDAO,
                                                    appDependencies.googleProjectDAO,
@@ -100,6 +102,7 @@ object Boot extends IOApp {
                                          bucketHelper,
                                          vpcInterp,
                                          appDependencies.googleComputeService,
+                                         appDependencies.googleDiskService,
                                          appDependencies.welderDAO,
                                          appDependencies.blocker)
       implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
@@ -202,13 +205,16 @@ object Boot extends IOApp {
 
           val monitorAtBoot = new MonitorAtBoot[IO]()
 
+          val googleDiskService = appDependencies.googleDiskService
+
           // only needed for backleo
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
                                                appDependencies.subscriber,
-                                               appDependencies.asyncTasksQueue)
+                                               appDependencies.asyncTasksQueue,
+                                               googleDiskService)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -312,12 +318,14 @@ object Boot extends IOApp {
       )
       asyncTasksQueue <- Resource.liftF(InspectableQueue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
+      googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, blocker, semaphore)
     } yield AppDependencies(
       storage,
       dbRef,
       clusterDnsCache,
       petGoogleStorageDAO,
       googleComputeService,
+      googleDiskService,
       googleProjectDAO,
       googleDirectoryDAO,
       googleIamDAO,
@@ -363,6 +371,7 @@ final case class AppDependencies[F[_]](
   clusterDnsCache: ClusterDnsCache[F],
   petGoogleStorageDAO: String => GoogleStorageDAO,
   googleComputeService: GoogleComputeService[F],
+  googleDiskService: GoogleDiskService[F],
   googleProjectDAO: HttpGoogleProjectDAO,
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
   googleIamDAO: HttpGoogleIamDAO,

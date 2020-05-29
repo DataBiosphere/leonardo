@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Pro
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{MockGoogleComputeService, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -101,6 +101,7 @@ class LeonardoServiceSpec
                                                  vpcInterp,
                                                  gdDAO,
                                                  MockGoogleComputeService,
+                                                 MockGoogleDiskService,
                                                  directoryDAO,
                                                  iamDAO,
                                                  projectDAO,
@@ -110,6 +111,7 @@ class LeonardoServiceSpec
                                        bucketHelper,
                                        vpcInterp,
                                        MockGoogleComputeService,
+                                       MockGoogleDiskService,
                                        MockWelderDAO,
                                        blocker)
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)

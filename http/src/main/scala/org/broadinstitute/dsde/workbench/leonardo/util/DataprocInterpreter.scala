@@ -15,7 +15,13 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  GoogleDiskService,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
@@ -52,6 +58,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   vpcAlg: VPCAlgebra[F],
   gdDAO: GoogleDataprocDAO,
   googleComputeService: GoogleComputeService[F],
+  googleDiskService: GoogleDiskService[F],
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
   googleProjectDAO: GoogleProjectDAO,
@@ -349,10 +356,9 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       instance.dataprocRole match {
         case Master =>
           // Note for Dataproc the disk name is the same as the instance name
-          googleComputeService.resizeDisk(instance.key.project,
-                                          instance.key.zone,
-                                          DiskName(instance.key.name.value),
-                                          params.diskSize.gb)
+          googleDiskService
+            .resizeDisk(instance.key.project, instance.key.zone, DiskName(instance.key.name.value), params.diskSize.gb)
+            .void
         case _ => Async[F].unit
       }
     }

@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.google2.GoogleDiskService
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -42,6 +43,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
   googleComputeService: GoogleComputeService[F],
+  googleDiskService: GoogleDiskService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext, metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F])
@@ -241,10 +243,12 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     Async[F].unit
 
   override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    googleComputeService.resizeDisk(params.runtime.googleProject,
-                                    config.gceConfig.zoneName,
-                                    DiskName(params.runtime.runtimeName.asString),
-                                    params.diskSize.gb)
+    googleDiskService
+      .resizeDisk(params.runtime.googleProject,
+                  config.gceConfig.zoneName,
+                  DiskName(params.runtime.runtimeName.asString),
+                  params.diskSize.gb)
+      .void
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     Async[F].unit

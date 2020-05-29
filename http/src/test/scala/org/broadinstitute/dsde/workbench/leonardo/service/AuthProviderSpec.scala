@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{MockGoogleComputeService, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
@@ -84,6 +84,7 @@ class AuthProviderSpec
                                 vpcInterp,
                                 mockGoogleDataprocDAO,
                                 MockGoogleComputeService,
+                                MockGoogleDiskService,
                                 mockGoogleDirectoryDAO,
                                 mockGoogleIamDAO,
                                 mockGoogleProjectDAO,
@@ -94,6 +95,7 @@ class AuthProviderSpec
                            bucketHelper,
                            vpcInterp,
                            MockGoogleComputeService,
+                           MockGoogleDiskService,
                            mockWelderDAO,
                            blocker)
   implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)

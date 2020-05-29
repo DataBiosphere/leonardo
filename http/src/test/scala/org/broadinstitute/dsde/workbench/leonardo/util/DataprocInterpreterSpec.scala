@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, MockGoogleComputeService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, MockGoogleComputeService, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -56,6 +56,7 @@ class DataprocInterpreterSpec
                                                    vpcInterp,
                                                    mockGoogleDataprocDAO,
                                                    MockGoogleComputeService,
+                                                   MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    mockGoogleIamDAO,
                                                    mockGoogleProjectDAO,
@@ -153,6 +154,7 @@ class DataprocInterpreterSpec
                                                             vpcInterp,
                                                             erroredDataprocDAO,
                                                             MockGoogleComputeService,
+                                                            MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             mockGoogleIamDAO,
                                                             mockGoogleProjectDAO,
@@ -187,6 +189,7 @@ class DataprocInterpreterSpec
                                                             vpcInterp,
                                                             erroredDataprocDAO,
                                                             MockGoogleComputeService,
+                                                            MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             mockGoogleIamDAO,
                                                             mockGoogleProjectDAO,
@@ -215,6 +218,7 @@ class DataprocInterpreterSpec
                                                             vpcInterp,
                                                             mockGoogleDataprocDAO,
                                                             MockGoogleComputeService,
+                                                            MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
                                                             mockGoogleProjectDAO,

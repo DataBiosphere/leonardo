@@ -1631,9 +1631,7 @@ components:
           schema:
             $ref: "#/components/schemas/UpdateDiskRequest"
           example:
-            updateSize: 600
-            updateDiskType: "SSD"
-            updateBlockSize: 16384
+            size: 600
     # legacy
     ClusterRequest:
       content:

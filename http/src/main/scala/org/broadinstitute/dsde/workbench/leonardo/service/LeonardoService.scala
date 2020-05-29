@@ -54,6 +54,15 @@ case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: R
 case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskName)
     extends LeoException(s"Persistent disk ${googleProject.value}/${diskName.value} not found", StatusCodes.NotFound)
 
+case class DiskNotResizableException(googleProject: GoogleProject,
+                                     diskName: DiskName,
+                                     currentDiskSize: DiskSize,
+                                     newDiskSize: DiskSize)
+    extends LeoException(
+      s"Invalid value for disk size. New disk size ${newDiskSize.asString}GB must be larger than existing size of ${currentDiskSize.asString}GB for persistent disk ${googleProject.value}/${diskName.value}",
+      StatusCodes.BadRequest
+    )
+
 case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
       s"Runtime ${googleProject.value}/${runtimeName.asString} already exists in ${status.toString} status",

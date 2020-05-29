@@ -175,6 +175,9 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 404 if not existent
       diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
       disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(googleProject, diskName)))(F.pure)
+      // throw 400 if UpdateDiskRequest new size is smaller than disk's current size
+      _ <- if (req.size.gb > disk.size.gb) F.unit
+      else F.raiseError[Unit](DiskNotResizableException(googleProject, diskName, disk.size, req.size))
       // throw 404 if no ReadPersistentDisk permission
       // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
       // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
@@ -194,7 +197,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       else
         F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status))
       _ <- publisherQueue.enqueue1(
-        UpdateDiskMessage(disk.id, req.size, req.diskType, req.blockSize, Some(ctx.traceId))
+        UpdateDiskMessage(disk.id, req.size, Some(ctx.traceId))
       )
     } yield ()
 }
