@@ -13,6 +13,7 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.http.scaladsl.server.{Directive0, ExceptionHandler, Route}
 import akka.stream.scaladsl.Sink
 import cats.effect.{ContextShift, IO, Timer}
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   LeonardoService,
@@ -22,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.ErrorReport
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -35,7 +36,8 @@ class HttpRoutes(
   diskService: DiskService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String
-)(implicit timer: Timer[IO], ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO]) {
+)(implicit timer: Timer[IO], ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO])
+    extends LazyLogging {
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
@@ -50,20 +52,8 @@ class HttpRoutes(
         complete(StatusCodes.BadRequest, requestValidationError.getMessage)
       case leoException: LeoException =>
         complete(leoException.statusCode, leoException.toErrorReport)
-      case withErrorReport: WorkbenchExceptionWithErrorReport =>
-        complete(
-          withErrorReport.errorReport.statusCode
-            .getOrElse(StatusCodes.InternalServerError) -> withErrorReport.errorReport
-        )
-      case workbenchException: WorkbenchException =>
-        val report = ErrorReport(Option(workbenchException.getMessage).getOrElse(""),
-                                 Some(StatusCodes.InternalServerError),
-                                 Seq(),
-                                 Seq(),
-                                 Some(workbenchException.getClass))
-        complete(StatusCodes.InternalServerError -> report)
       case e: Throwable =>
-        //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
+        logger.error(s"Unexpected error occurred processing route: ${e.getMessage}", e)
         complete(
           StatusCodes.InternalServerError -> ErrorReport(e.getMessage,
                                                          Some(StatusCodes.InternalServerError),
@@ -100,11 +90,13 @@ class HttpRoutes(
   }
 
   val route: Route = {
-    (logRequestResult & handleExceptions(myExceptionHandler)) {
-      swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
-        pathPrefix("api") {
-          leonardoRoutes.route ~ runtimeRoutes.routes ~ diskRoutes.routes
-        }
+    logRequestResult {
+      handleExceptions(myExceptionHandler) {
+        swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
+          pathPrefix("api") {
+            leonardoRoutes.route ~ runtimeRoutes.routes ~ diskRoutes.routes
+          }
+      }
     }
   }
 }
