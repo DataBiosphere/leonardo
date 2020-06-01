@@ -496,6 +496,29 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()
   }
 
+  it should "update patchInProgress flag if stopToUpdateMachineType is true" in isolatedDbTest {
+    val req =
+      UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-8")), Some(gceRuntimeConfig.diskSize))
+    val runtime = testCluster.copy(status = RuntimeStatus.Running)
+    val res = for {
+      traceId <- traceId.ask
+      savedRuntime <- IO(runtime.save())
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, true, savedRuntime, gceRuntimeConfig, traceId)
+      patchInProgress <- patchQuery.isInprogress(savedRuntime.id).transaction
+      message <- publisherQueue.dequeue1
+    } yield {
+      patchInProgress shouldBe (true)
+      message shouldBe UpdateRuntimeMessage(savedRuntime.id,
+                                            Some(MachineTypeName("n1-standard-8")),
+                                            true,
+                                            None,
+                                            None,
+                                            None,
+                                            Some(traceId))
+    }
+    res.unsafeRunSync()
+  }
+
   it should "update a GCE machine type in Stopped state" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
