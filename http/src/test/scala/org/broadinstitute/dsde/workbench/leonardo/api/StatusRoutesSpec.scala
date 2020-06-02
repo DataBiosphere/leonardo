@@ -95,6 +95,8 @@ class StatusRoutesSpec
       override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[String]] = ???
+
+      override def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[String]] = ???
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =

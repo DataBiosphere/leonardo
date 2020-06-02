@@ -66,7 +66,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
         )
       )
 
-  private def getNotebookActionString(action: LeoAuthAction): Either[Throwable, String] =
+  private def getNotebookActionString(action: RuntimeAction): Either[Throwable, String] =
     runtimeActionMap
       .get(action)
       .toRight(
@@ -75,7 +75,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
         )
       )
 
-  private def getPersistentDiskActionString(action: LeoAuthAction): Either[Throwable, String] =
+  private def getPersistentDiskActionString(action: PersistentDiskAction): Either[Throwable, String] =
     persistentDiskActionMap
       .get(action)
       .toRight(
@@ -94,7 +94,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     DeletePersistentDisk -> "delete_persistent_disk"
   )
 
-  private val runtimeActionMap: Map[LeoAuthAction, String] = Map(
+  private val runtimeActionMap: Map[RuntimeAction, String] = Map(
     GetRuntimeStatus -> "status",
     ConnectToRuntime -> "connect",
     SyncDataToRuntime -> "sync",
@@ -103,12 +103,14 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     StopStartRuntime -> "stop_start"
   )
 
-  private val persistentDiskActionMap: Map[LeoAuthAction, String] = Map(
+  private val persistentDiskActionMap: Map[PersistentDiskAction, String] = Map(
     ReadPersistentDisk -> "read",
     AttachPersistentDisk -> "attach",
     ModifyPersistentDisk -> "modify",
     DeletePersistentDisk -> "delete"
   )
+
+  private val runtimeActionMapReversed = runtimeActionMap.map(_.swap)
 
   override def hasProjectPermission(
     userInfo: UserInfo,
@@ -150,6 +152,20 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     // can add check to cache here if necessary
     checkPersistentDiskPermissionWithProjectFallback(samResource, authorization, action, googleProject)
+  }
+
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[List[RuntimeAction]] = {
+
+    val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      listOfPermissions <- samDao
+        .getListOfResourcePermissions(samResource, authorization)
+
+    } yield {
+      listOfPermissions.flatMap(runtimeActionMapReversed.get)
+    }
   }
 
   private def checkRuntimePermissionWithProjectFallback(
@@ -201,7 +217,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
   private def hasProjectPermissionInternal(
     googleProject: GoogleProject,
-    action: LeoAuthAction,
+    action: LeoAuthAction, //for projectfallback
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
@@ -211,7 +227,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
   private def hasRuntimePermissionInternal(
     samResource: RuntimeSamResource,
-    action: LeoAuthAction,
+    action: RuntimeAction,
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
@@ -221,7 +237,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
   private def hasPersistentDiskPermissionInternal(
     samResource: PersistentDiskSamResource,
-    action: LeoAuthAction,
+    action: PersistentDiskAction,
     authHeader: Authorization
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
     for {
@@ -276,6 +292,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                      creatorEmail: WorkbenchEmail,
                                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, userEmail, creatorEmail, googleProject)
+
 }
 
 final case class SamAuthProviderConfig(notebookAuthCacheEnabled: Boolean,
