@@ -104,7 +104,7 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
                                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
 
-  override def getRuntimeActions(samResource: SamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] = ???
+  override def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] = ???
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

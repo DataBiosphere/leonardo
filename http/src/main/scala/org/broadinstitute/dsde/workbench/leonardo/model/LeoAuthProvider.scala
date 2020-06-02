@@ -51,7 +51,7 @@ trait LeoAuthProvider[F[_]] {
                            action: RuntimeAction,
                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
-  def getRuntimeActions(samResource: SamResource, userInfo: UserInfo)(
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[RuntimeAction]]
 

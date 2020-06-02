@@ -110,6 +110,8 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     DeletePersistentDisk -> "delete"
   )
 
+  private val runtimeActionMapReversed = runtimeActionMap.map(_.swap)
+
   override def hasProjectPermission(
     userInfo: UserInfo,
     action: ProjectAction,
@@ -152,18 +154,17 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     checkPersistentDiskPermissionWithProjectFallback(samResource, authorization, action, googleProject)
   }
 
-  def getRuntimeActions(samResource: SamResource, userInfo: UserInfo)(
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[RuntimeAction]] = {
 
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-
     for {
       listOfPermissions <- samDao
         .getListOfResourcePermissions(samResource, authorization)
 
     } yield {
-      listOfPermissions.map(x => runtimeActionMap.find(_._2 == x).map(_._1).get)
+      listOfPermissions.flatMap(runtimeActionMapReversed.get)
     }
   }
 
@@ -291,6 +292,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                      creatorEmail: WorkbenchEmail,
                                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, userEmail, creatorEmail, googleProject)
+
 }
 
 final case class SamAuthProviderConfig(notebookAuthCacheEnabled: Boolean,
