@@ -1,19 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import akka.http.scaladsl.testkit.ScalatestRouteTest
-import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import io.circe.parser
-import HttpJupyterDAO.sessionDecoder
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{dnsCacheConfig, proxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.Idle
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO.sessionDecoder
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.{FakeHttpClient, LeonardoTestSuite, RuntimeName}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.scalatest.{FlatSpec, Matchers}
 
-class HttpJupyterDAOSpec
-    extends FlatSpec
-    with Matchers
-    with BeforeAndAfterAll
-    with ScalatestRouteTest
-    with ScalaFutures {
-  "HttpJupyterDAO" should "decode jupyter list sessions response successfully" in {
+import scala.concurrent.ExecutionContext.Implicits.global
+
+class HttpJupyterDAOSpec extends FlatSpec with LeonardoTestSuite with Matchers with TestComponent {
+  it should "decode jupyter list sessions response successfully" in {
     val response =
       """
         |[
@@ -43,5 +43,13 @@ class HttpJupyterDAOSpec
     } yield resp
 
     res shouldBe (Right(List(Session(Kernel(Idle)))))
+  }
+
+  it should "return true for isAllKernelsIdle if host is down" in {
+    val clusterDnsCache = new ClusterDnsCache(proxyConfig, testDbRef, dnsCacheConfig, blocker)
+
+    val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client)
+    val res = jupyterDAO.isAllKernelsIdle(GoogleProject("project1"), RuntimeName("rt"))
+    res.unsafeRunSync() shouldBe (true)
   }
 }

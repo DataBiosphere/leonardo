@@ -48,7 +48,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache:
               )
             )
           } yield res.forall(k => k.kernel.executionState == Idle)
-        case _ => Concurrent[F].pure(false)
+        case _ => Concurrent[F].pure(true)
       }
     } yield resp
 }
