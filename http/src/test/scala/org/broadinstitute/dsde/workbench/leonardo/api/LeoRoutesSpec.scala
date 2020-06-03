@@ -15,12 +15,17 @@ import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, ListRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  CreateRuntimeRequest,
+  ListRuntimeResponse,
+  RuntimeConfigRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.{Assertion, FlatSpec}
 import slick.dbio.DBIO
+import io.circe.parser.decode
 
 import scala.concurrent.duration._
 
@@ -344,6 +349,30 @@ class LeoRoutesSpec
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String shouldBe expectedResponse
       status shouldEqual StatusCodes.BadRequest
     }
+  }
+
+  it should "decode RuntimeConfigRequest.DataprocConfig" in {
+    import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
+    val jsonString =
+      """
+        |{
+        |   "cloudService": "dataproc",
+        |   "properties": {
+        |     "spark:spark.executor.cores": "4"
+        |   }
+        |}
+        |""".stripMargin
+    val expectedResult = RuntimeConfigRequest.DataprocConfig(
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      Map("spark:spark.executor.cores" -> "4")
+    )
+    decode[RuntimeConfigRequest.DataprocConfig](jsonString) shouldBe Right(expectedResult)
   }
 
   private def serviceAccountLabels: Map[String, String] =
