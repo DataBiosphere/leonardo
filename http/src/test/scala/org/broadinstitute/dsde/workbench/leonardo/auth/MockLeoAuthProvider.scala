@@ -91,6 +91,9 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
                                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     notifyInternal
 
-
-  override def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] = IO.pure(List.empty)
+  override def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
+                                                    samResource: RuntimeSamResource,
+                                                    userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[LeoAuthAction]] = IO.pure(List.empty)
 }

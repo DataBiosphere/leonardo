@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
+  LeoAuthAction,
   LeoAuthProvider,
   PersistentDiskAction,
   ProjectAction,
@@ -104,7 +105,11 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
                                      googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     IO.unit
 
-  override def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] = ???
+  override def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
+                                                    samResource: RuntimeSamResource,
+                                                    userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[LeoAuthAction]] = ???
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

@@ -110,8 +110,6 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     DeletePersistentDisk -> "delete"
   )
 
-  private val runtimeActionMapReversed = runtimeActionMap.map(_.swap)
-
   override def hasProjectPermission(
     userInfo: UserInfo,
     action: ProjectAction,
@@ -154,17 +152,23 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     checkPersistentDiskPermissionWithProjectFallback(samResource, authorization, action, googleProject)
   }
 
-  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+  def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
+                                           samResource: RuntimeSamResource,
+                                           userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[RuntimeAction]] = {
+  ): F[List[LeoAuthAction]] = {
 
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
         .getListOfResourcePermissions(samResource, authorization)
+      callerActions = runtimeActionMap.collect { case (k, v) if listOfPermissions.contains(v) => k }
 
+      projectPermissions <- samDao
+        .getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
+      projectActions = projectActionMap.collect { case (k, v) if projectPermissions.contains(v) => k }
     } yield {
-      listOfPermissions.flatMap(runtimeActionMapReversed.get)
+      callerActions.toList ++ projectActions
     }
   }
 
