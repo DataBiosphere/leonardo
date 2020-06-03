@@ -10,7 +10,8 @@ import org.broadinstitute.dsde.workbench.model.google.GcsPath
 
 // Shared routes specific codecs live in this file. When Routes file get too big, we can potentially move codec to this file too
 object LeoRoutesJsonCodec {
-  val invalidPropertiesError = DecodingFailure("invalid properties", List.empty)
+  val invalidPropertiesError =
+    DecodingFailure("invalid properties. An example of property is `spark:spark.executor.cores`", List.empty)
 
   implicit val dataprocConfigDecoder: Decoder[RuntimeConfigRequest.DataprocConfig] = Decoder.instance { c =>
     for {
