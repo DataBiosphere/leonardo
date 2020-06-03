@@ -105,7 +105,29 @@ class MockSamDAO extends SamDAO[IO] {
   override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] =
     IO.pure(StatusCheckResponse(true, Map.empty))
 
-  override def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[String]] = IO.pure(List.empty)
+  override def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[String]] =
+    resource.resourceType match {
+      case SamResourceType.Project =>
+        val res = billingProjects
+          .get((GoogleProject(resource.resourceId), authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+        IO.pure(res)
+      case SamResourceType.Runtime =>
+        val res = runtimes
+          .get((RuntimeSamResource(resource.resourceId), authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+        IO.pure(res)
+      case SamResourceType.PersistentDisk =>
+        val res = persistentDisks
+          .get((PersistentDiskSamResource(resource.resourceId), authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+        IO.pure(res)
+    }
 }
 
 object MockSamDAO {

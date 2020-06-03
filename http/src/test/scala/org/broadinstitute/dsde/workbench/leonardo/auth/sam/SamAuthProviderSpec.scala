@@ -142,6 +142,18 @@ class SamAuthProviderSpec
     mockSam.runtimes.remove((runtimeSamResource, fakeUserAuthorization))
   }
 
+  "getRuntimeActionsWithProjectFallback should return project permissions as well" in {
+    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("sync_notebook_cluster")
+    mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set()
+
+    samAuthProvider
+      .getRuntimeActionsWithProjectFallback(project, runtimeSamResource, fakeUserInfo)
+      .unsafeRunSync() shouldBe List(SyncDataToRuntime)
+
+    mockSam.billingProjects.remove((project, fakeUserAuthorization))
+    mockSam.runtimes.remove((runtimeSamResource, fakeUserAuthorization))
+  }
+
   "notifyClusterCreated should create a new cluster resource" in {
     mockSam.runtimes shouldBe empty
     samAuthProvider.notifyResourceCreated(runtimeSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()

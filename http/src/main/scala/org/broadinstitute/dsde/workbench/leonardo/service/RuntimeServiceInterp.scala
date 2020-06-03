@@ -206,8 +206,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(googleProject,
+                                                                             runtime.samResource,
+                                                                             userInfo)
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done first hasNotebookClusterPermission")))
@@ -260,7 +261,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(googleProject,
+                                                                             runtime.samResource,
+                                                                             userInfo)
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
@@ -296,7 +299,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(googleProject,
+                                                                             runtime.samResource,
+                                                                             userInfo)
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
@@ -336,7 +341,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(googleProject,
+                                                                             runtime.samResource,
+                                                                             userInfo)
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 

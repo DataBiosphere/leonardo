@@ -71,7 +71,11 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 
-  override def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[RuntimeAction]] =
+  override def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
+                                                    samResource: RuntimeSamResource,
+                                                    userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[LeoAuthAction]] =
     if (checkWhitelist(userInfo) == IO.pure(true)) IO.pure(RuntimeAction.allActions.toList)
     else IO.pure(List.empty)
 

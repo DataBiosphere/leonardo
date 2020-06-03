@@ -51,9 +51,11 @@ trait LeoAuthProvider[F[_]] {
                            action: RuntimeAction,
                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
-  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+  def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
+                                           samResource: RuntimeSamResource,
+                                           userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[RuntimeAction]]
+  ): F[List[LeoAuthAction]]
 
   def hasPersistentDiskPermission(samResource: PersistentDiskSamResource,
                                   userInfo: UserInfo,
