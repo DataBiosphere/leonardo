@@ -12,7 +12,7 @@ object Dependencies {
   val scalaLoggingV = "3.9.0"
   val scalaTestV = "3.0.8"
   val slickV = "3.3.2"
-  val http4sVersion = "0.21.4" //remove http4s related dependencies once workbench-libs are upgraded
+//  val http4sVersion = "0.21.4" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
   val opencensusV = "0.26.0"
@@ -113,9 +113,9 @@ object Dependencies {
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.5"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % "test" // brought in for FakeStorageInterpreter
 
-  val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
-  val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
-  val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
+//  val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
+//  val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
+//  val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val fs2Io: ModuleID =   "co.fs2"            %% "fs2-io"               % "2.0.1"
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
@@ -139,9 +139,9 @@ object Dependencies {
     jacksonAnnotations,
     jacksonDatabind,
     jacksonCore,
-    http4sCirce,
-    http4sBlazeClient,
-    http4sDsl,
+//    http4sCirce,
+//    http4sBlazeClient,
+//    http4sDsl,
     fs2Io,
     logbackClassic,
     ravenLogback,
