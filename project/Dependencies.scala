@@ -12,7 +12,7 @@ object Dependencies {
   val scalaLoggingV = "3.9.0"
   val scalaTestV = "3.0.8"
   val slickV = "3.3.2"
-  val http4sVersion = "0.21.0" //remove http4s related dependencies once workbench-libs are upgraded
+  val http4sVersion = "0.21.4" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
   val opencensusV = "0.26.0"
