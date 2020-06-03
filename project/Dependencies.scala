@@ -172,10 +172,10 @@ object Dependencies {
     mysql,
     liquibase,
     "de.heikoseeberger" %% "akka-http-circe" % "1.31.0",
-    "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
+    "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2" excludeAll (excludeGuava),
 
     // Dependent on the trace exporters you want to use add one or more of the following
-    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV
+    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV excludeAll (excludeGuava)
   )
 
   val serviceTestV = "0.16-e6493d5"
