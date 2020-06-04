@@ -157,19 +157,24 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
                                            userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[LeoAuthAction]] = {
+    val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      callerActions <- getRuntimeActions(samResource, userInfo)
+      projectPermissions <- samDao
+        .getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
+      projectActions = projectActionMap.collect { case (k, v) if projectPermissions.contains(v) => k }
+    } yield callerActions ++ projectActions
+  }
 
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[List[RuntimeAction]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
         .getListOfResourcePermissions(samResource, authorization)
       callerActions = runtimeActionMap.collect { case (k, v) if listOfPermissions.contains(v) => k }
-
-      projectPermissions <- samDao
-        .getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
-      projectActions = projectActionMap.collect { case (k, v) if projectPermissions.contains(v) => k }
-    } yield {
-      callerActions.toList ++ projectActions
-    }
+    } yield callerActions.toList
   }
 
   private def checkRuntimePermissionWithProjectFallback(

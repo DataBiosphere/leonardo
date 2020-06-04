@@ -57,6 +57,10 @@ trait LeoAuthProvider[F[_]] {
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[LeoAuthAction]]
 
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[List[RuntimeAction]]
+
   def hasPersistentDiskPermission(samResource: PersistentDiskSamResource,
                                   userInfo: UserInfo,
                                   action: PersistentDiskAction,

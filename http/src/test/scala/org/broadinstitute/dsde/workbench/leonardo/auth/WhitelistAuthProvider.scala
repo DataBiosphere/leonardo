@@ -76,7 +76,12 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
                                                     userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[LeoAuthAction]] =
-    if (checkWhitelist(userInfo) == IO.pure(true)) IO.pure(RuntimeAction.allActions.toList)
+    if (checkWhitelist(userInfo) == IO.pure(true)) IO.pure(RuntimeAction.allActions.toList ++ ProjectAction.allActions)
     else IO.pure(List.empty)
 
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[RuntimeAction]] =
+    if (checkWhitelist(userInfo) == IO.pure(true)) IO.pure(RuntimeAction.allActions.toList)
+    else IO.pure(List.empty)
 }
