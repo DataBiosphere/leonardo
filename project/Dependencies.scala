@@ -175,7 +175,8 @@ object Dependencies {
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
 
     // Dependent on the trace exporters you want to use add one or more of the following
-    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV
+    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
+    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test
   )
 
   val serviceTestV = "0.16-e6493d5"
