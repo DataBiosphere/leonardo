@@ -18,6 +18,7 @@ final case class PersistentDisk(id: DiskId,
                                 size: DiskSize,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
+                                formattedBy: Option[FormattedBy],
                                 labels: LabelMap) {
   def projectNameString: String = s"${googleProject.value}/${name.value}"
 }
@@ -89,5 +90,19 @@ object DiskType extends Enum[DiskType] {
   final case object SSD extends DiskType {
     override def asString: String = "pd-ssd"
     def googleString(googleProject: GoogleProject, zoneName: ZoneName): String = asString
+  }
+}
+
+sealed trait FormattedBy extends EnumEntry with Product with Serializable {
+  def asString: String
+}
+object FormattedBy extends Enum[FormattedBy] {
+  val values = findValues
+
+  final case object Runtime extends FormattedBy {
+    override def asString: String = "runtime"
+  }
+  final case object Galaxy extends FormattedBy {
+    override def asString: String = "galaxy"
   }
 }
