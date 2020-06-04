@@ -3,8 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
@@ -30,29 +31,15 @@ case class ClusterCopy(clusterName: RuntimeName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
-final case class PersistentDiskRequest(name: String,
-                                       size: Option[Int],
-                                       diskType: Option[String],
-                                       blockSize: Option[Int],
-                                       labels: LabelMap)
-
-sealed trait RuntimeConfigRequest extends Product with Serializable {
+sealed trait RuntimeConfigRequestCopy extends Product with Serializable {
   def typedCloudService: CloudService
 }
-object RuntimeConfigRequest {
+object RuntimeConfigRequestCopy {
   final case class GceConfig(
     cloudService: String = CloudService.GCE.asString,
     machineType: Option[String],
     diskSize: Option[Int]
-  ) extends RuntimeConfigRequest {
-    val typedCloudService: CloudService = CloudService.GCE
-  }
-
-  final case class GceWithPdConfig(
-    cloudService: String = CloudService.GCE.asString,
-    machineType: Option[MachineTypeName],
-    persistentDisk: PersistentDiskRequest
-  ) extends RuntimeConfigRequest {
+  ) extends RuntimeConfigRequestCopy {
     val typedCloudService: CloudService = CloudService.GCE
   }
 
@@ -65,7 +52,7 @@ object RuntimeConfigRequest {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String])
-      extends RuntimeConfigRequest {
+      extends RuntimeConfigRequestCopy {
     val typedCloudService: CloudService = CloudService.Dataproc
   }
 }
@@ -74,7 +61,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           jupyterStartUserScriptUri: Option[String] = None,
-                          machineConfig: Option[RuntimeConfigRequest] = None,
+                          machineConfig: Option[RuntimeConfigRequestCopy] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
@@ -92,7 +79,7 @@ case class RuntimeRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           jupyterStartUserScriptUri: Option[String] = None,
-                          runtimeConfig: Option[RuntimeConfigRequest] = None,
+                          runtimeConfig: Option[RuntimeConfigRequestCopy] = None,
                           properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
@@ -179,7 +166,8 @@ final case class GetRuntimeResponseCopy(runtimeName: RuntimeName,
                                         jupyterStartUserScriptUri: Option[UserScriptPath],
                                         errors: List[RuntimeError],
                                         userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                                        autopauseThreshold: Int)
+                                        autopauseThreshold: Int,
+                                        diskConfig: Option[DiskConfig])
 
 final case class ListRuntimeResponseCopy(id: Long,
                                          runtimeName: RuntimeName,

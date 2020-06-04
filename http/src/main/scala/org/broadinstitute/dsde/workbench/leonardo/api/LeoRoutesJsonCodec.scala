@@ -5,7 +5,7 @@ package api
 import io.circe.{Decoder, DecodingFailure}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
 
 // Shared routes specific codecs live in this file. When Routes file get too big, we can potentially move codec to this file too
@@ -24,9 +24,12 @@ object LeoRoutesJsonCodec {
         PropertyFilePrefix.stringToObject.get(prefix).isDefined
       }
       _ <- if (isValid) Right(()) else Left(invalidPropertiesError)
-      masterDiskSize <- c
+      diskSizeBeforeValidation <- c
         .downField("masterDiskSize")
         .as[Option[DiskSize]]
+      masterDiskSize <- if (diskSizeBeforeValidation.exists(x => x.gb < 50)) // Dataproc cluster doesn't have a separate boot disk, hence disk size needs to be larger than the VM image
+        Left(DecodingFailure("Minimum required disk size is 50GB", List.empty))
+      else Right(diskSizeBeforeValidation)
       workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
       workerDiskSize <- c
         .downField("workerDiskSize")

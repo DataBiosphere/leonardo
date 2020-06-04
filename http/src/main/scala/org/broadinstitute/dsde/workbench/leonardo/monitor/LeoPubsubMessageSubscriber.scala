@@ -407,7 +407,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                               config.persistentDiskMonitorConfig.delete.maxAttempts,
                               config.persistentDiskMonitorConfig.delete.interval).compile.drain
         now <- nowInstant
-        _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Deleted, now).transaction[F]
+        _ <- persistentDiskQuery.delete(msg.diskId, now).transaction[F]
       } yield ()
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}")), ctx.now)

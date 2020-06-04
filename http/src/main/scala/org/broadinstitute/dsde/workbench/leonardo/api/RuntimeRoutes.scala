@@ -5,33 +5,28 @@ package api
 import java.net.URL
 import java.util.UUID
 
-import cats.implicits._
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive, Directive1}
 import cats.effect.{IO, Timer}
+import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, DecodingFailure, Encoder}
+import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  GetRuntimeResponse,
-  PersistentDiskRequest,
-  RuntimeConfigRequest,
-  RuntimeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeService}
 import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
-import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import io.opencensus.trace.{AttributeValue, Span}
 
 import scala.concurrent.duration._
 
@@ -172,9 +167,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         runtimeName: RuntimeName,
                                         req: CreateRuntime2Request,
                                         span: Span): IO[ToResponseMarshallable] = {
-    span.putAttribute("api", AttributeValue.stringAttributeValue("createRuntime"))
-
-    for {
+    val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       _ <- runtimeService.createRuntime(
         userInfo,
@@ -183,72 +176,76 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
         req
       )
       _ <- IO(span.end())
-    } yield StatusCodes.Accepted
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+    spanResource[IO](span, "createRuntime")
+      .use(_ => res)
   }
 
   private[api] def getRuntimeHandler(userInfo: UserInfo,
                                      googleProject: GoogleProject,
                                      runtimeName: RuntimeName,
                                      span: Span): IO[ToResponseMarshallable] = {
-    span.putAttribute("api", AttributeValue.stringAttributeValue("getRuntime"))
-
-    for {
+    val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       resp <- runtimeService.getRuntime(userInfo, googleProject, runtimeName)
-      _ <- IO(span.end())
-    } yield StatusCodes.OK -> resp
+    } yield StatusCodes.OK -> resp: ToResponseMarshallable
+
+    spanResource[IO](span, "getRuntime")
+      .use(_ => res)
   }
 
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        googleProject: Option[GoogleProject],
                                        params: Map[String, String],
                                        span: Span): IO[ToResponseMarshallable] = {
-    span.putAttribute("api", AttributeValue.stringAttributeValue("listRuntime"))
-
-    for {
+    val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       resp <- runtimeService.listRuntimes(userInfo, googleProject, params)
-      _ <- IO(span.end())
-    } yield StatusCodes.OK -> resp
+    } yield StatusCodes.OK -> resp: ToResponseMarshallable
+
+    spanResource[IO](span, "listRuntime")
+      .use(_ => res)
   }
 
   private[api] def deleteRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
                                         span: Span): IO[ToResponseMarshallable] = {
-    span.putAttribute("api", AttributeValue.stringAttributeValue("deleteRuntime"))
-
-    for {
+    val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       _ <- runtimeService.deleteRuntime(userInfo, googleProject, runtimeName)
-      _ <- IO(span.end())
-    } yield StatusCodes.Accepted
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+    spanResource[IO](span, "deleteRuntime")
+      .use(_ => res)
   }
 
   private[api] def stopRuntimeHandler(userInfo: UserInfo,
                                       googleProject: GoogleProject,
                                       runtimeName: RuntimeName,
                                       span: Span): IO[ToResponseMarshallable] = {
-    span.putAttribute("api", AttributeValue.stringAttributeValue("stopRuntime"))
-
-    for {
+    val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       _ <- runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
-      _ <- IO(span.end())
-    } yield StatusCodes.Accepted
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+    spanResource[IO](span, "stopRuntime")
+      .use(_ => res)
   }
 
   private[api] def startRuntimeHandler(userInfo: UserInfo,
                                        googleProject: GoogleProject,
                                        runtimeName: RuntimeName,
                                        span: Span): IO[ToResponseMarshallable] = {
-    span.putAttribute("api", AttributeValue.stringAttributeValue("startRuntime"))
-
-    for {
+    val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       _ <- runtimeService.startRuntime(userInfo, googleProject, runtimeName)
       _ <- IO(span.end())
-    } yield StatusCodes.Accepted
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+    spanResource[IO](span, "startRuntime")
+      .use(_ => res)
   }
 
   private[api] def updateRuntimeHandler(userInfo: UserInfo,
@@ -256,12 +253,13 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         runtimeName: RuntimeName,
                                         req: UpdateRuntimeRequest,
                                         span: Span): IO[ToResponseMarshallable] = {
-    span.putAttribute("api", AttributeValue.stringAttributeValue("updateRuntime"))
-
-    for {
+    val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
       _ <- runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
-    } yield StatusCodes.Accepted
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+    spanResource[IO](span, "updateRuntime")
+      .use(_ => res)
   }
 }
 
@@ -302,7 +300,17 @@ object RuntimeRoutes {
         case CloudService.Dataproc =>
           x.as[RuntimeConfigRequest.DataprocConfig]
         case CloudService.GCE =>
-          x.as[RuntimeConfigRequest.GceWithPdConfig] orElse x.as[RuntimeConfigRequest.GceConfig]
+          for {
+            machineType <- x.downField("machineType").as[Option[MachineTypeName]]
+            pd <- x.downField("persistentDisk").as[Option[PersistentDiskRequest]]
+            res <- pd match {
+              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p).asRight[DecodingFailure]
+              case None =>
+                x.downField("diskSize")
+                  .as[Option[DiskSize]]
+                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d))
+            }
+          } yield res
       }
     } yield r
   }
@@ -468,7 +476,7 @@ object RuntimeRoutes {
       x.clusterName,
       x.googleProject,
       x.auditInfo,
-      x.machineConfig,
+      x.runtimeConfig,
       x.proxyUrl,
       x.status,
       x.labels,
@@ -499,19 +507,6 @@ object RuntimeRoutes {
 
 }
 
-final case class CreateRuntime2Request(labels: LabelMap,
-                                       jupyterUserScriptUri: Option[UserScriptPath],
-                                       jupyterStartUserScriptUri: Option[UserScriptPath],
-                                       runtimeConfig: Option[RuntimeConfigRequest],
-                                       userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                                       autopause: Option[Boolean],
-                                       autopauseThreshold: Option[FiniteDuration],
-                                       defaultClientId: Option[String],
-                                       toolDockerImage: Option[ContainerImage],
-                                       welderDockerImage: Option[ContainerImage],
-                                       scopes: Set[String],
-                                       customEnvironmentVariables: Map[String, String])
-
 sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
   def cloudService: CloudService
 }
@@ -539,32 +534,8 @@ final case class ListRuntimeResponse2(id: Long,
                                       clusterName: RuntimeName,
                                       googleProject: GoogleProject,
                                       auditInfo: AuditInfo,
-                                      machineConfig: RuntimeConfig,
+                                      runtimeConfig: RuntimeConfig,
                                       proxyUrl: URL,
                                       status: RuntimeStatus,
                                       labels: LabelMap,
                                       patchInProgress: Boolean)
-
-sealed trait DiskConfigRequest extends Product with Serializable {
-  def name: DiskName
-  def create: Boolean
-}
-object DiskConfigRequest {
-  final case class Reference(name: DiskName) extends DiskConfigRequest {
-    val create = false
-  }
-  final case class Create(name: DiskName,
-                          size: Option[DiskSize],
-                          diskType: Option[DiskType],
-                          blockSize: Option[BlockSize],
-                          labels: LabelMap)
-      extends DiskConfigRequest {
-    val create = true
-  }
-}
-
-final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize)
-object DiskConfig {
-  def fromPersistentDisk(disk: PersistentDisk): DiskConfig =
-    DiskConfig(disk.name, disk.size, disk.diskType, disk.blockSize)
-}

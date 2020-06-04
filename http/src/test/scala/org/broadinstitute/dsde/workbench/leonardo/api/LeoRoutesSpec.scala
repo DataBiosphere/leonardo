@@ -11,21 +11,17 @@ import akka.testkit.TestDuration
 import cats.effect.IO
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import fs2.concurrent.InspectableQueue
+import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  CreateRuntimeRequest,
-  ListRuntimeResponse,
-  RuntimeConfigRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, ListRuntimeResponse}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.{Assertion, FlatSpec}
 import slick.dbio.DBIO
-import io.circe.parser.decode
 
 import scala.concurrent.duration._
 

@@ -101,12 +101,12 @@ object RuntimeFixtureSpec {
 
     val machineConfig = cloudService match {
       case CloudService.GCE =>
-        RuntimeConfigRequest.GceConfig(
+        RuntimeConfigRequestCopy.GceConfig(
           machineType = Some("n1-standard-4"),
           diskSize = Some(500)
         )
       case CloudService.Dataproc =>
-        RuntimeConfigRequest.DataprocConfig(
+        RuntimeConfigRequestCopy.DataprocConfig(
           numberOfWorkers = Some(0),
           masterDiskSize = Some(500),
           masterMachineType = Some("n1-standard-8"),

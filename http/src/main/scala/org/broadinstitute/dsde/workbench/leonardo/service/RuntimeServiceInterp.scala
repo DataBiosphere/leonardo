@@ -21,8 +21,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateDiskRequest,
-  CreateRuntime2Request,
   ListRuntimeResponse2,
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
@@ -110,7 +108,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       processGceWithPd(gce.persistentDisk, googleProject, userInfo, petSA).map(disk =>
                         RuntimeConfig.GceWithPdConfig(
                           gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
-                          LeoLenses.pdInRuntimeConfig.get(disk)
+                          Some(disk.id)
                         ): RuntimeConfig
                       )
                   }
@@ -124,8 +122,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                runtimeImages,
                                config,
                                req,
-                               context.now,
-                               runtimeConfig.diskId)
+                               context.now)
             )
             gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
               .map(config =>
@@ -584,13 +581,24 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       diskOpt <- persistentDiskQuery.getActiveByName(googleProject, req.name).transaction
       disk <- diskOpt match {
-        case Some(pd) => F.pure(pd)
+        case Some(pd) =>
+          for {
+            // throw 409 if the disk is attached to a runtime
+            attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(pd.id).transaction
+            _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
+            else F.unit
+            hasPermission <- authProvider.hasPersistentDiskPermission(pd.samResource,
+                                                                      userInfo,
+                                                                      PersistentDiskAction.AttachPersistentDisk,
+                                                                      googleProject)
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+          } yield pd
         case None =>
           for {
             hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
             samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
-            disk <- F.fromEither(
+            diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(userInfo,
                                               serviceAccount,
                                               googleProject,
@@ -604,10 +612,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
               .handleErrorWith { t =>
                 log.error(t)(
-                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
+                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
                 ) >> F.raiseError(t)
               }
-            pd <- persistentDiskQuery.save(disk).transaction
+            pd <- persistentDiskQuery.save(diskBeforeSave).transaction
           } yield pd
       }
     } yield disk
@@ -622,8 +630,7 @@ object RuntimeServiceInterp {
                                clusterImages: Set[RuntimeImage],
                                config: RuntimeServiceConfig,
                                req: CreateRuntime2Request,
-                               now: Instant,
-                               diskIdOpt: Option[DiskId]): Either[Throwable, Runtime] = {
+                               now: Instant): Either[Throwable, Runtime] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
@@ -685,8 +692,7 @@ object RuntimeServiceInterp {
       allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
       stopAfterCreation = false,
-      patchInProgress = false,
-      persistentDiskId = diskIdOpt
+      patchInProgress = false
     )
   }
 

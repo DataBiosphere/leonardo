@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
@@ -12,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
+import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder.getRuntimeResponseCopyDecoder
 
 /**
  * Leonardo API service client.
@@ -196,7 +196,7 @@ object Leonardo extends RestClient with LazyLogging {
 
 object AutomationTestJsonCodec {
   implicit val clusterStatusDecoder: Decoder[ClusterStatus] =
-    Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"Invalid cluster status ${s}"))
+    Decoder.decodeString.map(s => ClusterStatus.withNameIgnoreCase(s))
 
   implicit val clusterDecoder: Decoder[ClusterCopy] =
     Decoder.forProduct13[ClusterCopy,
@@ -229,43 +229,6 @@ object AutomationTestJsonCodec {
     ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc, at, pip) =>
       ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at, pip)
     }
-
-  implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct15[
-    GetRuntimeResponseCopy,
-    RuntimeName,
-    GoogleProject,
-    WorkbenchEmail,
-    AuditInfo,
-    Option[AsyncRuntimeFields],
-    RuntimeConfig,
-    URL,
-    ClusterStatus,
-    LabelMap,
-    Option[GcsPath],
-    Option[UserScriptPath],
-    Option[UserScriptPath],
-    Option[List[RuntimeError]],
-    Option[UserJupyterExtensionConfig],
-    Int
-  ](
-    "runtimeName",
-    "googleProject",
-    "serviceAccount",
-    "auditInfo",
-    "asyncRuntimeFields",
-    "runtimeConfig",
-    "proxyUrl",
-    "status",
-    "labels",
-    "jupyterExtensionUri",
-    "jupyterUserScriptUri",
-    "jupyterStartUserScriptUri",
-    "errors",
-    "userJupyterExtensionConfig",
-    "autopauseThreshold"
-  ) { (rn, gp, sa, ai, arf, rc, pu, status, l, jeu, jusu, jsusu, e, ujec, at) =>
-    GetRuntimeResponseCopy(rn, gp, sa, ai, arf, rc, pu, status, l, jusu, jsusu, e.getOrElse(List.empty), ujec, at)
-  }
 
   implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct9(
     "id",

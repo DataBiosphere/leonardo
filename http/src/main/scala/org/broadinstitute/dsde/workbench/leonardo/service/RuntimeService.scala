@@ -3,11 +3,7 @@ package http
 package service
 
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateRuntime2Request,
-  ListRuntimeResponse2,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{ListRuntimeResponse2, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 

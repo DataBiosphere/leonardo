@@ -1,10 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package http
 package api
 
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.scalatest.{FlatSpec, Matchers}
 
 class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
@@ -36,6 +36,24 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
     val expectedResult = RuntimeConfigRequest.GceConfig(
       None,
       None
+    )
+    decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
+  }
+
+  it should "decode RuntimeConfigRequest correctly" in {
+    val jsonString =
+      """
+        |{
+        |  "cloudService": "gce",
+        |  "persistentDisk": {
+        |    "name": "qi-disk-c1",
+        |    "size": 30
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult = RuntimeConfigRequest.GceWithPdConfig(
+      None,
+      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(30)), None, None, Map.empty)
     )
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }

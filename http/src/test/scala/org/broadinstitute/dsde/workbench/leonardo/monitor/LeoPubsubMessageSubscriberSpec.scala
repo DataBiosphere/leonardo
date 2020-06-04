@@ -310,7 +310,6 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      now <- IO(Instant.now)
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopped).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
 
@@ -334,7 +333,7 @@ class LeoPubsubMessageSubscriberSpec
       // machine type and disk size should be updated
       updatedRuntimeConfig shouldBe 'defined
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
-      updatedRuntimeConfig.get.diskSize shouldBe DiskSize(1024)
+      updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.GceConfig].diskSize shouldBe DiskSize(1024)
     }
 
     res.unsafeRunSync()

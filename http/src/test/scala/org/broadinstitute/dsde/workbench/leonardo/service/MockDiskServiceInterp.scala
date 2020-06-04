@@ -4,8 +4,8 @@ package service
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.leonardo.http.CreateDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateDiskRequest,
   GetPersistentDiskResponse,
   ListPersistentDiskResponse,
   UpdateDiskRequest

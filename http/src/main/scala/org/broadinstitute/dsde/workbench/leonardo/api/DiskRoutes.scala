@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamR
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -296,14 +295,5 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            diskType: DiskType,
                                            blockSize: BlockSize,
                                            labels: LabelMap)
-
-final case class CreateDiskRequest(labels: LabelMap,
-                                   size: Option[DiskSize],
-                                   diskType: Option[DiskType],
-                                   blockSize: Option[BlockSize])
-object CreateDiskRequest {
-  def fromDiskConfigRequest(create: PersistentDiskRequest): CreateDiskRequest =
-    CreateDiskRequest(create.labels, create.size, create.diskType, create.blockSize)
-}
 
 final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)

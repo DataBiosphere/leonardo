@@ -8,6 +8,7 @@ import org.http4s.dsl.Http4sDsl
 object FakeHttpClient extends Http4sDsl[IO] {
   val client = Client
     .fromHttpApp[IO](
-      HttpApp.liftF[IO](Ok(""))
+//      HttpApp.liftF[IO](Ok(""))
+      HttpApp.liftF[IO](Conflict(""))
     )
 }

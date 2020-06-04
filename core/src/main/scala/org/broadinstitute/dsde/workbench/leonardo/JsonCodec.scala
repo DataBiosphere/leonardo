@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
 object JsonCodec {
   // Errors
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)
-  val minimumDiskSizeDecodingFailure = DecodingFailure("Minimum required disk size is 50GB", List.empty)
   val oneWorkerSpecifiedDecodingFailure = DecodingFailure(
     "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more.",
     List.empty
@@ -73,7 +72,7 @@ object JsonCodec {
   implicit val urlDecoder: Decoder[URL] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
   implicit val diskSizeDecoder: Decoder[DiskSize] =
-    Decoder.decodeInt.emap(d => if (d < 50) Left("Minimum required disk size is 50GB") else Right(DiskSize(d)))
+    Decoder.decodeInt.emap(d => if (d < 5) Left("Minimum required disk size is 5GB") else Right(DiskSize(d)))
   implicit val blockSizeDecoder: Decoder[BlockSize] =
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
@@ -150,9 +149,9 @@ object JsonCodec {
   )(x => PersistentDiskInRuntimeConfig.unapply(x).get)
   implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct3(
     "machineType",
-    "persistentDisk",
+    "persistentDiskId",
     "cloudService"
-  )(x => (x.machineType, x.persistentDisk, x.cloudService))
+  )(x => (x.machineType, x.persistentDiskId, x.cloudService))
   implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct7(
     "id",
     "zone",
@@ -164,7 +163,7 @@ object JsonCodec {
   )(PersistentDiskInRuntimeConfig.apply)
   implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct2(
     "machineType",
-    "persistentDisk"
+    "persistentDiskId"
   )(RuntimeConfig.GceWithPdConfig.apply)
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {

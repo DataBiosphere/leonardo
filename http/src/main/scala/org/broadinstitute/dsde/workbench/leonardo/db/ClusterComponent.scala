@@ -44,8 +44,7 @@ final case class ClusterRecord(id: Long,
                                stopAfterCreation: Boolean,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String],
-                               runtimeConfigId: RuntimeConfigId,
-                               persistentDiskId: Option[DiskId])
+                               runtimeConfigId: RuntimeConfigId)
 
 class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -72,7 +71,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def welderEnabled = column[Boolean]("welderEnabled")
   def runtimeConfigId = column[RuntimeConfigId]("runtimeConfigId")
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
-  def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
 
   def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -102,8 +100,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       stopAfterCreation,
       welderEnabled,
       customClusterEnvironmentVariables,
-      runtimeConfigId,
-      persistentDiskId
+      runtimeConfigId
     ).shaped <> ({
       case (id,
             internalId,
@@ -125,8 +122,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             stopAfterCreation,
             welderEnabled,
             customClusterEnvironmentVariables,
-            runtimeConfigId,
-            persistentDiskId) =>
+            runtimeConfigId) =>
         ClusterRecord(
           id,
           internalId,
@@ -153,8 +149,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           stopAfterCreation,
           welderEnabled,
           customClusterEnvironmentVariables.getOrElse(Map.empty),
-          runtimeConfigId,
-          persistentDiskId
+          runtimeConfigId
         )
     }, { c: ClusterRecord =>
       def ai(_ai: AuditInfo) = (
@@ -185,8 +180,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.stopAfterCreation,
           c.welderEnabled,
           if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables),
-          c.runtimeConfigId,
-          c.persistentDiskId
+          c.runtimeConfigId
         )
       )
     })
@@ -453,10 +447,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(c => (c.status, c.hostIp, c.dateAccessed))
       .update((RuntimeStatus.Deleting.toString, None, dateAccessed))
 
-  def completeDeletion(id: Long, destroyedDate: Instant): DBIO[Int] =
-    findByIdQuery(id)
-      .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
-      .update((destroyedDate, RuntimeStatus.Deleted.toString, None, destroyedDate))
+  // TODO: is there a better way to construct this query?
+  def completeDeletion(id: Long, destroyedDate: Instant)(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- findByIdQuery(id)
+        .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
+        .update((destroyedDate, RuntimeStatus.Deleted.toString, None, destroyedDate)): DBIO[Int]
+      rid <- findByIdQuery(id).result.head.map[RuntimeConfigId](_.runtimeConfigId): DBIO[RuntimeConfigId]
+      _ <- RuntimeConfigQueries.updatePersistentDiskId(rid, None, destroyedDate): DBIO[Int]
+    } yield ()
 
   def updateClusterStatusAndHostIp(id: Long,
                                    status: RuntimeStatus,
@@ -573,8 +572,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.stopAfterCreation,
       runtime.welderEnabled,
       runtime.customEnvironmentVariables,
-      runtime.runtimeConfigId,
-      runtime.persistentDiskId
+      runtime.runtimeConfigId
     )
 
   private def unmarshalMinimalCluster(
@@ -728,8 +726,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterRecord.welderEnabled,
       clusterRecord.customClusterEnvironmentVariables,
       clusterRecord.runtimeConfigId.value,
-      patchInProgress,
-      clusterRecord.persistentDiskId
+      patchInProgress
     )
   }
 }

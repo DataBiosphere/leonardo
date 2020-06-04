@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import java.net.URL
 import java.time.Instant
@@ -12,23 +14,11 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
-import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport.runtimeConfigRequestEncoder
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateDiskRequest,
-  CreateRuntime2Request,
-  GetPersistentDiskResponse,
-  HttpRoutes,
-  ListPersistentDiskResponse,
-  ListRuntimeResponse2,
-  TestLeoRoutes,
-  UpdateDiskRequest,
-  UpdateRuntimeConfigRequest,
-  UpdateRuntimeRequest
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse}
 import org.broadinstitute.dsde.workbench.leonardo.service.{MockDiskServiceInterp, MockRuntimeServiceInterp}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
@@ -277,36 +267,6 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
-  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct12(
-    "labels",
-    "jupyterUserScriptUri",
-    "jupyterStartUserScriptUri",
-    "runtimeConfig",
-    "userJupyterExtensionConfig",
-    "autopause",
-    "autopauseThreshold",
-    "defaultClientId",
-    "toolDockerImage",
-    "welderDockerImage",
-    "scopes",
-    "customEnvironmentVariables"
-  )(x =>
-    (
-      x.labels,
-      x.jupyterUserScriptUri,
-      x.jupyterStartUserScriptUri,
-      x.runtimeConfig,
-      x.userJupyterExtensionConfig,
-      x.autopause,
-      x.autopauseThreshold.map(_.toMinutes),
-      x.defaultClientId,
-      x.toolDockerImage,
-      x.welderDockerImage,
-      x.scopes,
-      x.customEnvironmentVariables
-    )
-  )
-
   implicit val updateGceConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
     "cloudService",
     "machineType",
@@ -346,20 +306,6 @@ object HttpRoutesSpec {
       x.allowStop,
       x.updateAutopauseEnabled,
       x.updateAutopauseThreshold.map(_.toMinutes)
-    )
-  )
-
-  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct4(
-    "labels",
-    "size",
-    "diskType",
-    "blockSize"
-  )(x =>
-    (
-      x.labels,
-      x.size,
-      x.diskType,
-      x.blockSize
     )
   )
 

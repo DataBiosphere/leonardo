@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskConfig
+import AutomationTestJsonCodec.clusterStatusDecoder
 
 object ApiJsonDecoder {
-  implicit val clusterStatusDecoder: Decoder[ClusterStatus] =
-    Decoder.decodeString.emap(s => ClusterStatus.withNameOpt(s).toRight(s"invalid runtime status ${s}"))
-
   implicit val getDiskResponseDecoder: Decoder[GetPersistentDiskResponse] = Decoder.forProduct12(
     "id",
     "googleProject",
@@ -23,7 +21,14 @@ object ApiJsonDecoder {
     "labels"
   )(GetPersistentDiskResponse.apply)
 
-  implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct14(
+  implicit val diskConfigDecoder: Decoder[DiskConfig] = Decoder.forProduct4(
+    "name",
+    "size",
+    "diskType",
+    "blockSize"
+  )(DiskConfig.apply)
+
+  implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct15(
     "runtimeName",
     "googleProject",
     "serviceAccount",
@@ -37,6 +42,7 @@ object ApiJsonDecoder {
     "jupyterStartUserScriptUri",
     "errors",
     "userJupyterExtensionConfig",
-    "autopauseThreshold"
+    "autopauseThreshold",
+    "diskConfig"
   )(GetRuntimeResponseCopy.apply)
 }

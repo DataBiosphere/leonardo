@@ -102,7 +102,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         case Some(billingProject) =>
           logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
 
-          val runtimeConfig = RuntimeConfigRequest.DataprocConfig(
+          val runtimeConfig = RuntimeConfigRequestCopy.DataprocConfig(
             numberOfWorkers = Some(0),
             masterDiskSize = Some(100),
             masterMachineType = Some("n1-standard-4"),

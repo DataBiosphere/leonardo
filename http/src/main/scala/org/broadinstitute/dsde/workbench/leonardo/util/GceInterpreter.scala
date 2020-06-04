@@ -18,8 +18,9 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
@@ -128,18 +129,30 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         .setAutoDelete(true)
         .build()
 
-      userDisk = params.runtimeConfig match {
+      userDisk <- params.runtimeConfig match {
         case x: RuntimeConfig.GceWithPdConfig =>
-          AttachedDisk.newBuilder
+          for {
+            diskId <- F.fromEither(
+              x.persistentDiskId
+                .toRight(new RuntimeException("Missing diskId in the request. This should never happen"))
+            )
+            persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
+            persistentDisk <- F.fromEither(
+              persistentDiskOpt.toRight(
+                new Exception(
+                  "Runtime has Persistent Disk enabled, but we can't find it in database. This should never happen."
+                )
+              )
+            )
+          } yield AttachedDisk.newBuilder
             .setBoot(false)
             .setInitializeParams(
               AttachedDiskInitializeParams
                 .newBuilder()
-                .setDiskName(x.persistentDisk.name.value)
-                .setDiskSizeGb(x.diskSize.gb.toString)
+                .setDiskName(persistentDisk.name.value)
+                .setDiskSizeGb(persistentDisk.size.gb.toString)
                 .setDiskType(
-                  x.persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject,
-                                                         x.persistentDisk.zone)
+                  persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject, persistentDisk.zone)
                 )
                 //                .setPhysicalBlockSizeBytes(x.persistentDisk.blockSize.bytes.toString) TODO: see if this is possible
                 .build()
@@ -147,7 +160,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             .setAutoDelete(false)
             .build()
         case x: RuntimeConfig.GceConfig =>
-          AttachedDisk.newBuilder
+          val disk = AttachedDisk.newBuilder
             .setBoot(false)
             .setInitializeParams(
               AttachedDiskInitializeParams
@@ -157,8 +170,11 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             )
             .setAutoDelete(true)
             .build()
+          F.pure(disk)
         case _: RuntimeConfig.DataprocConfig =>
-          throw new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
+          F.raiseError[AttachedDisk](
+            new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
+          )
       }
       instance = Instance
         .newBuilder()

@@ -6,15 +6,14 @@ import java.net.URL
 import java.time.Instant
 
 import cats.implicits._
-import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   CreateRuntimeRequest,
   GetRuntimeResponse,
-  ListRuntimeResponse,
-  RuntimeConfigRequest
+  ListRuntimeResponse
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
@@ -139,39 +138,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     )
   }
 
-  implicit val dataprocConfigEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct8(
-    "cloudService",
-    "numberOfWorkers",
-    "masterMachineType",
-    "masterDiskSize",
-    // worker settings are None when numberOfWorkers is 0
-    "workerMachineType",
-    "workerDiskSize",
-    "numberOfWorkerLocalSSDs",
-    "numberOfPreemptibleWorkers"
-  )(x =>
-    (x.cloudService,
-     x.numberOfWorkers,
-     x.masterMachineType,
-     x.masterDiskSize,
-     x.workerMachineType,
-     x.workerDiskSize,
-     x.numberOfWorkerLocalSSDs,
-     x.numberOfPreemptibleWorkers)
-  )
-  implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
-    "cloudService",
-    "machineType",
-    "diskSize"
-  )(x => (x.cloudService, x.machineType, x.diskSize))
-
-  implicit val runtimeConfigRequestEncoder: Encoder[RuntimeConfigRequest] = Encoder.instance { x =>
-    x match {
-      case x: RuntimeConfigRequest.DataprocConfig  => x.asJson
-      case x: RuntimeConfigRequest.GceConfig       => x.asJson
-      case _: RuntimeConfigRequest.GceWithPdConfig => throw new Exception("Persistent Disk is not supported")
-    }
-  }
   implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct16(
     "labels",
     "jupyterUserScriptUri",

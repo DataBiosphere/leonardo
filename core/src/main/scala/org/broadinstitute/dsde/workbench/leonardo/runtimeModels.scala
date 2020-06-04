@@ -44,8 +44,7 @@ final case class Runtime(id: Long,
                          welderEnabled: Boolean,
                          customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId,
-                         patchInProgress: Boolean,
-                         persistentDiskId: Option[DiskId]) {
+                         patchInProgress: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
   def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
@@ -214,8 +213,6 @@ final case class RuntimeConfigId(id: Long) extends AnyVal
 sealed trait RuntimeConfig extends Product with Serializable {
   def cloudService: CloudService
   def machineType: MachineTypeName
-  def diskSize: DiskSize
-  def diskId: Option[DiskId]
 }
 object RuntimeConfig {
   final case class GceConfig(
@@ -223,16 +220,12 @@ object RuntimeConfig {
     diskSize: DiskSize
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
-    val diskId = None
   }
 
-  final case class GceWithPdConfig(
-    machineType: MachineTypeName,
-    persistentDisk: PersistentDiskInRuntimeConfig
-  ) extends RuntimeConfig {
+  // When persistentDiskId is None, then we don't have any disk attached to the runtime
+  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: Option[DiskId])
+      extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
-    override def diskSize: DiskSize = persistentDisk.size
-    val diskId = Some(persistentDisk.id)
   }
 
   final case class DataprocConfig(numberOfWorkers: Int,
@@ -248,7 +241,6 @@ object RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
-    val diskId = None
   }
 }
 

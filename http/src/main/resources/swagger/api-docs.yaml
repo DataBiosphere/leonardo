@@ -2347,12 +2347,6 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
-        diskConfig:
-          oneOf:
-            - $ref: "#/components/schemas/CreateDiskConfigRequest"
-            - $ref: "#/components/schemas/ReferenceDiskConfigRequest"
-          discriminator:
-            propertyName: create
 
     UpdateGceConfig:
       description: Configuration for Google Compute Engine instances.
@@ -2756,43 +2750,3 @@ components:
         labels:
           type: object
           description: The labels to be placed on the disk
-
-    DiskConfigRequest:
-      description: The configuration of a persistent disk as part of runtime creation
-      type: object
-      required:
-        - name
-        - create
-      properties:
-        name:
-          type: string
-          description: Name of the persistent disk
-        create:
-          type: boolean
-          description: >
-            If true, creates a new persistent disk with the given configuration (maps to CreateDiskConfigRequest).
-            If false, uses an existing disk with the given name (maps to ReferenceDiskConfigRequest).
-
-    CreateDiskConfigRequest:
-      description: Creates a persistent disk as part of runtime creation
-      allOf:
-        - $ref: '#/components/schemas/DiskConfigRequest'
-        - type: object
-          properties:
-            size:
-              type: integer
-              description: Size of persistent disk in GB
-            diskType:
-              type: string
-              description: Type of persistent disk
-            blockSize:
-              type: integer
-              description: Block size of persistent disk in bytes
-            labels:
-              type: object
-              description: The labels to be placed on the disk
-
-    ReferenceDiskConfigRequest:
-      description: References a persistent disk as part of runtime creation
-      allOf:
-        - $ref: '#/components/schemas/DiskConfigRequest'

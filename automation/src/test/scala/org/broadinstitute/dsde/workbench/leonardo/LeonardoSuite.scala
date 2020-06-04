@@ -12,6 +12,7 @@ import org.scalatest._
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
   RuntimeAutopauseSpec,
+  RuntimeCreationPdSpec,
   RuntimePatchSpec,
   RuntimeStatusTransitionsSpec
 }
@@ -93,6 +94,7 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 
 final class LeonardoSuite
     extends Suites(
+      new RuntimeCreationPdSpec,
       new ClusterStatusTransitionsSpec,
       new LabSpec,
       new NotebookAouSpec,

@@ -63,9 +63,16 @@ object RuntimeConfigQueries {
       .map(c => (c.machineType, c.dateAccessed))
       .update((machineType, dateAccessed))
 
+  def updatePersistentDiskId(id: RuntimeConfigId, persistentDiskId: Option[DiskId], dateAccessed: Instant): DBIO[Int] =
+    runtimeConfigs
+      .filter(x => x.id === id)
+      .map(c => (c.persistentDiskId, c.dateAccessed))
+      .update((persistentDiskId, dateAccessed))
+
+  // This function only applies to Runtimes that don't use persistent disk
   def updateDiskSize(id: RuntimeConfigId, newSizeGb: DiskSize, dateAccessed: Instant): DBIO[Int] =
     runtimeConfigs
       .filter(x => x.id === id)
       .map(c => (c.diskSize, c.dateAccessed))
-      .update((newSizeGb, dateAccessed))
+      .update((Some(newSizeGb), dateAccessed))
 }

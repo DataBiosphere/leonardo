@@ -10,8 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   negativeNumberDecodingFailure,
   oneWorkerSpecifiedDecodingFailure
 }
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.scalatest.{FlatSpec, Matchers}
 
 class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {

@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   CloudService,
   GPAllocFixtureSpec,
   LeonardoConfig,
-  RuntimeConfigRequest
+  RuntimeConfigRequestCopy
 }
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -202,7 +202,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         billingProject,
         request = defaultClusterRequest.copy(
           machineConfig = Some(
-            RuntimeConfigRequest.DataprocConfig(
+            RuntimeConfigRequestCopy.DataprocConfig(
               cloudService = CloudService.Dataproc.asString,
               numberOfWorkers = Some(0),
               masterMachineType = Some("n1-standard-2"),

@@ -34,11 +34,11 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
           "numberOfPreemptibleWorkers" -> x.numberOfPreemptibleWorkers.map(_.toJson).getOrElse(JsNull)
         )
       case x: RuntimeConfig.GceWithPdConfig =>
+        val diskId = x.persistentDiskId.map(id => Map("diskId" -> id.value.toJson)).getOrElse(Map.empty)
         Map(
           "machineType" -> x.machineType.value.toJson,
-          "diskSize" -> x.diskSize.gb.toJson,
           "cloudService" -> x.cloudService.asString.toJson
-        )
+        ) ++ diskId
     }
 
     val presentFields = allFields.filter(_._2 != JsNull)

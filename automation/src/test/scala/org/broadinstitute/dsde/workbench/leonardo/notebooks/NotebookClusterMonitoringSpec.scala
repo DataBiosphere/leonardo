@@ -237,7 +237,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
         val request = defaultClusterRequest.copy(
           machineConfig = Some(
-            RuntimeConfigRequest.GceConfig(
+            RuntimeConfigRequestCopy.GceConfig(
               // need at least 2 regular workers to enable preemptibles
               machineType = Some("n1-standard-4"),
               diskSize = Some(500)
