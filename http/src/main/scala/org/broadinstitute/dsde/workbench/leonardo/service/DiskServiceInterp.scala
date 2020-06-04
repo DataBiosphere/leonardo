@@ -254,6 +254,7 @@ object DiskServiceInterp {
       req.size.getOrElse(config.defaultDiskSizeGB),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
+      None,
       labels
     )
   }

@@ -25,6 +25,8 @@ services:
       # Value must be the string "true" to enable.
       WELDER_ENABLED: "${WELDER_ENABLED}"
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
+      PIP_USER: "false"
+      PIP_TARGET: "${NOTEBOOKS_DIR}/packages"
     env_file:
       - /etc/google_application_credentials.env
       - /etc/custom_env_vars.env
