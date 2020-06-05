@@ -110,6 +110,11 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
                                                     userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[LeoAuthAction]] = ???
+
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[RuntimeAction]] = ???
+
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

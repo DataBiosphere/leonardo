@@ -96,4 +96,8 @@ class MockLeoAuthProvider(authConfig: Config, saProvider: ServiceAccountProvider
                                                     userInfo: UserInfo)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[LeoAuthAction]] = IO.pure(List.empty)
+
+  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[RuntimeAction]] = IO.pure(List.empty)
 }
