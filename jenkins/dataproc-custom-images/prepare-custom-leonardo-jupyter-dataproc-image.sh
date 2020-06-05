@@ -153,6 +153,13 @@ docker_compose_binary_download_target_filename="/usr/local/bin/docker-compose"
 retry 5 curl -L "${docker_compose_binary_download_url:?}" -o "${docker_compose_binary_download_target_filename:?}"
 chmod +x "${docker_compose_binary_download_target_filename:?}"
 
+# Install gvisor
+log 'Installing gvisor...'
+curl -fsSL https://gvisor.dev/archive.key | sudo apt-key add -
+add-apt-repository "deb https://storage.googleapis.com/gvisor/releases release main"
+retry 5 apt-get update
+retry 5 apt-get install -y -q runsc
+
 # Pull docker image versions as of the time this script ran; this caches them in the
 # dataproc custom instance image.
 if [[ -n ${docker_image_var_names:?} ]]; then

@@ -2,11 +2,12 @@
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
-version: '2'
+version: '2.4'
 services:
   rstudio:
     container_name: "${RSTUDIO_SERVER_NAME}"
     image: "${RSTUDIO_DOCKER_IMAGE}"
+    runtime: runsc
     network_mode: host
     restart: always
     environment:
