@@ -15,17 +15,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDiskService,
   InstanceName,
   MachineTypeName,
+  MockGoogleDiskService,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{
-  GoogleDataprocDAO,
-  MockGoogleComputeService,
-  MockGoogleDiskService
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocInterpreter, GceInterpreter, RuntimeInstances}
 import org.broadinstitute.dsde.workbench.model.TraceId

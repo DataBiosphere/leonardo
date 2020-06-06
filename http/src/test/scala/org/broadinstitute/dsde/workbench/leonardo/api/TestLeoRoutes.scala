@@ -16,10 +16,11 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleProjectDAO,
   MockGoogleStorageDAO
 }
+import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{MockGoogleComputeService, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache

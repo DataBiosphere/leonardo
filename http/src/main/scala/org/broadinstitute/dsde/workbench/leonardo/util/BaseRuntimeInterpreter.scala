@@ -21,15 +21,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   RuntimeConfigQueries
 }
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  Runtime,
-  RuntimeConfig,
-  RuntimeImage,
-  RuntimeOperation,
-  RuntimeResourceConstraints,
-  WelderAction
-}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
