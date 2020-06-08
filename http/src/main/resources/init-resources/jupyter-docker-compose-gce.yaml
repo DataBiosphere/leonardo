@@ -12,7 +12,8 @@ services:
     # The cluster init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
     entrypoint: "tail -f /dev/null"
-    network_mode: host
+    ports:
+      - "8000:8000"
     volumes:
       # shared with welder
       - "/work:${NOTEBOOKS_DIR}"
