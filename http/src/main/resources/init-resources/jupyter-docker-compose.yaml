@@ -7,7 +7,6 @@ services:
   jupyter:
     container_name: "${JUPYTER_SERVER_NAME}"
     image: "${JUPYTER_DOCKER_IMAGE}"
-    runtime: runsc
     # Override entrypoint with a placeholder to keep the container running indefinitely.
     # The cluster init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
