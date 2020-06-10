@@ -4,13 +4,14 @@
 # https://github.com/docker/compose/issues/4513
 version: '2.4'
 services:
-  rstudio:
+  app:
     container_name: "${RSTUDIO_SERVER_NAME}"
     image: "${RSTUDIO_DOCKER_IMAGE}"
     runtime: runsc
     ports:
       - "8001:8001"
-      - "8080:8080"
+    networks:
+      - "network"
     restart: always
     environment:
       # needed to disable auth
@@ -27,4 +28,6 @@ services:
       - /etc/google_application_credentials.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
-  
+networks:
+  network:
+    driver: bridge

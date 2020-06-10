@@ -4,15 +4,19 @@
 # https://github.com/docker/compose/issues/4513
 version: '2.4'
 services:
-  jupyter:
+  app:
     container_name: "${JUPYTER_SERVER_NAME}"
     image: "${JUPYTER_DOCKER_IMAGE}"
+    runtime: runsc
     # Override entrypoint with a placeholder to keep the container running indefinitely.
     # The cluster init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
     entrypoint: "tail -f /dev/null"
-    # TODO: explicitly map ports that Jupyter/Dataproc uses
-    network_mode: host
+    # TODO open other ports needed by Spark/Dataproc
+    ports:
+      - "8000:8000"
+    networks:
+      - network
     volumes:
       # shared with welder
       - /work:/home/jupyter-user/notebooks # TODO: make this ${NOTEBOOKS_DIR} once welder is rolled out to all clusters
@@ -46,3 +50,6 @@ services:
       - /etc/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
+networks:
+  network:
+    driver: bridge

@@ -7,6 +7,7 @@ services:
   welder:
     container_name: "${WELDER_SERVER_NAME}"
     image: "${WELDER_DOCKER_IMAGE}"
+    runtime: runsc
     # Override entrypoint with a placeholder to keep the container running indefinitely.
     # The cluster init script will start welder via docker exec,
     # when Application Default Credentials are available.
@@ -14,6 +15,8 @@ services:
     entrypoint: "tail -f /dev/null"
     ports:
       - "8080:8080"
+    networks:
+      - app_network
     restart: always
     environment:
       # TODO what env vars are actually needed here?
@@ -32,4 +35,6 @@ services:
     mem_reservation: ${WELDER_MEM_LIMIT}
     # disable swap by setting it to the same value as mem_limit
     memswap_limit: ${WELDER_MEM_LIMIT}
-
+networks:
+  app_network:
+    external: true
