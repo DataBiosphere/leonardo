@@ -7,7 +7,6 @@ services:
   welder:
     container_name: "${WELDER_SERVER_NAME}"
     image: "${WELDER_DOCKER_IMAGE}"
-    runtime: runsc
     # Override entrypoint with a placeholder to keep the container running indefinitely.
     # The cluster init script will start welder via docker exec,
     # when Application Default Credentials are available.
