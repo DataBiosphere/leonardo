@@ -241,24 +241,27 @@ END
     # Run docker-compose for each specified compose file.
     # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
     # `docker-compose up` is not retried.
-    COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
-    cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
-    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
-      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
+        COMPOSE_FILES=()
+    if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+      COMPOSE_FILES+=(/etc/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
+      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
     fi
-    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      COMPOSE_FILES+=(/etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
       cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
+    if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
+      COMPOSE_FILES+=(/etc/`basename ${WELDER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
+    COMPOSE_FILES+=(/etc/`basename ${PROXY_DOCKER_COMPOSE}`)
+    cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
 
-    retry 5 docker-compose "${COMPOSE_FILES[@]}" config
-    retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
-    retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
+    for f in "${COMPOSE_FILES[@]}" ; do
+      docker-compose -f $f config
+      retry 5 docker-compose -f $f pull
+      docker-compose -f $f up -d
+    done
 
     STEP_TIMINGS+=($(date +%s))
 

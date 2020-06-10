@@ -107,7 +107,8 @@ retry 5 apt-get install -y -q \
     curl \
     gnupg2 \
     software-properties-common \
-    libffi-dev
+    libffi-dev \
+    jq
 
 log 'Adding Docker package sources...'
 
@@ -164,6 +165,8 @@ retry 5 apt-get update
 # https://gvisor.dev/docs/user_guide/quick_start/docker/
 retry 5 apt-get install -y -q runsc
 runsc install
+jq '.runtimes.runsc += {"runtimeArgs":["--network=host"]}' /etc/docker/daemon.json > /etc/docker/daemon.json.tmp \
+  && mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
 systemctl restart docker
 
 # Pull docker image versions as of the time this script ran; this caches them in the
