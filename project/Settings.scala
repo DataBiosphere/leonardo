@@ -115,6 +115,7 @@ object Settings {
 
   val automationSettings = commonSettings ++ List(
     libraryDependencies ++= automationDependencies,
+    dependencyOverrides += Dependencies.guava,
     /**
       * sbt forking jvm -- sbt provides 2 testing modes: forked vs not forked.
       * -- forked: each task (test class) is executed in a forked JVM.

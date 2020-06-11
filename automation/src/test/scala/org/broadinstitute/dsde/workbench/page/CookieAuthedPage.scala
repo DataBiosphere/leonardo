@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.page
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserUtil
 import org.openqa.selenium.WebDriver
-import org.scalatest.selenium.Page
+import org.scalatestplus.selenium.Page
 
 import scala.util.{Failure, Success, Try}
 
@@ -12,7 +12,7 @@ trait CookieAuthedPage[P <: Page] extends Page with PageUtil[P] with WebBrowserU
 
   // always use open() to access a CookieAuthedPage - `go to` will not set the cookie
   override def open(implicit webDriver: WebDriver): P = {
-    go to this
+    go.to(this)
     addCookie("LeoToken", authToken.value)
     Try(super.open) match {
       case Success(page) => page
