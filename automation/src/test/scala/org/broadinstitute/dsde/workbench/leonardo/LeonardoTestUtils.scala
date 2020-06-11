@@ -718,6 +718,7 @@ trait LeonardoTestUtils
     monitorDelete: Boolean = false,
     deleteRuntimeAfter: Boolean = true
   )(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
+    println(s"creating ${request}")
     val cluster = createNewRuntime(googleProject, name, request, monitorCreate)
     val testResult: Try[T] = Try {
       testCode(cluster)
