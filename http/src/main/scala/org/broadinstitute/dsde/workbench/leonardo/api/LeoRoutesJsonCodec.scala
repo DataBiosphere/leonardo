@@ -28,7 +28,7 @@ object LeoRoutesJsonCodec {
         .downField("masterDiskSize")
         .as[Option[DiskSize]]
       masterDiskSize <- if (diskSizeBeforeValidation.exists(x => x.gb < 50)) // Dataproc cluster doesn't have a separate boot disk, hence disk size needs to be larger than the VM image
-        Left(DecodingFailure("Minimum required disk size is 50GB", List.empty))
+        Left(DecodingFailure("Minimum required masterDiskSize is 50GB", List.empty))
       else Right(diskSizeBeforeValidation)
       workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
       workerDiskSize <- c

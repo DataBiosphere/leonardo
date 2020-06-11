@@ -332,7 +332,7 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
       ).attempt
     } yield {
       retrievedRuntime shouldBe 'defined
-      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe savedDisk.id
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(savedDisk.id)
       error.isLeft shouldBe true
     }
 

@@ -265,7 +265,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       r shouldBe Right(())
       runtime.googleProject shouldBe project
       runtime.runtimeName shouldBe name0
-      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe disk.id
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(disk.id)
       disk.googleProject shouldBe project
       disk.name shouldBe diskName
       disk.size shouldBe DiskSize(500)
