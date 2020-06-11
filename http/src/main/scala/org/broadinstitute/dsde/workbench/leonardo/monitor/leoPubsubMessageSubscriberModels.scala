@@ -259,7 +259,7 @@ object LeoPubsubCodec {
        x.traceId)
     )
 
-  implicit val createClusterDecoder: Decoder[CreateRuntimeMessage] =
+  implicit val createRuntimeMessageDecoder: Decoder[CreateRuntimeMessage] =
     Decoder.forProduct16(
       "id",
       "clusterProjectAndName",

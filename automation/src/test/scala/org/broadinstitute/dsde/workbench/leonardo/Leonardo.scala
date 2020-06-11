@@ -104,7 +104,7 @@ object Leonardo extends RestClient with LazyLogging {
     ): Unit = {
 
       val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
-      logger.info(s"Create runtime: POST /$path")
+      logger.info(s"Create runtime: POST /$path....${runtimeRequest}")
 
       postRequest(url + path, runtimeRequest)
 

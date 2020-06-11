@@ -161,10 +161,6 @@ object JsonCodec {
     "diskType",
     "blockSize"
   )(PersistentDiskInRuntimeConfig.apply)
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct2(
-    "machineType",
-    "persistentDiskId"
-  )(RuntimeConfig.GceWithPdConfig.apply)
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {
       case x: RuntimeConfig.DataprocConfig  => x.asJson
@@ -223,7 +219,10 @@ object JsonCodec {
                                          numberOfPreemptibleWorkers,
                                          properties)
   }
-
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct2(
+    "machineType",
+    "persistentDiskId"
+  )(RuntimeConfig.GceWithPdConfig.apply)
   implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct2(
     "machineType",
     "diskSize"

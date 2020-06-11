@@ -57,4 +57,26 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
     )
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }
+
+  it should "decode CreateRuntime2Request correctly" in {
+    val jsonString =
+      """
+        |{}
+        |""".stripMargin
+    val expectedResult = CreateRuntime2Request(
+      Map.empty,
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      Set.empty,
+      Map.empty
+    )
+    decode[CreateRuntime2Request](jsonString) shouldBe Right(expectedResult)
+  }
 }
