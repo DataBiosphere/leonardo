@@ -10,4 +10,8 @@ addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.3.4")
 
-addSbtPlugin("com.github.cb372" % "sbt-explicit-dependencies" % "0.2.11") // Use `unusedCompileDependencies` to see unused dependencies
+addSbtPlugin(
+  "com.github.cb372" % "sbt-explicit-dependencies" % "0.2.11"
+) // Use `unusedCompileDependencies` to see unused dependencies
+
+addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.3")
