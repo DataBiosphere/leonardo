@@ -164,7 +164,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
         case e =>
           logger
             .warn(e)(
-              s"Unable to check status of runtime ${googleProject} / ${runtimeName} for zombie runtime detection"
+              s"Unable to check status of runtime ${googleProject.value} / ${runtimeName.asString} for zombie runtime detection"
             )
             .as(true)
       }
@@ -207,11 +207,19 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     for {
       traceId <- ev.ask
       _ <- logger.info(
-        s"${traceId.asString} | Deleting inactive zombie runtime: ${zombie.googleProject} / ${zombie.runtimeName}"
+        s"${traceId.asString} | Deleting inactive zombie runtime: ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
       )
       _ <- metrics.incrementCounter("numOfInactiveZombieRuntimes")
       _ <- zombie.cloudService.interpreter
         .deleteRuntime(DeleteRuntimeParams(zombie.googleProject, zombie.runtimeName, zombie.asyncRuntimeFields))
+        .void
+        .recoverWith {
+          case e =>
+            logger
+              .warn(e)(
+                s"Unable to delete inactive zombie runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
+              )
+        }
       // In the next pass of the zombie monitor, this runtime will be marked as confirmed deleted if this succeeded
     } yield ()
 }
