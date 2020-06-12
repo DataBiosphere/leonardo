@@ -6,21 +6,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskConfig
 import AutomationTestJsonCodec.clusterStatusDecoder
 
 object ApiJsonDecoder {
-  implicit val getDiskResponseDecoder: Decoder[GetPersistentDiskResponse] = Decoder.forProduct12(
-    "id",
-    "googleProject",
-    "zone",
-    "name",
-    "googleId",
-    "serviceAccount",
-    "status",
-    "auditInfo",
-    "size",
-    "diskType",
-    "blockSize",
-    "labels"
-  )(GetPersistentDiskResponse.apply)
-
   implicit val diskConfigDecoder: Decoder[DiskConfig] = Decoder.forProduct4(
     "name",
     "size",

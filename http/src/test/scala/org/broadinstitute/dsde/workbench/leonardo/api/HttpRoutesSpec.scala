@@ -10,15 +10,15 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
-import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.GetRuntimeResponse
 import org.broadinstitute.dsde.workbench.leonardo.service.{MockDiskServiceInterp, MockRuntimeServiceInterp}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
@@ -392,63 +392,6 @@ object HttpRoutesSpec {
       status,
       labels,
       patchInProgress
-    )
-  }
-
-  implicit val getDiskResponseDecoder: Decoder[GetPersistentDiskResponse] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[DiskId]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
-      zone <- x.downField("zone").as[ZoneName]
-      name <- x.downField("name").as[DiskName]
-      googleId <- x.downField("googleId").as[Option[GoogleId]]
-      serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
-      status <- x.downField("status").as[DiskStatus]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      size <- x.downField("size").as[DiskSize]
-      diskType <- x.downField("diskType").as[DiskType]
-      blockSize <- x.downField("blockSize").as[BlockSize]
-      labels <- x.downField("labels").as[LabelMap]
-    } yield GetPersistentDiskResponse(
-      id,
-      googleProject,
-      zone,
-      name,
-      googleId,
-      serviceAccount,
-      // TODO samResource probably shouldn't be in the GetPersistentDiskResponse
-      // if it's not in the encoder
-      PersistentDiskSamResource("test"),
-      status,
-      auditInfo,
-      size,
-      diskType,
-      blockSize,
-      labels
-    )
-  }
-
-  implicit val listDiskResponseDecoder: Decoder[ListPersistentDiskResponse] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[DiskId]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
-      zone <- x.downField("zone").as[ZoneName]
-      name <- x.downField("name").as[DiskName]
-      status <- x.downField("status").as[DiskStatus]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      size <- x.downField("size").as[DiskSize]
-      diskType <- x.downField("diskType").as[DiskType]
-      blockSize <- x.downField("blockSize").as[BlockSize]
-    } yield ListPersistentDiskResponse(
-      id,
-      googleProject,
-      zone,
-      name,
-      status,
-      auditInfo,
-      size,
-      diskType,
-      blockSize
     )
   }
 }

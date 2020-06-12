@@ -6,7 +6,12 @@ import cats.implicits._
 import cats.effect.{IO, Resource, Timer}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateDiskRequest, CreateRuntime2Request}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateDiskRequest,
+  CreateRuntime2Request,
+  GetPersistentDiskResponse,
+  ListPersistentDiskResponse
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.middleware.Logger
@@ -104,49 +109,6 @@ object LeonardoApiClient {
       }
     } yield ()
 
-  def createDisk(
-    googleProject: GoogleProject,
-    diskName: DiskName,
-    createDiskRequest: CreateDiskRequest = defaultCreateDiskRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .successful(
-        Request[IO](
-          method = Method.POST,
-          headers = Headers.of(authHeader, defaultMediaType),
-          uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"),
-          body = createDiskRequest
-        )
-      )
-      .flatMap { success =>
-        if (success)
-          IO.unit
-        else IO.raiseError(new Exception(s"Fail to create disk ${googleProject.value}/${diskName.value}"))
-      }
-
-  def createDiskWithWait(googleProject: GoogleProject, diskName: DiskName, createDiskRequest: CreateDiskRequest)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
-    authHeader: Authorization
-  ): IO[Unit] =
-    for {
-      _ <- createDisk(googleProject, diskName, createDiskRequest)
-      ioa = getDisk(googleProject, diskName)
-      _ <- streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
-    } yield ()
-
-  def getDisk(
-    googleProject: GoogleProject,
-    diskName: DiskName
-  )(implicit client: Client[IO], authHeader: Authorization): IO[GetPersistentDiskResponse] =
-    client.expectOr[GetPersistentDiskResponse](
-      Request[IO](
-        method = Method.GET,
-        headers = Headers.of(authHeader),
-        uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
-      )
-    )(onError)
-
   def getRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName
@@ -188,6 +150,69 @@ object LeonardoApiClient {
       _ <- if (res.isDone) IO.unit
       else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
     } yield ()
+
+  def createDisk(
+    googleProject: GoogleProject,
+    diskName: DiskName,
+    createDiskRequest: CreateDiskRequest = defaultCreateDiskRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    client
+      .successful(
+        Request[IO](
+          method = Method.POST,
+          headers = Headers.of(authHeader, defaultMediaType),
+          uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"),
+          body = createDiskRequest
+        )
+      )
+      .flatMap { success =>
+        if (success)
+          IO.unit
+        else IO.raiseError(new Exception(s"Fail to create disk ${googleProject.value}/${diskName.value}"))
+      }
+
+  def createDiskWithWait(googleProject: GoogleProject, diskName: DiskName, createDiskRequest: CreateDiskRequest)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[Unit] =
+    for {
+      _ <- createDisk(googleProject, diskName, createDiskRequest)
+      ioa = getDisk(googleProject, diskName)
+      _ <- streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
+    } yield ()
+
+  def getDisk(
+    googleProject: GoogleProject,
+    diskName: DiskName
+  )(implicit client: Client[IO], authHeader: Authorization): IO[GetPersistentDiskResponse] =
+    client.expectOr[GetPersistentDiskResponse](
+      Request[IO](
+        method = Method.GET,
+        headers = Headers.of(authHeader),
+        uri = rootUri
+          .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+      )
+    )(onError)
+
+  def listDisk(
+    googleProject: GoogleProject,
+    includeDeleted: Boolean = false
+  )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListPersistentDiskResponse]] = {
+    val uriWithoutQueryParam = rootUri
+      .withPath(s"/api/google/v1/disks/${googleProject.value}")
+
+    val uri =
+      if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
+      else uriWithoutQueryParam
+    client.expectOr[List[ListPersistentDiskResponse]](
+      Request[IO](
+        method = Method.GET,
+        headers = Headers.of(authHeader),
+        uri = uri
+      )
+    )(onError)
+  }
 
   def deleteDisk(googleProject: GoogleProject, diskName: DiskName)(implicit client: Client[IO],
                                                                    authHeader: Authorization): IO[Unit] =

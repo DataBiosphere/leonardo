@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -201,16 +200,3 @@ object UpdateRuntimeConfigRequestCopy {
     val cloudService: String = CloudService.Dataproc.asString
   }
 }
-
-final case class GetPersistentDiskResponse(id: DiskId,
-                                           googleProject: GoogleProject,
-                                           zone: ZoneName,
-                                           name: DiskName,
-                                           googleId: Option[GoogleId],
-                                           serviceAccount: WorkbenchEmail,
-                                           status: DiskStatus,
-                                           auditInfo: AuditInfo,
-                                           size: DiskSize,
-                                           diskType: DiskType,
-                                           blockSize: BlockSize,
-                                           labels: LabelMap)
