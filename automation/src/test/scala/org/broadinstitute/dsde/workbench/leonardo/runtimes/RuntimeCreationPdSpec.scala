@@ -56,11 +56,11 @@ class RuntimeCreationPdSpec
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
         disk <- LeonardoApiClient.getDisk(googleProject, diskName)
         _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
-        listofDisks <- LeonardoApiClient.listDisk(googleProject, diskName, true)
+        listofDisks <- LeonardoApiClient.listDisk(googleProject, true)
       } yield {
         disk.status shouldBe DiskStatus.Ready
         disk.size shouldBe diskSize
-        listofDisks.headOption.map(_.status) shouldBe (DiskStatus.Deleted) //assume we won't have multiple disks with same name in the same project in tests
+        listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe (DiskStatus.Deleted) //assume we won't have multiple disks with same name in the same project in tests
       }
     }
     res.unsafeRunSync()
