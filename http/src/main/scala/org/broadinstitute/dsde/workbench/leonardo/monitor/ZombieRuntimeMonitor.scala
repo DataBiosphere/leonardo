@@ -41,7 +41,10 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   runtimes: RuntimeInstances[F]) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(zombieCheck)).repeat
+    (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(
+      zombieCheck
+        .handleErrorWith(e => logger.error(e)("Unexpected error occurred during zombie monitoring"))
+    )).repeat
 
   private[monitor] val zombieCheck: F[Unit] =
     for {
