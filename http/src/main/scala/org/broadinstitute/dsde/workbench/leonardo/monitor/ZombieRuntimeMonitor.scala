@@ -82,6 +82,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
                         case Right(true) =>
                           F.pure(None)
                         case Right(false) =>
+                          // it's an active zombie if it's _inactive_ in Google
                           F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
                       }
                 }
@@ -113,6 +114,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
                   )
                   .as(None)
               case Right(true) =>
+                // it's an inactive zombie if it's _active_ in Google
                 F.pure(Some(candidate))
               case Right(false) =>
                 updateRuntimeAsConfirmedDeleted(candidate.id).as(None)
