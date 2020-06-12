@@ -65,16 +65,25 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
             isProjectActiveInGoogle(project).flatMap {
               case true =>
                 // If the project is active, check each individual runtime
-                zombieCandidates.toList.traverseFilter { candidate =>
-                  // If the runtime is less than one minute old, it may not exist in Google because it is still Provisioning, so it's not a zombie
-                  isRuntimeActiveInGoogle(candidate.googleProject,
-                                          candidate.runtimeName,
-                                          candidate.cloudService,
-                                          startInstant)
-                    .ifA[Option[ZombieCandidate]](
-                      F.pure(None),
-                      F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
-                    )
+                zombieCandidates.toList.traverseFilter {
+                  candidate =>
+                    // If the runtime is less than one minute old, it may not exist in Google because it is still Provisioning, so it's not a zombie
+                    isRuntimeActiveInGoogle(candidate.googleProject,
+                                            candidate.runtimeName,
+                                            candidate.cloudService,
+                                            startInstant).attempt
+                      .flatMap {
+                        case Left(e) =>
+                          logger
+                            .warn(e)(
+                              s"Unable to check status of runtime ${candidate.googleProject.value} / ${candidate.runtimeName.asString} for active zombie runtime detection"
+                            )
+                            .as(None)
+                        case Right(true) =>
+                          F.pure(None)
+                        case Right(false) =>
+                          F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
+                      }
                 }
               case false =>
                 // If the project is inactive, all runtimes in the project are zombies
@@ -91,17 +100,22 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       )
 
       inactiveZombies <- unconfirmedDeletedRuntimes
-        .parTraverse { candidate =>
+        .parTraverse[F, Option[ZombieCandidate]] { candidate =>
           semaphore.withPermit {
             isRuntimeActiveInGoogle(candidate.googleProject,
                                     candidate.runtimeName,
                                     candidate.cloudService,
-                                    startInstant).flatMap { isActive =>
-              if (isActive) {
-                F.pure(Option(candidate))
-              } else {
-                updateRuntimeAsConfirmedDeleted(candidate.id).as(None: Option[ZombieCandidate])
-              }
+                                    startInstant).attempt.flatMap {
+              case Left(e) =>
+                logger
+                  .warn(e)(
+                    s"Unable to check status of runtime ${candidate.googleProject.value} / ${candidate.runtimeName.asString} for inactive zombie runtime detection"
+                  )
+                  .as(None)
+              case Right(true) =>
+                F.pure(Some(candidate))
+              case Right(false) =>
+                updateRuntimeAsConfirmedDeleted(candidate.id).as(None)
             }
           }
         }
@@ -160,14 +174,6 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     cloudService.interpreter
       .getRuntimeStatus(GetRuntimeStatusParams(googleProject, runtimeName, Some(config.gceZoneName)))
       .map(_.isActive)
-      .recoverWith {
-        case e =>
-          logger
-            .warn(e)(
-              s"Unable to check status of runtime ${googleProject.value} / ${runtimeName.asString} for zombie runtime detection"
-            )
-            .as(true)
-      }
 
   private def zombieIfOlderThanCreationHangTolerance(candidate: ZombieCandidate,
                                                      now: Instant): Option[ZombieCandidate] = {
