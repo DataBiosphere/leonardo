@@ -91,7 +91,7 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils {
       getRuntime.status shouldBe ClusterStatus.Stopping
     }
 
-    eventually(timeout(Span(10, Minutes)), interval(Span(30, Seconds))) {
+    eventually(timeout(Span(20, Minutes)), interval(Span(30, Seconds))) {
       val getRuntime =
         Leonardo.cluster.getRuntime(runtime.googleProject, runtime.clusterName)
       getRuntime.status shouldBe ClusterStatus.Running
