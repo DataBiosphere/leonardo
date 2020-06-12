@@ -19,7 +19,7 @@ class AsyncTaskProcessorSpec extends FlatSpec with Matchers with LeonardoTestSui
     queue
   )
 
-  it should "execute tasks concurrently" in {
+  ignore should "execute tasks concurrently" in {
     val start = Instant.now()
     val res = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val traceId = appContext.ask.unsafeRunSync().traceId

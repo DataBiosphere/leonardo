@@ -234,7 +234,7 @@ object JsonCodec {
         case CloudService.Dataproc =>
           x.as[RuntimeConfig.DataprocConfig]
         case CloudService.GCE =>
-          x.as[RuntimeConfig.GceWithPdConfig] orElse x.as[RuntimeConfig.GceConfig]
+          x.as[RuntimeConfig.GceConfig] orElse x.as[RuntimeConfig.GceWithPdConfig]
       }
     } yield r
   }

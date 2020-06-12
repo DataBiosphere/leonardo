@@ -19,6 +19,7 @@ before_install:
 
 script:
   - SBT_OPTS=-J-Xmx3g sbt -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307 "project http" clean coverage test coverageReport
+  - SBT_OPTS=-J-Xmx3g sbt -Denv.type=test "project core" clean coverage test coverageReport
 
 after_success:
   - SBT_OPTS=-J-Xmx3g sbt "project http" coveralls

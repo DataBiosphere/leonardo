@@ -52,34 +52,36 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
     res shouldBe (Right(expected))
   }
 
-  it should "fail with minimumDiskSizeDecodingFailure when GCE diskSize is less than 50" in {
+  it should "decode GceWithPdConfig properly" in {
+    // Since persistentDisk is optional (when disk is dettached, it can be None), hence if `diskSize` is not specified, we try to decode it to GceWithPdConfig
     val inputString =
       """
         |{
         |   "machineType": "n1-standard-8",
-        |   "diskSize": 35,
         |   "cloudService": "GCE"
         |}
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res.left shouldBe Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("diskSize"))))
+    val expected = RuntimeConfig.GceWithPdConfig(
+      MachineTypeName("n1-standard-8"),
+      None
+    )
+    res shouldBe (Right(expected))
   }
 
-  it should "fail with minimumDiskSizeDecodingFailure when Dataproc diskSize is less than 50" in {
+  it should "fail with minimumDiskSizeDecodingFailure when GCE diskSize is less than 50" in {
     val inputString =
       """
         |{
-        |   "numberOfWorkers": 10,
-        |   "masterMachineType": "n1-standard-8",
-        |   "masterDiskSize": 49,
-        |   "numberOfPreemptibleWorkers": -1,
-        |   "cloudService": "DATAPROC"
+        |   "machineType": "n1-standard-8",
+        |   "diskSize": 3,
+        |   "cloudService": "GCE"
         |}
         |""".stripMargin
 
-    val res = decode[RuntimeConfig](inputString)
-    res shouldBe Left(DecodingFailure("Minimum required disk size is 50GB", List(DownField("masterDiskSize"))))
+    val res = decode[RuntimeConfig.GceConfig](inputString)
+    res shouldBe Left(DecodingFailure("Minimum required disk size is 5GB", List(DownField("diskSize"))))
   }
 
   it should "fail with minimumDiskSizeDecodingFailure when decoding a disk size of 10" in {

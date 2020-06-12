@@ -3,7 +3,7 @@ package http
 package api
 
 import io.circe.parser.decode
-import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -58,7 +58,7 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }
 
-  it should "decode CreateRuntime2Request correctly" in {
+  it should "decode empty CreateRuntime2Request correctly" in {
     val jsonString =
       """
         |{}
@@ -68,6 +68,39 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
       None,
       None,
       None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      Set.empty,
+      Map.empty
+    )
+    decode[CreateRuntime2Request](jsonString) shouldBe Right(expectedResult)
+  }
+
+  it should "decode CreateRuntime2Request correctly" in {
+    val jsonString =
+      """
+        |{
+        |  "runtimeConfig": {
+        |    "cloudService": "gce",
+        |    "machineType": "n1-standard-4",
+        |    "diskSize": 100
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult = CreateRuntime2Request(
+      Map.empty,
+      None,
+      None,
+      Some(
+        RuntimeConfigRequest.GceConfig(
+          Some(MachineTypeName("n1-standard-4")),
+          Some(DiskSize(100))
+        )
+      ),
       None,
       None,
       None,
