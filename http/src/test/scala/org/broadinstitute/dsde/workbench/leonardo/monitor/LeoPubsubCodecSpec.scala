@@ -43,6 +43,6 @@ class LeoPubsubCodecSpec extends FlatSpec with Matchers {
 
     val res = decode[CreateRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
 
-    res shouldBe (originalMessage)
+    res shouldBe Right(originalMessage)
   }
 }
