@@ -41,7 +41,10 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   runtimes: RuntimeInstances[F]) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(zombieCheck)).repeat
+    (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(
+      zombieCheck
+        .handleErrorWith(e => logger.error(e)("Unexpected error occurred during zombie monitoring"))
+    )).repeat
 
   private[monitor] val zombieCheck: F[Unit] =
     for {
@@ -65,16 +68,26 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
             isProjectActiveInGoogle(project).flatMap {
               case true =>
                 // If the project is active, check each individual runtime
-                zombieCandidates.toList.traverseFilter { candidate =>
-                  // If the runtime is less than one minute old, it may not exist in Google because it is still Provisioning, so it's not a zombie
-                  isRuntimeActiveInGoogle(candidate.googleProject,
-                                          candidate.runtimeName,
-                                          candidate.cloudService,
-                                          startInstant)
-                    .ifA[Option[ZombieCandidate]](
-                      F.pure(None),
-                      F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
-                    )
+                zombieCandidates.toList.traverseFilter {
+                  candidate =>
+                    // If the runtime is less than one minute old, it may not exist in Google because it is still Provisioning, so it's not a zombie
+                    isRuntimeActiveInGoogle(candidate.googleProject,
+                                            candidate.runtimeName,
+                                            candidate.cloudService,
+                                            startInstant).attempt
+                      .flatMap {
+                        case Left(e) =>
+                          logger
+                            .warn(e)(
+                              s"Unable to check status of runtime ${candidate.googleProject.value} / ${candidate.runtimeName.asString} for active zombie runtime detection"
+                            )
+                            .as(None)
+                        case Right(true) =>
+                          F.pure(None)
+                        case Right(false) =>
+                          // it's an active zombie if it's _inactive_ in Google
+                          F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
+                      }
                 }
               case false =>
                 // If the project is inactive, all runtimes in the project are zombies
@@ -91,17 +104,23 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       )
 
       inactiveZombies <- unconfirmedDeletedRuntimes
-        .parTraverse { candidate =>
+        .parTraverse[F, Option[ZombieCandidate]] { candidate =>
           semaphore.withPermit {
             isRuntimeActiveInGoogle(candidate.googleProject,
                                     candidate.runtimeName,
                                     candidate.cloudService,
-                                    startInstant).flatMap { isActive =>
-              if (isActive) {
-                F.pure(Option(candidate))
-              } else {
-                updateRuntimeAsConfirmedDeleted(candidate.id).as(None: Option[ZombieCandidate])
-              }
+                                    startInstant).attempt.flatMap {
+              case Left(e) =>
+                logger
+                  .warn(e)(
+                    s"Unable to check status of runtime ${candidate.googleProject.value} / ${candidate.runtimeName.asString} for inactive zombie runtime detection"
+                  )
+                  .as(None)
+              case Right(true) =>
+                // it's an inactive zombie if it's _active_ in Google
+                F.pure(Some(candidate))
+              case Right(false) =>
+                updateRuntimeAsConfirmedDeleted(candidate.id).as(None)
             }
           }
         }
@@ -160,14 +179,6 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     cloudService.interpreter
       .getRuntimeStatus(GetRuntimeStatusParams(googleProject, runtimeName, Some(config.gceZoneName)))
       .map(_.isActive)
-      .recoverWith {
-        case e =>
-          logger
-            .warn(e)(
-              s"Unable to check status of runtime ${googleProject} / ${runtimeName} for zombie runtime detection"
-            )
-            .as(true)
-      }
 
   private def zombieIfOlderThanCreationHangTolerance(candidate: ZombieCandidate,
                                                      now: Instant): Option[ZombieCandidate] = {
@@ -207,11 +218,19 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     for {
       traceId <- ev.ask
       _ <- logger.info(
-        s"${traceId.asString} | Deleting inactive zombie runtime: ${zombie.googleProject} / ${zombie.runtimeName}"
+        s"${traceId.asString} | Deleting inactive zombie runtime: ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
       )
       _ <- metrics.incrementCounter("numOfInactiveZombieRuntimes")
       _ <- zombie.cloudService.interpreter
         .deleteRuntime(DeleteRuntimeParams(zombie.googleProject, zombie.runtimeName, zombie.asyncRuntimeFields))
+        .void
+        .recoverWith {
+          case e =>
+            logger
+              .warn(e)(
+                s"Unable to delete inactive zombie runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
+              )
+        }
       // In the next pass of the zombie monitor, this runtime will be marked as confirmed deleted if this succeeded
     } yield ()
 }
