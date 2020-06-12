@@ -10,9 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, R
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.scalatest.ParallelTestExecution
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-//@DoNotDiscover
+@DoNotDiscover
 class RuntimeCreationPdSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
