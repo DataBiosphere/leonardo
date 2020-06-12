@@ -56,7 +56,7 @@ class RuntimeCreationPdSpec
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
         disk <- LeonardoApiClient.getDisk(googleProject, diskName)
         _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
-        listofDisks <- LeonardoApiClient.listDisk(googleProject, true)
+        listofDisks <- LeonardoApiClient.listDisk(googleProject, diskName, true)
       } yield {
         disk.status shouldBe DiskStatus.Ready
         disk.size shouldBe diskSize

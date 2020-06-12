@@ -97,6 +97,7 @@ object Config {
 
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
+      config.as[DiskSize]("bootDiskSize"),
       config.as[GceCustomImage]("customGceImage"),
       config.as[RegionName]("region"),
       config.as[ZoneName]("zone"),

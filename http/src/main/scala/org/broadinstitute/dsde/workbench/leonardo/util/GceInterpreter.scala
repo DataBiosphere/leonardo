@@ -121,8 +121,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             .setDescription("Leonardo Managed Boot Disk")
             .setSourceImage(config.gceConfig.customGceImage.asString)
             .setDiskSizeGb(
-              "50"
-            ) //TODO: move this to config...This needs to be updated to diskSize in request if PD is not used
+              config.gceConfig.bootDiskSize.gb.toString
+            )
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )

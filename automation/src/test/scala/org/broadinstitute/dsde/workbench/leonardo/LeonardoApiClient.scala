@@ -197,10 +197,11 @@ object LeonardoApiClient {
 
   def listDisk(
     googleProject: GoogleProject,
+    diskName: DiskName,
     includeDeleted: Boolean = false
   )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListPersistentDiskResponse]] = {
     val uriWithoutQueryParam = rootUri
-      .withPath(s"/api/google/v1/disks/${googleProject.value}")
+      .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
 
     val uri =
       if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
