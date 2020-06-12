@@ -96,9 +96,6 @@ class RuntimeCreationPdSpec
         _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         runtime <- getRuntime(googleProject, runtimeName)
         _ <- deleteRuntimeWithWait(googleProject, runtimeName)
-        runtimeAfterDeletion = org.broadinstitute.dsde.workbench.leonardo.Leonardo.cluster
-          .listIncludingDeletedRuntime(googleProject)(ronAuthToken)
-        _ = println(s"runtimeAfterDeletion ${runtimeAfterDeletion}")
         _ <- deleteDiskWithWait(googleProject, diskName)
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)

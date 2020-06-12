@@ -32,9 +32,6 @@ object LeonardoApiClient {
   // Once a runtime is deleted, leonardo returns 404 for getRuntime API call
   implicit def eitherDoneCheckable[A]: DoneCheckable[Either[Throwable, A]] = (op: Either[Throwable, A]) => op.isLeft
 
-  implicit def getDiskDoneCheckable[A]: DoneCheckable[GetPersistentDiskResponse] =
-    (op: GetPersistentDiskResponse) => op.status == DiskStatus.Ready
-
   implicit def getRuntimeDoneCheckable[A]: DoneCheckable[GetRuntimeResponseCopy] =
     (op: GetRuntimeResponseCopy) => op.status == ClusterStatus.Running
 
@@ -128,12 +125,16 @@ object LeonardoApiClient {
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
-  ): IO[Unit] =
+  ): IO[Unit] = {
+    implicit def getDiskDoneCheckable[A]: DoneCheckable[GetPersistentDiskResponse] =
+      (op: GetPersistentDiskResponse) => op.status == DiskStatus.Ready
+
     for {
       _ <- createDisk(googleProject, diskName, createDiskRequest)
       ioa = getDisk(googleProject, diskName)
       _ <- streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
     } yield ()
+  }
 
   def getDisk(
     googleProject: GoogleProject,
@@ -210,14 +211,18 @@ object LeonardoApiClient {
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
-  ): IO[Unit] =
+  ): IO[Unit] = {
+    implicit def getDiskDoneCheckable[A]: DoneCheckable[GetPersistentDiskResponse] =
+      (op: GetPersistentDiskResponse) => op.status == DiskStatus.Deleted
+
     for {
       _ <- deleteDisk(googleProject, diskName)
       ioa = getDisk(googleProject, diskName).attempt
-      res <- streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
+      res <- timer.sleep(3 seconds) >> streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit
       else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
     } yield ()
+  }
 
   private def onError(response: Response[IO]): IO[Throwable] =
     for {
