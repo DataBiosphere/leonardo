@@ -204,8 +204,7 @@ final case class PersistentDiskInRuntimeConfig(
   name: DiskName,
   status: DiskStatus,
   size: DiskSize,
-  diskType: DiskType,
-  blockSize: BlockSize
+  diskType: DiskType
 )
 
 /** Configuration of the runtime such as machine types, disk size, etc */

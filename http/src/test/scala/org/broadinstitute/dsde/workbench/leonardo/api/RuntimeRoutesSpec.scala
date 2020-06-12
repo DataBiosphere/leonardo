@@ -21,7 +21,7 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
         |""".stripMargin
     val expectedResult = RuntimeConfigRequest.GceWithPdConfig(
       None,
-      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(200)), None, None, Map.empty)
+      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(200)), None, Map.empty)
     )
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }
@@ -53,7 +53,7 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
         |""".stripMargin
     val expectedResult = RuntimeConfigRequest.GceWithPdConfig(
       None,
-      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(30)), None, None, Map.empty)
+      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(30)), None, Map.empty)
     )
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }

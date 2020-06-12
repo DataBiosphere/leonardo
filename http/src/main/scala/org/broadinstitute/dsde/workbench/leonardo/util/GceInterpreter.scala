@@ -151,10 +151,10 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
                 .newBuilder()
                 .setDiskName(persistentDisk.name.value)
                 .setDiskSizeGb(persistentDisk.size.gb.toString)
+                .putAllLabels(Map("leonardo" -> "true").asJava)
                 .setDiskType(
                   persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject, persistentDisk.zone)
                 )
-                //                .setPhysicalBlockSizeBytes(x.persistentDisk.blockSize.bytes.toString) TODO: see if this is possible
                 .build()
             )
             .setAutoDelete(false)

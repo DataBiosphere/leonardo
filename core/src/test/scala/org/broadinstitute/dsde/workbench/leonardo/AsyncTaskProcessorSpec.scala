@@ -28,9 +28,8 @@ class AsyncTaskProcessorSpec extends FlatSpec with Matchers with LeonardoTestSui
         for {
           _ <- if (x == 1 || x == 4) IO.sleep(10 seconds) else IO.sleep(15 seconds)
 // Leaving the commented out code here since it's easier to see what's going on with it
-          _ <- IO(println(s"executing ${x} " + Instant.now()))
+//          _ <- IO(println(s"executing ${x} " + Instant.now()))
           size <- queue.getSize
-          _ = println("queue size: " + size)
 //          _ <- if (size == 0)
 //            signalToStop.complete(())
 //          else IO.unit

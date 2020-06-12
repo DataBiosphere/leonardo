@@ -138,28 +138,26 @@ object JsonCodec {
     "imageUrl",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-  implicit val persistentDiskEncoder: Encoder[PersistentDiskInRuntimeConfig] = Encoder.forProduct7(
+  implicit val persistentDiskEncoder: Encoder[PersistentDiskInRuntimeConfig] = Encoder.forProduct6(
     "id",
     "zone",
     "name",
     "status",
     "size",
-    "diskType",
-    "blockSize"
+    "diskType"
   )(x => PersistentDiskInRuntimeConfig.unapply(x).get)
   implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct3(
     "machineType",
     "persistentDiskId",
     "cloudService"
   )(x => (x.machineType, x.persistentDiskId, x.cloudService))
-  implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct7(
+  implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct6(
     "id",
     "zone",
     "name",
     "status",
     "size",
-    "diskType",
-    "blockSize"
+    "diskType"
   )(PersistentDiskInRuntimeConfig.apply)
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {

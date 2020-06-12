@@ -236,7 +236,6 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       diskName,
       Some(DiskSize(500)),
       None,
-      None,
       Map.empty
     )
     val req = emptyCreateRuntimeReq.copy(
@@ -750,7 +749,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
   }
 
   "RuntimeServiceInterp.processDiskConfigRequest" should "process a create disk request" in isolatedDbTest {
-    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
+    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
       context <- ctx.ask
       disk <- runtimeService.processGceWithPd(req, project, userInfo, serviceAccount)
@@ -783,7 +782,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val res = for {
       t <- ctx.ask
       disk <- makePersistentDisk(DiskId(1)).save()
-      req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, None, Map("foo" -> "bar"))
+      req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
       returnedDisk <- runtimeService.processGceWithPd(req, project, userInfo, serviceAccount).attempt
     } yield {
       returnedDisk shouldBe Right(disk)
@@ -794,7 +793,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
 
   it should "fail to create a disk when caller has no permission" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
-    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, None, Map("foo" -> "bar"))
+    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
       _ <- runtimeService.processGceWithPd(req, project, userInfo, serviceAccount)
     } yield ()
@@ -809,11 +808,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id)))
       )
-      req = PersistentDiskRequest(savedDisk.name,
-                                  Some(savedDisk.size),
-                                  Some(savedDisk.diskType),
-                                  Some(savedDisk.blockSize),
-                                  savedDisk.labels)
+      req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       err <- runtimeService.processGceWithPd(req, project, userInfo, serviceAccount).attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
@@ -826,11 +821,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val res = for {
       savedDisk <- makePersistentDisk(DiskId(1)).save()
-      req = PersistentDiskRequest(savedDisk.name,
-                                  Some(savedDisk.size),
-                                  Some(savedDisk.diskType),
-                                  Some(savedDisk.blockSize),
-                                  savedDisk.labels)
+      req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       _ <- runtimeService.processGceWithPd(req, project, userInfo, serviceAccount)
     } yield ()
 

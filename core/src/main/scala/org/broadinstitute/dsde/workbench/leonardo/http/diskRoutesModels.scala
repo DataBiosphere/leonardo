@@ -13,13 +13,12 @@ final case class CreateDiskRequest(labels: LabelMap,
 
 object CreateDiskRequest {
   def fromDiskConfigRequest(create: PersistentDiskRequest): CreateDiskRequest =
-    CreateDiskRequest(create.labels, create.size, create.diskType, create.blockSize)
+    CreateDiskRequest(create.labels, create.size, create.diskType, None)
 }
 
 final case class PersistentDiskRequest(name: DiskName,
                                        size: Option[DiskSize],
                                        diskType: Option[DiskType],
-                                       blockSize: Option[BlockSize],
                                        labels: LabelMap)
 
 final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize)

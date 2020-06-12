@@ -269,9 +269,8 @@ object RuntimeRoutes {
       n <- x.downField("name").as[DiskName]
       s <- x.downField("size").as[Option[DiskSize]]
       t <- x.downField("diskType").as[Option[DiskType]]
-      b <- x.downField("blockSize").as[Option[BlockSize]]
       l <- x.downField("labels").as[Option[LabelMap]]
-    } yield PersistentDiskRequest(n, s, t, b, l.getOrElse(Map.empty))
+    } yield PersistentDiskRequest(n, s, t, l.getOrElse(Map.empty))
   }
 
   implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfigRequest.GceWithPdConfig] = Decoder.instance { x =>

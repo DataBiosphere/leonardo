@@ -41,7 +41,6 @@ class RuntimeCreationPdSpec
             diskName,
             Some(diskSize),
             None,
-            None,
             Map.empty
           )
         )
@@ -83,7 +82,6 @@ class RuntimeCreationPdSpec
             PersistentDiskRequest(
               diskName,
               Some(DiskSize(500)), //this will be ignored since in this test we'll pre create a disk
-              None,
               None,
               Map.empty
             )
