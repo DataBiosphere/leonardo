@@ -18,11 +18,7 @@ import scala.concurrent.duration._
 
 // extending fixture.Freespec just so we can use `taggedAs`. Not really need fixture for anything
 @DoNotDiscover
-class RuntimePatchSpec
-    extends fixture.FreeSpec
-    with LeonardoTestUtils
-    with LeonardoTestSuite
-    with GPAllocBeforeAndAfterAll {
+class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with LeonardoTestSuite {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
