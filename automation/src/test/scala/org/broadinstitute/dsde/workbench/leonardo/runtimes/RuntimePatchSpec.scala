@@ -108,7 +108,7 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with Leon
           stoppingDoneCheckable
         ).compile.lastOrError
         _ = monitorStoppingResult.status shouldBe ClusterStatus.Starting
-        monitringStartingResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(ioa, 20, 10 seconds)(
+        monitringStartingResult <- testTimer.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
           testTimer,
           startingDoneCheckable
         ).compile.lastOrError
