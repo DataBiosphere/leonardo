@@ -104,7 +104,6 @@ object LeonardoApiClient {
       res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 20, 5 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit
       else {
-        println(s"end result ${res}")
         IO.raiseError(new TimeoutException(s"create runtime ${googleProject.value}/${runtimeName.asString}"))
       }
     } yield ()
