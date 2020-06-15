@@ -68,7 +68,8 @@ class RuntimeCreationPdSpec
   }
 
   "create runtime and attach an existing a persistent disk" in { googleProject =>
-    val runtimeName = randomClusterName
+    val randomeName = randomClusterName
+    val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
 
