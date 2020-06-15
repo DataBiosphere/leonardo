@@ -96,7 +96,7 @@ final class LeonardoSuite
     extends Suites(
       new RuntimeCreationPdSpec,
       new ClusterStatusTransitionsSpec,
-//      new LabSpec,
+//      new LabSpec, TODO: comment out this for now since we seem to reach the limit of number of specs we can mix in for `Suite`
       new NotebookAouSpec,
       new NotebookBioconductorKernelSpec,
       new NotebookClusterMonitoringSpec,

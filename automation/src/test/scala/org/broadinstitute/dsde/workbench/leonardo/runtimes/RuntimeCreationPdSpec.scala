@@ -58,9 +58,9 @@ class RuntimeCreationPdSpec
       } yield {
         disk.status shouldBe DiskStatus.Ready
         disk.size shouldBe diskSize
-//        listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
-//          DiskStatus.Deleted
-//        ) //assume we won't have multiple disks with same name in the same project in tests
+        listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
+          DiskStatus.Deleted
+        ) //assume we won't have multiple disks with same name in the same project in tests
       }
     }
     res.unsafeRunSync()
