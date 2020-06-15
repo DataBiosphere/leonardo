@@ -110,6 +110,7 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with Leon
             request = UpdateRuntimeRequestCopy(Some(newRuntimeConfig), true, None, None)
           )
         }
+        _ <- testTimer.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
         ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
         getRuntimeResult <- ioa
         _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
