@@ -1,20 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.leonardo.cluster.{ClusterAutopauseSpec, ClusterStatusTransitionsSpec}
-import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
-import org.broadinstitute.dsde.workbench.leonardo.notebooks._
-import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
+//import org.broadinstitute.dsde.workbench.leonardo.cluster.{ClusterAutopauseSpec, ClusterStatusTransitionsSpec}
+//import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
+//import org.broadinstitute.dsde.workbench.leonardo.notebooks._
+//import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
-  RuntimeAutopauseSpec,
+//  RuntimeAutopauseSpec,
   RuntimeCreationPdSpec,
-  RuntimePatchSpec,
-  RuntimeStatusTransitionsSpec
+  RuntimePatchSpec
+//  RuntimeStatusTransitionsSpec
 }
 
 trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
@@ -95,26 +95,26 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 final class LeonardoSuite
     extends Suites(
       new RuntimeCreationPdSpec,
-      new ClusterStatusTransitionsSpec,
-      new LabSpec,
-      new NotebookAouSpec,
-      new NotebookBioconductorKernelSpec,
-      new NotebookClusterMonitoringSpec,
-      new NotebookCustomizationSpec,
-      new NotebookDataSyncingSpec,
-      new NotebookGATKSpec,
-      new NotebookHailSpec,
-      new NotebookPyKernelSpec,
-      new NotebookRKernelSpec,
-      new RStudioSpec,
-      new LeoPubsubSpec,
-      new ClusterAutopauseSpec,
-      new RuntimeAutopauseSpec,
-      new RuntimePatchSpec,
-      new RuntimeStatusTransitionsSpec,
-      new NotebookGCEClusterMonitoringSpec,
-      new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec
+//      new ClusterStatusTransitionsSpec,
+//      new LabSpec,
+//      new NotebookAouSpec,
+//      new NotebookBioconductorKernelSpec,
+//      new NotebookClusterMonitoringSpec,
+//      new NotebookCustomizationSpec,
+//      new NotebookDataSyncingSpec,
+//      new NotebookGATKSpec,
+//      new NotebookHailSpec,
+//      new NotebookPyKernelSpec,
+//      new NotebookRKernelSpec,
+//      new RStudioSpec,
+//      new LeoPubsubSpec,
+//      new ClusterAutopauseSpec,
+//      new RuntimeAutopauseSpec,
+      new RuntimePatchSpec
+//      new RuntimeStatusTransitionsSpec,
+//      new NotebookGCEClusterMonitoringSpec,
+//      new NotebookGCECustomizationSpec,
+//      new NotebookGCEDataSyncingSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
