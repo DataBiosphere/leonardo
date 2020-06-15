@@ -57,7 +57,7 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils {
     }
   }
 
-  "Patch endpoint should perform a stop/start tranition for Dataproc cluster" taggedAs Tags.SmokeTest in { _ =>
+  "Patch endpoint should perform a stop/start tranition for Dataproc cluster " taggedAs Tags.SmokeTest in { _ =>
     val billingProjectString =
       sys.props.get(gpallocProjectKey).getOrElse(throw new Exception("Billing project is not set"))
     val googleProject = GoogleProject(billingProjectString)
