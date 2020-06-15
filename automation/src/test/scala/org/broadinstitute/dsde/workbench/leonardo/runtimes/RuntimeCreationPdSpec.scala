@@ -29,7 +29,7 @@ class RuntimeCreationPdSpec
     httpClient <- LeonardoApiClient.client
   } yield RuntimeCreationPdSpecDependencies(httpClient, diskService)
 
-  "create and attach a persistent disk" in { googleProject =>
+  "create runtime and attach a persistent disk" in { googleProject =>
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
     val runtimeName = randomClusterName
@@ -67,7 +67,7 @@ class RuntimeCreationPdSpec
     res.unsafeRunSync()
   }
 
-  "create and attach an existing a persistent disk" in { googleProject =>
+  "create runtime and attach an existing a persistent disk" in { googleProject =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
