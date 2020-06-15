@@ -17,8 +17,7 @@ class RuntimeCreationPdSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with PropertyBasedTesting
-    with GPAllocBeforeAndAfterAll {
+    with PropertyBasedTesting {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
@@ -29,43 +28,43 @@ class RuntimeCreationPdSpec
     httpClient <- LeonardoApiClient.client
   } yield RuntimeCreationPdSpecDependencies(httpClient, diskService)
 
-//  "create runtime and attach a persistent disk" in { googleProject =>
-//    val diskName = genDiskName.sample.get
-//    val diskSize = genDiskSize.sample.get
-//    val runtimeName = randomClusterName
-//    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-//      runtimeConfig = Some(
-//        RuntimeConfigRequest.GceWithPdConfig(
-//          None,
-//          PersistentDiskRequest(
-//            diskName,
-//            Some(diskSize),
-//            None,
-//            Map.empty
-//          )
-//        )
-//      )
-//    )
-//
-//    // validate disk still exists after runtime is deleted
-//    val res = dependencies.use { dep =>
-//      implicit val client = dep.httpClient
-//      for {
-//        _ <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-//        _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
-//        disk <- LeonardoApiClient.getDisk(googleProject, diskName)
-//        _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
-//        listofDisks <- LeonardoApiClient.listDisk(googleProject, true)
-//      } yield {
-//        disk.status shouldBe DiskStatus.Ready
-//        disk.size shouldBe diskSize
-////        listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
-////          DiskStatus.Deleted
-////        ) //assume we won't have multiple disks with same name in the same project in tests
-//      }
-//    }
-//    res.unsafeRunSync()
-//  }
+  "create runtime and attach a persistent disk" in { googleProject =>
+    val diskName = genDiskName.sample.get
+    val diskSize = genDiskSize.sample.get
+    val runtimeName = randomClusterName
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.GceWithPdConfig(
+          None,
+          PersistentDiskRequest(
+            diskName,
+            Some(diskSize),
+            None,
+            Map.empty
+          )
+        )
+      )
+    )
+
+    // validate disk still exists after runtime is deleted
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        _ <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
+        disk <- LeonardoApiClient.getDisk(googleProject, diskName)
+        _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
+        listofDisks <- LeonardoApiClient.listDisk(googleProject, true)
+      } yield {
+        disk.status shouldBe DiskStatus.Ready
+        disk.size shouldBe diskSize
+//        listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
+//          DiskStatus.Deleted
+//        ) //assume we won't have multiple disks with same name in the same project in tests
+      }
+    }
+    res.unsafeRunSync()
+  }
 
   "create runtime and attach an existing a persistent disk" in { googleProject =>
     val randomeName = randomClusterName

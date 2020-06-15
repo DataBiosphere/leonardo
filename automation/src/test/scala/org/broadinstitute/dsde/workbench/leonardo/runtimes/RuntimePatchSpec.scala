@@ -1,12 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
+import cats.effect.IO
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.gpallocProjectKey
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec._
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
@@ -68,30 +71,29 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with Leon
     val billingProjectString =
       sys.props.get(gpallocProjectKey).getOrElse(throw new Exception("Billing project is not set"))
     val googleProject = GoogleProject(billingProjectString)
-    // create a new GCE runtime
-    val runtime =
-      createNewRuntime(googleProject, request = getRuntimeRequest(CloudService.Dataproc, None))(ronAuthToken)
-
     val newMasterMachineType = "n1-standard-2"
-    val runtimeConfig = UpdateRuntimeConfigRequestCopy.DataprocConfig(
+    val newRuntimeConfig = UpdateRuntimeConfigRequestCopy.DataprocConfig(
       Some(newMasterMachineType),
       None,
       None,
       None
     )
 
-    val originalCluster =
-      Leonardo.cluster.getRuntime(googleProject, runtime.clusterName)
-    originalCluster.status shouldBe ClusterStatus.Running
-
-    val originalMachineConfig = originalCluster.runtimeConfig
-
-    Leonardo.cluster.updateRuntime(
-      runtime.googleProject,
-      runtime.clusterName,
-      request = UpdateRuntimeRequestCopy(Some(runtimeConfig), true, None, None)
+    val runtimeName = randomClusterName
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.DataprocConfig(
+          None,
+          Some(MachineTypeName("n1-standard-4")),
+          None,
+          None,
+          None,
+          None,
+          None,
+          Map.empty
+        )
+      )
     )
-
     val res = LeonardoApiClient.client.use { c =>
       implicit val httpClient = c
       val stoppingDoneCheckable: DoneCheckable[GetRuntimeResponseCopy] =
@@ -99,8 +101,16 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with Leon
       val startingDoneCheckable: DoneCheckable[GetRuntimeResponseCopy] =
         x => x.status == ClusterStatus.Running
 
-      val ioa = LeonardoApiClient.getRuntime(runtime.googleProject, runtime.clusterName)
       for {
+        _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        _ <- IO {
+          Leonardo.cluster.updateRuntime(
+            googleProject,
+            runtimeName,
+            request = UpdateRuntimeRequestCopy(Some(newRuntimeConfig), true, None, None)
+          )
+        }
+        ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
         getRuntimeResult <- ioa
         _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
         monitorStoppingResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(ioa, 20, 10 seconds)(
@@ -114,9 +124,9 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with Leon
         ).compile.lastOrError
       } yield {
         monitringStartingResult.status shouldBe ClusterStatus.Running
-        monitringStartingResult.runtimeConfig shouldBe originalMachineConfig
+        monitringStartingResult.runtimeConfig
           .asInstanceOf[RuntimeConfig.DataprocConfig]
-          .copy(masterMachineType = MachineTypeName(newMasterMachineType))
+          .masterMachineType shouldBe MachineTypeName(newMasterMachineType)
       }
     }
     res.unsafeRunSync
