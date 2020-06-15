@@ -5,7 +5,7 @@ import java.time.Instant
 
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
@@ -44,8 +44,7 @@ final case class Runtime(id: Long,
                          welderEnabled: Boolean,
                          customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId,
-                         patchInProgress: Boolean,
-                         persistentDiskId: Option[DiskId]) {
+                         patchInProgress: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
   def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
@@ -199,18 +198,32 @@ object CustomImage {
   }
 }
 
+final case class PersistentDiskInRuntimeConfig(
+  id: DiskId,
+  zone: ZoneName,
+  name: DiskName,
+  status: DiskStatus,
+  size: DiskSize,
+  diskType: DiskType
+)
+
 /** Configuration of the runtime such as machine types, disk size, etc */
 final case class RuntimeConfigId(id: Long) extends AnyVal
 sealed trait RuntimeConfig extends Product with Serializable {
   def cloudService: CloudService
   def machineType: MachineTypeName
-  def diskSize: DiskSize
 }
 object RuntimeConfig {
   final case class GceConfig(
     machineType: MachineTypeName,
     diskSize: DiskSize
   ) extends RuntimeConfig {
+    val cloudService: CloudService = CloudService.GCE
+  }
+
+  // When persistentDiskId is None, then we don't have any disk attached to the runtime
+  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: Option[DiskId])
+      extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
 

@@ -12,13 +12,14 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def cloudService = column[CloudService]("cloudService", O.Length(254))
   def numberOfWorkers = column[Int]("numberOfWorkers")
   def machineType = column[MachineTypeName]("machineType", O.Length(254))
-  def diskSize = column[DiskSize]("diskSize")
+  def diskSize = column[Option[DiskSize]]("diskSize")
   def workerMachineType = column[Option[MachineTypeName]]("workerMachineType", O.Length(254))
   def workerDiskSize = column[Option[DiskSize]]("workerDiskSize")
   def numberOfWorkerLocalSSDs = column[Option[Int]]("numberOfWorkerLocalSSDs")
   def numberOfPreemptibleWorkers = column[Option[Int]]("numberOfPreemptibleWorkers")
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def dataprocProperties = column[Option[Map[String, String]]]("dataprocProperties")
+  def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
 
   def * =
     (
@@ -32,7 +33,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         workerDiskSize,
         numberOfWorkerLocalSSDs,
         numberOfPreemptibleWorkers,
-        dataprocProperties
+        dataprocProperties,
+        persistentDiskId
       ),
       dateAccessed
     ).shaped <> ({
@@ -45,17 +47,23 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              workerDiskSize,
              numberOfWorkerLocalSSDs,
              numberOfPreemptibleWorkers,
-             dataprocProperties),
+             dataprocProperties,
+             persistentDiskId),
             dateAccessed) =>
         val r = cloudService match {
           case CloudService.GCE =>
-            RuntimeConfig.GceConfig(machineType, diskSize)
-
+            diskSize match {
+              case Some(size) => RuntimeConfig.GceConfig(machineType, size)
+              case None =>
+                persistentDiskId.fold(
+                  RuntimeConfig.GceWithPdConfig(machineType, None)
+                )(diskId => RuntimeConfig.GceWithPdConfig(machineType, Some(diskId)))
+            }
           case CloudService.Dataproc =>
             RuntimeConfig.DataprocConfig(
               numberOfWorkers,
               machineType,
-              diskSize,
+              diskSize.getOrElse(throw new Exception("diskSize field should not be null for Dataproc.")),
               workerMachineType,
               workerDiskSize,
               numberOfWorkerLocalSSDs,
@@ -68,7 +76,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
       x.runtimeConfig match {
         case r: RuntimeConfig.GceConfig =>
           Some(x.id,
-               (CloudService.GCE: CloudService, 0, r.machineType, r.diskSize, None, None, None, None, None),
+               (CloudService.GCE: CloudService, 0, r.machineType, Some(r.diskSize), None, None, None, None, None, None),
                x.dateAccessed)
         case r: RuntimeConfig.DataprocConfig =>
           Some(
@@ -76,12 +84,19 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
             (CloudService.Dataproc: CloudService,
              r.numberOfWorkers,
              r.masterMachineType,
-             r.masterDiskSize,
+             Some(r.masterDiskSize),
              r.workerMachineType,
              r.workerDiskSize,
              r.numberOfWorkerLocalSSDs,
              r.numberOfPreemptibleWorkers,
-             Some(r.properties)),
+             Some(r.properties),
+             None),
+            x.dateAccessed
+          )
+        case r: RuntimeConfig.GceWithPdConfig =>
+          Some(
+            x.id,
+            (CloudService.GCE: CloudService, 0, r.machineType, None, None, None, None, None, None, r.persistentDiskId),
             x.dateAccessed
           )
       }

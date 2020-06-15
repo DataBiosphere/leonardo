@@ -148,7 +148,8 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       else config.dataprocConfig.customDataprocImage
 
       res <- params.runtimeConfig match {
-        case _: RuntimeConfig.GceConfig => Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
+        case _: RuntimeConfig.GceConfig | _: RuntimeConfig.GceWithPdConfig =>
+          Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
         case x: RuntimeConfig.DataprocConfig =>
           val createClusterConfig = CreateClusterConfig(
             x,
@@ -337,16 +338,14 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
-    runtime.dataprocInstances.toList.traverse_ { instance =>
-      // Note: we don't support changing the machine type for worker instances. While this is possible
-      // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
-      // and rebuilding the cluster if new worker machine/disk sizes are needed.
-      instance.dataprocRole match {
-        case Master =>
-          googleComputeService.setMachineType(instance.key.project, instance.key.zone, instance.key.name, machineType)
-        case _ => Async[F].unit
-      }
-    }
+    runtime.dataprocInstances
+      .find(_.dataprocRole == Master)
+      .traverse_(instance =>
+        // Note: we don't support changing the machine type for worker instances. While this is possible
+        // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
+        // and rebuilding the cluster if new worker machine/disk sizes are needed.
+        googleComputeService.setMachineType(instance.key.project, instance.key.zone, instance.key.name, machineType)
+      )
 
   override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     params.runtime.dataprocInstances.toList.traverse_ { instance =>

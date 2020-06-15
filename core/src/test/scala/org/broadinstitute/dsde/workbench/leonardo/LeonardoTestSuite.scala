@@ -8,8 +8,10 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
 import org.scalatest.{Assertion, Assertions, Matchers}
 import fs2.Stream
-import scala.concurrent.duration._
+import org.scalatest.prop.Configuration
+import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.global
 
 trait LeonardoTestSuite extends Matchers {
@@ -45,3 +47,9 @@ trait LeonardoTestSuite extends Matchers {
 }
 
 final case class Accumulator(maxRetry: Int, throwable: Option[Throwable])
+
+trait PropertyBasedTesting extends ScalaCheckPropertyChecks with Configuration {
+  implicit override val generatorDrivenConfig: PropertyCheckConfiguration = PropertyCheckConfiguration(
+    minSuccessful = 3
+  )
+}

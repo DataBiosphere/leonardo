@@ -73,17 +73,21 @@ final case class DiskSize(gb: Int) extends AnyVal {
 
 final case class BlockSize(bytes: Int) extends AnyVal
 
-sealed trait DiskType extends EnumEntry {
-  def googleString: String
+sealed trait DiskType extends EnumEntry with Product with Serializable {
+  def asString: String
+  def googleString(googleProject: GoogleProject, zoneName: ZoneName): String
 }
 object DiskType extends Enum[DiskType] {
   val values = findValues
-  val googleStringToValues = values.map(v => v.googleString -> v).toMap
+  val stringToObject = values.map(v => v.asString -> v).toMap
 
   final case object Standard extends DiskType {
-    override def googleString: String = "pd-standard"
+    override def asString: String = "pd-standard"
+    def googleString(googleProject: GoogleProject, zoneName: ZoneName): String =
+      s"projects/${googleProject.value}/zones/${zoneName.value}/diskTypes/pd-standard"
   }
   final case object SSD extends DiskType {
-    override def googleString: String = "pd-ssd"
+    override def asString: String = "pd-ssd"
+    def googleString(googleProject: GoogleProject, zoneName: ZoneName): String = asString
   }
 }

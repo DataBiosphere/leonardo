@@ -8,12 +8,12 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{CreateDiskRequest, UpdateDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.UpdateDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
@@ -181,7 +181,11 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       t <- ctx.ask
       diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
-      _ <- IO(makeCluster(1).copy(persistentDiskId = Some(disk.id)).save())
+      _ <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(disk.id))
+        )
+      )
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))

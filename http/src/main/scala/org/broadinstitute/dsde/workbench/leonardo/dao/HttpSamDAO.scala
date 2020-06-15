@@ -268,6 +268,7 @@ object HttpSamDAO {
       googleProject <- c.downField("resourceId").as[GoogleProject]
     } yield SamProjectPolicy(policyName, googleProject)
   }
+  // TODO: consolidate these 3 access policy decoders into one
   implicit val samPersistentDiskPolicyDecoder: Decoder[SamPersistentDiskPolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]

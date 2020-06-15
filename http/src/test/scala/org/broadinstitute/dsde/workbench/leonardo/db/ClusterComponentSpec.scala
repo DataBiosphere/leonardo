@@ -261,7 +261,9 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val newDiskSize = DiskSize(1000)
     dbFutureValue(RuntimeConfigQueries.updateDiskSize(savedCluster1.runtimeConfigId, newDiskSize, Instant.now))
 
-    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster1.runtimeConfigId)).diskSize shouldBe
+    dbFutureValue(RuntimeConfigQueries.getRuntimeConfig(savedCluster1.runtimeConfigId))
+      .asInstanceOf[RuntimeConfig.DataprocConfig]
+      .diskSize shouldBe
       newDiskSize
   }
 
@@ -320,12 +322,17 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
   it should "persist persistentDiskId foreign key" in isolatedDbTest {
     val res = for {
       savedDisk <- makePersistentDisk(DiskId(1)).save()
-      savedRuntime <- IO(makeCluster(1).copy(persistentDiskId = Some(savedDisk.id)).save())
+      savedRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id)))
+      )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
-      error <- IO(makeCluster(2).copy(persistentDiskId = Some(DiskId(-1))).save()).attempt
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(retrievedRuntime.get.runtimeConfigId).transaction
+      error <- IO(
+        makeCluster(2).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1))))
+      ).attempt
     } yield {
       retrievedRuntime shouldBe 'defined
-      retrievedRuntime.get.persistentDiskId shouldBe Some(savedDisk.id)
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(savedDisk.id)
       error.isLeft shouldBe true
     }
 

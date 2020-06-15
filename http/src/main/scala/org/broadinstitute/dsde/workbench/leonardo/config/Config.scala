@@ -30,7 +30,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{DateAccessedUpdaterConfig, LeoPubsubMessageSubscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  DateAccessedUpdaterConfig,
+  LeoPubsubMessageSubscriberConfig,
+  PersistentDiskMonitor,
+  PersistentDiskMonitorConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
@@ -92,6 +97,7 @@ object Config {
 
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
+      config.as[DiskSize]("bootDiskSize"),
       config.as[GceCustomImage]("customGceImage"),
       config.as[RegionName]("region"),
       config.as[ZoneName]("zone"),
@@ -271,6 +277,23 @@ object Config {
     )
   }
 
+  implicit private val persistentDiskMonitorReader: ValueReader[PersistentDiskMonitor] = ValueReader.relative {
+    config =>
+      PersistentDiskMonitor(
+        config.as[Int]("max-attempts"),
+        config.as[FiniteDuration]("interval")
+      )
+  }
+
+  implicit private val persistentDiskMonitorConfigReader: ValueReader[PersistentDiskMonitorConfig] =
+    ValueReader.relative { config =>
+      PersistentDiskMonitorConfig(
+        config.as[PersistentDiskMonitor]("create"),
+        config.as[PersistentDiskMonitor]("delete"),
+        config.as[PersistentDiskMonitor]("update")
+      )
+    }
+
   implicit private val clusterToolConfigValueReader: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
     ClusterToolConfig(
       toScalaDuration(config.getDuration("pollPeriod"))
@@ -357,7 +380,7 @@ object Config {
   implicit private val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit private val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
   implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
-    DiskType.withNameInsensitiveOption(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
+    DiskType.stringToObject.get(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
   implicit val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit private val frameAncestorsReader: ValueReader[FrameAncestors] =
@@ -378,7 +401,8 @@ object Config {
     ValueReader.relative { config =>
       LeoPubsubMessageSubscriberConfig(
         config.getInt("concurrency"),
-        config.as[FiniteDuration]("timeout")
+        config.as[FiniteDuration]("timeout"),
+        config.as[PersistentDiskMonitorConfig]("persistent-disk-monitor")
       )
     }
 

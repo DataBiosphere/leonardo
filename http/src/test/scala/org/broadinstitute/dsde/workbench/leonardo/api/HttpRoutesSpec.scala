@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import java.net.URL
 import java.time.Instant
@@ -8,27 +10,15 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
-import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.api.HttpRoutesSpec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport.runtimeConfigRequestEncoder
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateDiskRequest,
-  CreateRuntime2Request,
-  GetPersistentDiskResponse,
-  HttpRoutes,
-  ListPersistentDiskResponse,
-  ListRuntimeResponse2,
-  TestLeoRoutes,
-  UpdateDiskRequest,
-  UpdateRuntimeConfigRequest,
-  UpdateRuntimeRequest
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.GetRuntimeResponse
 import org.broadinstitute.dsde.workbench.leonardo.service.{MockDiskServiceInterp, MockRuntimeServiceInterp}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
@@ -72,8 +62,7 @@ class HttpRoutesSpec
       Some(ContainerImage.DockerHub("myrepo/myimage")),
       Some(ContainerImage.DockerHub("broadinstitute/welder")),
       Set.empty,
-      Map.empty,
-      None
+      Map.empty
     )
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, request.asJson.spaces2) ~> routes.route ~> check {
@@ -278,36 +267,6 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
-  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct12(
-    "labels",
-    "jupyterUserScriptUri",
-    "jupyterStartUserScriptUri",
-    "runtimeConfig",
-    "userJupyterExtensionConfig",
-    "autopause",
-    "autopauseThreshold",
-    "defaultClientId",
-    "toolDockerImage",
-    "welderDockerImage",
-    "scopes",
-    "customEnvironmentVariables"
-  )(x =>
-    (
-      x.labels,
-      x.jupyterUserScriptUri,
-      x.jupyterStartUserScriptUri,
-      x.runtimeConfig,
-      x.userJupyterExtensionConfig,
-      x.autopause,
-      x.autopauseThreshold.map(_.toMinutes),
-      x.defaultClientId,
-      x.toolDockerImage,
-      x.welderDockerImage,
-      x.scopes,
-      x.customEnvironmentVariables
-    )
-  )
-
   implicit val updateGceConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
     "cloudService",
     "machineType",
@@ -347,20 +306,6 @@ object HttpRoutesSpec {
       x.allowStop,
       x.updateAutopauseEnabled,
       x.updateAutopauseThreshold.map(_.toMinutes)
-    )
-  )
-
-  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct4(
-    "labels",
-    "size",
-    "diskType",
-    "blockSize"
-  )(x =>
-    (
-      x.labels,
-      x.size,
-      x.diskType,
-      x.blockSize
     )
   )
 
@@ -447,63 +392,6 @@ object HttpRoutesSpec {
       status,
       labels,
       patchInProgress
-    )
-  }
-
-  implicit val getDiskResponseDecoder: Decoder[GetPersistentDiskResponse] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[DiskId]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
-      zone <- x.downField("zone").as[ZoneName]
-      name <- x.downField("name").as[DiskName]
-      googleId <- x.downField("googleId").as[Option[GoogleId]]
-      serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
-      status <- x.downField("status").as[DiskStatus]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      size <- x.downField("size").as[DiskSize]
-      diskType <- x.downField("diskType").as[DiskType]
-      blockSize <- x.downField("blockSize").as[BlockSize]
-      labels <- x.downField("labels").as[LabelMap]
-    } yield GetPersistentDiskResponse(
-      id,
-      googleProject,
-      zone,
-      name,
-      googleId,
-      serviceAccount,
-      // TODO samResource probably shouldn't be in the GetPersistentDiskResponse
-      // if it's not in the encoder
-      PersistentDiskSamResource("test"),
-      status,
-      auditInfo,
-      size,
-      diskType,
-      blockSize,
-      labels
-    )
-  }
-
-  implicit val listDiskResponseDecoder: Decoder[ListPersistentDiskResponse] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[DiskId]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
-      zone <- x.downField("zone").as[ZoneName]
-      name <- x.downField("name").as[DiskName]
-      status <- x.downField("status").as[DiskStatus]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      size <- x.downField("size").as[DiskSize]
-      diskType <- x.downField("diskType").as[DiskType]
-      blockSize <- x.downField("blockSize").as[BlockSize]
-    } yield ListPersistentDiskResponse(
-      id,
-      googleProject,
-      zone,
-      name,
-      status,
-      auditInfo,
-      size,
-      diskType,
-      blockSize
     )
   }
 }

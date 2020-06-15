@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   RuntimeServiceDbQueries,
   TestComponent
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{DiskConfig, ListRuntimeResponse2}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.GetRuntimeResponse
 import org.scalatest.FlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
@@ -48,18 +48,24 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       d1 <- makePersistentDisk(DiskId(1)).save()
-      c1 <- IO(makeCluster(1).copy(persistentDiskId = Some(d1.id)).save())
+      d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id))
+      c1 <- IO(
+        makeCluster(1).saveWithRuntimeConfig(d1RuntimeConfig)
+      )
       list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       d2 <- makePersistentDisk(DiskId(2)).save()
-      c2 <- IO(makeCluster(2).copy(persistentDiskId = Some(d2.id)).save())
+      d2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id))
+      c2 <- IO(
+        makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
+      )
       list3 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       list1 shouldEqual List.empty
-      val c1Expected = toListRuntimeResponse(c1, Map.empty)
-      val c2Expected = toListRuntimeResponse(c2, Map.empty)
+      val c1Expected = toListRuntimeResponse(c1, Map.empty, d1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty, d2RuntimeConfig)
       list2 shouldEqual List(c1Expected)
       list3.toSet shouldEqual Set(c1Expected, c2Expected)
       elapsed should be < maxElapsed
@@ -72,9 +78,11 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       d1 <- makePersistentDisk(DiskId(1)).save()
-      c1 <- IO(makeCluster(1).copy(persistentDiskId = Some(d1.id)).save())
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id))
+      c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       d2 <- makePersistentDisk(DiskId(2)).save()
-      c2 <- IO(makeCluster(2).copy(persistentDiskId = Some(d2.id)).save())
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id))
+      c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
       labels1 = Map("googleProject" -> c1.googleProject.value,
                     "clusterName" -> c1.runtimeName.asString,
                     "creator" -> c1.auditInfo.creator.value)
@@ -96,8 +104,8 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
     } yield {
       list1 shouldEqual List.empty
       list2 shouldEqual List.empty
-      val c1Expected = toListRuntimeResponse(c1, labels1)
-      val c2Expected = toListRuntimeResponse(c2, labels2)
+      val c1Expected = toListRuntimeResponse(c1, labels1, c1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, labels2, c2RuntimeConfig)
       list3 shouldEqual List(c1Expected)
       list4 shouldEqual List(c2Expected)
       list5.toSet shouldEqual Set(c1Expected, c2Expected)
@@ -111,17 +119,23 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       d1 <- makePersistentDisk(DiskId(1)).save()
-      c1 <- IO(makeCluster(1).copy(persistentDiskId = Some(d1.id)).save())
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id))
+      c1 <- IO(
+        makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig)
+      )
       d2 <- makePersistentDisk(DiskId(2)).save()
-      c2 <- IO(makeCluster(2).copy(persistentDiskId = Some(d2.id)).save())
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id))
+      c2 <- IO(
+        makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
+      )
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project)).transaction
       list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project2)).transaction
       end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
-      val c1Expected = toListRuntimeResponse(c1, Map.empty)
-      val c2Expected = toListRuntimeResponse(c2, Map.empty)
+      val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty, c2RuntimeConfig)
       list1.toSet shouldEqual Set(c1Expected, c2Expected)
       list2 shouldEqual List.empty
       elapsed should be < maxElapsed
@@ -134,20 +148,33 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       d1 <- makePersistentDisk(DiskId(1)).save()
-      c1 <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleted, persistentDiskId = Some(d1.id)).save())
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id))
+      c1 <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Deleted)
+          .saveWithRuntimeConfig(c1RuntimeConfig)
+      )
       d2 <- makePersistentDisk(DiskId(2)).save()
-      c2 <- IO(makeCluster(2).copy(status = RuntimeStatus.Deleted, persistentDiskId = Some(d2.id)).save())
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id))
+      c2 <- IO(
+        makeCluster(2)
+          .copy(status = RuntimeStatus.Deleted)
+          .saveWithRuntimeConfig(c2RuntimeConfig)
+      )
       d3 <- makePersistentDisk(DiskId(3)).save()
-      c3 <- IO(makeCluster(3).copy(persistentDiskId = Some(d3.id)).save())
+      c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d3.id))
+      c3 <- IO(
+        makeCluster(3).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d3.id)))
+      )
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None).transaction
       list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       elapsed = (end - start).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
-      val c1Expected = toListRuntimeResponse(c1, Map.empty)
-      val c2Expected = toListRuntimeResponse(c2, Map.empty)
-      val c3Expected = toListRuntimeResponse(c3, Map.empty)
+      val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty, c2RuntimeConfig)
+      val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig)
       list1.toSet shouldEqual Set(c1Expected, c2Expected, c3Expected)
       list2 shouldEqual List(c3Expected)
       elapsed should be < maxElapsed
@@ -159,27 +186,30 @@ class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with G
   it should "get a runtime" in isolatedDbTest {
     val res = for {
       disk <- makePersistentDisk(DiskId(1)).save()
-      c1 <- IO(makeCluster(1).copy(persistentDiskId = Some(disk.id)).save())
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(disk.id))
+      c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       get1 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, c1.runtimeName).transaction
       get2 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, RuntimeName("does-not-exist")).transaction.attempt
     } yield {
-      get1 shouldBe GetRuntimeResponse.fromRuntime(c1,
-                                                   CommonTestData.defaultDataprocRuntimeConfig,
-                                                   Some(DiskConfig.fromPersistentDisk(disk)))
+      get1 shouldBe GetRuntimeResponse.fromRuntime(c1, c1RuntimeConfig, Some(DiskConfig.fromPersistentDisk(disk)))
       get2.isLeft shouldBe true
     }
 
     res.unsafeRunSync()
   }
 
-  private def toListRuntimeResponse(runtime: Runtime, labels: LabelMap): ListRuntimeResponse2 =
+  private def toListRuntimeResponse(
+    runtime: Runtime,
+    labels: LabelMap,
+    runtimeConfig: RuntimeConfig = CommonTestData.defaultDataprocRuntimeConfig
+  ): ListRuntimeResponse2 =
     ListRuntimeResponse2(
       runtime.id,
       runtime.samResource,
       runtime.runtimeName,
       runtime.googleProject,
       runtime.auditInfo,
-      CommonTestData.defaultDataprocRuntimeConfig,
+      runtimeConfig,
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
                           runtime.googleProject,
                           runtime.runtimeName,

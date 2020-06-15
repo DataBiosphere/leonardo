@@ -19,7 +19,7 @@ class AsyncTaskProcessorSpec extends FlatSpec with Matchers with LeonardoTestSui
     queue
   )
 
-  it should "execute tasks concurrently" in {
+  ignore should "execute tasks concurrently" in {
     val start = Instant.now()
     val res = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val traceId = appContext.ask.unsafeRunSync().traceId
@@ -28,9 +28,8 @@ class AsyncTaskProcessorSpec extends FlatSpec with Matchers with LeonardoTestSui
         for {
           _ <- if (x == 1 || x == 4) IO.sleep(10 seconds) else IO.sleep(15 seconds)
 // Leaving the commented out code here since it's easier to see what's going on with it
-          _ <- IO(println(s"executing ${x} " + Instant.now()))
+//          _ <- IO(println(s"executing ${x} " + Instant.now()))
           size <- queue.getSize
-          _ = println("queue size: " + size)
 //          _ <- if (size == 0)
 //            signalToStop.complete(())
 //          else IO.unit

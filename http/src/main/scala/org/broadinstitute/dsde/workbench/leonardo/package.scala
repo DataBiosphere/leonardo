@@ -2,8 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.nio.file.Path
 
+import io.opencensus.trace.{AttributeValue, Span}
 import io.opencensus.scala.http.ServiceData
-import cats.effect.{Blocker, ContextShift, Sync}
+import cats.effect.{Blocker, ContextShift, Resource, Sync}
 import cats.mtl.ApplicativeAsk
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
@@ -35,6 +36,11 @@ package object http {
     a: A
   )(implicit ev: RuntimeMonitor[F, A]): CloudServiceMonitorOps[F, A] =
     CloudServiceMonitorOps[F, A](a)
+
+  def spanResource[F[_]: Sync](span: Span, apiName: String): Resource[F, Unit] =
+    Resource.make[F, Unit](Sync[F].delay(span.putAttribute("api", AttributeValue.stringAttributeValue(apiName))))(_ =>
+      Sync[F].delay(span.end())
+    )
 }
 
 final case class CloudServiceMonitorOps[F[_], A](a: A)(

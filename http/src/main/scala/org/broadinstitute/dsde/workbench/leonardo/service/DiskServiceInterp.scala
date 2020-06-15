@@ -15,12 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  CreateDiskRequest,
-  GetPersistentDiskResponse,
-  ListPersistentDiskResponse,
-  UpdateDiskRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.UpdateDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.{
   includeDeletedKey,
@@ -90,8 +85,9 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
                 ) >> F.raiseError(t)
               }
+            //TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
-            _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(disk.copy(id = savedDisk.id), Some(ctx.traceId)))
+            _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
           } yield ()
       }
     } yield ()
@@ -168,7 +164,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (disk.status.isDeletable) F.unit
       else F.raiseError[Unit](DiskCannotBeDeletedException(disk.googleProject, disk.name, disk.status, ctx.traceId))
       // throw 409 if the disk is attached to a runtime
-      attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk).transaction
+      attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(disk.id).transaction
       _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, diskName, ctx.traceId))
       else F.unit
       // delete the disk

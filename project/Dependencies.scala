@@ -20,7 +20,7 @@ object Dependencies {
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
   val workbenchGoogleV = "0.21-2a218f3"
-  val workbenchGoogle2V = "0.10-deddc42"
+  val workbenchGoogle2V = "0.10-bd284e7"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchOpenTelemetryV = "0.1-e66171c"
 
@@ -129,8 +129,12 @@ object Dependencies {
     workbenchOpenTelemetry,
     workbenchOpenTelemetryTest,
     "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
+    "org.scalacheck" %% "scalacheck" % "1.14.1" % "test",
     sealerate,
-    enumeratum
+    enumeratum,
+    http4sCirce,
+    http4sBlazeClient,
+    http4sDsl
   )
 
   val rootDependencies = Seq(
@@ -139,9 +143,6 @@ object Dependencies {
     jacksonAnnotations,
     jacksonDatabind,
     jacksonCore,
-    http4sCirce,
-    http4sBlazeClient,
-    http4sDsl,
     fs2Io,
     logbackClassic,
     ravenLogback,

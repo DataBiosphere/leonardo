@@ -10,16 +10,17 @@ import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GoogleComputeService,
+  GoogleDiskService,
   InstanceName,
   MachineTypeName,
   SubnetworkName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.google2.GoogleDiskService
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
@@ -38,7 +39,7 @@ final case class InstanceResourceConstaintsException(project: GoogleProject, mac
 final case class MissingServiceAccountException(projectAndName: RuntimeProjectAndName)
     extends LeoException(s"Cannot create instance ${projectAndName}: service account required")
 
-class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
+class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
   config: GceInterpreterConfig,
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
@@ -46,7 +47,7 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
   googleDiskService: GoogleDiskService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
-)(implicit val executionContext: ExecutionContext, metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F])
+)(implicit val executionContext: ExecutionContext, metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F], F: Async[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F] {
 
@@ -112,6 +113,69 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
 
       initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.gceInitScript.asString))
 
+      bootDisk = AttachedDisk.newBuilder
+        .setBoot(true)
+        .setInitializeParams(
+          AttachedDiskInitializeParams
+            .newBuilder()
+            .setDescription("Leonardo Managed Boot Disk")
+            .setSourceImage(config.gceConfig.customGceImage.asString)
+            .setDiskSizeGb(
+              config.gceConfig.bootDiskSize.gb.toString
+            )
+            .putAllLabels(Map("leonardo" -> "true").asJava)
+            .build()
+        )
+        .setAutoDelete(true)
+        .build()
+
+      userDisk <- params.runtimeConfig match {
+        case x: RuntimeConfig.GceWithPdConfig =>
+          for {
+            diskId <- F.fromEither(
+              x.persistentDiskId
+                .toRight(new RuntimeException("Missing diskId in the request. This should never happen"))
+            )
+            persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
+            persistentDisk <- F.fromEither(
+              persistentDiskOpt.toRight(
+                new Exception(
+                  "Runtime has Persistent Disk enabled, but we can't find it in database. This should never happen."
+                )
+              )
+            )
+          } yield AttachedDisk.newBuilder
+            .setBoot(false)
+            .setInitializeParams(
+              AttachedDiskInitializeParams
+                .newBuilder()
+                .setDiskName(persistentDisk.name.value)
+                .setDiskSizeGb(persistentDisk.size.gb.toString)
+                .putAllLabels(Map("leonardo" -> "true").asJava)
+                .setDiskType(
+                  persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject, persistentDisk.zone)
+                )
+                .build()
+            )
+            .setAutoDelete(false)
+            .build()
+        case x: RuntimeConfig.GceConfig =>
+          val disk = AttachedDisk.newBuilder
+            .setBoot(false)
+            .setInitializeParams(
+              AttachedDiskInitializeParams
+                .newBuilder()
+                .setDiskSizeGb(x.diskSize.gb.toString)
+                .build()
+            )
+            .setAutoDelete(true)
+            .build()
+          F.pure(disk)
+        case _: RuntimeConfig.DataprocConfig =>
+          F.raiseError[AttachedDisk](
+            new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
+          )
+      }
       instance = Instance
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)
@@ -119,21 +183,8 @@ class GceInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
         .setTags(Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build())
         .setMachineType(buildMachineTypeUri(config.gceConfig.zoneName, params.runtimeConfig.machineType))
         .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork))
-        .addDisks(
-          AttachedDisk.newBuilder
-          //.setDeviceName()   // this may become important when we support attaching PDs
-            .setBoot(true)
-            .setInitializeParams(
-              AttachedDiskInitializeParams
-                .newBuilder()
-                .setDescription("Leonardo Managed Persistent Disk")
-                .setSourceImage(config.gceConfig.customGceImage.asString)
-                .setDiskSizeGb(params.runtimeConfig.diskSize.gb.toString)
-                .putAllLabels(Map("leonardo" -> "true").asJava)
-                .build()
-            )
-            .setAutoDelete(true) // change to false when we support attaching PDs
-            .build()
+        .addAllDisks(
+          List(bootDisk, userDisk).asJava
         )
         .addServiceAccounts(
           ServiceAccount.newBuilder

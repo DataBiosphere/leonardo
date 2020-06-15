@@ -7,7 +7,7 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import com.google.cloud.compute.v1.{AccessConfig, Instance, Items, Metadata, NetworkInterface}
+import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
@@ -27,8 +27,8 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.{userScriptStartupOutputUriMetadataKey, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -180,7 +180,7 @@ object CommonTestData {
       GcsBucketName("stagingbucketname" + index.toString),
       Some(IP("numbers.and.dots"))
     )
-
+  val defaultMachineType = MachineTypeName("n1-standard-4")
   val defaultDataprocRuntimeConfig =
     RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty)
 
@@ -226,8 +226,7 @@ object CommonTestData {
       welderEnabled = false,
       customEnvironmentVariables = Map.empty,
       runtimeConfigId = RuntimeConfigId(-1),
-      patchInProgress = false,
-      persistentDiskId = None
+      patchInProgress = false
     )
   }
 
@@ -261,8 +260,7 @@ object CommonTestData {
     welderEnabled = true,
     customEnvironmentVariables = Map.empty,
     runtimeConfigId = RuntimeConfigId(-1),
-    patchInProgress = false,
-    persistentDiskId = None
+    patchInProgress = false
   )
 
   val readyInstance = Instance

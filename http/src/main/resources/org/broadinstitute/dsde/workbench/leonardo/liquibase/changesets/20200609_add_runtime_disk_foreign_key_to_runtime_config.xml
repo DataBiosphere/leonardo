@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="qi" id="add_runtime_disk_foreign_key_to_runtime_config">
+        <dropForeignKeyConstraint baseTableName="CLUSTER" constraintName="FK_CLUSTER_PERSISTENT_DISK_ID"/>
+        <dropIndex indexName="FK_CLUSTER_PERSISTENT_DISK_ID" tableName="CLUSTER"/>
+        <dropColumn tableName="CLUSTER">
+            <column name="persistentDiskId"></column>
+        </dropColumn>
+        <dropNotNullConstraint  columnDataType="INT"
+                                columnName="diskSize"
+                                tableName="RUNTIME_CONFIG"/>
+
+        <addColumn tableName="RUNTIME_CONFIG">
+            <column name="persistentDiskId" type="BIGINT">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+        <createIndex indexName="FK_RUNTIME_CONFIG_PERSISTENT_DISK_ID" tableName="RUNTIME_CONFIG">
+            <column name="persistentDiskId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="persistentDiskId" baseTableName="RUNTIME_CONFIG" constraintName="FK_RUNTIME_CONFIG_PERSISTENT_DISK_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="PERSISTENT_DISK"/>
+    </changeSet>
+</databaseChangeLog>

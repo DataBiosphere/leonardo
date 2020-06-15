@@ -51,6 +51,7 @@ class HttpRoutes(
       case requestValidationError: RequestValidationError =>
         complete(StatusCodes.BadRequest, requestValidationError.getMessage)
       case leoException: LeoException =>
+        logger.error(s"request failed due to: ${leoException.getMessage}", leoException)
         complete(leoException.statusCode, leoException.toErrorReport)
       case e: Throwable =>
         logger.error(s"Unexpected error occurred processing route: ${e.getMessage}", e)

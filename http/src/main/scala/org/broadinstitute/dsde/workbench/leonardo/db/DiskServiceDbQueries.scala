@@ -5,7 +5,7 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.GetPersistentDiskResponse
+import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
@@ -62,7 +62,7 @@ object DiskServiceDbQueries {
   def getGetPersistentDiskResponse(googleProject: GoogleProject, diskName: DiskName, traceId: TraceId)(
     implicit executionContext: ExecutionContext
   ): DBIO[GetPersistentDiskResponse] = {
-    val diskQuery = persistentDiskQuery.findByNameQuery(googleProject, diskName)
+    val diskQuery = persistentDiskQuery.findActiveByNameQuery(googleProject, diskName)
     val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
 
     diskQueryJoinedWithLabels.result.flatMap { x =>

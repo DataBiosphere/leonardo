@@ -10,7 +10,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{fullClusterQueryByUniqueKey, unmarshalFullCluster}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{DiskConfig, ListRuntimeResponse2}
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeNotFoundException}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -47,7 +48,7 @@ object RuntimeServiceDbQueries {
       .join(runtimeConfigs)
       .on(_._1.runtimeConfigId === _.id)
       .joinLeft(persistentDiskQuery)
-      .on { case (a, b) => a._1._1.persistentDiskId.isDefined && a._1._1.persistentDiskId === b.id }
+      .on { case (a, b) => a._2.persistentDiskId.isDefined && a._2.persistentDiskId === b.id }
     activeRuntime.result.flatMap { recs =>
       val runtimeRecs = recs.map(_._1._1)
       val res = for {
@@ -59,9 +60,9 @@ object RuntimeServiceDbQueries {
       } yield GetRuntimeResponse.fromRuntime(runtime,
                                              runtimeConfig.runtimeConfig,
                                              persistentDisk.map(DiskConfig.fromPersistentDisk))
-      res.fold[DBIO[GetRuntimeResponse]](DBIO.failed(RuntimeNotFoundException(googleProject, runtimeName)))(r =>
-        DBIO.successful(r)
-      )
+      res.fold[DBIO[GetRuntimeResponse]](
+        DBIO.failed(RuntimeNotFoundException(googleProject, runtimeName, "Not found in database"))
+      )(r => DBIO.successful(r))
     }
   }
 
@@ -131,6 +132,11 @@ object RuntimeServiceDbQueries {
     }
   }
 
-  def isDiskAttachedToRuntime(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[Boolean] =
-    clusterQuery.filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === disk.id).length.result.map(_ > 0)
+  //TODO: this needs to be updated to check formattedBy first
+  def isDiskAttachedToRuntime(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
+    RuntimeConfigQueries.runtimeConfigs
+      .filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === diskId)
+      .length
+      .result
+      .map(_ > 0)
 }

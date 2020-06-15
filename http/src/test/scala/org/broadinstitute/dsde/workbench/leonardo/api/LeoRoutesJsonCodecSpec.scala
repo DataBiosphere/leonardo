@@ -10,8 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   negativeNumberDecodingFailure,
   oneWorkerSpecifiedDecodingFailure
 }
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.scalatest.{FlatSpec, Matchers}
 
 class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
@@ -58,7 +59,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
         |{
         |   "numberOfWorkers": 10,
         |   "masterMachineType": "n1-standard-8",
-        |   "masterDiskSize": -1
+        |   "masterDiskSize": 30
         |}
         |""".stripMargin
 
@@ -66,7 +67,7 @@ class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
       json <- io.circe.parser.parse(inputString)
       r <- json.as[RuntimeConfigRequest.DataprocConfig]
     } yield r
-    decodeResult.leftMap(_.getMessage) shouldBe Left("Minimum required disk size is 50GB: DownField(masterDiskSize)")
+    decodeResult.leftMap(_.getMessage) shouldBe Left("Minimum required masterDiskSize is 50GB")
   }
 
   it should "fail with oneWorkerSpecifiedDecodingFailure when numberOfPreemptibleWorkers is negative" in {

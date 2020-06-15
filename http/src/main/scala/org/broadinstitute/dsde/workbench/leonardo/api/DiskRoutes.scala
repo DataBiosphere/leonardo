@@ -7,20 +7,19 @@ import java.util.UUID
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
-import akka.http.scaladsl.server.{Directive, Directive1}
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{Directive, Directive1}
 import cats.effect.{IO, Timer}
-import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import cats.mtl.ApplicativeAsk
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit timer: Timer[IO]
@@ -190,9 +189,9 @@ object DiskRoutes {
 
   implicit val updateDiskRequestDecoder: Decoder[UpdateDiskRequest] = Decoder.instance { x =>
     for {
-      l <- x.downField("labels").as[LabelMap]
+      l <- x.downField("labels").as[Option[LabelMap]]
       us <- x.downField("size").as[DiskSize]
-    } yield UpdateDiskRequest(l, us)
+    } yield UpdateDiskRequest(l.getOrElse(Map.empty), us)
   }
 
   implicit val getDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
@@ -270,39 +269,6 @@ object DiskRoutes {
       }
     }
 
-}
-
-final case class ListPersistentDiskResponse(id: DiskId,
-                                            googleProject: GoogleProject,
-                                            zone: ZoneName,
-                                            name: DiskName,
-                                            status: DiskStatus,
-                                            auditInfo: AuditInfo,
-                                            size: DiskSize,
-                                            diskType: DiskType,
-                                            blockSize: BlockSize)
-
-final case class GetPersistentDiskResponse(id: DiskId,
-                                           googleProject: GoogleProject,
-                                           zone: ZoneName,
-                                           name: DiskName,
-                                           googleId: Option[GoogleId],
-                                           serviceAccount: WorkbenchEmail,
-                                           samResource: PersistentDiskSamResource,
-                                           status: DiskStatus,
-                                           auditInfo: AuditInfo,
-                                           size: DiskSize,
-                                           diskType: DiskType,
-                                           blockSize: BlockSize,
-                                           labels: LabelMap)
-
-final case class CreateDiskRequest(labels: LabelMap,
-                                   size: Option[DiskSize],
-                                   diskType: Option[DiskType],
-                                   blockSize: Option[BlockSize])
-object CreateDiskRequest {
-  def fromDiskConfigRequest(create: DiskConfigRequest.Create): CreateDiskRequest =
-    CreateDiskRequest(create.labels, create.size, create.diskType, create.blockSize)
 }
 
 final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)
