@@ -20,6 +20,7 @@ import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
@@ -85,7 +86,19 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                   }
                 }
               }
-            }
+            } ~ pathPrefix(Segment) { serviceNameString =>
+            val serviceName = ServiceName(serviceNameString)
+            (extractRequest & extractUserInfo) { (request, userInfo) =>
+              (logRequestResultForMetrics(userInfo)) {
+                // Proxy logic handled by the ProxyService class
+                // Note ProxyService calls the LeoAuthProvider internally
+                complete {
+                  case class AppName(name: String)
+                  val appName = AppName(clusterNameParam)
+                  proxyService.in
+                }
+              }
+          }
         } ~
           // No need to lookup the user or consult the auth provider for this endpoint
           path("invalidateToken") {
