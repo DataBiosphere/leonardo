@@ -54,6 +54,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -360,15 +361,13 @@ object Boot extends IOApp {
   private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
     val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")
     val defaults = as.settings.config.getConfig("ssl-config")
+    val logger = new AkkaLoggerFactory(as)
 
-    val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults))
+    val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults), logger)
     val keyManagerAlgorithm = new DefaultKeyManagerFactoryWrapper(sslConfigSettings.keyManagerConfig.algorithm)
     val trustManagerAlgorithm = new DefaultTrustManagerFactoryWrapper(sslConfigSettings.trustManagerConfig.algorithm)
 
-    new ConfigSSLContextBuilder(new AkkaLoggerFactory(as),
-                                sslConfigSettings,
-                                keyManagerAlgorithm,
-                                trustManagerAlgorithm).build()
+    new ConfigSSLContextBuilder(logger, sslConfigSettings, keyManagerAlgorithm, trustManagerAlgorithm).build()
   }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
