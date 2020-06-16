@@ -96,17 +96,10 @@ final class LeonardoSuite
     extends Suites(
       new RuntimeCreationPdSpec,
       new ClusterStatusTransitionsSpec,
-//      new LabSpec, TODO: comment out this for now since we seem to reach the limit of number of specs we can mix in for `Suite`
-      new NotebookAouSpec,
-      new NotebookBioconductorKernelSpec,
+      new LabSpec,
       new NotebookClusterMonitoringSpec,
       new NotebookCustomizationSpec,
       new NotebookDataSyncingSpec,
-      new NotebookGATKSpec,
-      new NotebookHailSpec,
-      new NotebookPyKernelSpec,
-      new NotebookRKernelSpec,
-      new RStudioSpec,
       new LeoPubsubSpec,
       new ClusterAutopauseSpec,
       new RuntimeAutopauseSpec,
@@ -115,6 +108,21 @@ final class LeonardoSuite
       new NotebookGCEClusterMonitoringSpec,
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec
+    )
+    with TestSuite
+    with GPAllocBeforeAndAfterAll
+    with ParallelTestExecution
+
+final class LeonardoTerraDockerSuite
+    extends Suites(
+      new NotebookAouSpec,
+      new NotebookBioconductorKernelSpec,
+      new NotebookClusterMonitoringSpec,
+      new NotebookGATKSpec,
+      new NotebookHailSpec,
+      new NotebookPyKernelSpec,
+      new NotebookRKernelSpec,
+      new RStudioSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
