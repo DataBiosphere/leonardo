@@ -114,14 +114,15 @@ final class LeonardoSuite
 
 final class LeonardoTerraDockerSuite
     extends Suites(
-      new NotebookAouSpec,
-      new NotebookBioconductorKernelSpec,
-      new NotebookClusterMonitoringSpec,
+//      new NotebookAouSpec,
+//      new NotebookBioconductorKernelSpec,
+//      new NotebookClusterMonitoringSpec,
       new NotebookGATKSpec,
-      new NotebookHailSpec,
-      new NotebookPyKernelSpec,
-      new NotebookRKernelSpec,
-      new RStudioSpec
+      new NotebookHailSpec
+//      ,
+//      new NotebookPyKernelSpec,
+//      new NotebookRKernelSpec,
+//      new RStudioSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
