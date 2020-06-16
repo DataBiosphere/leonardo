@@ -16,7 +16,7 @@ object Dependencies {
   val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
   val opencensusV = "0.26.0"
-  val serviceTestV = "0.18-39f6c39"
+  val serviceTestV = "0.18-d57f8a6"
 
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
