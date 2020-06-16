@@ -54,7 +54,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
