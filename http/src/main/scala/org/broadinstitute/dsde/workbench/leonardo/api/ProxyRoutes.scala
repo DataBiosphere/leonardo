@@ -95,7 +95,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                 complete {
                   case class AppName(name: String)
                   val appName = AppName(clusterNameParam)
-                  proxyService.in
+                  proxyService.internal
                 }
               }
           }

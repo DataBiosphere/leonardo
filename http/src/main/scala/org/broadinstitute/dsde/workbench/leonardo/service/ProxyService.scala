@@ -183,7 +183,7 @@ class ProxyService(
    * @return HttpResponse future representing the proxied response, or NotFound if a notebook
    *         server IP could not be found.
    */
-  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
+  def proxyRequest[A](userInfo: UserInfo, googleProject: GoogleProject, runtimeName: A, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[HttpResponse] =
     for {
