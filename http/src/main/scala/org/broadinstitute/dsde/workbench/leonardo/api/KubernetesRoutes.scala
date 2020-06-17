@@ -2,8 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import java.util.UUID
-
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
@@ -12,7 +10,7 @@ import akka.http.scaladsl.server.Directives.pathEndOrSingleSlash
 import cats.effect.{IO, Timer}
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.server.Directives._
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
