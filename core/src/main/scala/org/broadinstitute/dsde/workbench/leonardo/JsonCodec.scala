@@ -6,11 +6,23 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  AppSamResource,
   PersistentDiskSamResource,
   ProjectSamResource,
   RuntimeSamResource
+}
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  SubnetworkName,
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{
@@ -26,6 +38,10 @@ object JsonCodec {
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)
   val oneWorkerSpecifiedDecodingFailure = DecodingFailure(
     "Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more.",
+    List.empty
+  )
+  val numNodesDecodingFailure = DecodingFailure(
+    "num nodes must be >= 1",
     List.empty
   )
 
@@ -51,48 +67,6 @@ object JsonCodec {
   implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.value)
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.entryName)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
-
-  // Decoders
-  implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
-  implicit val googleIdDecoder: Decoder[GoogleId] = Decoder.decodeString.map(GoogleId)
-  implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
-  implicit val containerImageDecoder: Decoder[ContainerImage] =
-    Decoder.decodeString.emap(s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}"))
-  implicit val cloudServiceDecoder: Decoder[CloudService] =
-    Decoder.decodeString.emap(s => CloudService.withNameInsensitiveOption(s).toRight(s"Unsupported cloud service ${s}"))
-  implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
-  implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
-  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
-    if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
-  )
-  implicit val instantDecoder: Decoder[Instant] =
-    Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
-  implicit val gcsBucketNameDecoder: Decoder[GcsBucketName] = Decoder.decodeString.map(GcsBucketName)
-  implicit val googleProjectDecoder: Decoder[GoogleProject] = Decoder.decodeString.map(GoogleProject)
-  implicit val urlDecoder: Decoder[URL] =
-    Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
-  implicit val diskSizeDecoder: Decoder[DiskSize] =
-    Decoder.decodeInt.emap(d => if (d < 5) Left("Minimum required disk size is 5GB") else Right(DiskSize(d)))
-  implicit val blockSizeDecoder: Decoder[BlockSize] =
-    Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
-  implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
-  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
-    RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
-  )
-  implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName)
-  implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.map(DiskName)
-  implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
-  implicit val diskStatusDecoder: Decoder[DiskStatus] =
-    Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
-  implicit val diskTypeDecoder: Decoder[DiskType] =
-    Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
-
-  implicit val runtimeSamResourceDecoder: Decoder[RuntimeSamResource] =
-    Decoder.decodeString.map(RuntimeSamResource)
-  implicit val persistentDiskSamResourceDecoder: Decoder[PersistentDiskSamResource] =
-    Decoder.decodeString.map(PersistentDiskSamResource)
-  implicit val projectSamResourceDecoder: Decoder[ProjectSamResource] =
-    Decoder.decodeString.map(x => ProjectSamResource(GoogleProject(x)))
 
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
     "numberOfWorkers",
@@ -151,14 +125,7 @@ object JsonCodec {
     "persistentDiskId",
     "cloudService"
   )(x => (x.machineType, x.persistentDiskId, x.cloudService))
-  implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct6(
-    "id",
-    "zone",
-    "name",
-    "status",
-    "size",
-    "diskType"
-  )(PersistentDiskInRuntimeConfig.apply)
+
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {
       case x: RuntimeConfig.DataprocConfig  => x.asJson
@@ -186,6 +153,79 @@ object JsonCodec {
     "errorCode",
     "timestamp"
   )(x => RuntimeError.unapply(x).get)
+
+  implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
+  implicit val kubernetesErrorEncoder: Encoder[KubernetesError] =
+    Encoder.forProduct4("errorMessage", "errorCode", "timestamp", "errorSource")(x => KubernetesError.unapply(x).get)
+  implicit val nodepoolIdEncoder: Encoder[NodepoolLeoId] = Encoder.encodeLong.contramap(_.id)
+  implicit val nodepoolNameEncoder: Encoder[NodepoolName] = Encoder.encodeString.contramap(_.value)
+  implicit val nodepoolStatusEncoder: Encoder[NodepoolStatus] = Encoder.encodeString.contramap(status =>
+    status match {
+      case NodepoolStatus.Precreating => NodepoolStatus.Provisioning.toString
+      case _                          => status.toString
+    }
+  )
+  implicit val numNodesEncoder: Encoder[NumNodes] = Encoder.encodeInt.contramap(_.amount)
+  implicit val autoscalingMinEncoder: Encoder[AutoscalingMin] = Encoder.encodeInt.contramap(_.amount)
+  implicit val autoscalingMaxEncoder: Encoder[AutoscalingMax] = Encoder.encodeInt.contramap(_.amount)
+  implicit val autoscalingConfigEncoder: Encoder[AutoscalingConfig] =
+    Encoder.forProduct2("autoscalingMin", "autoscalingMax")(x => AutoscalingConfig.unapply(x).get)
+  implicit val kubernetesRuntimeConfigEncoder: Encoder[KubernetesRuntimeConfig] =
+    Encoder.forProduct3("numNodes", "machineType", "autoscalingEnabled")(x => KubernetesRuntimeConfig.unapply(x).get)
+
+  implicit val locationEncoder: Encoder[Location] = Encoder.encodeString.contramap(_.value)
+  implicit val kubeClusterIdEncoder: Encoder[KubernetesClusterLeoId] = Encoder.encodeLong.contramap(_.id)
+  implicit val kubeClusterNameEncoder: Encoder[KubernetesClusterName] = Encoder.encodeString.contramap(_.value)
+  implicit val kubeClusterStatusEncoder: Encoder[KubernetesClusterStatus] = Encoder.encodeString.contramap(status =>
+    status match {
+      case KubernetesClusterStatus.Precreating => KubernetesClusterStatus.Provisioning.toString
+      case _                                   => status.toString
+    }
+  )
+  implicit val kubeSamIdEncoder: Encoder[AppSamResource] = Encoder.encodeString.contramap(_.resourceId)
+  implicit val namespaceEncoder: Encoder[NamespaceName] = Encoder.encodeString.contramap(_.value)
+  implicit val appNameEncoder: Encoder[AppName] = Encoder.encodeString.contramap(_.value)
+  implicit val appStatusEncoder: Encoder[AppStatus] = Encoder.encodeString.contramap(_.toString)
+  implicit val appTypeEncoder: Encoder[AppType] = Encoder.encodeString.contramap(_.toString)
+  implicit val serviceNameEncoder: Encoder[ServiceName] = Encoder.encodeString.contramap(_.value)
+
+  implicit val apiServerIpEncoder: Encoder[KubernetesApiServerIp] = Encoder.encodeString.contramap(_.value)
+  implicit val networkNameEncoder: Encoder[NetworkName] = Encoder.encodeString.contramap(_.value)
+  implicit val subNetworkNameEncoder: Encoder[SubnetworkName] = Encoder.encodeString.contramap(_.value)
+  implicit val ipRangeEncoder: Encoder[IpRange] = Encoder.encodeString.contramap(_.value)
+  implicit val networkFieldsEncoder: Encoder[NetworkFields] =
+    Encoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(x => NetworkFields.unapply(x).get)
+  implicit val kubeAsyncFieldEncoder: Encoder[KubernetesClusterAsyncFields] =
+    Encoder.forProduct2("apiServerIp", "networkInfo")(x => KubernetesClusterAsyncFields.unapply(x).get)
+
+  // Decoders
+  implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
+  implicit val googleIdDecoder: Decoder[GoogleId] = Decoder.decodeString.map(GoogleId)
+  implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
+  implicit val containerImageDecoder: Decoder[ContainerImage] =
+    Decoder.decodeString.emap(s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}"))
+  implicit val cloudServiceDecoder: Decoder[CloudService] =
+    Decoder.decodeString.emap(s => CloudService.withNameInsensitiveOption(s).toRight(s"Unsupported cloud service ${s}"))
+  implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
+  implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
+  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
+    if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
+  )
+  implicit val instantDecoder: Decoder[Instant] =
+    Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
+  implicit val gcsBucketNameDecoder: Decoder[GcsBucketName] = Decoder.decodeString.map(GcsBucketName)
+  implicit val googleProjectDecoder: Decoder[GoogleProject] = Decoder.decodeString.map(GoogleProject)
+  implicit val urlDecoder: Decoder[URL] =
+    Decoder.decodeString.emap(s => Either.catchNonFatal(new URL(s)).leftMap(_.getMessage))
+  implicit val diskSizeDecoder: Decoder[DiskSize] =
+    Decoder.decodeInt.emap(d => if (d < 50) Left("Minimum required disk size is 50GB") else Right(DiskSize(d)))
+  implicit val blockSizeDecoder: Decoder[BlockSize] =
+    Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
+  implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
+  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
+    RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
+  )
+
   implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct3(
     "imageType",
     "imageUrl",
@@ -257,4 +297,73 @@ object JsonCodec {
 
   implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
+
+  implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName)
+  implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.map(DiskName)
+  implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
+  implicit val diskStatusDecoder: Decoder[DiskStatus] =
+    Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
+  implicit val diskTypeDecoder: Decoder[DiskType] =
+    Decoder.decodeString.emap(x => DiskType.withNameOption(x).toRight(s"Invalid disk type: $x"))
+
+  implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct6(
+    "id",
+    "zone",
+    "name",
+    "status",
+    "size",
+    "diskType"
+  )(PersistentDiskInRuntimeConfig.apply)
+
+  implicit val runtimeSamResourceDecoder: Decoder[RuntimeSamResource] =
+    Decoder.decodeString.map(RuntimeSamResource)
+  implicit val persistentDiskSamResourceDecoder: Decoder[PersistentDiskSamResource] =
+    Decoder.decodeString.map(PersistentDiskSamResource)
+  implicit val projectSamResourceDecoder: Decoder[ProjectSamResource] =
+    Decoder.decodeString.map(x => ProjectSamResource(GoogleProject(x)))
+
+  implicit val errorSourceDecoder: Decoder[ErrorSource] =
+    Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
+  implicit val kubernetesErrorDecoder: Decoder[KubernetesError] =
+    Decoder.forProduct4("errorMessage", "errorCode", "timestamp", "errorSource")(KubernetesError.apply)
+  implicit val nodepoolIdDecoder: Decoder[NodepoolLeoId] = Decoder.decodeLong.map(NodepoolLeoId)
+  implicit val nodepoolNameDecoder: Decoder[NodepoolName] =
+    Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NodepoolName).leftMap(_.getMessage))
+  implicit val nodepoolStatusDecoder: Decoder[NodepoolStatus] =
+    Decoder.decodeString.emap(s => NodepoolStatus.stringToObject.get(s).toRight(s"Invalid nodepool status ${s}"))
+  implicit val numNodesDecoder: Decoder[NumNodes] =
+    Decoder.decodeInt.emap(n => if (n < 1) Left("Minimum number of nodes is 1") else Right(NumNodes.apply(n)))
+  implicit val autoscalingMinDecoder: Decoder[AutoscalingMin] = Decoder.decodeInt.map(AutoscalingMin)
+  implicit val autoscalingMaxDecoder: Decoder[AutoscalingMax] = Decoder.decodeInt.map(AutoscalingMax)
+  implicit val autoscalingConfigDecoder: Decoder[AutoscalingConfig] =
+    Decoder.forProduct2("autoscalingMin", "autoscalingMax")(AutoscalingConfig.apply)
+  implicit val kubernetesRuntimeConfigDecoder: Decoder[KubernetesRuntimeConfig] =
+    Decoder.forProduct3("numNodes", "machineType", "autoscalingEnabled")(KubernetesRuntimeConfig.apply)
+
+  implicit val locationDecoder: Decoder[Location] = Decoder.decodeString.map(Location)
+  implicit val kubeClusterIdDecoder: Decoder[KubernetesClusterLeoId] = Decoder.decodeLong.map(KubernetesClusterLeoId)
+  implicit val kubeClusterNameDecoder: Decoder[KubernetesClusterName] =
+    Decoder.decodeString.emap(s => KubernetesName.withValidation(s, KubernetesClusterName).leftMap(_.getMessage))
+  implicit val kubeClusterStatusDecoder: Decoder[KubernetesClusterStatus] = Decoder.decodeString.emap(s =>
+    KubernetesClusterStatus.stringToObject.get(s).toRight(s"Invalid cluster status ${s}")
+  )
+  implicit val appSamIdDecoder: Decoder[AppSamResource] = Decoder.decodeString.map(AppSamResource)
+  implicit val namespaceNameDecoder: Decoder[NamespaceName] =
+    Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NamespaceName).leftMap(_.getMessage))
+  implicit val namespaceIdDecoder: Decoder[NamespaceId] = Decoder.decodeLong.map(NamespaceId)
+  implicit val namespaceDecoder: Decoder[Namespace] = Decoder.forProduct2("id", "name")(Namespace.apply)
+  implicit val appNameDecoder: Decoder[AppName] = Decoder.decodeString.map(AppName)
+  implicit val appStatusDecoder: Decoder[AppStatus] =
+    Decoder.decodeString.emap(s => AppStatus.stringToObject.get(s).toRight(s"Invalid app status ${s}"))
+  implicit val appTypeDecoder: Decoder[AppType] =
+    Decoder.decodeString.emap(s => AppType.stringToObject.get(s).toRight(s"Invalid app type ${s}"))
+
+  implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
+  implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
+  implicit val subNetworkNameDecoder: Decoder[SubnetworkName] = Decoder.decodeString.map(SubnetworkName)
+  implicit val ipRangeDecoder: Decoder[IpRange] = Decoder.decodeString.map(IpRange)
+  implicit val networkFieldsDecoder: Decoder[NetworkFields] =
+    Decoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(NetworkFields)
+  implicit val kubeAsyncFieldDecoder: Decoder[KubernetesClusterAsyncFields] =
+    Decoder.forProduct2("apiServerIp", "networkInfo")(KubernetesClusterAsyncFields)
 }

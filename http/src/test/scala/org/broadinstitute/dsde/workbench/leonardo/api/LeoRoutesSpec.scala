@@ -341,7 +341,7 @@ class LeoRoutesSpec
     )
     Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.asJson) ~> httpRoutes.route ~> check {
       val expectedResponse =
-        """invalid cluster name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name"""
+        """invalid cluster name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names"""
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String shouldBe expectedResponse
       status shouldEqual StatusCodes.BadRequest
     }

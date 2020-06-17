@@ -24,7 +24,7 @@ import org.http4s.client.middleware.{Retry, RetryPolicy}
 
 import scala.util.control.NoStackTrace
 
-class   HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
+class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   implicit val timer = IO.timer(global)
   implicit val cs = IO.contextShift(global)
   val blocker = Blocker.liftExecutionContext(global)

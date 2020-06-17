@@ -108,6 +108,7 @@ object CommonTestData {
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val clusterBucketConfig = Config.clusterBucketConfig
   val contentSecurityPolicy = Config.contentSecurityPolicy
+  val leoKubernetesConfig = Config.leoKubernetesConfig
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),

@@ -105,10 +105,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                           .toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
                       )
                     case gce: RuntimeConfigRequest.GceWithPdConfig =>
-                      processGceWithPd(gce.persistentDisk, googleProject, userInfo, petSA).map(disk =>
+                      RuntimeServiceInterp.processPersistentDiskRequest(gce.persistentDisk, googleProject, userInfo, petSA, authProvider, diskConfig).map(diskResult =>
                         RuntimeConfig.GceWithPdConfig(
                           gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
-                          Some(disk.id)
+                          Some(diskResult.disk.id)
                         ): RuntimeConfig
                       )
                   }
@@ -570,55 +570,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           publisherQueue.enqueue1(message).as(message)
         }
     } yield msg
-
-  private[service] def processGceWithPd(
-    req: PersistentDiskRequest,
-    googleProject: GoogleProject,
-    userInfo: UserInfo,
-    serviceAccount: WorkbenchEmail
-  )(implicit as: ApplicativeAsk[F, AppContext]): F[PersistentDisk] =
-    for {
-      ctx <- as.ask
-      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, req.name).transaction
-      disk <- diskOpt match {
-        case Some(pd) =>
-          for {
-            // throw 409 if the disk is attached to a runtime
-            attached <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(pd.id).transaction
-            _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
-            else F.unit
-            hasPermission <- authProvider.hasPersistentDiskPermission(pd.samResource,
-                                                                      userInfo,
-                                                                      PersistentDiskAction.AttachPersistentDisk,
-                                                                      googleProject)
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
-          } yield pd
-        case None =>
-          for {
-            hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
-            samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
-            diskBeforeSave <- F.fromEither(
-              DiskServiceInterp.convertToDisk(userInfo,
-                                              serviceAccount,
-                                              googleProject,
-                                              req.name,
-                                              samResource,
-                                              diskConfig,
-                                              CreateDiskRequest.fromDiskConfigRequest(req),
-                                              ctx.now)
-            )
-            _ <- authProvider
-              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
-              .handleErrorWith { t =>
-                log.error(t)(
-                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
-                ) >> F.raiseError(t)
-              }
-            pd <- persistentDiskQuery.save(diskBeforeSave).transaction
-          } yield pd
-      }
-    } yield disk
 }
 
 object RuntimeServiceInterp {
@@ -703,6 +654,60 @@ object RuntimeServiceInterp {
       else
         Async[F].pure(none[B])
     }
+
+  def processPersistentDiskRequest[F[_]](
+                                                         req: PersistentDiskRequest,
+                                                         googleProject: GoogleProject,
+                                                         userInfo: UserInfo,
+                                                         serviceAccount: WorkbenchEmail,
+                                                         authProvider: LeoAuthProvider[F],
+                                                         diskConfig: PersistentDiskConfig
+                                                       )(implicit as: ApplicativeAsk[F, AppContext], F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F]): F[PersistentDiskRequestResult] =
+    for {
+      ctx <- as.ask
+      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, req.name).transaction
+      disk <- diskOpt match {
+        case Some(pd) =>
+          for {
+            // throw 409 if the disk is attached to a runtime
+            attachedToRuntime <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(pd.id).transaction
+            attachedToKubernetesApp <- KubernetesServiceDbQueries.isDiskAttached(pd).transaction
+            _ <- if (attachedToRuntime || attachedToKubernetesApp) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
+            else F.unit
+            hasPermission <- authProvider.hasPersistentDiskPermission(pd.samResource,
+              userInfo,
+              PersistentDiskAction.AttachPersistentDisk,
+              googleProject)
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+          } yield PersistentDiskRequestResult(pd, true)
+        case None =>
+          for {
+            hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+            samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
+            diskBeforeSave <- F.fromEither(
+              DiskServiceInterp.convertToDisk(userInfo,
+                serviceAccount,
+                googleProject,
+                req.name,
+                samResource,
+                diskConfig,
+                CreateDiskRequest.fromDiskConfigRequest(req),
+                ctx.now)
+            )
+            _ <- authProvider
+              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
+              .handleErrorWith { t =>
+                log.error(t)(
+                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
+                ) >> F.raiseError(t)
+              }
+            pd <- persistentDiskQuery.save(diskBeforeSave).transaction
+          } yield PersistentDiskRequestResult(pd, false)
+      }
+    } yield disk
+
+  case class PersistentDiskRequestResult(disk: PersistentDisk, doesExist: Boolean)
 }
 
 final case class RuntimeServiceConfig(proxyUrlBase: String,

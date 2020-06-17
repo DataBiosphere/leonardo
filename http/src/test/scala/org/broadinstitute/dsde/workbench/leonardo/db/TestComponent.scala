@@ -7,6 +7,7 @@ import cats.effect.{IO, Resource}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
   CommonTestData,
   GcsPathUtils,
   KubernetesCluster,
@@ -131,9 +132,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.location,
             c.status,
             c.serviceAccount,
-            c.samResourceId,
             c.auditInfo,
-            c.labels,
             c.nodepools.headOption
               .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
           )
@@ -145,6 +144,15 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     def save(): Nodepool =
       dbFutureValue {
         nodepoolQuery.saveForCluster(n)
+      }
+  }
+
+  implicit class AppExtension(a: App) {
+    def save(): App =
+      dbFutureValue {
+        appQuery.save(
+          SaveApp(a)
+        )
       }
   }
 

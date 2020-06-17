@@ -3,15 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.{KubernetesClusterLeoId, KubernetesNamespaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{KubernetesClusterLeoId, Namespace, NamespaceId}
 import slick.lifted.Tag
 
 import scala.concurrent.ExecutionContext
 
-case class NamespaceRecord(id: KubernetesNamespaceId, clusterId: KubernetesClusterLeoId, namespaceName: NamespaceName)
+final case class NamespaceRecord(id: NamespaceId, clusterId: KubernetesClusterLeoId, namespaceName: NamespaceName)
 
 class NamespaceTable(tag: Tag) extends Table[NamespaceRecord](tag, "NAMESPACE") {
-  def id = column[KubernetesNamespaceId]("id", O.PrimaryKey, O.AutoInc)
+  def id = column[NamespaceId]("id", O.PrimaryKey, O.AutoInc)
   def clusterId = column[KubernetesClusterLeoId]("clusterId")
   def namespaceName = column[NamespaceName]("namespaceName", O.Length(254))
 
@@ -21,19 +21,19 @@ class NamespaceTable(tag: Tag) extends Table[NamespaceRecord](tag, "NAMESPACE") 
 
 object namespaceQuery extends TableQuery(new NamespaceTable(_)) {
 
-  def save(clusterId: KubernetesClusterLeoId, namespace: NamespaceName): DBIO[Int] =
-    namespaceQuery +=
+  def save(clusterId: KubernetesClusterLeoId, namespace: NamespaceName): DBIO[NamespaceId] =
+    namespaceQuery returning namespaceQuery.map(_.id) +=
       NamespaceRecord(
-        KubernetesNamespaceId(0), //AutoInc
+        NamespaceId(0), //AutoInc
         clusterId,
         NamespaceName(namespace.value)
       )
 
   def saveAllForCluster(clusterId: KubernetesClusterLeoId,
-                        namespaces: Set[NamespaceName])(implicit ec: ExecutionContext): DBIO[Unit] =
+                        namespaces: List[NamespaceName])(implicit ec: ExecutionContext): DBIO[Unit] =
     (namespaceQuery ++= namespaces.map(name =>
       NamespaceRecord(
-        KubernetesNamespaceId(0),
+        NamespaceId(0),
         clusterId,
         NamespaceName(name.value)
       )
@@ -54,9 +54,12 @@ object namespaceQuery extends TableQuery(new NamespaceTable(_)) {
 
   def getAllForCluster(
     clusterId: KubernetesClusterLeoId
-  )(implicit ec: ExecutionContext): DBIO[Set[NamespaceName]] =
+  )(implicit ec: ExecutionContext): DBIO[List[Namespace]] =
     namespaceQuery
       .filter(_.clusterId === clusterId)
       .result
-      .map(rowOpt => rowOpt.map(row => row.namespaceName).toSet)
+      .map(rowOpt => rowOpt.map(row => Namespace(row.id, row.namespaceName)).toList)
+
+  private[db] def unmarshalNamespace(rec: NamespaceRecord): Namespace =
+    Namespace(rec.id, rec.namespaceName)
 }

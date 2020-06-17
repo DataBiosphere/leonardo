@@ -19,6 +19,9 @@ object SamResource {
     val resourceId = googleProject.value
     val resourceType = SamResourceType.Project
   }
+  final case class AppSamResource(resourceId: String) extends SamResource {
+    val resourceType = SamResourceType.App
+  }
 }
 
 sealed trait SamResourceType extends Product with Serializable {
@@ -33,6 +36,9 @@ object SamResourceType {
   }
   final case object PersistentDisk extends SamResourceType {
     val asString = "persistent-disk"
+  }
+  final case object App extends SamResourceType {
+    val asString = "app"
   }
   val stringToSamResourceType: Map[String, SamResourceType] =
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap

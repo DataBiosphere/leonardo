@@ -7,10 +7,16 @@ import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
+  KubernetesApiServerIp,
+  PortName,
+  PortNum,
+  Protocol,
+  TargetPortNum
+}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, PersistentDiskSamResource}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
@@ -112,7 +118,10 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val kubernetesClusterLeoIdColumnType: BaseColumnType[KubernetesClusterLeoId] =
       MappedColumnType.base[KubernetesClusterLeoId, Long](_.id, KubernetesClusterLeoId.apply)
     implicit val kubernetesStatusColumnType: BaseColumnType[KubernetesClusterStatus] =
-      MappedColumnType.base[KubernetesClusterStatus, String](_.toString, s => KubernetesClusterStatus.stringToObject(s))
+      MappedColumnType.base[KubernetesClusterStatus, String](
+        _.toString,
+        s => KubernetesClusterStatus.stringToObject.getOrElse(s, throw new Exception(s"invalid cluster status ${s}"))
+      )
     implicit val kubernetesClusterNameColumnType: BaseColumnType[KubernetesClusterName] =
       MappedColumnType.base[KubernetesClusterName, String](_.value, KubernetesClusterName.apply)
     implicit val operationNameColumnType: BaseColumnType[OperationName] =
@@ -121,8 +130,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[Location, String](_.value, Location.apply)
     implicit val apiServerIpColumnType: BaseColumnType[KubernetesApiServerIp] =
       MappedColumnType.base[KubernetesApiServerIp, String](_.value, KubernetesApiServerIp.apply)
-    implicit val kubernetesClusterSamResourceIdColumnType: BaseColumnType[KubernetesClusterSamResourceId] =
-      MappedColumnType.base[KubernetesClusterSamResourceId, String](_.resourceId, KubernetesClusterSamResourceId.apply)
+
     implicit val networkNameColumnType: BaseColumnType[NetworkName] =
       MappedColumnType.base[NetworkName, String](_.value, NetworkName.apply)
     implicit val subNetworkNameColumnType: BaseColumnType[SubnetworkName] =
@@ -130,9 +138,9 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val ipRange: BaseColumnType[IpRange] =
       MappedColumnType.base[IpRange, String](_.value, IpRange.apply)
 
-    implicit val kubernetesNamespaceIdColumnType: BaseColumnType[KubernetesNamespaceId] =
-      MappedColumnType.base[KubernetesNamespaceId, Long](_.id, KubernetesNamespaceId.apply)
-    implicit val kubernetesNamespaceNameColumnType: BaseColumnType[NamespaceName] =
+    implicit val kubernetesNamespaceIdColumnType: BaseColumnType[NamespaceId] =
+      MappedColumnType.base[NamespaceId, Long](_.id, NamespaceId.apply)
+    implicit val namespaceNameColumnType: BaseColumnType[NamespaceName] =
       MappedColumnType.base[NamespaceName, String](_.value, NamespaceName.apply)
 
     implicit val nodepoolIdColumnType: BaseColumnType[NodepoolLeoId] =
@@ -141,11 +149,51 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[NodepoolName, String](_.value, NodepoolName.apply)
     implicit val numNodesColumnType: BaseColumnType[NumNodes] =
       MappedColumnType.base[NumNodes, Int](_.amount, NumNodes.apply)
-    implicit val autoScalingMinColumnType: BaseColumnType[AutoScalingMin] =
-      MappedColumnType.base[AutoScalingMin, Int](_.amount, AutoScalingMin.apply)
-    implicit val autoScalingMaxColumnType: BaseColumnType[AutoScalingMax] =
-      MappedColumnType.base[AutoScalingMax, Int](_.amount, AutoScalingMax.apply)
+    implicit val autoscalingMinColumnType: BaseColumnType[AutoscalingMin] =
+      MappedColumnType.base[AutoscalingMin, Int](_.amount, AutoscalingMin.apply)
+    implicit val autoscalingMaxColumnType: BaseColumnType[AutoscalingMax] =
+      MappedColumnType.base[AutoscalingMax, Int](_.amount, AutoscalingMax.apply)
     implicit val nodepoolStatusColumnType: BaseColumnType[NodepoolStatus] =
-      MappedColumnType.base[NodepoolStatus, String](_.toString, s => NodepoolStatus.stringToObject(s))
+      MappedColumnType.base[NodepoolStatus, String](
+        _.toString,
+        s => NodepoolStatus.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid nodepool status ${s}"))
+      )
+
+    implicit val appIdColumnType: BaseColumnType[AppId] =
+      MappedColumnType.base[AppId, Long](_.id, AppId.apply)
+    implicit val appNameColumnType: BaseColumnType[AppName] =
+      MappedColumnType.base[AppName, String](_.value, AppName.apply)
+    implicit val appSamResourceIdColumnType: BaseColumnType[AppSamResource] =
+      MappedColumnType.base[AppSamResource, String](_.resourceId, AppSamResource.apply)
+    implicit val appTypeColumnType: BaseColumnType[AppType] =
+      MappedColumnType.base[AppType, String](
+        _.toString,
+        s => AppType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid app type ${s}"))
+      )
+    implicit val appStatusColumnType: BaseColumnType[AppStatus] =
+      MappedColumnType.base[AppStatus, String](
+        _.toString,
+        s => AppStatus.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid app status ${s}"))
+      )
+
+    implicit val serviceIdColumnType: BaseColumnType[ServiceId] =
+      MappedColumnType.base[ServiceId, Long](_.id, ServiceId.apply)
+    implicit val serviceNameColumnType: BaseColumnType[ServiceName] =
+      MappedColumnType.base[ServiceName, String](_.value, ServiceName.apply)
+    implicit val serviceKindColumnType: BaseColumnType[KubernetesServiceKindName] =
+      MappedColumnType.base[KubernetesServiceKindName, String](_.value, KubernetesServiceKindName.apply)
+
+    implicit val portIdColumnType: BaseColumnType[PortId] =
+      MappedColumnType.base[PortId, Long](_.id, PortId.apply)
+    implicit val portNameColumnType: BaseColumnType[PortName] =
+      MappedColumnType.base[PortName, String](_.value, PortName.apply)
+    implicit val portNumColumnType: BaseColumnType[PortNum] =
+      MappedColumnType.base[PortNum, Int](_.value, PortNum.apply)
+    implicit val targetPortNumColumnType: BaseColumnType[TargetPortNum] =
+      MappedColumnType.base[TargetPortNum, Int](_.value, TargetPortNum.apply)
+    implicit val protocolColumnType: BaseColumnType[Protocol] =
+      MappedColumnType.base[Protocol, String](_.value, Protocol.apply)
   }
+
+  case class ColumnDecodingException(message: String) extends Exception
 }

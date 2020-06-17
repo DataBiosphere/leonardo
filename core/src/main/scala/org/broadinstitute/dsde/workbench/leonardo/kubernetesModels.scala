@@ -1,11 +1,22 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.net.URL
+import java.time.Instant
+import java.util.UUID
+
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp, ServicePort}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.google2.{
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  SubnetworkName
+}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
@@ -18,19 +29,15 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              location: Location,
                              status: KubernetesClusterStatus,
                              serviceAccount: WorkbenchEmail,
-                             samResourceId: KubernetesClusterSamResourceId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
-                             namespaces: Set[NamespaceName],
-                             labels: LabelMap,
-                             nodepools: Set[Nodepool],
+                             namespaces: List[Namespace],
+                             nodepools: List[Nodepool],
                              //TODO: populate this
-                             errors: List[RuntimeError]) {
+                             errors: List[KubernetesError]) {
 
   def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
-
-final case class KubernetesClusterSamResourceId(resourceId: String) extends AnyVal
 
 final case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp, networkInfo: NetworkFields)
 
@@ -41,7 +48,7 @@ final case class NetworkFields(networkName: NetworkName, subNetworkName: Subnetw
  */
 sealed abstract class KubernetesClusterStatus
 object KubernetesClusterStatus {
-  final case object StatusUnspecified extends KubernetesClusterStatus {
+  final case object Unspecified extends KubernetesClusterStatus {
     override def toString: String = "STATUS_UNSPECIFIED"
   }
 
@@ -57,7 +64,7 @@ object KubernetesClusterStatus {
     override def toString: String = "RECONCILING"
   }
 
-  //in kubernetes statuses, they label "deleting' resources as 'stopping'
+  //in kubernetes statuses, they label 'deleting' resources as 'stopping'
   final case object Deleting extends KubernetesClusterStatus {
     override def toString: String = "STOPPING"
   }
@@ -75,9 +82,16 @@ object KubernetesClusterStatus {
     override def toString: String = "DELETED"
   }
 
+  final case object Precreating extends KubernetesClusterStatus {
+    override def toString: String = "PRECREATING"
+  }
+
   val deleted: KubernetesClusterStatus = Deleted
   def values: Set[KubernetesClusterStatus] = sealerate.values[KubernetesClusterStatus]
   def stringToObject: Map[String, KubernetesClusterStatus] = values.map(v => v.toString -> v).toMap
+
+  val deletableStatuses: Set[KubernetesClusterStatus] =
+    Set(Unspecified, Running, Reconciling, Error, Degraded)
 }
 
 /** Google Container Nodepool statuses
@@ -85,7 +99,7 @@ object KubernetesClusterStatus {
  */
 sealed abstract class NodepoolStatus
 object NodepoolStatus {
-  case object StatusUnspecified extends NodepoolStatus {
+  case object Unspecified extends NodepoolStatus {
     override def toString: String = "STATUS_UNSPECIFIED"
   }
 
@@ -119,12 +133,20 @@ object NodepoolStatus {
     override def toString: String = "RUNNING_WITH_ERROR"
   }
 
+  final case object Precreating extends NodepoolStatus {
+    override def toString: String = "PRECREATING"
+  }
+
   def values: Set[NodepoolStatus] = sealerate.values[NodepoolStatus]
   def stringToObject: Map[String, NodepoolStatus] = values.map(v => v.toString -> v).toMap
+
+  val deletableStatuses: Set[NodepoolStatus] =
+    Set(Unspecified, Running, Reconciling, Error, RunningWithError)
 }
 
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
-final case class KubernetesNamespaceId(id: Long) extends AnyVal
+final case class NamespaceId(id: Long) extends AnyVal
+final case class Namespace(id: NamespaceId, name: NamespaceName)
 
 final case class Nodepool(id: NodepoolLeoId,
                           clusterId: KubernetesClusterLeoId,
@@ -133,13 +155,137 @@ final case class Nodepool(id: NodepoolLeoId,
                           auditInfo: AuditInfo,
                           machineType: MachineTypeName,
                           numNodes: NumNodes,
-                          autoScalingEnabled: Boolean,
-                          autoscalingConfig: Option[NodepoolAutoscaling],
-                          errors: List[RuntimeError])
+                          autoscalingEnabled: Boolean,
+                          autoscalingConfig: Option[AutoscalingConfig],
+                          errors: List[KubernetesError],
+                          apps: List[App])
+object KubernetesNameUtils {
+  //UUID almost works for this use case, but kubernetes names must start with a-z
+  def getUniqueName[A](apply: String => A): Either[Throwable, A] =
+    KubernetesName.withValidation('k' + UUID.randomUUID().toString.toLowerCase.substring(1), apply)
+}
 
-final case class NodepoolAutoscaling(autoScalingMin: AutoScalingMin, autoScalingMax: AutoScalingMax)
+final case class AutoscalingConfig(autoscalingMin: AutoscalingMin, autoscalingMax: AutoscalingMax)
 
 final case class NodepoolLeoId(id: Long) extends AnyVal
 final case class NumNodes(amount: Int) extends AnyVal
-final case class AutoScalingMin(amount: Int) extends AnyVal
-final case class AutoScalingMax(amount: Int) extends AnyVal
+final case class AutoscalingMin(amount: Int) extends AnyVal
+final case class AutoscalingMax(amount: Int) extends AnyVal
+
+final case class DefaultKubernetesLabels(googleProject: GoogleProject,
+                                         appName: AppName,
+                                         creator: WorkbenchEmail,
+                                         serviceAccount: WorkbenchEmail) {
+  val toMap: LabelMap =
+    Map(
+      "appName" -> appName.toString,
+      "googleProject" -> googleProject.toString,
+      "creator" -> creator.toString,
+      "clusterServiceAccount" -> serviceAccount.toString
+    )
+}
+
+final case class KubernetesError(errorMessage: String, errorCode: Int, timestamp: Instant, errorSource: ErrorSource)
+sealed abstract class ErrorSource
+object ErrorSource {
+  case object Cluster extends ErrorSource {
+    override def toString: String = "Cluster"
+  }
+
+  case object Nodepool extends ErrorSource {
+    override def toString: String = "Nodepool"
+  }
+
+  case object App extends ErrorSource {
+    override def toString: String = "App"
+  }
+
+  def values: Set[ErrorSource] = sealerate.values[ErrorSource]
+  def stringToObject: Map[String, ErrorSource] = values.map(v => v.toString -> v).toMap
+}
+
+sealed abstract class AppType
+object AppType {
+  case object Galaxy extends AppType {
+    override def toString: String = "GALAXY"
+  }
+
+  def values: Set[AppType] = sealerate.values[AppType]
+  def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
+}
+
+final case class ReleaseName(value: String) extends AnyVal
+
+final case class AppId(id: Long) extends AnyVal
+final case class AppName(value: String) extends AnyVal
+//These are async from the perspective of Front Leo saving the app record, but both must exist before the helm command is executed
+final case class AppResources(namespace: Namespace, disk: Option[PersistentDisk], services: List[KubernetesService])
+
+final case class App(id: AppId,
+                     nodepoolId: NodepoolLeoId,
+                     appType: AppType,
+                     appName: AppName,
+                     status: AppStatus,
+                     samResourceId: AppSamResource,
+                     auditInfo: AuditInfo,
+                     labels: LabelMap,
+                     //this is populated async to app creation
+                     appResources: AppResources,
+                     errors: List[KubernetesError]) {
+  //TODO this is not the proxy route we want to return from the API call. This is the URL Leo will use internally.
+  def getInternalProxyUrls(apiServerIp: KubernetesApiServerIp): Map[ServiceName, URL] =
+    appResources.services.map { service =>
+      service.config.name ->
+        new URL(
+          s"${apiServerIp.url}/api/v1/namespaces/${appResources.namespace.name.value}/services/${service.config.name}/proxy/"
+        )
+    }.toMap
+}
+
+sealed abstract class AppStatus
+object AppStatus {
+  case object Unspecified extends AppStatus {
+    override def toString: String = "STATUS_UNSPECIFIED"
+  }
+
+  case object Running extends AppStatus {
+    override def toString: String = "RUNNING"
+  }
+
+  case object Error extends AppStatus {
+    override def toString: String = "ERROR"
+  }
+
+  case object Deleting extends AppStatus {
+    override def toString: String = "DELETING"
+  }
+
+  case object Deleted extends AppStatus {
+    override def toString: String = "DELETED"
+  }
+
+  final case object Precreating extends AppStatus {
+    override def toString: String = "PRECREATING"
+  }
+
+  final case object Provisioning extends AppStatus {
+    override def toString: String = "PROVISIONING"
+  }
+
+  def values: Set[AppStatus] = sealerate.values[AppStatus]
+  def stringToObject: Map[String, AppStatus] = values.map(v => v.toString -> v).toMap
+
+  val deletableStatuses: Set[AppStatus] =
+    Set(Unspecified, Running, Error)
+}
+
+final case class KubernetesService(id: ServiceId, config: ServiceConfig)
+final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, ports: List[KubernetesPort])
+final case class ServiceId(id: Long) extends AnyVal
+
+final case class KubernetesPort(id: PortId, servicePort: ServicePort)
+final case class PortId(id: Long) extends AnyVal
+
+final case class KubernetesServiceKindName(value: String) extends AnyVal
+
+final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: MachineTypeName, autoscalingEnabled: Boolean)
