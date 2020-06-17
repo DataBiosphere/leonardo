@@ -2,12 +2,34 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppCannotBeDeletedException, AppNotFoundException, AppRequiresDiskException, DiskAlreadyAttachedException, LeoKubernetesServiceInterp, PersistentDiskAlreadyExistsException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppAlreadyExistsException,
+  AppCannotBeDeletedException,
+  AppNotFoundException,
+  AppRequiresDiskException,
+  DiskAlreadyAttachedException,
+  LeoKubernetesServiceInterp
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, DiskId, KubernetesClusterStatus, LabelMap, LeonardoTestSuite, NodepoolStatus}
-import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent, appQuery, kubernetesClusterQuery, persistentDiskQuery}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AppStatus,
+  AppType,
+  DiskId,
+  KubernetesClusterStatus,
+  LabelMap,
+  LeonardoTestSuite,
+  NodepoolStatus
+}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  KubernetesServiceDbQueries,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.FlatSpec

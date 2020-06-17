@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package db
 
-import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.db.{

@@ -20,11 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  GetAppResponse,
-  GetRuntimeResponse,
-  ListAppResponse,
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetAppResponse, GetRuntimeResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.service.{
   MockDiskServiceInterp,
   MockKubernetesServiceInterp,

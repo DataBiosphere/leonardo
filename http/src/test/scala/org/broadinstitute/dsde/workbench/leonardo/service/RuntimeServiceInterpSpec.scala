@@ -754,8 +754,12 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
       context <- ctx.ask
-      diskResult <- RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
-        whitelistAuthProvider, Config.persistentDiskConfig)
+      diskResult <- RuntimeServiceInterp.processPersistentDiskRequest(req,
+                                                                      project,
+                                                                      userInfo,
+                                                                      serviceAccount,
+                                                                      whitelistAuthProvider,
+                                                                      Config.persistentDiskConfig)
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
@@ -788,8 +792,14 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       t <- ctx.ask
       disk <- makePersistentDisk(DiskId(1)).save()
       req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
-      returnedDisk <- RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
-        whitelistAuthProvider, Config.persistentDiskConfig).attempt
+      returnedDisk <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .attempt
     } yield {
       returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, true))
     }
@@ -802,8 +812,14 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
 
     val thrown = the[AuthorizationError] thrownBy {
-      RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
-        whitelistAuthProvider, Config.persistentDiskConfig).unsafeRunSync()
+      RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .unsafeRunSync()
     }
 
     thrown shouldBe AuthorizationError(Some(userInfo.userEmail))
@@ -817,8 +833,14 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
         makeCluster(1).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id)))
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
-      err <- RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
-        whitelistAuthProvider, Config.persistentDiskConfig).attempt
+      err <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
     }
@@ -831,8 +853,12 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
     val res = for {
       savedDisk <- makePersistentDisk(DiskId(1)).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
-      _ <- RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
-        whitelistAuthProvider, Config.persistentDiskConfig)
+      _ <- RuntimeServiceInterp.processPersistentDiskRequest(req,
+                                                             project,
+                                                             userInfo,
+                                                             serviceAccount,
+                                                             whitelistAuthProvider,
+                                                             Config.persistentDiskConfig)
     } yield ()
 
     val thrown = the[AuthorizationError] thrownBy {
