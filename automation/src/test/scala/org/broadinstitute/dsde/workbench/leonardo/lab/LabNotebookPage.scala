@@ -10,7 +10,6 @@ import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
-import org.scalatestplus.selenium.WebBrowser._
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.language.postfixOps

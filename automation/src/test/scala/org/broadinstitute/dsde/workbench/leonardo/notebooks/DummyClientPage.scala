@@ -5,7 +5,6 @@ import org.broadinstitute.dsde.workbench.page.PageUtil
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserUtil
 import org.openqa.selenium.WebDriver
 import org.scalatestplus.selenium.Page
-import org.scalatestplus.selenium.WebBrowser._
 
 /**
  * Created by rtitle on 1/4/18.

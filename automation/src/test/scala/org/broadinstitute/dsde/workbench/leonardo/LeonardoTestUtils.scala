@@ -21,8 +21,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
-import org.scalactic.source.Position
-import org.scalatest.concurrent.PatienceConfiguration.Timeout
+import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{Matchers, Suite}
@@ -266,13 +265,14 @@ trait LeonardoTestUtils
     logger.info(s"Time it took to get cluster create response with: ${clusterTimeResult.duration.toMillis} millis")
 
     // verify with get()
-    val creatingCluster = eventually {
-      verifyCluster(Leonardo.cluster.get(googleProject, clusterName),
-                    googleProject,
-                    clusterName,
-                    List(ClusterStatus.Creating),
-                    clusterRequest)
-    }(getAfterCreatePatience, implicitly[Position])
+    val creatingCluster =
+      eventually(Timeout(getAfterCreatePatience.timeout), Interval(getAfterCreatePatience.interval)) {
+        verifyCluster(Leonardo.cluster.get(googleProject, clusterName),
+                      googleProject,
+                      clusterName,
+                      List(ClusterStatus.Creating),
+                      clusterRequest)
+      }
 
     if (monitor) {
       monitorCreate(googleProject, clusterName, clusterRequest, creatingCluster)
@@ -296,15 +296,16 @@ trait LeonardoTestUtils
     logger.info(s"Time it took to get runtime create response with: ${runtimeTimeResult.duration}")
 
     // verify with get()
-    val creatingRuntime = eventually {
-      verifyRuntime(
-        Leonardo.cluster.getRuntime(googleProject, runtimeName),
-        googleProject,
-        runtimeName,
-        List(ClusterStatus.Creating),
-        runtimeRequest
-      )
-    }(getAfterCreatePatience, implicitly[Position])
+    val creatingRuntime =
+      eventually(Timeout(getAfterCreatePatience.timeout), Interval(getAfterCreatePatience.interval)) {
+        verifyRuntime(
+          Leonardo.cluster.getRuntime(googleProject, runtimeName),
+          googleProject,
+          runtimeName,
+          List(ClusterStatus.Creating),
+          runtimeRequest
+        )
+      }
 
     if (monitor) {
       val runningRuntime = monitorCreateRuntime(googleProject, runtimeName, runtimeRequest, creatingRuntime)

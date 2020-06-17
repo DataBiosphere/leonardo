@@ -9,7 +9,6 @@ import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.scalatestplus.selenium.WebBrowser._
 
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._

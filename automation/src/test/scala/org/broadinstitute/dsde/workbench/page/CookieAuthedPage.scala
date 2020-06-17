@@ -4,7 +4,6 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserUtil
 import org.openqa.selenium.WebDriver
 import org.scalatestplus.selenium.Page
-import org.scalatestplus.selenium.WebBrowser._
 
 import scala.util.{Failure, Success, Try}
 

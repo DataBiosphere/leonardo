@@ -136,13 +136,10 @@ object Dependencies {
     "org.scalacheck" %% "scalacheck" % "1.14.1" % "test",
     sealerate,
     enumeratum,
-<<<<<<< HEAD
     http4sCirce,
     http4sBlazeClient,
-    http4sDsl
-=======
+    http4sDsl,
     scalaTestScalaCheck
->>>>>>> first attempt
   )
 
   val rootDependencies = Seq(
@@ -181,17 +178,14 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     mysql,
     liquibase,
-<<<<<<< HEAD
     "de.heikoseeberger" %% "akka-http-circe" % "1.31.0",
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
 
     // Dependent on the trace exporters you want to use add one or more of the following
     "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
-    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test
-=======
+    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test,
     scalaTestSelenium,
     scalaTestMockito
->>>>>>> first attempt
   )
 
   val excludeGuavaJdk5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")

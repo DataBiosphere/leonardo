@@ -31,7 +31,6 @@ class GceRuntimeMonitorSpec
     with TestComponent
     with LeonardoTestSuite
     with EitherValues {
-  implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
   val readyInstance = Instance
     .newBuilder()
     .setStatus("Running")

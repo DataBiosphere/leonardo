@@ -27,7 +27,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with TestComponent with LeonardoTestSuite {
-  implicit val appContext = ApplicativeAsk.const[IO, AppContext](AppContext.generate[IO].unsafeRunSync())
   it should "terminate monitoring process if cluster status is changed in the middle of it" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(true)
 

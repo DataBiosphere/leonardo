@@ -6,7 +6,6 @@ import io.circe.DecodingFailure
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 
-import scala.util.Either.LeftProjection
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
