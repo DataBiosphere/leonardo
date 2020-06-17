@@ -20,7 +20,6 @@ import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
@@ -86,7 +85,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                   }
                 }
               }
-            } ~ pathPrefix(Segment) { serviceNameString =>
+            } ~
+            /**
+            path(Segment) { serviceNameString =>
             val serviceName = ServiceName(serviceNameString)
             (extractRequest & extractUserInfo) { (request, userInfo) =>
               (logRequestResultForMetrics(userInfo)) {
@@ -95,24 +96,25 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                 complete {
                   case class AppName(name: String)
                   val appName = AppName(clusterNameParam)
-                  proxyService.internal
+                  IO(HttpResponse())
                 }
               }
-          }
-        } ~
-          // No need to lookup the user or consult the auth provider for this endpoint
-          path("invalidateToken") {
-            get {
-              extractToken { token =>
-                complete {
-                  proxyService.invalidateAccessToken(token).map { _ =>
-                    logger.debug(s"Invalidated access token $token")
-                    StatusCodes.OK
+            }
+          } ~*/
+            // No need to lookup the user or consult the auth provider for this endpoint
+            path("invalidateToken") {
+              get {
+                extractToken { token =>
+                  complete {
+                    proxyService.invalidateAccessToken(token).map { _ =>
+                      logger.debug(s"Invalidated access token $token")
+                      StatusCodes.OK
+                    }
                   }
                 }
               }
             }
-          }
+        }
       }
     }
 
