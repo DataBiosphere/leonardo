@@ -10,16 +10,22 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.GetRuntimeResponse
-import org.broadinstitute.dsde.workbench.leonardo.service.{MockDiskServiceInterp, MockRuntimeServiceInterp}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetAppResponse, GetRuntimeResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.service.{
+  MockDiskServiceInterp,
+  MockKubernetesServiceInterp,
+  MockRuntimeServiceInterp
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.concurrent.ScalaFutures
@@ -45,6 +51,7 @@ class HttpRoutesSpec
     leonardoService,
     MockRuntimeServiceInterp,
     MockDiskServiceInterp,
+    MockKubernetesServiceInterp,
     timedUserInfoDirectives,
     contentSecurityPolicy
   )
@@ -261,6 +268,72 @@ class HttpRoutesSpec
       handled shouldBe false
     }
     Get("/api/google/v1/disks/googleProject1/disk1/foo") ~> routes.route ~> check {
+      handled shouldBe false
+    }
+  }
+
+  "Kubernetes Routes" should "create an app" in {
+    Post("/api/google/v1/app/googleProject1/app1")
+      .withEntity(ContentTypes.`application/json`, createAppRequest.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list apps with project" in {
+    Get("/api/google/v1/app/googleProject1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      responseAs[Vector[ListAppResponse]] shouldBe listAppResponse
+    }
+  }
+
+  it should "list apps with no project" in {
+    Get("/api/google/v1/app/") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list apps with labels" in {
+    Get("/api/google/v1/app?project=foo&creator=bar&includeDeleted=true") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "get app" in {
+    Get("/api/google/v1/app/googleProject1/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      responseAs[GetAppResponse] shouldBe getAppResponse
+    }
+  }
+
+  it should "delete app" in {
+    Delete("/api/google/v1/app/googleProject1/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "validate app name" in {
+    Get("/api/google/v1/app/googleProject1/1badApp") ~> routes.route ~> check {
+      status.intValue shouldBe 500
+    }
+  }
+
+  it should "validate create app request" in {
+    Post("/api/google/v1/app/googleProject1/app1")
+      .withEntity(
+        ContentTypes.`application/json`,
+        createAppRequest
+          .copy(kubernetesRuntimeConfig =
+            createAppRequest.kubernetesRuntimeConfig.map(c => c.copy(numNodes = NumNodes(-1)))
+          )
+          .asJson
+          .spaces2
+      ) ~> routes.route ~> check {
       handled shouldBe false
     }
   }

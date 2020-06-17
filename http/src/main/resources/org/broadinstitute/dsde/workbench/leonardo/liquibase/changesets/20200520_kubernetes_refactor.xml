@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="jcanas" id="kubernetes_drop_refactor">
+        <dropForeignKeyConstraint baseTableName="NODEPOOL" constraintName="FK_NODEPOOL_CLUSTER_ID" />
+        <dropUniqueConstraint tableName="NODEPOOL"  uniqueColumns="clusterId, nodepoolName" constraintName="IDX_NODEPOOL_UNIQUE"/>
+
+        <dropUniqueConstraint tableName="KUBERNETES_CLUSTER"  uniqueColumns="googleProject, clusterName, destroyedDate" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE"/>
+        <renameColumn tableName="NODEPOOL" oldColumnName="autoScalingEnabled" newColumnName="autoscalingEnabled" columnDataType="boolean" />
+        <renameColumn tableName="NODEPOOL" oldColumnName="autoScalingMin" newColumnName="autoscalingMin" columnDataType="INT" />
+        <renameColumn tableName="NODEPOOL" oldColumnName="autoScalingMin" newColumnName="autoscalingMin" columnDataType="INT" />
+        <dropColumn tableName="KUBERNETES_CLUSTER" columnName="samResourceId"/>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" id="kubernetes_add_refactor" author="jcanas">
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="NODEPOOL" constraintName="FK_NODEPOOL_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="KUBERNETES_CLUSTER"/>
+        <addUniqueConstraint columnNames="clusterId, nodepoolName, destroyedDate" constraintName="IDX_NODEPOOL_UNIQUE" tableName="NODEPOOL"/>
+
+        <addUniqueConstraint columnNames="googleProject, destroyedDate" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE" tableName="KUBERNETES_CLUSTER"/>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" id="kubernetes_add_app_tables" author="jcanas">
+        <createTable tableName="APP">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="nodepoolId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="appType" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="appName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="samResourceId" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="creator" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="namespaceId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="diskId" type="BIGINT"/>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="nodepoolId" baseTableName="APP" constraintName="FK_APP_NODEPOOL_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="NODEPOOL"/>
+        <addForeignKeyConstraint baseColumnNames="diskId" baseTableName="APP" constraintName="FK_APP_DISK_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="PERSISTENT_DISK"/>
+        <addForeignKeyConstraint baseColumnNames="namespaceId" baseTableName="APP" constraintName="FK_APP_NAMESPACE_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="NAMESPACE"/>
+        <addUniqueConstraint columnNames="appName, nodepoolId" constraintName="IDX_APP_UNIQUE" tableName="APP"/>
+
+        <createTable tableName="SERVICE">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="appId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="serviceName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="serviceKind" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="appId" baseTableName="SERVICE" constraintName="FK_SERVICE_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
+        <addUniqueConstraint columnNames="appId, serviceName" constraintName="IDX_SERVICE_UNIQUE" tableName="SERVICE"/>
+
+        <createTable tableName="PORT">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="serviceId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="portName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="portNum" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="targetPortNum" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="protocol" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="serviceId" baseTableName="PORT" constraintName="FK_PORT_SERVICE_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="SERVICE"/>
+        <addUniqueConstraint columnNames="serviceId, portName" constraintName="IDX_PORT_UNIQUE" tableName="PORT"/>
+    </changeSet>
+
+</databaseChangeLog>

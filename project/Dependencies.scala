@@ -168,6 +168,7 @@ object Dependencies {
     workbenchGoogleTest,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
+    "com.rms.miu" %% "slick-cats" % "0.10.1",
     googleCloudNio,
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,

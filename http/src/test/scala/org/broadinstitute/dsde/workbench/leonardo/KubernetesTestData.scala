@@ -1,16 +1,29 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
+  KubernetesApiServerIp,
+  PortName,
+  PortNum,
+  Protocol,
+  ServicePort,
+  TargetPortNum
+}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
+import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
+import scala.util.Random
 
 object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val kubeClusterSamId = KubernetesClusterSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
+  val appSamId = AppSamResource("067e2867-5d4a-47f3-a53c-fd711529b289")
   val location = Location("us-central1-a")
 
   val apiServerIp = KubernetesApiServerIp("0.0.0.0")
@@ -20,40 +33,119 @@ object KubernetesTestData {
   val nodepoolName0 = NodepoolName("nodepoolname00")
   val nodepoolName1 = NodepoolName("nodepoolname01")
 
-  val autoscalingConfig = NodepoolAutoscaling(AutoScalingMin(0), AutoScalingMax(2))
+  val autoscalingConfig = AutoscalingConfig(AutoscalingMin(1), AutoscalingMax(2))
 
-  def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId) = {
-    val name = NodepoolName("nodepoolname" + index)
+  val galaxyApp = AppType.Galaxy
+
+  val serviceKind = KubernetesServiceKindName("ClusterIP")
+  val protocol = Protocol("TCP")
+
+  val kubernetesRuntimeConfig = KubernetesRuntimeConfig(
+    NumNodes(2),
+    MachineTypeName("n1-standard-4"),
+    true
+  )
+
+  val createAppRequest = CreateAppRequest(
+    Some(kubernetesRuntimeConfig),
+    AppType.Galaxy,
+    None,
+    Map.empty
+  )
+
+  val testCluster = makeKubeCluster(1)
+  val testNodepool = makeNodepool(1, testCluster.id)
+  val testApp = makeApp(1, testNodepool.id)
+
+  val getAppResponse =
+    GetAppResponse.fromDbResult(
+      GetAppResult(
+        testCluster,
+        testNodepool,
+        testApp
+      )
+    )
+
+  val listAppResponse =
+    ListAppResponse.fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp))))).toVector
+
+  def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId, prefix: String = "") = {
+    val name = NodepoolName(prefix + "nodepoolname" + index)
     Nodepool(
       NodepoolLeoId(-1), //will be replaced
       clusterId,
       name,
-      NodepoolStatus.StatusUnspecified,
+      NodepoolStatus.Unspecified,
       auditInfo,
       MachineTypeName("n1-standard-4"),
       NumNodes(2),
       false,
       None,
+      List(),
       List()
     )
   }
 
   def makeKubeCluster(index: Int): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
+    val uniqueProject = GoogleProject(project.value + index)
     KubernetesCluster(
       KubernetesClusterLeoId(-1),
-      project,
+      uniqueProject,
       name,
       location,
-      KubernetesClusterStatus.StatusUnspecified,
+      KubernetesClusterStatus.Unspecified,
       serviceAccountEmail,
-      kubeClusterSamId,
       auditInfo,
       None,
-      Set(),
-      Map(),
-      Set(makeNodepool(index, KubernetesClusterLeoId(-1))),
+      List(),
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster")),
       List()
+    )
+  }
+
+  def makeNamespace(index: Int, prefix: String = ""): Namespace = {
+    val name = NamespaceName(prefix + "namespace" + index)
+    Namespace(NamespaceId(-1), name)
+  }
+
+  def makeApp(index: Int, nodepoolId: NodepoolLeoId): App = {
+    val name = AppName("app" + index)
+    val namespace = makeNamespace(index, "app")
+    App(AppId(-1),
+        nodepoolId,
+        galaxyApp,
+        name,
+        AppStatus.Unspecified,
+        appSamId,
+        auditInfo,
+        Map.empty,
+        AppResources(
+          namespace,
+          None,
+          List.empty
+        ),
+        List.empty)
+  }
+
+  def makeService(index: Int): KubernetesService = {
+    val name = ServiceName("service" + index)
+    KubernetesService(
+      ServiceId(-1),
+      ServiceConfig(name, serviceKind, List(makeRandomPort(index.toString), makeRandomPort("0" + index)))
+    )
+  }
+
+  def makeRandomPort(suffix: String): KubernetesPort = {
+    val name = PortName("port" + suffix)
+    KubernetesPort(
+      PortId(-1),
+      ServicePort(
+        PortNum(Random.nextInt() % 65535),
+        name,
+        TargetPortNum(Random.nextInt() % 65535),
+        protocol
+      )
     )
   }
 }

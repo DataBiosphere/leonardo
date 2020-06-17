@@ -8,19 +8,21 @@ import akka.http.scaladsl.Http
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
-import _root_.com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import _root_.com.typesafe.sslconfig.ssl.{
+import fs2.Stream
+import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
+import com.typesafe.sslconfig.ssl.{
   ConfigSSLContextBuilder,
   DefaultKeyManagerFactoryWrapper,
   DefaultTrustManagerFactoryWrapper,
   SSLConfigFactory
 }
-import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
+import org.broadinstitute.dsde.workbench.google2.{GoogleDataprocService, GoogleDiskService}
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.google.{
   GoogleStorageDAO,
   HttpGoogleDirectoryDAO,
@@ -31,13 +33,10 @@ import org.broadinstitute.dsde.workbench.google.{
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
   GoogleComputeService,
-  GoogleDataprocService,
-  GoogleDiskService,
   GooglePublisher,
   GoogleStorageService,
   GoogleSubscriber
 }
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -45,7 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocD
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
-import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
@@ -159,12 +158,19 @@ object Boot extends IOApp {
 
       val zombieClusterMonitor = ZombieRuntimeMonitor[IO](zombieRuntimeMonitorConfig, appDependencies.googleProjectDAO)
 
+      val leoKubernetesService: LeoKubernetesServiceInterp[IO] =
+        new LeoKubernetesServiceInterp(appDependencies.authProvider,
+                                       appDependencies.serviceAccountProvider,
+                                       leoKubernetesConfig,
+                                       appDependencies.publisherQueue)
+
       val httpRoutes = new HttpRoutes(swaggerConfig,
                                       statusService,
                                       proxyService,
                                       leonardoService,
                                       runtimeService,
                                       diskService,
+                                      leoKubernetesService,
                                       StandardUserInfoDirectives,
                                       contentSecurityPolicy)
       val httpServer = for {

@@ -8,7 +8,6 @@ import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive, Directive1}
 import cats.effect.{IO, Timer}
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -17,7 +16,6 @@ import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -56,7 +54,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
               }
             } ~
               pathPrefix(Segment) { diskNameString =>
-                validateDiskNameDirective(diskNameString) { diskName =>
+                RouteValidation.validateNameDirective(diskNameString, DiskName.apply) { diskName =>
                   pathEndOrSingleSlash {
                     post {
                       entity(as[CreateDiskRequest]) { req =>
@@ -247,27 +245,6 @@ object DiskRoutes {
       x.blockSize
     )
   )
-
-  private val diskNameReg = "([a-z|0-9|-])*".r
-
-  private def validateDiskName(diskNameString: String): Either[Throwable, DiskName] =
-    diskNameString match {
-      case diskNameReg(_) => Right(DiskName(diskNameString))
-      case _ =>
-        Left(
-          RequestValidationError(
-            s"invalid disk name ${diskNameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in disk name"
-          )
-        )
-    }
-
-  def validateDiskNameDirective(diskNameString: String): Directive1[DiskName] =
-    Directive { inner =>
-      validateDiskName(diskNameString) match {
-        case Left(e)  => failWith(e)
-        case Right(c) => inner(Tuple1(c))
-      }
-    }
 
 }
 

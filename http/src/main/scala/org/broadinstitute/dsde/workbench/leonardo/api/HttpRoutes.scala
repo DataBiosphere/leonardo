@@ -15,13 +15,15 @@ import akka.stream.scaladsl.Sink
 import cats.effect.{ContextShift, IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RouteValidation.RequestValidationError
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   LeonardoService,
   ProxyService,
   RuntimeService,
   StatusService
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, RequestValidationError}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 
@@ -34,6 +36,7 @@ class HttpRoutes(
   leonardoService: LeonardoService,
   runtimeService: RuntimeService[IO],
   diskService: DiskService[IO],
+  kubernetesService: KubernetesService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String
 )(implicit timer: Timer[IO], ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO])
@@ -45,6 +48,7 @@ class HttpRoutes(
   private val leonardoRoutes = new LeoRoutes(leonardoService, userInfoDirectives)
   private val runtimeRoutes = new RuntimeRoutes(runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
+  private val kubernetesRoutes = new KubernetesRoutes(kubernetesService, userInfoDirectives)
 
   private val myExceptionHandler = {
     ExceptionHandler {
@@ -95,7 +99,7 @@ class HttpRoutes(
       handleExceptions(myExceptionHandler) {
         swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
           pathPrefix("api") {
-            leonardoRoutes.route ~ runtimeRoutes.routes ~ diskRoutes.routes
+            leonardoRoutes.route ~ runtimeRoutes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes
           }
       }
     }

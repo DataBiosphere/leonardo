@@ -3,14 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
+import org.broadinstitute.dsde.workbench.leonardo.{App}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
   AuditInfo,
-  AutoScalingMax,
-  AutoScalingMin,
+  AutoscalingConfig,
+  AutoscalingMax,
+  AutoscalingMin,
   KubernetesClusterLeoId,
   Nodepool,
-  NodepoolAutoscaling,
   NodepoolLeoId,
   NodepoolStatus,
   NumNodes
@@ -33,9 +34,9 @@ case class NodepoolRecord(
   dateAccessed: Instant,
   machineType: MachineTypeName,
   numNodes: NumNodes,
-  autoScalingEnabled: Boolean,
-  autoScalingMin: Option[AutoScalingMin],
-  autoScalingMax: Option[AutoScalingMax]
+  autoscalingEnabled: Boolean,
+  autoscalingMin: Option[AutoscalingMin],
+  autoscalingMax: Option[AutoscalingMax]
 )
 
 class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
@@ -49,9 +50,9 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def machineType = column[MachineTypeName]("machineType", O.Length(254))
   def numNodes = column[NumNodes]("numNodes", O.Length(254))
-  def autoScalingEnabled = column[Boolean]("autoScalingEnabled")
-  def autoScalingMin = column[Option[AutoScalingMin]]("autoScalingMin")
-  def autoScalingMax = column[Option[AutoScalingMax]]("autoScalingMax")
+  def autoscalingEnabled = column[Boolean]("autoscalingEnabled")
+  def autoscalingMin = column[Option[AutoscalingMin]]("autoscalingMin")
+  def autoscalingMax = column[Option[AutoscalingMax]]("autoscalingMax")
 
   def cluster = foreignKey("FK_NODEPOOL_CLUSTER_ID", clusterId, kubernetesClusterQuery)(_.id)
   def * =
@@ -65,9 +66,9 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
      dateAccessed,
      machineType,
      numNodes,
-     autoScalingEnabled,
-     autoScalingMin,
-     autoScalingMax) <>
+     autoscalingEnabled,
+     autoscalingMin,
+     autoscalingMax) <>
       (NodepoolRecord.tupled, NodepoolRecord.unapply)
 
 }
@@ -81,14 +82,6 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
   private def findByNodepoolIdQuery(id: NodepoolLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
     nodepoolQuery
       .filter(_.id === id)
-
-  def getById(id: NodepoolLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
-    findByNodepoolIdQuery(id).result.headOption
-      .map(recOpt => recOpt.map(rec => unmarshalNodepool(rec)))
-
-  def getAllActiveForCluster(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Set[Nodepool]] =
-    findActiveByClusterIdQuery(clusterId).result
-      .map(rowOpt => rowOpt.map(row => unmarshalNodepool(row)).toSet)
 
   def saveForCluster(n: Nodepool)(implicit ec: ExecutionContext): DBIO[Nodepool] =
     for {
@@ -104,9 +97,9 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
           n.auditInfo.dateAccessed,
           n.machineType,
           n.numNodes,
-          n.autoScalingEnabled,
-          n.autoscalingConfig.map(_.autoScalingMin),
-          n.autoscalingConfig.map(_.autoScalingMax)
+          n.autoscalingEnabled,
+          n.autoscalingConfig.map(_.autoscalingMin),
+          n.autoscalingConfig.map(_.autoscalingMax)
         )
     } yield n.copy(id = nodepoolId)
 
@@ -115,8 +108,8 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       .map(_.status)
       .update(status)
 
-  def markActiveAsDeletedForCluster(id: KubernetesClusterLeoId, destroyedDate: Instant): DBIO[Int] =
-    deleteFromQuery(findActiveByClusterIdQuery(id), destroyedDate)
+  def markActiveAsDeletedForCluster(clusterId: KubernetesClusterLeoId, destroyedDate: Instant): DBIO[Int] =
+    deleteFromQuery(findActiveByClusterIdQuery(clusterId), destroyedDate)
 
   def markAsDeleted(id: NodepoolLeoId, destroyedDate: Instant): DBIO[Int] =
     deleteFromQuery(findByNodepoolIdQuery(id), destroyedDate)
@@ -126,7 +119,24 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       .map(n => (n.destroyedDate, n.status))
       .update((destroyedDate, NodepoolStatus.Deleted))
 
-  private[db] def unmarshalNodepool(rec: NodepoolRecord): Nodepool =
+  def markPendingDeletionForCluster(clusterId: KubernetesClusterLeoId): DBIO[Int] =
+    pendingDeletionFromQuery(findActiveByClusterIdQuery(clusterId))
+
+  def markPendingDeletion(id: NodepoolLeoId): DBIO[Int] =
+    pendingDeletionFromQuery(findByNodepoolIdQuery(id))
+
+  // will not return any apps associated with the nodepool
+  private[db] def getMinimalById(id: NodepoolLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+    for {
+      nodepools <- findByNodepoolIdQuery(id).result
+    } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
+
+  private[db] def pendingDeletionFromQuery(baseQuery: Query[NodepoolTable, NodepoolRecord, Seq]): DBIO[Int] =
+    baseQuery
+      .map(_.status)
+      .update(NodepoolStatus.Deleting)
+
+  private[db] def unmarshalNodepool(rec: NodepoolRecord, apps: List[App]): Nodepool =
     Nodepool(
       rec.id,
       rec.clusterId,
@@ -140,11 +150,12 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       ),
       rec.machineType,
       rec.numNodes,
-      rec.autoScalingEnabled,
-      (rec.autoScalingMin, rec.autoScalingMax) match {
-        case (Some(autoScalingMin), Some(autoScalingMax)) => Some(NodepoolAutoscaling(autoScalingMin, autoScalingMax))
+      rec.autoscalingEnabled,
+      (rec.autoscalingMin, rec.autoscalingMax) match {
+        case (Some(autoscalingMin), Some(autoscalingMax)) => Some(AutoscalingConfig(autoscalingMin, autoscalingMax))
         case _                                            => None
       },
-      List()
+      List(),
+      apps
     )
 }
