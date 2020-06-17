@@ -96,15 +96,15 @@ final class LeonardoSuite
       new RuntimeCreationDiskSpec,
       new ClusterStatusTransitionsSpec,
       new LabSpec,
-//      new NotebookClusterMonitoringSpec, TODO: enabled this...This spec pass locally
-//      new NotebookCustomizationSpec, TODO: enabled this...This spec pass locally
+//      new NotebookClusterMonitoringSpec,
+//      new NotebookCustomizationSpec, //TODO: enabled this...This spec pass locally
       new NotebookDataSyncingSpec,
       new LeoPubsubSpec,
       new ClusterAutopauseSpec,
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
-      new NotebookGCEClusterMonitoringSpec //,
+      new NotebookGCEClusterMonitoringSpec
 //      new NotebookGCECustomizationSpec,
 //      new NotebookGCEDataSyncingSpec
     )
@@ -114,11 +114,10 @@ final class LeonardoSuite
 
 final class LeonardoTerraDockerSuite
     extends Suites(
-//      new NotebookAouSpec,
+      new NotebookAouSpec,
 //      new NotebookBioconductorKernelSpec,
-//      new NotebookGATKSpec,
+      new NotebookGATKSpec,
       new NotebookHailSpec
-//      ,
 //      new NotebookPyKernelSpec,
 //      new NotebookRKernelSpec,
 //      new RStudioSpec
