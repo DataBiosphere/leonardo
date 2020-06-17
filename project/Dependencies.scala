@@ -16,6 +16,7 @@ object Dependencies {
   val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
   val opencensusV = "0.26.0"
+  val serviceTestV = "0.18-d57f8a6"
 
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
@@ -180,7 +181,6 @@ object Dependencies {
     "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test
   )
 
-  val serviceTestV = "0.16-e6493d5"
   val excludeGuavaJdk5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeApacheHttpClient = ExclusionRule(organization = "org.apache.httpcomponents", name = "httpclient")
   val excludeGoogleJsr305 = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
@@ -207,12 +207,11 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     scalaTest,
-    "org.seleniumhq.selenium" % "selenium-java" % "3.141.59" % "test",
+    "org.seleniumhq.selenium" % "selenium-java" % "4.0.0-alpha-6" % "test",
     "io.github.bonigarcia" % "webdrivermanager" % "3.7.1",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text" % "1.2",
     googleRpc,
-    guava,
     workbenchUtil,
     workbenchModel,
     workbenchGoogle,

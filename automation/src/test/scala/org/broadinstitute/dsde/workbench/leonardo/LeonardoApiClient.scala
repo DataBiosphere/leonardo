@@ -41,7 +41,7 @@ object LeonardoApiClient {
     (op: GetPersistentDiskResponse) => op.status == DiskStatus.Ready
 
   implicit def getRuntimeDoneCheckable[A]: DoneCheckable[GetRuntimeResponseCopy] =
-    (op: GetRuntimeResponseCopy) => op.status == ClusterStatus.Running
+    (op: GetRuntimeResponseCopy) => op.status == ClusterStatus.Running || op.status == ClusterStatus.Error
 
   val client: Resource[IO, Client[IO]] = for {
     blockingEc <- ExecutionContexts.cachedThreadPool[IO]
@@ -97,16 +97,25 @@ object LeonardoApiClient {
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
-  ): IO[Unit] =
+  ): IO[GetRuntimeResponseCopy] =
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
       ioa = getRuntime(googleProject, runtimeName)
       res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 30, 10 seconds).compile.lastOrError
-      _ <- if (res.isDone) IO.unit
-      else {
-        IO.raiseError(new TimeoutException(s"create runtime ${googleProject.value}/${runtimeName.asString}"))
+      _ <- res.status match {
+        case ClusterStatus.Error =>
+          IO.raiseError(
+            new RuntimeException(s"${googleProject.value}/${runtimeName.asString} errored due to ${res.errors}")
+          )
+        case ClusterStatus.Running => IO.unit
+        case other =>
+          IO.raiseError(
+            new TimeoutException(
+              s"create runtime ${googleProject.value}/${runtimeName.asString}. Runtime is still in ${other}"
+            )
+          )
       }
-    } yield ()
+    } yield res
 
   def getRuntime(
     googleProject: GoogleProject,

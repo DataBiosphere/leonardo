@@ -6,6 +6,12 @@ import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
 import RuntimeFixtureSpec._
+import cats.effect.IO
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, RuntimeConfigRequest}
+import org.http4s.{AuthScheme, Credentials}
+import org.http4s.client.Client
+import org.http4s.headers.Authorization
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -54,8 +60,39 @@ abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
    */
   def createRonRuntime(billingProject: GoogleProject): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    ronCluster =
-      createNewRuntime(billingProject, request = getRuntimeRequest(CloudService.GCE, toolDockerImage))(ronAuthToken)
+    implicit val auth: Authorization = Authorization(
+      Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+    )
+
+    val runtimeName = randomClusterName
+    val res = LeonardoApiClient.client.use { c =>
+      implicit val client: Client[IO] = c
+      for {
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(
+          billingProject,
+          runtimeName,
+          getRuntimeRequest(CloudService.GCE, toolDockerImage.map(ContainerImage.GCR))
+        )
+      } yield {
+        ronCluster = ClusterCopy(
+          runtimeName,
+          billingProject,
+          getRuntimeResponse.serviceAccount,
+          null,
+          null,
+          getRuntimeResponse.auditInfo.creator,
+          null,
+          null,
+          null,
+          null,
+          false,
+          15,
+          false
+        )
+      }
+    }
+
+    res.unsafeRunSync()
   }
 
   /**
@@ -97,20 +134,19 @@ abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 }
 
 object RuntimeFixtureSpec {
-  def getRuntimeRequest(cloudService: CloudService, toolDockerImage: Option[String]): RuntimeRequest = {
-
+  def getRuntimeRequest(cloudService: CloudService, toolDockerImage: Option[ContainerImage]): CreateRuntime2Request = {
     val machineConfig = cloudService match {
       case CloudService.GCE =>
-        RuntimeConfigRequestCopy.GceConfig(
-          machineType = Some("n1-standard-4"),
-          diskSize = Some(100)
+        RuntimeConfigRequest.GceConfig(
+          machineType = Some(MachineTypeName("n1-standard-4")),
+          diskSize = Some(DiskSize(100))
         )
       case CloudService.Dataproc =>
-        RuntimeConfigRequestCopy.DataprocConfig(
+        RuntimeConfigRequest.DataprocConfig(
           numberOfWorkers = Some(0),
-          masterDiskSize = Some(100),
-          masterMachineType = Some("n1-standard-8"),
-          workerMachineType = Some("n1-standard-8"),
+          masterDiskSize = Some(DiskSize(100)),
+          masterMachineType = Some(MachineTypeName("n1-standard-8")),
+          workerMachineType = Some(MachineTypeName("n1-standard-8")),
           workerDiskSize = None,
           numberOfWorkerLocalSSDs = None,
           numberOfPreemptibleWorkers = None,
@@ -119,10 +155,19 @@ object RuntimeFixtureSpec {
 
     }
 
-    RuntimeRequest(
+    CreateRuntime2Request(
       runtimeConfig = Some(machineConfig),
       toolDockerImage = toolDockerImage,
-      autopause = Some(false)
+      autopause = Some(false),
+      labels = Map.empty,
+      jupyterUserScriptUri = None,
+      jupyterStartUserScriptUri = None,
+      userJupyterExtensionConfig = None,
+      autopauseThreshold = None,
+      defaultClientId = None,
+      welderDockerImage = None,
+      scopes = Set.empty,
+      customEnvironmentVariables = Map.empty
     )
   }
 }
