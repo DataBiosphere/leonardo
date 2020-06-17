@@ -101,7 +101,7 @@ object LeonardoApiClient {
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
       ioa = getRuntime(googleProject, runtimeName)
-      res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 30, 10 seconds).compile.lastOrError
+      res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 60, 10 seconds).compile.lastOrError
       _ <- res.status match {
         case ClusterStatus.Error =>
           IO.raiseError(

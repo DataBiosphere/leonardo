@@ -104,9 +104,9 @@ final class LeonardoSuite
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
-      new NotebookGCEClusterMonitoringSpec,
+      new NotebookGCEClusterMonitoringSpec //,
 //      new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec
+//      new NotebookGCEDataSyncingSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
@@ -116,7 +116,7 @@ final class LeonardoTerraDockerSuite
     extends Suites(
 //      new NotebookAouSpec,
 //      new NotebookBioconductorKernelSpec,
-      new NotebookGATKSpec,
+//      new NotebookGATKSpec,
       new NotebookHailSpec
 //      ,
 //      new NotebookPyKernelSpec,
