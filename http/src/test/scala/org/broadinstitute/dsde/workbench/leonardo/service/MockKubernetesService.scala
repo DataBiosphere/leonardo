@@ -17,12 +17,12 @@ object MockKubernetesServiceInterp extends KubernetesService[IO] {
   override def getApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
     implicit as: ApplicativeAsk[IO, AppContext]
   ): IO[GetAppResponse] =
-    IO(getAppResponse)
+    IO.pure(getAppResponse)
 
   override def listApp(userInfo: UserInfo,
                        googleProject: Option[GoogleProject],
                        params: Map[String, String]): IO[Vector[ListAppResponse]] =
-    IO(listAppResponse)
+    IO.pure(listAppResponse)
 
   override def deleteApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
     implicit as: ApplicativeAsk[IO, AppContext]
