@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppCannotBeDeletedException, AppNotFoundException, AppRequiresDiskException, DiskAlreadyAttachedException, LeoKubernetesServiceInterp}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppCannotBeDeletedException, AppNotFoundException, AppRequiresDiskException, DiskAlreadyAttachedException, LeoKubernetesServiceInterp, PersistentDiskAlreadyExistsException}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._

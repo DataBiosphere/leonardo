@@ -662,7 +662,7 @@ object RuntimeServiceInterp {
                                                          serviceAccount: WorkbenchEmail,
                                                          authProvider: LeoAuthProvider[F],
                                                          diskConfig: PersistentDiskConfig
-                                                       )(implicit as: ApplicativeAsk[F, AppContext], F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F]): F[PersistentDiskRequestResult] =
+                                                       )(implicit as: ApplicativeAsk[F, AppContext], F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F]): F[PersistentDiskRequestResult] = {
     for {
       ctx <- as.ask
       diskOpt <- persistentDiskQuery.getActiveByName(googleProject, req.name).transaction
@@ -706,6 +706,7 @@ object RuntimeServiceInterp {
           } yield PersistentDiskRequestResult(pd, false)
       }
     } yield disk
+  }
 
   case class PersistentDiskRequestResult(disk: PersistentDisk, doesExist: Boolean)
 }

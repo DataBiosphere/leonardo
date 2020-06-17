@@ -24,12 +24,13 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{Assertion, FlatSpec}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
+class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
   def makeRuntimeService(publisherQueue: InspectableQueue[IO, LeoPubsubMessage]) =
     new RuntimeServiceInterp(
@@ -799,12 +800,13 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
   it should "fail to create a disk when caller has no permission" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
-    val res = for {
-      _ <- RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
-        whitelistAuthProvider, Config.persistentDiskConfig).attempt
-    } yield ()
 
-    res.attempt.unsafeRunSync() shouldBe Left(AuthorizationError(Some(userInfo.userEmail)))
+    val thrown = the[AuthorizationError] thrownBy {
+      RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
+        whitelistAuthProvider, Config.persistentDiskConfig).unsafeRunSync()
+    }
+
+    thrown shouldBe AuthorizationError(Some(userInfo.userEmail))
   }
 
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
@@ -830,10 +832,14 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       savedDisk <- makePersistentDisk(DiskId(1)).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       _ <- RuntimeServiceInterp.processPersistentDiskRequest(req, project, userInfo, serviceAccount,
-        whitelistAuthProvider, Config.persistentDiskConfig).attempt
+        whitelistAuthProvider, Config.persistentDiskConfig)
     } yield ()
 
-    res.attempt.unsafeRunSync() shouldBe Left(AuthorizationError(Some(userInfo.userEmail)))
+    val thrown = the[AuthorizationError] thrownBy {
+      res.unsafeRunSync()
+    }
+
+    thrown shouldBe AuthorizationError(Some(userInfo.userEmail))
   }
 
   private def withLeoPublisher(
