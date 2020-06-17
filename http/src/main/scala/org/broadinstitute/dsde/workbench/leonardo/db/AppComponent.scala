@@ -12,10 +12,12 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   AuditInfo,
   DiskId,
+  KubernetesCluster,
   KubernetesService,
   LabelMap,
   Namespace,
   NamespaceId,
+  Nodepool,
   NodepoolLeoId,
   PersistentDisk
 }
@@ -109,22 +111,26 @@ object appQuery extends TableQuery(new AppTable(_)) {
     for {
       nodepool <- nodepoolQuery
         .getMinimalById(saveApp.app.nodepoolId)
-        .map(
-          _.getOrElse(
-            throw new SQLIntegrityConstraintViolationException(
-              "Apps must be saved with a nodepool ID that exists in the DB. FK_APP_NODEPOOL_ID"
+        .flatMap(nodepoolOpt =>
+          nodepoolOpt.fold[DBIO[Nodepool]](
+            DBIO.failed(
+              new SQLIntegrityConstraintViolationException(
+                "Apps must be saved with a nodepool ID that exists in the DB. FK_APP_NODEPOOL_ID"
+              )
             )
-          )
+          )(DBIO.successful(_))
         )
 
       cluster <- kubernetesClusterQuery
         .getMinimalClusterById(nodepool.clusterId)
-        .map(
-          _.getOrElse(
-            throw new SQLIntegrityConstraintViolationException(
-              "Apps must be saved with a nodepool that has a cluster ID that exists in the DB. FK_NODEPOOL_CLUSTER_ID"
+        .flatMap(clusterOpt =>
+          clusterOpt.fold[DBIO[KubernetesCluster]](
+            DBIO.failed(
+              new SQLIntegrityConstraintViolationException(
+                "Apps must be saved with a nodepool that has a cluster ID that exists in the DB. FK_NODEPOOL_CLUSTER_ID"
+              )
             )
-          )
+          )(DBIO.successful(_))
         )
 
       //here, we enforce uniqueness on (AppName, GoogleProject) for active apps

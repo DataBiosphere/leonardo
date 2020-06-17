@@ -59,7 +59,6 @@ object KubernetesServiceDbQueries {
       }
     } yield eitherClusterOrError
 
-  case class GetAppAssertion(message: String) extends Exception
   def getActiveFullAppByName(googleProject: GoogleProject, appName: AppName, labelFilter: LabelMap = Map())(
     implicit ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
@@ -286,3 +285,4 @@ object KubernetesServiceDbQueries {
 //minimal cluster has the nodepools, but no namespaces or apps
 case class SaveClusterResult(minimalCluster: KubernetesCluster, doesActiveClusterExist: Boolean)
 case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
+case class GetAppAssertion(message: String) extends Exception

@@ -313,7 +313,7 @@ object LeoKubernetesServiceInterp {
 }
 case class AppNotFoundException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
     extends LeoException(
-      s"Kubernetes cluster ${googleProject.value}/${appName.value} not found. Trace ID: ${traceId.asString}",
+      s"App ${googleProject.value}/${appName.value} not found. Trace ID: ${traceId.asString}",
       StatusCodes.NotFound
     )
 

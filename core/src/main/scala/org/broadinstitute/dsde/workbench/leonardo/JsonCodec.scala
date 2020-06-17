@@ -6,14 +6,33 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, PersistentDiskSamResource, ProjectSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  AppSamResource,
+  PersistentDiskSamResource,
+  ProjectSamResource,
+  RuntimeSamResource
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesName, Location, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{
+  parseGcsPath,
+  GcsBucketName,
+  GcsObjectName,
+  GcsPath,
+  GoogleProject
+}
 
 object JsonCodec {
   // Errors
