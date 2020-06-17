@@ -77,8 +77,8 @@ class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with Leon
       } yield {
         monitringStartingResult.status shouldBe ClusterStatus.Running
         monitringStartingResult.runtimeConfig
-          .asInstanceOf[RuntimeConfig.DataprocConfig]
-          .masterMachineType shouldBe MachineTypeName(newMasterMachineType)
+          .asInstanceOf[RuntimeConfig.GceConfig]
+          .machineType shouldBe MachineTypeName(newMasterMachineType)
       }
     }
     res.unsafeRunSync
