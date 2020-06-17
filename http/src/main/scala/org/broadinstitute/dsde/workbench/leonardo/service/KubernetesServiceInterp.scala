@@ -13,10 +13,8 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterNam
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   appQuery,
   nodepoolQuery,
-  persistentDiskQuery,
   DbReference,
   KubernetesServiceDbQueries,
-  RuntimeServiceDbQueries,
   SaveApp,
   SaveKubernetesCluster
 }

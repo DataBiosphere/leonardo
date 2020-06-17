@@ -31,13 +31,6 @@ object RuntimeRoutesTestJsonCodec {
     "diskSize"
   )(x => (x.cloudService, x.machineType, x.diskSize))
 
-  implicit val persistentDiskRequestEncoder: Encoder[PersistentDiskRequest] = Encoder.forProduct4(
-    "name",
-    "size",
-    "diskType",
-    "labels"
-  )(x => (x.name, x.size, x.diskType, x.labels))
-
   implicit val gceWithPdRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceWithPdConfig] = Encoder.forProduct3(
     "cloudService",
     "machineType",

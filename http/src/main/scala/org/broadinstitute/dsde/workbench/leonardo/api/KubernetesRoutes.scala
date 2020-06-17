@@ -19,7 +19,6 @@ import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 

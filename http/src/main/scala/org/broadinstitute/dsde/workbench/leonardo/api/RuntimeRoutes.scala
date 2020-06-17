@@ -13,10 +13,11 @@ import cats.effect.{IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import JsonCodec._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import io.opencensus.trace.Span
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
@@ -262,15 +263,6 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 }
 
 object RuntimeRoutes {
-  implicit val persistentDiskDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
-    for {
-      n <- x.downField("name").as[DiskName]
-      s <- x.downField("size").as[Option[DiskSize]]
-      t <- x.downField("diskType").as[Option[DiskType]]
-      l <- x.downField("labels").as[Option[LabelMap]]
-    } yield PersistentDiskRequest(n, s, t, l.getOrElse(Map.empty))
-  }
-
   implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfigRequest.GceWithPdConfig] = Decoder.instance { x =>
     for {
       machineType <- x.downField("machineType").as[Option[MachineTypeName]]

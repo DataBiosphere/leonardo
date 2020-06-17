@@ -6,32 +6,14 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  AppSamResource,
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, PersistentDiskSamResource, ProjectSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  KubernetesName,
-  Location,
-  MachineTypeName,
-  NetworkName,
-  SubnetworkName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesName, Location, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{
-  parseGcsPath,
-  GcsBucketName,
-  GcsObjectName,
-  GcsPath,
-  GoogleProject
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
 
 object JsonCodec {
   // Errors
@@ -257,14 +239,7 @@ object JsonCodec {
                                          numberOfPreemptibleWorkers,
                                          properties)
   }
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct2(
-    "machineType",
-    "persistentDiskId"
-  )(RuntimeConfig.GceWithPdConfig.apply)
-  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct2(
-    "machineType",
-    "diskSize"
-  )((mt, ds) => RuntimeConfig.GceConfig(mt, ds))
+
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
     for {
       cloudService <- x.downField("cloudService").as[CloudService]
@@ -306,6 +281,14 @@ object JsonCodec {
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.withNameOption(x).toRight(s"Invalid disk type: $x"))
 
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct2(
+    "machineType",
+    "persistentDiskId"
+  )(RuntimeConfig.GceWithPdConfig.apply)
+  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct2(
+    "machineType",
+    "diskSize"
+  )((mt, ds) => RuntimeConfig.GceConfig(mt, ds))
   implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct6(
     "id",
     "zone",
@@ -314,6 +297,22 @@ object JsonCodec {
     "size",
     "diskType"
   )(PersistentDiskInRuntimeConfig.apply)
+
+  implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
+    for {
+      n <- x.downField("name").as[DiskName]
+      s <- x.downField("size").as[Option[DiskSize]]
+      t <- x.downField("diskType").as[Option[DiskType]]
+      l <- x.downField("labels").as[Option[LabelMap]]
+    } yield PersistentDiskRequest(n, s, t, l.getOrElse(Map.empty))
+  }
+
+  implicit val persistentDiskRequestEncoder: Encoder[PersistentDiskRequest] = Encoder.forProduct4(
+    "name",
+    "size",
+    "diskType",
+    "labels"
+  )(x => (x.name, x.size, x.diskType, x.labels))
 
   implicit val runtimeSamResourceDecoder: Decoder[RuntimeSamResource] =
     Decoder.decodeString.map(RuntimeSamResource)

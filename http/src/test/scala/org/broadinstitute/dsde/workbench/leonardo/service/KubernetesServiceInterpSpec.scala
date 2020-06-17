@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppCannotBeDeletedException, AppNotFoundException, AppRequiresDiskException, DiskAlreadyAttachedException, DiskNotFoundException, LeoKubernetesServiceInterp, PersistentDiskAlreadyExistsException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppCannotBeDeletedException, AppNotFoundException, AppRequiresDiskException, DiskAlreadyAttachedException, LeoKubernetesServiceInterp}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -57,7 +57,7 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
     val disk = makePersistentDisk(DiskId(1)).copy(googleProject = project).save().unsafeRunSync()
 
     val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
     kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
@@ -79,11 +79,12 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
   }
 
   it should "error on creation if a disk is attached to another app" in isolatedDbTest {
-    val disk = makePersistentDisk(DiskId(1)).copy(googleProject = project).save().unsafeRunSync()
+    val id = DiskId(1)
+    val disk = makePersistentDisk(id).copy(googleProject = project).save().unsafeRunSync()
     val appName1 = AppName("app1")
     val appName2 = AppName("app2")
 
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
     kubeServiceInterp.createApp(userInfo, project, appName1, appReq).unsafeRunSync()
@@ -109,17 +110,6 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
     kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
 
     the[AppAlreadyExistsException] thrownBy {
-      kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
-    }
-  }
-
-  it should "error on creation if a disk with that name exists" in isolatedDbTest {
-    val disk = makePersistentDisk(DiskId(1)).copy(googleProject = project).save().unsafeRunSync()
-    val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
-    the[PersistentDiskAlreadyExistsException] thrownBy {
       kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
     }
   }

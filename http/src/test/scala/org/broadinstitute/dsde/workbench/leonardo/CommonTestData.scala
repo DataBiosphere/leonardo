@@ -290,7 +290,7 @@ object CommonTestData {
     id,
     project,
     zone,
-    DiskName(diskName.value + id),
+    DiskName(diskName.value + id.value),
     Some(googleId),
     serviceAccount,
     diskSamResource,
