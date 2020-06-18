@@ -14,7 +14,7 @@ import scala.concurrent.duration._
 class ConfigSpec extends FlatSpec with Matchers {
   it should "read PersistentDiskConfig properly" in {
     val expectedResult = PersistentDiskConfig(
-      DiskSize(20),
+      DiskSize(30),
       DiskType.Standard,
       BlockSize(4096),
       ZoneName("us-central1-a")
