@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import org.scalatest.{FlatSpecLike, Matchers}
 import JsonCodec._
 import io.circe.CursorOp.DownField
-import io.circe.DecodingFailure
+import io.circe.{DecodingFailure, Json}
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 
@@ -101,5 +101,16 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
 
     val res = decode[RuntimeConfig](inputString)
     res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50))))
+  }
+
+  it should "fail decoding if diskName has upper case" in {
+    val diskNameJson = Json.fromString("PersistentDisk")
+    val res = diskNameDecoder.decodeJson(diskNameJson)
+    res shouldBe Left(
+      DecodingFailure(
+        "Invalid name PersistentDisk. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names",
+        List()
+      )
+    )
   }
 }
