@@ -53,8 +53,8 @@ object LabelResourceType {
     val asString = "persistentDisk"
   }
 
-  final case object KubernetesCluster extends LabelResourceType {
-    val asString = "kubernetesCluster"
+  final case object App extends LabelResourceType {
+    val asString = "app"
   }
 
   val stringToLabelResourceType: Map[String, LabelResourceType] =
@@ -62,5 +62,5 @@ object LabelResourceType {
 
   val runtime: LabelResourceType = Runtime
   val persistentDisk: LabelResourceType = PersistentDisk
-  val kubernetesCluster: LabelResourceType = KubernetesCluster
+  val app: LabelResourceType = App
 }

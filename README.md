@@ -86,8 +86,7 @@ root@2f5efbd4f138:/# mysql -u leonardo -p
 
 ## Run scalafmt
 Learn more about [scalafmt](https://scalameta.org/scalafmt/docs/installation.html)
-- Format main code `sbt scalafmt`
-- Format testing code `sbt test:scalafmt`
+- `sbt scalafmtAll`
 
 ## Building Leonardo docker image
 

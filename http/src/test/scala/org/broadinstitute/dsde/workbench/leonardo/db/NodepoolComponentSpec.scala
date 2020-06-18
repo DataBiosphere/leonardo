@@ -11,7 +11,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
 
-  "NodepoolComponent" should "save, get, delete" in isolatedDbTest {
+  it should "save, get, delete" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     //we never use this, but we want other nodepools in DB to ensure our queries successfully pull the ones associated with this cluster only
     makeKubeCluster(2).save()
@@ -25,33 +25,28 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
     nodepool1 shouldEqual savedNodepool1
     nodepool2 shouldEqual savedNodepool2
 
-    val nodepoolGetAll1 = dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id))
+    val clusterFromDb = dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id))
 
-    //the 2 we saved plus initial nodepool
-    nodepoolGetAll1.size shouldBe 3
-    nodepoolGetAll1 should contain(savedNodepool1)
-    nodepoolGetAll1 should contain(savedNodepool2)
-
-    val clusterFromDb = dbFutureValue(kubernetesClusterQuery.getFullClusterById(savedCluster1.id))
     clusterFromDb.map(_.nodepools.size) shouldEqual Some(3)
-    clusterFromDb.map(_.nodepools).getOrElse(Set()) should contain(savedNodepool1)
-    clusterFromDb.map(_.nodepools).getOrElse(Set()) should contain(savedNodepool2)
+    clusterFromDb.map(_.nodepools).getOrElse(List()) should contain(savedNodepool1)
+    clusterFromDb.map(_.nodepools).getOrElse(List()) should contain(savedNodepool2)
 
     val now = Instant.now()
     dbFutureValue(nodepoolQuery.markAsDeleted(savedNodepool2.id, now)) shouldBe 1
-    val nodepoolGetAll2 = dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id))
+    val nodepoolGetAll2 =
+      dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id)).map(_.nodepools).get
     nodepoolGetAll2.size shouldBe 2
     nodepoolGetAll2 should contain(savedNodepool1)
     nodepoolGetAll2 should not contain (savedNodepool2)
 
-    val deletedNodepoolGet = dbFutureValue(nodepoolQuery.getById(savedNodepool2.id))
-    deletedNodepoolGet shouldBe Some(
-      savedNodepool2.copy(status = NodepoolStatus.Deleted,
-                          auditInfo = savedNodepool2.auditInfo.copy(destroyedDate = Some(now)))
-    )
+    val deletedNodepoolGet =
+      dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, includeDeletedNodepool = true))
+    deletedNodepoolGet.get.nodepools should contain
+    savedNodepool2.copy(status = NodepoolStatus.Deleted,
+                        auditInfo = savedNodepool2.auditInfo.copy(destroyedDate = Some(now)))
 
     dbFutureValue(nodepoolQuery.markActiveAsDeletedForCluster(savedCluster1.id, now)) shouldBe 2
-    dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id)) shouldBe Set()
+    dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id)).map(_.nodepools) shouldBe Some(List())
   }
 
   it should "prevent duplicate (clusterId, nodepoolName) nodepools" in isolatedDbTest {
@@ -70,11 +65,11 @@ class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
     val savedCluster1 = makeKubeCluster(1).save()
 
     val savedNodepool1 = makeNodepool(3, savedCluster1.id).save()
-    savedNodepool1.status shouldBe NodepoolStatus.StatusUnspecified
+    savedNodepool1.status shouldBe NodepoolStatus.Unspecified
 
     dbFutureValue(nodepoolQuery.updateStatus(savedNodepool1.id, NodepoolStatus.Provisioning)) shouldBe 1
 
-    dbFutureValue(nodepoolQuery.getAllActiveForCluster(savedCluster1.id)) should contain(
+    dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id)).get.nodepools should contain(
       savedNodepool1.copy(status = NodepoolStatus.Provisioning)
     )
   }

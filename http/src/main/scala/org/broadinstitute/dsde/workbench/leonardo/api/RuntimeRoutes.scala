@@ -9,22 +9,21 @@ import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive, Directive1}
 import cats.effect.{IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import JsonCodec._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import io.opencensus.trace.Span
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeService}
-import org.broadinstitute.dsde.workbench.leonardo.model.RequestValidationError
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -71,7 +70,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
               }
             } ~
               pathPrefix(Segment) { runtimeNameString =>
-                validateRuntimeNameDirective(runtimeNameString) { runtimeName =>
+                RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
                   pathEndOrSingleSlash {
                     traceRequestForService(serviceData) { span =>
                       post {
@@ -264,15 +263,6 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 }
 
 object RuntimeRoutes {
-  implicit val persistentDiskDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
-    for {
-      n <- x.downField("name").as[DiskName]
-      s <- x.downField("size").as[Option[DiskSize]]
-      t <- x.downField("diskType").as[Option[DiskType]]
-      l <- x.downField("labels").as[Option[LabelMap]]
-    } yield PersistentDiskRequest(n, s, t, l.getOrElse(Map.empty))
-  }
-
   implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfigRequest.GceWithPdConfig] = Decoder.instance { x =>
     for {
       machineType <- x.downField("machineType").as[Option[MachineTypeName]]
@@ -482,27 +472,6 @@ object RuntimeRoutes {
       x.patchInProgress
     )
   )
-
-  private val runtimeNameReg = "([a-z|0-9|-])*".r
-
-  private def validateRuntimeName(clusterNameString: String): Either[Throwable, RuntimeName] =
-    clusterNameString match {
-      case runtimeNameReg(_) => Right(RuntimeName(clusterNameString))
-      case _ =>
-        Left(
-          RequestValidationError(
-            s"invalid runtime name ${clusterNameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in runtime name"
-          )
-        )
-    }
-
-  def validateRuntimeNameDirective(clusterNameString: String): Directive1[RuntimeName] =
-    Directive { inner =>
-      validateRuntimeName(clusterNameString) match {
-        case Left(e)  => failWith(e)
-        case Right(c) => inner(Tuple1(c))
-      }
-    }
 
 }
 

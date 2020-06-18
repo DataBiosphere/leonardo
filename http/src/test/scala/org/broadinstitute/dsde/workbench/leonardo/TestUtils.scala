@@ -35,6 +35,18 @@ object TestUtils extends Matchers {
     }
   }
 
+  implicit val namespaceEq = {
+    new Equality[Namespace] {
+      private val FixedId = NamespaceId(0)
+
+      def areEqual(a: Namespace, b: Any): Boolean =
+        b match {
+          case c: Namespace => a.copy(id = FixedId) == c.copy(id = FixedId)
+          case _            => false
+        }
+    }
+  }
+
   implicit val nodepoolEq = {
     new Equality[Nodepool] {
       private val FixedId = NodepoolLeoId(0)
@@ -45,6 +57,79 @@ object TestUtils extends Matchers {
           case _           => false
         }
     }
+  }
+
+  implicit val appEq = {
+    new Equality[App] {
+      private val FixedId = AppId(0)
+      private val FixedNamespaceId = NamespaceId(0)
+      private val FixedDiskId = DiskId(0)
+
+      def areEqual(a: App, b: Any): Boolean =
+        b match {
+          case c: App =>
+            a.copy(
+              id = FixedId,
+              appResources = a.appResources.copy(
+                namespace = a.appResources.namespace.copy(id = FixedNamespaceId),
+                services = fixIdsForServices(a.appResources.services),
+                disk = a.appResources.disk.map(d => d.copy(id = FixedDiskId))
+              )
+            ) ===
+              c.copy(
+                id = FixedId,
+                appResources = c.appResources.copy(
+                  namespace = c.appResources.namespace.copy(id = FixedNamespaceId),
+                  services = fixIdsForServices(c.appResources.services),
+                  disk = c.appResources.disk.map(d => d.copy(id = FixedDiskId))
+                )
+              )
+          case _ => false
+        }
+    }
+  }
+
+  private def fixIdForService(service: KubernetesService): KubernetesService = {
+    val FixedServiceId = ServiceId(0)
+    val FixedPortId = PortId(0)
+    service.copy(
+      id = FixedServiceId,
+      config = service.config
+        .copy(ports = service.config.ports.map(p => p.copy(id = FixedPortId)).sortBy(_.servicePort.name.value))
+    )
+  }
+
+  private def fixIdsForServices(services: List[KubernetesService]): List[KubernetesService] =
+    services.map(fixIdForService).sortBy(_.config.name.value)
+
+  implicit val serviceEq = {
+    new Equality[KubernetesService] {
+
+      def areEqual(a: KubernetesService, b: Any): Boolean =
+        b match {
+          case c: KubernetesService => fixIdForService(a) === fixIdForService(c)
+          case _                    => false
+        }
+    }
+  }
+
+  implicit val namespaceListEq = {
+    new Equality[List[Namespace]] {
+      def areEqual(as: List[Namespace], bs: Any): Boolean =
+        bs match {
+          case cs: List[_] => isNamespaceListEquivalent(as, cs)
+          case _           => false
+        }
+    }
+  }
+
+  private def isNamespaceListEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
+    val dummyId = NamespaceId(0)
+
+    val fcs1 = cs1 map { case c: Namespace => c.copy(id = dummyId) }
+    val fcs2 = cs2 map { case c: Namespace => c.copy(id = dummyId) }
+
+    fcs1 == fcs2
   }
 
   implicit val clusterSeqEq = {

@@ -1,8 +1,8 @@
 package org.broadinstitute.dsde.workbench.page
 
 import org.openqa.selenium.WebDriver
-import org.scalatest.selenium.Page
-import org.scalatest.selenium.WebBrowser.go
+import org.scalatestplus.selenium.Page
+import org.scalatestplus.selenium.WebBrowser.go
 
 /**
  * Mix-in utilities for ScalaTest's Page.

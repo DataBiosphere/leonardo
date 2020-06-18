@@ -48,7 +48,9 @@ object LeonardoServiceDbQueries {
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
             // https://github.com/slick/slick/issues/517
-            .filter(lbl => labelMap.map { case (k, v) => lbl.key === k && lbl.value === v }.reduce(_ || _))
+            .filter(lbl =>
+              labelMap.map { case (k, v) => lbl.key === k && lbl.value === v }.fold[Rep[Boolean]](false)(_ || _)
+            )
             .length === labelMap.size
       }
     }
