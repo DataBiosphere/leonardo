@@ -7,7 +7,15 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{Operation, _}
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleDiskService, InstanceName, MachineTypeName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  GoogleDiskService,
+  InstanceName,
+  MachineTypeName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
@@ -67,9 +75,11 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         case x: RuntimeConfig.GceWithPdConfig =>
           for {
             diskId <- F.fromEither(
-              x.persistentDiskId.toRight(new RuntimeException("Missing diskId in the request. This should never happen"))
+              x.persistentDiskId.toRight(
+                new RuntimeException("Missing diskId in the request. This should never happen")
+              )
             )
-          res <- persistentDiskQuery.getIsGceFormatted(diskId, ctx.now).transaction.map{ x => x.isDefined }
+            res <- persistentDiskQuery.getIsGceFormatted(diskId, ctx.now).transaction.map(x => x.isDefined)
           } yield { res }
         case _ => F.pure(false)
       }
@@ -138,7 +148,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         case x: RuntimeConfig.GceWithPdConfig =>
           for {
             diskId <- F.fromEither(
-              x.persistentDiskId.toRight(new RuntimeException("Missing diskId in the request. This should never happen"))
+              x.persistentDiskId.toRight(
+                new RuntimeException("Missing diskId in the request. This should never happen")
+              )
             )
             persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
             persistentDisk <- F.fromEither(

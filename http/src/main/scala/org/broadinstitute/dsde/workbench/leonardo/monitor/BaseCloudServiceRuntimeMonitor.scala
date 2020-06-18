@@ -106,7 +106,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 new RuntimeException("DiskId should exist when we try to create a runtime with persistent disk")
               )
             )
-            _ <- persistentDiskQuery.updateStatusAndIsFormatted(diskId, DiskStatus.Ready, FormattedBy.Runtime, now).transaction
+            _ <- persistentDiskQuery
+              .updateStatusAndIsFormatted(diskId, DiskStatus.Ready, FormattedBy.GCE, now)
+              .transaction
           } yield ()
         case _ =>
           F.unit

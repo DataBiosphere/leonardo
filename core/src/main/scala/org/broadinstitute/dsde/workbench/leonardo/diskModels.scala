@@ -99,10 +99,10 @@ sealed trait FormattedBy extends EnumEntry with Product with Serializable {
 object FormattedBy extends Enum[FormattedBy] {
   val values = findValues
 
-  final case object Runtime extends FormattedBy {
-    override def asString: String = "runtime"
+  final case object GCE extends FormattedBy {
+    override def asString: String = "GCE"
   }
   final case object Galaxy extends FormattedBy {
-    override def asString: String = "galaxy"
+    override def asString: String = "GALAXY"
   }
 }
