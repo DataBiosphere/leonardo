@@ -50,6 +50,8 @@ class MockSamDAO extends SamDAO[IO] {
           .map(_.contains(action)) //open the option to peek the set: Option[Bool]
           .getOrElse(false) //unpack the resulting option and handle the disk never having existed
         IO.pure(res)
+      case SamResourceType.App =>
+        IO.pure(true) //TODO: fix this properly
     }
 
   override def getResourcePolicies[A](
