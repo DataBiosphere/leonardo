@@ -6,7 +6,7 @@ import java.util.UUID
 
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Directives.{path, _}
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
@@ -20,6 +20,7 @@ import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
@@ -85,9 +86,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                   }
                 }
               }
-            } ~
-            /**
-            path(Segment) { serviceNameString =>
+            } ~ path(Segment) { serviceNameString =>
             val serviceName = ServiceName(serviceNameString)
             (extractRequest & extractUserInfo) { (request, userInfo) =>
               (logRequestResultForMetrics(userInfo)) {
@@ -100,20 +99,20 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                 }
               }
             }
-          } ~*/
+          }
             // No need to lookup the user or consult the auth provider for this endpoint
-            path("invalidateToken") {
-              get {
-                extractToken { token =>
-                  complete {
-                    proxyService.invalidateAccessToken(token).map { _ =>
-                      logger.debug(s"Invalidated access token $token")
-                      StatusCodes.OK
-                    }
-                  }
+        } ~
+          path("invalidateToken") {
+          get {
+            extractToken { token =>
+              complete {
+                proxyService.invalidateAccessToken(token).map { _ =>
+                  logger.debug(s"Invalidated access token $token")
+                  StatusCodes.OK
                 }
               }
             }
+          }
         }
       }
     }
