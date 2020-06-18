@@ -11,7 +11,7 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
   RuntimeAutopauseSpec,
-  RuntimeCreationPdSpec,
+  RuntimeCreationDiskSpec,
   RuntimePatchSpec,
   RuntimeStatusTransitionsSpec
 }
@@ -93,7 +93,7 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 
 final class LeonardoSuite
     extends Suites(
-      new RuntimeCreationPdSpec,
+      new RuntimeCreationDiskSpec,
       new ClusterStatusTransitionsSpec,
       new LabSpec,
 //      new NotebookClusterMonitoringSpec, TODO: enabled this...This spec pass locally

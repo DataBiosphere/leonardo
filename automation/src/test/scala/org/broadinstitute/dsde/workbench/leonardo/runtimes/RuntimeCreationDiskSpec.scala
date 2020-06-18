@@ -15,14 +15,12 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-//@DoNotDiscover
-class RuntimeCreationPdSpec
+@DoNotDiscover
+class RuntimeCreationDiskSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with PropertyBasedTesting
-    with NotebookTestUtils
-    with GPAllocBeforeAndAfterAll {
+    with NotebookTestUtils {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
@@ -32,6 +30,44 @@ class RuntimeCreationPdSpec
     diskService <- googleDiskService
     httpClient <- LeonardoApiClient.client
   } yield RuntimeCreationPdSpecDependencies(httpClient, diskService)
+
+  "create runtime and mount disk correctly" in { googleProject =>
+    val runtimeName = randomClusterName
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.GceConfig(
+          None,
+          Some(DiskSize(20))
+        )
+      )
+    )
+
+    // validate disk still exists after runtime is deleted
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+        _ <- IO(
+          withWebDriver { implicit driver =>
+            withNewNotebook(clusterCopy, Python3) { notebookPage =>
+              //all other packages cannot be tested for their versions in this manner
+              //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+              val res = notebookPage
+                .executeCell(
+                  "! df -H"
+                )
+                .get
+              res should include("/dev/sdb")
+              res should include("/home/jupyter-user/notebooks")
+            }
+          }
+        )
+        _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
+      } yield ()
+    }
+    res.unsafeRunSync()
+  }
 
   "create runtime and attach a persistent disk" in { googleProject =>
     val diskName = genDiskName.sample.get
@@ -100,58 +136,24 @@ class RuntimeCreationPdSpec
                                                   diskName,
                                                   defaultCreateDiskRequest.copy(size = Some(diskSize)))
         runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
         _ <- IO(withWebDriver { implicit driver =>
-          withNewNotebook(
-            ClusterCopy(
-              runtime.runtimeName,
-              runtime.googleProject,
-              runtime.serviceAccount,
-              runtime.runtimeConfig,
-              runtime.status,
-              runtime.serviceAccount,
-              runtime.labels,
-              None,
-              runtime.errors,
-              Instant.now(),
-              false,
-              runtime.autopauseThreshold,
-              false
-            ),
-            Python3
-          ) { notebookPage =>
+          withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val createNewFile =
               """! echo 'this should save' >> /home/jupyter-user/notebooks/test.txt""".stripMargin
             notebookPage.executeCell(createNewFile)
-          //notebookPage.saveAndCheckpoint()
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName)
 
         // Creating new runtime with existing disk should have test.txt file
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntimeRequest)
+        clusterCopyWithData = ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData)
         _ <- IO(withWebDriver { implicit driver =>
-          withNewNotebook(
-            ClusterCopy(
-              runtimeWithData.runtimeName,
-              runtimeWithData.googleProject,
-              runtimeWithData.serviceAccount,
-              runtimeWithData.runtimeConfig,
-              runtimeWithData.status,
-              runtimeWithData.serviceAccount,
-              runtimeWithData.labels,
-              None,
-              runtimeWithData.errors,
-              Instant.now(),
-              false,
-              runtimeWithData.autopauseThreshold,
-              false
-            ),
-            Python3
-          ) { notebookPage =>
+          withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
             val persistedData =
               """! cat /home/jupyter-user/notebooks/test.txt""".stripMargin
             notebookPage.executeCell(persistedData).get should include("this should save")
-          //notebookPage.saveAndCheckpoint()
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName)
