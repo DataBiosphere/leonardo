@@ -81,7 +81,7 @@ object CommonTestData {
     "https://www.googleapis.com/auth/source.read_only"
   )
   val zone = ZoneName("us-central1-a")
-  val diskName = DiskName("diskName")
+  val diskName = DiskName("disk-name")
   val googleId = GoogleId("google-id")
   val diskSamResource = PersistentDiskSamResource("disk-resource-id")
   val diskSize = DiskSize(500)
