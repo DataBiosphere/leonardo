@@ -79,6 +79,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                     // we are discarding the request entity here. we have noticed that PUT requests caused by
                     // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
                     // in that scenario, the requests appear to pile up, causing apache to hog CPU.
+                    logger.info("@@@Test, in /api/localize")
                     proxyService
                       .proxyLocalize(userInfo, googleProject, clusterName, request)
                       .onError { case _ => IO.fromFuture(IO(request.entity.discardBytes().future)).void }
