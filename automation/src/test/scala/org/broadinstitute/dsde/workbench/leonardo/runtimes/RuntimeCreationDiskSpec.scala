@@ -7,17 +7,18 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 @DoNotDiscover
-class RuntimeCreationPdSpec
+class RuntimeCreationDiskSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with PropertyBasedTesting {
+    with NotebookTestUtils {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
@@ -27,6 +28,44 @@ class RuntimeCreationPdSpec
     diskService <- googleDiskService
     httpClient <- LeonardoApiClient.client
   } yield RuntimeCreationPdSpecDependencies(httpClient, diskService)
+
+  "create runtime and mount disk correctly" in { googleProject =>
+    val runtimeName = randomClusterName
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.GceConfig(
+          None,
+          Some(DiskSize(20))
+        )
+      )
+    )
+
+    // validate disk still exists after runtime is deleted
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+        _ <- IO(
+          withWebDriver { implicit driver =>
+            withNewNotebook(clusterCopy, Python3) { notebookPage =>
+              //all other packages cannot be tested for their versions in this manner
+              //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+              val res = notebookPage
+                .executeCell(
+                  "! df -H"
+                )
+                .get
+              res should include("/dev/sdb")
+              res should include("/home/jupyter-user/notebooks")
+            }
+          }
+        )
+        _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
+      } yield ()
+    }
+    res.unsafeRunSync()
+  }
 
   "create runtime and attach a persistent disk" in { googleProject =>
     val diskName = genDiskName.sample.get
