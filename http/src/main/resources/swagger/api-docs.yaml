@@ -2299,6 +2299,7 @@ components:
         runtimeConfig:
           oneOf:
             - $ref: "#/components/schemas/GceConfig"
+            - $ref: "#/components/schemas/GceWithPdConfig"
             - $ref: "#/components/schemas/MachineConfig"
           discriminator:
             propertyName: cloudService
