@@ -2,7 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeResponse
 import org.scalactic.Equality
-import org.scalatest.{Assertion, Matchers}
+import org.scalatest.Assertion
+import org.scalatest.matchers.should.Matchers
 
 object TestUtils extends Matchers {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field

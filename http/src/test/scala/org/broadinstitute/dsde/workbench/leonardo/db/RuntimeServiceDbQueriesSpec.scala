@@ -17,13 +17,14 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.GetRuntimeResponse
-import org.scalatest.FlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
+import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class RuntimeServiceDbQueriesSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
+class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   val maxElapsed = 5.seconds
 
   it should "getStatusByName" in isolatedDbTest {

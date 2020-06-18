@@ -1,19 +1,19 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import io.circe.parser
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{dnsCacheConfig, proxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.Idle
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO.sessionDecoder
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.{FakeHttpClient, LeonardoTestSuite, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.{FlatSpec, Matchers}
-
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO.sessionDecoder
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class HttpJupyterDAOSpec extends FlatSpec with LeonardoTestSuite with Matchers with TestComponent {
-  it should "decode jupyter list sessions response successfully" in {
+class HttpJupyterDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite with TestComponent {
+  "HttpJupyterDAO" should "decode jupyter list sessions response successfully" in {
     val response =
       """
         |[

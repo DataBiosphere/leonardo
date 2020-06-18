@@ -5,6 +5,8 @@ import Version._
 import sbt.Keys._
 import sbt._
 import sbtassembly.AssemblyPlugin.autoImport._
+import scalafix.sbt.ScalafixPlugin.autoImport.scalafixSemanticdb
+
 import scala.collection.JavaConverters._
 
 object Settings {
@@ -24,7 +26,8 @@ object Settings {
     scalacOptions in (Test, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
     scalacOptions in Test --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
-    addCompilerPlugin("org.typelevel" % "kind-projector_2.12.11" % "0.11.0")
+    addCompilerPlugin("org.typelevel" % "kind-projector_2.12.11" % "0.11.0"),
+    addCompilerPlugin(scalafixSemanticdb)
   )
 
   val commonCompilerSettings = Seq(

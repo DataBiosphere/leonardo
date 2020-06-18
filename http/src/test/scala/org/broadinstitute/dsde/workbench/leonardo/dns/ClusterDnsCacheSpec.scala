@@ -7,15 +7,16 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 /**
  * Created by rtitle on 9/1/17.
  */
 class ClusterDnsCacheSpec
-    extends FlatSpecLike
+    extends AnyFlatSpecLike
     with BeforeAndAfterAll
     with TestComponent
     with ScalaFutures

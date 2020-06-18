@@ -17,15 +17,16 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.scalatest.{FlatSpec, Matchers}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.CheckTools
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class BaseCloudServiceRuntimeMonitorSpec extends FlatSpec with Matchers with TestComponent with LeonardoTestSuite {
+class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with TestComponent with LeonardoTestSuite {
   it should "terminate monitoring process if cluster status is changed in the middle of it" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(true)
 

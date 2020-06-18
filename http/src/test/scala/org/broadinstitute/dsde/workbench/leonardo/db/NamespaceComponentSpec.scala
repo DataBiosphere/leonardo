@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class NamespaceComponentSpec extends FlatSpecLike with TestComponent {
+class NamespaceComponentSpec extends AnyFlatSpecLike with TestComponent {
 
   "NamespaceComponent" should "save, getAll, delete" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()

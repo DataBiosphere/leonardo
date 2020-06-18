@@ -7,11 +7,13 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RSt
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.ExecutionContext.global
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class HttpDockerDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
+class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
   val jupyterImages = List(
     // dockerhub no tag
     DockerHub("broadinstitute/leonardo-notebooks"),

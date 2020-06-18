@@ -3,9 +3,9 @@ package util
 
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite, RuntimeOperation, WelderAction}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
-import org.scalatest.FlatSpecLike
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class RuntimeTemplateValuesSpec extends LeonardoTestSuite with FlatSpecLike {
+class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
   "RuntimeTemplateValues" should "generate correct template values from a Runtime" in {
     val config = RuntimeTemplateValuesConfig.fromRuntime(

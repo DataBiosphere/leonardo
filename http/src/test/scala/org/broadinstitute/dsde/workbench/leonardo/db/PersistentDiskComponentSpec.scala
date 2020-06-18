@@ -8,11 +8,11 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.DiskType.SSD
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.diskEq
-import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class PersistentDiskComponentSpec extends FlatSpecLike with TestComponent {
+class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
 
   "PersistentDiskComponent" should "save and get records" in isolatedDbTest {
     val disk1 = makePersistentDisk(DiskId(1))

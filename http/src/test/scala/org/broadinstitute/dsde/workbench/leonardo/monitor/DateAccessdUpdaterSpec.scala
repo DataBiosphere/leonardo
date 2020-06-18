@@ -11,15 +11,15 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.FlatSpec
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.scalatest.flatspec.AnyFlatSpec
 
-class DateAccessedUpdaterSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
+class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   it should "sort UpdateDateAccessMessage properly" in {
     val msg1 = UpdateDateAccessMessage(RuntimeName("r1"), GoogleProject("p1"), Instant.ofEpochMilli(1588264615480L))
     val msg2 = UpdateDateAccessMessage(RuntimeName("r1"), GoogleProject("p1"), Instant.ofEpochMilli(1588264615490L))

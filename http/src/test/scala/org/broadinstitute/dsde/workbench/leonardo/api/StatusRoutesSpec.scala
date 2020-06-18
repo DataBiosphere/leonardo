@@ -20,15 +20,16 @@ import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheck
 import org.http4s.EntityDecoder
 import org.http4s.headers.Authorization
 import org.scalatest.concurrent.Eventually.eventually
-import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 /**
  * Created by rtitle on 10/26/17.
  */
 class StatusRoutesSpec
-    extends FlatSpec
+    extends AnyFlatSpec
     with Matchers
     with ScalatestRouteTest
     with LeonardoTestSuite

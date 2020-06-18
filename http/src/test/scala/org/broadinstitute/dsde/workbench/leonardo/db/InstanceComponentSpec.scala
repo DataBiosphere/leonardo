@@ -1,16 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GceInstanceStatus, GcsPathUtils, IP, RuntimeConfigId}
-import org.scalatest.FlatSpecLike
 import CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 /**
  * Created by rtitle on 2/19/18.
  */
-class InstanceComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
+class InstanceComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils {
 
   val cluster1 = makeCluster(1)
 

@@ -10,7 +10,7 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.0"
-  val scalaTestV = "3.0.8"
+  val scalaTestV = "3.1.2"
   val slickV = "3.3.2"
   val http4sVersion = "0.21.0" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.2-jre"
@@ -81,6 +81,9 @@ object Dependencies {
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV  % "test"
   val mockito: ModuleID =   "org.mockito"   % "mockito-core"  % "3.2.4"    % "test"
+  val scalaTestScalaCheck = "org.scalatestplus" %% "scalatestplus-scalacheck" % "3.1.0.0-RC2" % Test //Since scalatest 3.1.0, scalacheck support is moved to `scalatestplus`
+  val scalaTestMockito = "org.scalatestplus" %% "scalatestplus-mockito" % "1.0.0-M2" % Test //Since scalatest 3.1.0, mockito support is moved to `scalatestplus`
+  val scalaTestSelenium =  "org.scalatestplus" %% "scalatestplus-selenium" % "1.0.0-M2" % Test //Since scalatest 3.1.0, selenium support is moved to `scalatestplus`
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -135,7 +138,8 @@ object Dependencies {
     enumeratum,
     http4sCirce,
     http4sBlazeClient,
-    http4sDsl
+    http4sDsl,
+    scalaTestScalaCheck
   )
 
   val rootDependencies = Seq(
@@ -179,7 +183,9 @@ object Dependencies {
 
     // Dependent on the trace exporters you want to use add one or more of the following
     "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
-    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test
+    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test,
+    scalaTestSelenium,
+    scalaTestMockito
   )
 
   val excludeGuavaJdk5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
@@ -220,6 +226,8 @@ object Dependencies {
     workbenchServiceTest,
     googleCloudNio,
     akkaHttpSprayJson,
+    scalaTestSelenium,
+    scalaTestMockito,
     // required by workbenchGoogle
     "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.6" % "provided"
   )

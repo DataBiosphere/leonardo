@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 /**
  * Copied from https://github.com/broadinstitute/dig-loam-stream/blob/master/src/test/scala/loamstream/util/ValueBoxTest.scala
  */
-final class ValueBoxTest extends FunSuite {
+final class ValueBoxTest extends AnyFunSuite {
   test("mutateAndGet") {
     val v: ValueBox[Int] = ValueBox(42)
 

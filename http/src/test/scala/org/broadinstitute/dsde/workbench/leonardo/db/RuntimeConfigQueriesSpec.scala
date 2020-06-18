@@ -6,11 +6,11 @@ import java.util.concurrent.TimeUnit
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, LeonardoTestSuite, RuntimeConfig}
-import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class RuntimeConfigQueriesSpec extends FlatSpecLike with TestComponent with LeonardoTestSuite {
+class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {
   "RuntimeConfigQueries" should "save cluster with properties properly" in isolatedDbTest {
     val runtimeConfig = RuntimeConfig.DataprocConfig(
       numberOfWorkers = 0,

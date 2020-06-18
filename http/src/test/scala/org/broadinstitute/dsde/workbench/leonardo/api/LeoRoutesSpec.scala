@@ -20,13 +20,14 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeReq
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.scalatest.{Assertion, FlatSpec}
+import org.scalatest.Assertion
 import slick.dbio.DBIO
 
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
 
 class LeoRoutesSpec
-    extends FlatSpec
+    extends AnyFlatSpec
     with ScalatestRouteTest
     with LeonardoTestSuite
     with TestComponent

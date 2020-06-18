@@ -54,12 +54,12 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
-import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.duration._
 import scala.util.matching.Regex
+import org.scalatest.matchers.should.Matchers
 
 trait TestLeoRoutes {
   this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>

@@ -13,9 +13,10 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class LeoRoutesJsonCodecSpec extends FlatSpec with Matchers {
+class LeoRoutesJsonCodecSpec extends AnyFlatSpec with Matchers {
   "JsonCodec" should "fail to decode MachineConfig when masterMachineType is empty string" in {
     val inputString =
       """
