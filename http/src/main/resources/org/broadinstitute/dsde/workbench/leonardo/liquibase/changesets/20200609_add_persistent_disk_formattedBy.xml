@@ -2,7 +2,7 @@
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
     <changeSet logicalFilePath="leonardo" author="gabriela" id="add_persistent_disk_formattedBy">
         <addColumn tableName="PERSISTENT_DISK">
-            <column name="formattedBy" type="ENUM('GCE', 'GALAXY')" defaultValue="NULL">
+            <column name="formattedBy" type="VARCHAR(255)" defaultValue="NULL">
                 <constraints nullable="true"/>
             </column>
         </addColumn>

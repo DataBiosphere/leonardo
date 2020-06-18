@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.collection.JavaConverters._
@@ -120,9 +120,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
 
       _ <- bucketHelper
         .initializeBucketObjects(initBucketName,
-          templateParams.serviceAccountKey,
-          templateValues,
-          params.customEnvironmentVariables)
+                                 templateParams.serviceAccountKey,
+                                 templateValues,
+                                 params.customEnvironmentVariables)
         .compile
         .drain
 
