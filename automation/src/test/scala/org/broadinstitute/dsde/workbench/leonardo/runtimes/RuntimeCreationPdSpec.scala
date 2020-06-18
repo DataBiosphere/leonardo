@@ -1,23 +1,28 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
+import java.time.Instant
+
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-@DoNotDiscover
+//@DoNotDiscover
 class RuntimeCreationPdSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with PropertyBasedTesting {
+    with PropertyBasedTesting
+    with NotebookTestUtils
+    with GPAllocBeforeAndAfterAll {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
@@ -69,6 +74,7 @@ class RuntimeCreationPdSpec
   "create runtime and attach an existing a persistent disk" in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
+    val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
 
@@ -93,9 +99,62 @@ class RuntimeCreationPdSpec
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
                                                   diskName,
                                                   defaultCreateDiskRequest.copy(size = Some(diskSize)))
-        _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        runtime <- getRuntime(googleProject, runtimeName)
+        runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        _ <- IO(withWebDriver { implicit driver =>
+          withNewNotebook(
+            ClusterCopy(
+              runtime.runtimeName,
+              runtime.googleProject,
+              runtime.serviceAccount,
+              runtime.runtimeConfig,
+              runtime.status,
+              runtime.serviceAccount,
+              runtime.labels,
+              None,
+              runtime.errors,
+              Instant.now(),
+              false,
+              runtime.autopauseThreshold,
+              false
+            ),
+            Python3
+          ) { notebookPage =>
+            val createNewFile =
+              """! echo 'this should save' >> /home/jupyter-user/notebooks/test.txt""".stripMargin
+            notebookPage.executeCell(createNewFile)
+          //notebookPage.saveAndCheckpoint()
+          }
+        })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName)
+
+        // Creating new runtime with existing disk should have test.txt file
+        runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntimeRequest)
+        _ <- IO(withWebDriver { implicit driver =>
+          withNewNotebook(
+            ClusterCopy(
+              runtimeWithData.runtimeName,
+              runtimeWithData.googleProject,
+              runtimeWithData.serviceAccount,
+              runtimeWithData.runtimeConfig,
+              runtimeWithData.status,
+              runtimeWithData.serviceAccount,
+              runtimeWithData.labels,
+              None,
+              runtimeWithData.errors,
+              Instant.now(),
+              false,
+              runtimeWithData.autopauseThreshold,
+              false
+            ),
+            Python3
+          ) { notebookPage =>
+            val persistedData =
+              """! cat /home/jupyter-user/notebooks/test.txt""".stripMargin
+            notebookPage.executeCell(persistedData).get should include("this should save")
+          //notebookPage.saveAndCheckpoint()
+          }
+        })
+        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName)
         _ <- deleteDiskWithWait(googleProject, diskName)
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
