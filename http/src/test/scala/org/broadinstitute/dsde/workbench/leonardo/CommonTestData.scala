@@ -299,6 +299,7 @@ object CommonTestData {
     diskSize,
     diskType,
     blockSize,
+    None,
     Map.empty
   )
 

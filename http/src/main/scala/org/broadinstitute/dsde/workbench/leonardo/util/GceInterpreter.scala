@@ -70,6 +70,20 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
                                                     config.gceConfig.zoneName,
                                                     params.runtimeConfig.machineType)
 
+      // Determine is user persisent disk has been formatted before
+      isGceFormatted <- params.runtimeConfig match {
+        case x: RuntimeConfig.GceWithPdConfig =>
+          for {
+            diskId <- F.fromEither(
+              x.persistentDiskId.toRight(
+                new RuntimeException("Missing diskId in the request. This should never happen")
+              )
+            )
+            res <- persistentDiskQuery.getIsGceFormatted(diskId, ctx.now).transaction.map(x => x.isDefined)
+          } yield { res }
+        case _ => F.pure(false)
+      }
+
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
       initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
@@ -98,7 +112,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         config.proxyConfig,
         config.clusterFilesConfig,
         config.clusterResourcesConfig,
-        Some(resourceConstraints)
+        Some(resourceConstraints),
+        isGceFormatted
       )
 
       templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
@@ -133,8 +148,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         case x: RuntimeConfig.GceWithPdConfig =>
           for {
             diskId <- F.fromEither(
-              x.persistentDiskId
-                .toRight(new RuntimeException("Missing diskId in the request. This should never happen"))
+              x.persistentDiskId.toRight(
+                new RuntimeException("Missing diskId in the request. This should never happen")
+              )
             )
             persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
             persistentDisk <- F.fromEither(
@@ -146,6 +162,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             )
           } yield AttachedDisk.newBuilder
             .setBoot(false)
+            .setDeviceName("user-disk")
             .setInitializeParams(
               AttachedDiskInitializeParams
                 .newBuilder()
@@ -162,6 +179,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         case x: RuntimeConfig.GceConfig =>
           val disk = AttachedDisk.newBuilder
             .setBoot(false)
+            .setDeviceName("user-disk")
             .setInitializeParams(
               AttachedDiskInitializeParams
                 .newBuilder()
@@ -176,6 +194,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
           )
       }
+
       instance = Instance
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)
