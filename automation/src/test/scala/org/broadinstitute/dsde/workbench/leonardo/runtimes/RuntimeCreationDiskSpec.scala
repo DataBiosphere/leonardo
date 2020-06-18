@@ -13,13 +13,12 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-//@DoNotDiscover
+@DoNotDiscover
 class RuntimeCreationDiskSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with NotebookTestUtils
-    with GPAllocBeforeAndAfterAll {
+    with NotebookTestUtils {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
@@ -46,21 +45,7 @@ class RuntimeCreationDiskSpec
       implicit val client = dep.httpClient
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        clusterCopy = ClusterCopy(
-          getRuntimeResponse.runtimeName,
-          getRuntimeResponse.googleProject,
-          getRuntimeResponse.serviceAccount,
-          getRuntimeResponse.runtimeConfig,
-          getRuntimeResponse.status,
-          getRuntimeResponse.auditInfo.creator,
-          getRuntimeResponse.labels,
-          getRuntimeResponse.asyncRuntimeFields.map(_.stagingBucket),
-          getRuntimeResponse.errors,
-          getRuntimeResponse.auditInfo.dateAccessed,
-          false,
-          getRuntimeResponse.autopauseThreshold,
-          false
-        )
+        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(clusterCopy, Python3) { notebookPage =>
