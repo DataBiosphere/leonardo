@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
+import java.time.Instant
+
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, ZoneName}
@@ -108,6 +110,7 @@ class RuntimeCreationDiskSpec
   "create runtime and attach an existing a persistent disk" in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
+    val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
 
@@ -132,9 +135,28 @@ class RuntimeCreationDiskSpec
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
                                                   diskName,
                                                   defaultCreateDiskRequest.copy(size = Some(diskSize)))
-        _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        runtime <- getRuntime(googleProject, runtimeName)
+        runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
+        _ <- IO(withWebDriver { implicit driver =>
+          withNewNotebook(clusterCopy, Python3) { notebookPage =>
+            val createNewFile =
+              """! echo 'this should save' >> /home/jupyter-user/notebooks/test.txt""".stripMargin
+            notebookPage.executeCell(createNewFile)
+          }
+        })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName)
+
+        // Creating new runtime with existing disk should have test.txt file
+        runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntimeRequest)
+        clusterCopyWithData = ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData)
+        _ <- IO(withWebDriver { implicit driver =>
+          withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
+            val persistedData =
+              """! cat /home/jupyter-user/notebooks/test.txt""".stripMargin
+            notebookPage.executeCell(persistedData).get should include("this should save")
+          }
+        })
+        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName)
         _ <- deleteDiskWithWait(googleProject, diskName)
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
