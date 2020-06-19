@@ -1,4 +1,4 @@
-version: '2'
+version: '2.4'
 services:
   proxy:
     container_name: "${PROXY_SERVER_NAME}"
