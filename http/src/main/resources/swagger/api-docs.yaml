@@ -2556,7 +2556,7 @@ components:
                 or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
 
                 see https://cloud.google.com/compute/docs/machine-types
-    GceWithPDConfig:
+    GceWithPdConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
         - $ref: '#/components/schemas/RuntimeConfig'
