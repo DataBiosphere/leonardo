@@ -66,7 +66,8 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
     val getCluster = dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id))
     getCluster.map(c => c.copy(nodepools = c.nodepools.sortBy(_.nodepoolName.value))) shouldEqual Some(
       savedCluster1
-        .copy(namespaces = namespaces, nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value))
+        .copy(namespaces = namespaces,
+              nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value))
     )
 
     //we expect 3 records to be affected by the delete: 2 nodepools, 1 cluster
