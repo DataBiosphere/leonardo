@@ -83,7 +83,6 @@ class MockSamDAO extends SamDAO[IO] {
       case r: PersistentDiskSamResource =>
         IO(persistentDisks += (r, userEmailToAuthorization(creatorEmail)) -> diskActions)
       case r: AppSamResource => IO.unit //TODO
-      case _                 => IO(throw new Exception("Invalid resource to create"))
     }
 
   override def deleteResource(resource: SamResource,
@@ -96,7 +95,6 @@ class MockSamDAO extends SamDAO[IO] {
       case r: PersistentDiskSamResource =>
         IO(persistentDisks.remove((r, userEmailToAuthorization(userEmail))))
       case r: AppSamResource => IO.unit //TODO
-      case _                 => IO(throw new Exception("Invalid resource to delete"))
     }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
