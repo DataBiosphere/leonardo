@@ -154,25 +154,25 @@ blocker: Blocker)
   def getSSLContext(sslCaCert: InputStream): F[HttpsConnectionContext] = {
     //TODO ??
     val password = null
+// see https://stackoverflow.com/questions/889406/using-multiple-ssl-client-certificates-in-java-with-the-same-host
     for {
      certificateFactory <- F.delay(CertificateFactory.getInstance("X.509"))
-     certs <- F.delay(certificateFactory.generateCertificates(sslCaCert))
+     cert <- F.delay(certificateFactory.generateCertificate(sslCaCert))
+
      keyStore <- F.delay(KeyStore.getInstance(KeyStore.getDefaultType())) //TODO: PKCS12?
-     keyStoreFile: FileInputStream = ??? //TODO: ??
-     _ <- F.delay(keyStore.load(keyStoreFile, password.asInstanceOf[Array[Char]]))
-     it = certs.iterator()
-     _ <- F.delay(while (it.hasNext) {
-        val cert: Certificate = it.next()
-        val alias = "ca" + UUID.randomUUID()
-        keyStore.setCertificateEntry(alias, cert)
-      })
+     _ <- F.delay(keyStore.load(null, password))
+     alias = "ca" + UUID.randomUUID()
+     _ <- F.delay(keyStore.setCertificateEntry(alias, cert))
+
      trustManagerFactory <- F.delay(TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm))
      _ <- F.delay(trustManagerFactory.init(keyStore))
-     trustManagers = trustManagerFactory.getTrustManagers
-    sslContext <- F.delay(SSLContext.getInstance("TLS"))
+
      keyManagerFactory <- F.delay(KeyManagerFactory.getInstance("SunX509"))
-    _ <- F.delay(sslContext.init(keyManagerFactory.getKeyManagers, trustManagers, new SecureRandom()))
-    } yield(ConnectionContext.https(sslContext))
+     _ <- F.delay(keyManagerFactory.init(keyStore, password))
+
+    sslContext <- F.delay(SSLContext.getInstance("TLS"))
+    _ <- F.delay(sslContext.init(keyManagerFactory.getKeyManagers, trustManagerFactory.getTrustManagers, null))
+    } yield ConnectionContext.https(sslContext)
   }
 
   private def getKubernetesHeaders(userInfo: UserInfo): immutable.Seq[HttpHeader] =
