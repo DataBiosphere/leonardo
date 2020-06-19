@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
-import java.time.Instant
-
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, ZoneName}

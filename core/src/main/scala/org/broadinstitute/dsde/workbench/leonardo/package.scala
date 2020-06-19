@@ -28,4 +28,15 @@ package object leonardo {
       override def ask: F[TraceId] = as.ask.map(_.traceId)
       override def reader[A](f: TraceId => A): F[A] = ask.map(f)
     }
+
+  private val leoNameReg = "([a-z|0-9|-])*".r
+
+  def validateName(nameString: String): Either[String, String] =
+    nameString match {
+      case leoNameReg(_) => Right(nameString)
+      case _ =>
+        Left(
+          s"Invalid name ${nameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names"
+        )
+    }
 }
