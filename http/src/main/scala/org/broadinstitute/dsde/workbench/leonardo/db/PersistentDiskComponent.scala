@@ -130,10 +130,29 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def updateSize(id: DiskId, newSize: DiskSize, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.size, d.dateAccessed)).update((newSize, dateAccessed))
 
-  def getIsGceFormatted(id: DiskId, dateAccessed: Instant)(implicit ec: ExecutionContext): DBIO[Option[FormattedBy]] =
+  def getFormattedBy(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[FormattedBy]] =
     findByIdQuery(id).map(_.formattedBy).result.headOption.map(_.flatten)
 
-  // TODO add other queries as needed
+  def isDiskAlreadyAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
+    for {
+      formattedBy <- getFormattedBy(diskId)
+      r <- formattedBy match {
+        case None =>
+          for {
+            isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
+            isAttached <- if (isAttachedToRuntime) DBIO.successful(true)
+            else appQuery.isDiskAttached(diskId)
+          } yield isAttached
+        case Some(FormattedBy.Galaxy) =>
+          appQuery.filter(x => x.diskId.isDefined && x.diskId === diskId).length.result.map(_ > 0)
+        case Some(FormattedBy.GCE) =>
+          RuntimeConfigQueries.runtimeConfigs
+            .filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === diskId)
+            .length
+            .result
+            .map(_ > 0)
+      }
+    } yield r
 
   private[db] def marshalPersistentDisk(disk: PersistentDisk): PersistentDiskRecord =
     PersistentDiskRecord(

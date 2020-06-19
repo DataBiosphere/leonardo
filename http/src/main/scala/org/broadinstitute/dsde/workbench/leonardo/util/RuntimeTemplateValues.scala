@@ -92,7 +92,7 @@ object RuntimeTemplateValuesConfig {
     clusterFilesConfig: ClusterFilesConfig,
     clusterResourcesConfig: ClusterResourcesConfig,
     clusterResourceConstraints: Option[RuntimeResourceConstraints],
-    isGceFormatted: Boolean
+    isFormatted: Boolean
   ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       params.runtimeProjectAndName,
@@ -114,7 +114,7 @@ object RuntimeTemplateValuesConfig {
       clusterResourceConstraints,
       RuntimeOperation.Creating,
       None,
-      isGceFormatted
+      isFormatted
     )
 
   def fromRuntime(runtime: Runtime,

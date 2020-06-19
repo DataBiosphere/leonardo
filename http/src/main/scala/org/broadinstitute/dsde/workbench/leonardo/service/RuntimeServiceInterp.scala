@@ -110,6 +110,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                       googleProject,
                                                       userInfo,
                                                       petSA,
+                                                      FormattedBy.GCE,
                                                       authProvider,
                                                       diskConfig)
                         .map(diskResult =>
@@ -667,6 +668,7 @@ object RuntimeServiceInterp {
     googleProject: GoogleProject,
     userInfo: UserInfo,
     serviceAccount: WorkbenchEmail,
+    willByUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
     diskConfig: PersistentDiskConfig
   )(implicit as: ApplicativeAsk[F, AppContext],
@@ -680,10 +682,30 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
+            isAttached <- pd.formattedBy match {
+              case None =>
+                for {
+                  isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                  isAttached <- if (isAttachedToRuntime) F.pure(true)
+                  else appQuery.isDiskAttached(pd.id).transaction
+                } yield isAttached
+              case Some(FormattedBy.Galaxy) =>
+                if (willByUsedBy == FormattedBy.Galaxy) //TODO: If we support more apps, we need to update this check
+                  appQuery.isDiskAttached(pd.id).transaction
+                else
+                  F.raiseError[Boolean](
+                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.Galaxy)
+                  )
+              case Some(FormattedBy.GCE) =>
+                if (willByUsedBy == FormattedBy.Galaxy)
+                  RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                else
+                  F.raiseError[Boolean](
+                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.GCE)
+                  )
+            }
             // throw 409 if the disk is attached to a runtime
-            attachedToRuntime <- RuntimeServiceDbQueries.isDiskAttachedToRuntime(pd.id).transaction
-            attachedToKubernetesApp <- KubernetesServiceDbQueries.isDiskAttached(pd).transaction
-            _ <- if (attachedToRuntime || attachedToKubernetesApp)
+            _ <- if (isAttached)
               F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
             else F.unit
             hasPermission <- authProvider.hasPersistentDiskPermission(pd.samResource,
@@ -746,5 +768,14 @@ final case class DiskNotSupportedException(traceId: TraceId)
 final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName, traceId: TraceId)
     extends LeoException(
       s"${traceId} | Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
+      StatusCodes.Conflict
+    )
+
+final case class DiskAlreadyFormattedByOtherApp(googleProject: GoogleProject,
+                                                name: DiskName,
+                                                traceId: TraceId,
+                                                formattedBy: FormattedBy)
+    extends LeoException(
+      s"${traceId} | Persistent disk ${googleProject.value}/${name.value} is already formatted by ${formattedBy.asString}",
       StatusCodes.Conflict
     )

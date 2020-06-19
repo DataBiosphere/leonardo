@@ -759,6 +759,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                                       project,
                                                                       userInfo,
                                                                       serviceAccount,
+                                                                      FormattedBy.GCE,
                                                                       whitelistAuthProvider,
                                                                       Config.persistentDiskConfig)
       disk = diskResult.disk
@@ -798,6 +799,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .attempt
@@ -818,6 +820,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .unsafeRunSync()
@@ -839,6 +842,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .attempt
@@ -858,6 +862,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                              project,
                                                              userInfo,
                                                              serviceAccount,
+                                                             FormattedBy.GCE,
                                                              whitelistAuthProvider,
                                                              Config.persistentDiskConfig)
     } yield ()

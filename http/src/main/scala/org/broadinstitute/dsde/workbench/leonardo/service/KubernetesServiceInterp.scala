@@ -96,6 +96,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
           googleProject,
           userInfo,
           petSA,
+          FormattedBy.Galaxy,
           authProvider,
           leoKubernetesConfig.diskConfig
         )
