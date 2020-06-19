@@ -15,22 +15,28 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.stream.Materializer
-import cats.effect.{ContextShift, IO}
+import cats.effect.{Async, ContextShift, IO, Timer}
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import cats.implicits._
+import cats.effect.implicits._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
+import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesProxyService
 
-class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
-  implicit materializer: Materializer,
-  cs: ContextShift[IO]
+class ProxyRoutes[F[_]](proxyService: ProxyService, corsSupport: CorsSupport, kubernetesProxyService: KubernetesProxyService[F])(
+  implicit F: Async[F],
+  materializer: Materializer,
+  cs: ContextShift[F],
+  timer: Timer[IO],
+  cs2: ContextShift[IO]
 ) extends LazyLogging {
   val route: Route =
     //note that the "notebooks" path prefix is deprecated
     pathPrefix("proxy" | "notebooks") {
-      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+//      implicit val traceId1 = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
+      implicit val traceId2 = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
       corsSupport.corsHandler {
 
@@ -54,7 +60,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                 }
               }
             }
-          } ~
+          } ~ path("jupyter" | "rstudio") {
             (extractRequest & extractUserInfo) { (request, userInfo) =>
               (logRequestResultForMetrics(userInfo)) {
                 // Proxy logic handled by the ProxyService class
@@ -63,39 +69,33 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                   // we are discarding the request entity here. we have noticed that PUT requests caused by
                   // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
                   // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                  proxyService.proxyRequest(userInfo, googleProject, clusterName, request).onError {
-                    case e =>
-                      IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
-                        .fromFuture(IO(request.entity.discardBytes().future))
-                  }
+                  IO(println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@lol jupyter/rstudio work")) >>
+                    proxyService.proxyRequest(userInfo, googleProject, clusterName, request).onError {
+                      case e =>
+                        IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
+                          .fromFuture(IO(request.entity.discardBytes().future))
+                    }
                 }
               }
-            } ~
-            (extractRequest & extractUserInfo) { (request, userInfo) =>
-              (logRequestResultForMetrics(userInfo)) {
-                // Proxy logic handled by the ProxyService class
-                // Note ProxyService calls the LeoAuthProvider internally
-                path("api" / "localize") { // route for custom Jupyter server extension
-                  complete {
-                    // we are discarding the request entity here. we have noticed that PUT requests caused by
-                    // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
-                    // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                    proxyService
-                      .proxyLocalize(userInfo, googleProject, clusterName, request)
-                      .onError { case _ => IO.fromFuture(IO(request.entity.discardBytes().future)).void }
-                  }
-                }
-              }
-            } ~ path(Segment) { serviceNameString =>
+            }
+          } ~ path(Segment) { serviceNameString =>
             val serviceName = ServiceName(serviceNameString)
+            val appName = AppName(clusterNameParam)
+
             (extractRequest & extractUserInfo) { (request, userInfo) =>
               (logRequestResultForMetrics(userInfo)) {
                 // Proxy logic handled by the ProxyService class
                 // Note ProxyService calls the LeoAuthProvider internally
                 complete {
-                  case class AppName(name: String)
-                  val appName = AppName(clusterNameParam)
-                  IO(HttpResponse())
+
+                  IO(println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ima actually in this new segment :)")) >>
+                  kubernetesProxyService.proxyRequest(userInfo, googleProject, appName, serviceName, request)
+                    .toIO
+                    .onError {
+                      case e =>
+                        IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
+                          .fromFuture(IO(request.entity.discardBytes().future))
+                    }
                 }
               }
             }

@@ -121,6 +121,29 @@ class ProxyRoutesSpec
     }
   }
 
+  it should s"handle /jupyter id3" in {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter")
+      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+    }
+  }
+
+  it should s"handle /service id3" in {
+    Get(s"/$prefix/$googleProject/$clusterName/service1")
+      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+    }
+  }
+
+  it should s"handle /service/x id3" in {
+    Get(s"/$prefix/$googleProject/$clusterName/service1/x")
+      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      handled shouldBe false
+    }
+  }
+
   it should s"reject non-cookied requests ($prefix)" in {
     Get(s"/$prefix/$googleProject/$clusterName") ~> httpRoutes.route ~> check {
       handled shouldBe true

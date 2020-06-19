@@ -207,9 +207,9 @@ object Config {
     )
   }
 
-  implicit private val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative {
+  implicit private val clusterDnsCacheConfigValueReader: ValueReader[CacheConfig] = ValueReader.relative {
     config =>
-      ClusterDnsCacheConfig(
+      CacheConfig(
         toScalaDuration(config.getDuration("cacheExpiryTime")),
         config.getInt("cacheMaxSize")
       )
@@ -442,7 +442,7 @@ object Config {
 
   val zombieRuntimeMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
-  val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
+  val clusterDnsCacheConfig = config.as[CacheConfig]("clusterDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 

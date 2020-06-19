@@ -7,7 +7,7 @@ import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect}
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
@@ -46,7 +46,7 @@ case class DnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
  */
 class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
                                                   dbRef: DbReference[F],
-                                                  dnsCacheConfig: ClusterDnsCacheConfig,
+                                                  dnsCacheConfig: CacheConfig,
                                                   blocker: Blocker)(implicit ec: ExecutionContext)
     extends LazyLogging {
 

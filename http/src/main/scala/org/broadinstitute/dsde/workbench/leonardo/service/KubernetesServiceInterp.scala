@@ -10,21 +10,9 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  nodepoolQuery,
-  DbReference,
-  KubernetesServiceDbQueries,
-  SaveApp,
-  SaveKubernetesCluster
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveApp, SaveKubernetesCluster, appQuery, nodepoolQuery}
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  GalaxyAppConfig,
-  KubernetesClusterConfig,
-  NodepoolConfig,
-  PersistentDiskConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{GalaxyAppConfig, KubernetesClusterConfig, NodepoolConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -33,9 +21,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import LeonardoService.includeDeletedKey
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 
@@ -316,6 +304,13 @@ case class AppNotFoundException(googleProject: GoogleProject, appName: AppName, 
       s"App ${googleProject.value}/${appName.value} not found. Trace ID: ${traceId.asString}",
       StatusCodes.NotFound
     )
+
+case class ServiceNotFoundException(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName, traceId: TraceId)
+  extends LeoException(
+    s"Service ${serviceName} for app ${googleProject.value}/${appName.value} not found. Trace ID: ${traceId.asString}",
+    StatusCodes.NotFound
+  )
+
 
 case class AppAlreadyExistsException(googleProject: GoogleProject,
                                      appName: AppName,

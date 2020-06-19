@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.{unmarshalKubernetesCluster}
+import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
@@ -9,8 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import cats.data.Chain
 import cats.implicits._
 import LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate}
-
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 
 object KubernetesServiceDbQueries {
