@@ -40,7 +40,6 @@ case class KubernetesProxyConfig(port: Int, remoteUser: String)
 
 class KubernetesProxyService[F[_]](
                               kubernetesProxyConfig: KubernetesProxyConfig,
-                              gkeService: GKEService[F],
                               credentials: GoogleCredentials,
                               kubernetesDnsCache: KubernetesDnsCache[F],
 authProvider: LeoAuthProvider[F],
@@ -97,14 +96,13 @@ blocker: Blocker)
       ))
       ctx <- ev.ask
       resp <- getTargetHost(googleProject, appName, serviceName) flatMap {
-        case HostAppReady(targetHost, gkeClusterId) =>
+        case HostAppReady(targetHost, sslContext) =>
           // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
           // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
           // The presence of this header distinguishes WebSocket from http requests.
           val res = for {
             //          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, now))
-          //TODO: when checking cache,ensure we dont make google call for cert again
-            response <- handleHttpRequest(userInfo, targetHost, request)
+            response <- handleHttpRequest(userInfo, targetHost, sslContext, request)
             r <- if (response.status.isFailure())
               F.delay(logger.info(s"Error response for proxied request ${request.uri}: ${response.status}")).as(response)
             else F.pure(response)
@@ -132,16 +130,14 @@ blocker: Blocker)
     } yield resp
 
   def getTargetHost(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[AppHostStatus] =
-    kubernetesDnsCache.getHostStatus(KubernetesCacheKey(googleProject, appName, serviceName))
+    kubernetesDnsCache.getHostStatus(AppStatusCacheKey(googleProject, appName, serviceName))
 
   import akka.http.scaladsl.Http
-  private def handleHttpRequest(userInfo: UserInfo, targetHost: Host, gkeClusterId: KubernetesClusterId, request: HttpRequest): F[HttpResponse] =
+  private def handleHttpRequest(userInfo: UserInfo, targetHost: Host, sslContext: HttpsConnectionContext, request: HttpRequest): F[HttpResponse] =
     for {
      _ <- F.delay(logger.debug(s"Opening https connection to ${targetHost.address}:${kubernetesProxyConfig.port}"))
-     httpsContext <- getSSLContext(null)
-    flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, kubernetesProxyConfig.port, httpsContext))
+    flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, kubernetesProxyConfig.port, sslContext))
 
-     //TODO: add remote_user header
     newHeaders = filterHeaders(request.headers) ++ getKubernetesHeaders(userInfo)
     source <- F.liftIO(IO.fromFuture(IO(
       Source
@@ -150,30 +146,6 @@ blocker: Blocker)
       .runWith(Sink.head)
     )))
     } yield source
-
-  def getSSLContext(sslCaCert: InputStream): F[HttpsConnectionContext] = {
-    //TODO ??
-    val password = null
-// see https://stackoverflow.com/questions/889406/using-multiple-ssl-client-certificates-in-java-with-the-same-host
-    for {
-     certificateFactory <- F.delay(CertificateFactory.getInstance("X.509"))
-     cert <- F.delay(certificateFactory.generateCertificate(sslCaCert))
-
-     keyStore <- F.delay(KeyStore.getInstance(KeyStore.getDefaultType())) //TODO: PKCS12?
-     _ <- F.delay(keyStore.load(null, password))
-     alias = "ca" + UUID.randomUUID()
-     _ <- F.delay(keyStore.setCertificateEntry(alias, cert))
-
-     trustManagerFactory <- F.delay(TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm))
-     _ <- F.delay(trustManagerFactory.init(keyStore))
-
-     keyManagerFactory <- F.delay(KeyManagerFactory.getInstance("SunX509"))
-     _ <- F.delay(keyManagerFactory.init(keyStore, password))
-
-    sslContext <- F.delay(SSLContext.getInstance("TLS"))
-    _ <- F.delay(sslContext.init(keyManagerFactory.getKeyManagers, trustManagerFactory.getTrustManagers, null))
-    } yield ConnectionContext.https(sslContext)
-  }
 
   private def getKubernetesHeaders(userInfo: UserInfo): immutable.Seq[HttpHeader] =
     immutable.Seq(
