@@ -12,6 +12,8 @@ services:
     # when Application Default Credentials are available.
     # See https://broadworkbench.atlassian.net/browse/IA-1026
     entrypoint: "tail -f /dev/null"
+    #TODO doesn't work for some reason
+    #runtime: runsc
     network_mode: host
     restart: always
     environment:

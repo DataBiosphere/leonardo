@@ -7,6 +7,7 @@ services:
   rstudio:
     container_name: "${RSTUDIO_SERVER_NAME}"
     image: "${RSTUDIO_DOCKER_IMAGE}"
+    runtime: runsc
     network_mode: host
     restart: always
     environment:

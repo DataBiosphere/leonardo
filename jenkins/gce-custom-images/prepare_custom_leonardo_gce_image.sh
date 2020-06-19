@@ -120,7 +120,8 @@ retry 5 apt-get install -y -q \
     gnupg2 \
     software-properties-common \
     libffi-dev \
-    python3-pip
+    python3-pip \
+    jq
 
 # Install google-fluent-d
 # https://cloud.google.com/logging/docs/agent/installation
@@ -208,6 +209,21 @@ docker_compose_binary_download_target_filename="/usr/local/bin/docker-compose"
 
 retry 5 curl -L "${docker_compose_binary_download_url:?}" -o "${docker_compose_binary_download_target_filename:?}"
 chmod +x "${docker_compose_binary_download_target_filename:?}"
+
+# Install gvisor. See:
+# https://gvisor.dev/docs/user_guide/install/#install-from-an-apt-repository
+# https://gvisor.dev/docs/user_guide/quick_start/docker/
+log 'Installing gvisor...'
+curl -fsSL https://gvisor.dev/archive.key | sudo apt-key add -
+add-apt-repository "deb https://storage.googleapis.com/gvisor/releases release main"
+retry 5 apt-get update
+# the apt-get install automatically configures docker, no need for additional steps
+# https://gvisor.dev/docs/user_guide/quick_start/docker/
+retry 5 apt-get install -y -q runsc
+runsc install
+jq '.runtimes.runsc += {"runtimeArgs":["--network=host"]}' /etc/docker/daemon.json > /etc/docker/daemon.json.tmp \
+  && mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
+systemctl restart docker
 
 # Pull docker image versions as of the time this script ran; this caches them in the
 # GCE custom instance image.
