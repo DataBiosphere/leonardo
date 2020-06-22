@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
+import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
   RuntimeAutopauseSpec,
   RuntimeCreationDiskSpec,
@@ -115,12 +116,12 @@ final class LeonardoSuite
 final class LeonardoTerraDockerSuite
     extends Suites(
       new NotebookAouSpec,
-//      new NotebookBioconductorKernelSpec,
+      new NotebookBioconductorKernelSpec,
       new NotebookGATKSpec,
-      new NotebookHailSpec
-//      new NotebookPyKernelSpec,
-//      new NotebookRKernelSpec,
-//      new RStudioSpec
+      new NotebookHailSpec,
+      new NotebookPyKernelSpec,
+      new NotebookRKernelSpec,
+      new RStudioSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
