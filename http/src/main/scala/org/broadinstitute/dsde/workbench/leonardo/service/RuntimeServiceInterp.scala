@@ -698,11 +698,11 @@ object RuntimeServiceInterp {
                   )
               case Some(FormattedBy.GCE) =>
                 if (willByUsedBy == FormattedBy.Galaxy)
-                  RuntimeConfigQueries.isDiskAttached(pd.id).transaction
-                else
                   F.raiseError[Boolean](
                     DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.GCE)
                   )
+                else
+                  RuntimeConfigQueries.isDiskAttached(pd.id).transaction
             }
             // throw 409 if the disk is attached to a runtime
             _ <- if (isAttached)
