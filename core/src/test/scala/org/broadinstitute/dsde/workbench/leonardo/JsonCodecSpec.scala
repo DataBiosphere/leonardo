@@ -61,7 +61,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       """
         |{
         |   "machineType": "n1-standard-8",
-        |   "cloudService": "GCE"
+        |   "cloudService": "GCE",
+        |   "bootDiskSize": 50
         |}
         |""".stripMargin
 
