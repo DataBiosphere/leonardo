@@ -5,7 +5,11 @@ import java.util.UUID
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  AppSamResource,
+  PersistentDiskSamResource,
+  RuntimeSamResource
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -26,6 +30,7 @@ class MockSamDAO extends SamDAO[IO] {
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val runtimeActions = Set("status", "connect", "sync", "delete", "read_policies")
   val diskActions = Set("read", "attach", "modify", "delete", "read_policies")
+  val appActions = Set()
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   override def hasResourcePermission(resource: SamResource, action: String, authHeader: Authorization)(
@@ -65,6 +70,8 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(projectOwners.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
       case SamResourceType.PersistentDisk =>
         IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty)).map(_.asInstanceOf[List[A]])
+      case SamResourceType.App =>
+        IO.pure(List[A]()) //TODO
     }
 
   override def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
@@ -75,7 +82,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO(runtimes += (r, userEmailToAuthorization(creatorEmail)) -> runtimeActions)
       case r: PersistentDiskSamResource =>
         IO(persistentDisks += (r, userEmailToAuthorization(creatorEmail)) -> diskActions)
-      case _ => IO(throw new Exception("Invalid resource to create"))
+      case r: AppSamResource => IO.unit //TODO
     }
 
   override def deleteResource(resource: SamResource,
@@ -87,7 +94,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO(runtimes.remove((r, userEmailToAuthorization(userEmail))))
       case r: PersistentDiskSamResource =>
         IO(persistentDisks.remove((r, userEmailToAuthorization(userEmail))))
-      case _ => IO(throw new Exception("Invalid resource to delete"))
+      case r: AppSamResource => IO.unit //TODO
     }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
@@ -129,6 +136,7 @@ class MockSamDAO extends SamDAO[IO] {
           .map(_.toList)
           .getOrElse(List.empty)
         IO.pure(res)
+      case SamResourceType.App => IO.pure(List.empty) //TODO
     }
 }
 
