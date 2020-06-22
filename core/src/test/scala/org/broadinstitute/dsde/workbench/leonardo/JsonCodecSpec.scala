@@ -49,7 +49,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
     val res = decode[RuntimeConfig](inputString)
     val expected = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-8"),
-      DiskSize(500)
+      DiskSize(500),
+      None
     )
     res shouldBe (Right(expected))
   }
@@ -67,7 +68,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
     val res = decode[RuntimeConfig](inputString)
     val expected = RuntimeConfig.GceWithPdConfig(
       MachineTypeName("n1-standard-8"),
-      None
+      None,
+      DiskSize(50)
     )
     res shouldBe (Right(expected))
   }
@@ -97,12 +99,13 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |{
         |   "cloudService": "gce",
         |   "machineType": "n1-standard-8",
-        |   "persistentDiskId": 50
+        |   "persistentDiskId": 50,
+        |   "bootDiskSize": 50
         |}
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50))))
+    res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50)))
   }
 
   it should "fail decoding if diskName has upper case" in {

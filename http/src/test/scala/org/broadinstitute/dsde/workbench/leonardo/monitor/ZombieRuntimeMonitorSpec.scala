@@ -239,7 +239,8 @@ class ZombieRuntimeMonitorSpec
   it should "detect active zombie gce instance" in isolatedDbTest {
     val runtimeConfig = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
-      DiskSize(50)
+      DiskSize(50),
+      bootDiskSize = Some(DiskSize(50))
     )
     val savedTestRuntime = testCluster1.saveWithRuntimeConfig(runtimeConfig)
     savedTestRuntime.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
@@ -270,7 +271,8 @@ class ZombieRuntimeMonitorSpec
     // create a running gce instance
     val runtimeConfig = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
-      DiskSize(50)
+      DiskSize(50),
+      bootDiskSize = Some(DiskSize(50))
     )
     val savedTestInstance1 = deletedRuntime1.saveWithRuntimeConfig(runtimeConfig)
     savedTestInstance1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual deletedRuntime1

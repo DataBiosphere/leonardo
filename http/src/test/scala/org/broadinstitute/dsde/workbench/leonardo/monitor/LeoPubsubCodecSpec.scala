@@ -36,7 +36,7 @@ class LeoPubsubCodecSpec extends FlatSpec with Matchers {
       Set.empty,
       false,
       Map.empty,
-      RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(50)),
+      RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(50), bootDiskSize = Some(DiskSize(50))),
       false,
       None
     )

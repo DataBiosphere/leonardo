@@ -82,7 +82,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO(runtimes += (r, userEmailToAuthorization(creatorEmail)) -> runtimeActions)
       case r: PersistentDiskSamResource =>
         IO(persistentDisks += (r, userEmailToAuthorization(creatorEmail)) -> diskActions)
-      case r: AppSamResource => IO.unit //TODO
+      case _: AppSamResource => IO.unit //TODO
     }
 
   override def deleteResource(resource: SamResource,
@@ -94,7 +94,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO(runtimes.remove((r, userEmailToAuthorization(userEmail))))
       case r: PersistentDiskSamResource =>
         IO(persistentDisks.remove((r, userEmailToAuthorization(userEmail))))
-      case r: AppSamResource => IO.unit //TODO
+      case _: AppSamResource => IO.unit //TODO
     }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
