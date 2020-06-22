@@ -204,7 +204,9 @@ object RuntimeConfig {
   final case class GceConfig(
     machineType: MachineTypeName,
     diskSize: DiskSize,
-    bootDiskSize: Option[DiskSize]
+    bootDiskSize: Option[
+      DiskSize
+    ] //This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
