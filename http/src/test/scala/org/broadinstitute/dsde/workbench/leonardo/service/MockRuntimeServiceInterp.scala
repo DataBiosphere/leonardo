@@ -36,7 +36,7 @@ object MockRuntimeServiceInterp extends RuntimeService[IO] {
           CommonTestData.testCluster.runtimeName,
           CommonTestData.testCluster.googleProject,
           CommonTestData.testCluster.auditInfo,
-          CommonTestData.defaultDataprocRuntimeConfig,
+          CommonTestData.defaultGceRuntimeConfig,
           CommonTestData.testCluster.proxyUrl,
           CommonTestData.testCluster.status,
           CommonTestData.testCluster.labels,
