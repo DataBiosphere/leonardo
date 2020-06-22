@@ -200,7 +200,7 @@ class AuthProviderSpec
       )(any[ApplicativeAsk[IO, TraceId]])
     }
 
-    "should not let you do things if the auth provider says no" in {
+    "should not let you do things if the auth provider says no" in isolatedDbTest {
       val spyProvider = spy(alwaysNoProvider)
       val leo = leoWithAuthProvider(spyProvider)
       val proxy = proxyWithAuthProvider(spyProvider)
