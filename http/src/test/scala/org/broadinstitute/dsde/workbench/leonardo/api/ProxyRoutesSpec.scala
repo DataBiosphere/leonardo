@@ -69,13 +69,8 @@ class ProxyRoutesSpec
 
   val prefix = "proxy"
 
-  "ProxyRoutes" should s"listen on /$prefix/{project}/{name}/... ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
-      handled shouldBe true
-      status shouldEqual StatusCodes.OK
-      validateCors()
-    }
-    Get(s"/$prefix/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+  "ProxyRoutes" should s"listen on /$prefix/{project}/{name}/jupyter)" in {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors()
@@ -83,7 +78,7 @@ class ProxyRoutesSpec
     val newName = "aDifferentClusterName"
     proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(newName)),
                                              Some(runtimeSamResource))
-    Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$newName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.NotFound
       validateCors()
@@ -100,19 +95,19 @@ class ProxyRoutesSpec
   it should s"404 for non-existent clusters ($prefix)" in {
     val newName = "aDifferentClusterName"
     // should 404 since the internal id cannot be looked up
-    Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$newName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
     // should still 404 even if a cache entry is present
     proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(newName)),
                                              Some(runtimeSamResource))
-    Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$newName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
   it should s"set CORS headers in proxy requests ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName")
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter")
       .addHeader(Cookie(tokenCookie))
       .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
       handled shouldBe true
@@ -137,7 +132,7 @@ class ProxyRoutesSpec
     }
   }
 
-  it should s"handle /service/x id3" in {
+  it should s"not handle /service/x" in {
     Get(s"/$prefix/$googleProject/$clusterName/service1/x")
       .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       handled shouldBe false
@@ -145,21 +140,21 @@ class ProxyRoutesSpec
   }
 
   it should s"reject non-cookied requests ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName") ~> httpRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter") ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.Unauthorized
     }
   }
 
   it should s"404 when using a non-white-listed user ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName")
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter")
       .addHeader(Cookie(unauthorizedTokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
   it should s"401 when using an expired token ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(expiredTokenCookie)) ~> httpRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(expiredTokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
     }
   }
@@ -171,9 +166,9 @@ class ProxyRoutesSpec
     proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
                                              Some(runtimeSamResource))
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, kubernetesProxyService)
-    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Data].path shouldEqual s"/$prefix/$googleProject/$clusterName"
+      responseAs[Data].path shouldEqual s"/$prefix/$googleProject/$clusterName/jupyter"
       val message = queue.tryDequeue1.unsafeRunSync().get
       message.googleProject.value shouldBe googleProject
       message.runtimeName.asString shouldBe clusterName
@@ -181,29 +176,29 @@ class ProxyRoutesSpec
   }
 
   it should s"pass through query string params ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       responseAs[Data].qs shouldBe None
     }
-    Get(s"/$prefix/$googleProject/$clusterName?foo=bar&baz=biz")
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter?foo=bar&baz=biz")
       .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
     }
   }
 
   it should s"pass through http methods ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       responseAs[Data].method shouldBe "GET"
     }
-    Post(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Post(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       responseAs[Data].method shouldBe "POST"
     }
-    Put(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Put(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       responseAs[Data].method shouldBe "PUT"
     }
   }
 
   it should s"pass through headers ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName")
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter")
       .addHeader(Cookie(tokenCookie))
       .addHeader(RawHeader("foo", "bar"))
       .addHeader(RawHeader("baz", "biz")) ~> proxyRoutes.route ~> check {
@@ -213,7 +208,7 @@ class ProxyRoutesSpec
 
   it should s"remove utf-8'' from content-disposition header filenames ($prefix)" in {
     // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
-    Get(s"/$prefix/$googleProject/$clusterName/content-disposition-test")
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter")
       .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       responseAs[HttpResponse].headers should contain(
         `Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb"))
@@ -233,7 +228,7 @@ class ProxyRoutesSpec
     // Flow to hit the proxy server
     val webSocketFlow = Http()
       .webSocketClientFlow(
-        WebSocketRequest(Uri(s"ws://localhost:9000/$prefix/$googleProject/$clusterName/websocket"),
+        WebSocketRequest(Uri(s"ws://localhost:9000/$prefix/$googleProject/$clusterName/jupyter/websocket"),
                          immutable.Seq(Cookie(tokenCookie)))
       )
       .map {
@@ -301,7 +296,7 @@ class ProxyRoutesSpec
   }
 
   it should s"401 when using an expired token ($prefix)" in {
-    Get(s"/$prefix/$googleProject/$clusterName")
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter")
       .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
       .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
@@ -313,7 +308,7 @@ class ProxyRoutesSpec
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
 
     // regular request with a cookie should succeed but NOT return a Set-Cookie header
-    Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
+    Get(s"/$prefix/$googleProject/$clusterName/jupyter").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       header[`Set-Cookie`] shouldBe None
