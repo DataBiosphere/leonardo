@@ -668,7 +668,7 @@ object RuntimeServiceInterp {
     googleProject: GoogleProject,
     userInfo: UserInfo,
     serviceAccount: WorkbenchEmail,
-    willByUsedBy: FormattedBy,
+    willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
     diskConfig: PersistentDiskConfig
   )(implicit as: ApplicativeAsk[F, AppContext],
@@ -690,14 +690,14 @@ object RuntimeServiceInterp {
                   else appQuery.isDiskAttached(pd.id).transaction
                 } yield isAttached
               case Some(FormattedBy.Galaxy) =>
-                if (willByUsedBy == FormattedBy.Galaxy) //TODO: If we support more apps, we need to update this check
+                if (willBeUsedBy == FormattedBy.Galaxy) //TODO: If we support more apps, we need to update this check
                   appQuery.isDiskAttached(pd.id).transaction
                 else
                   F.raiseError[Boolean](
                     DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.Galaxy)
                   )
               case Some(FormattedBy.GCE) =>
-                if (willByUsedBy == FormattedBy.Galaxy)
+                if (willBeUsedBy == FormattedBy.Galaxy)
                   F.raiseError[Boolean](
                     DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.GCE)
                   )

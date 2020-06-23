@@ -133,7 +133,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def getFormattedBy(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[FormattedBy]] =
     findByIdQuery(id).map(_.formattedBy).result.headOption.map(_.flatten)
 
-  def isDiskAlreadyAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
+  def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
     for {
       formattedBy <- getFormattedBy(diskId)
       r <- formattedBy match {
@@ -144,13 +144,9 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
             else appQuery.isDiskAttached(diskId)
           } yield isAttached
         case Some(FormattedBy.Galaxy) =>
-          appQuery.filter(x => x.diskId.isDefined && x.diskId === diskId).length.result.map(_ > 0)
+          appQuery.isDiskAttached(diskId)
         case Some(FormattedBy.GCE) =>
-          RuntimeConfigQueries.runtimeConfigs
-            .filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === diskId)
-            .length
-            .result
-            .map(_ > 0)
+          RuntimeConfigQueries.isDiskAttached(diskId)
       }
     } yield r
 
