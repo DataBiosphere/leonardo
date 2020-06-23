@@ -54,7 +54,7 @@ object Boot extends IOApp {
 
     implicit val logger = Slf4jLogger.getLogger[IO]
 
-    createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
+    createDependencies[IO](applicationConfig).use { appDependencies =>
       implicit val openTelemetry = appDependencies.openTelemetryMetrics
       implicit val dbRef = appDependencies.dbReference
 

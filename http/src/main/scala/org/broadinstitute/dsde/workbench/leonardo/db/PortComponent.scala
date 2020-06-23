@@ -1,11 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import org.broadinstitute.dsde.workbench.leonardo.{KubernetesPort, KubernetesService, PortId, ServiceId}
+import org.broadinstitute.dsde.workbench.leonardo.{PortId, ServiceId}
 import slick.lifted.Tag
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
-import cats.implicits._
-import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   PortName,
   PortNum,
@@ -36,25 +34,21 @@ class PortTable(tag: Tag) extends Table[PortRecord](tag, "PORT") {
 
 object portQuery extends TableQuery(new PortTable(_)) {
 
-  def saveAllForService(service: KubernetesService)(implicit ec: ExecutionContext): DBIO[List[KubernetesPort]] =
-    service.config.ports.traverse(p => saveForService(service.id, p))
-
-  def saveForService(serviceId: ServiceId, port: KubernetesPort)(implicit ec: ExecutionContext): DBIO[KubernetesPort] =
+  def saveForService(serviceId: ServiceId, port: ServicePort)(implicit ec: ExecutionContext): DBIO[ServicePort] =
     for {
-      portId <- portQuery returning portQuery.map(_.id) += PortRecord(port.id,
+      portId <- portQuery returning portQuery.map(_.id) += PortRecord(PortId(-1),
                                                                       serviceId,
-                                                                      port.servicePort.name,
-                                                                      port.servicePort.num,
-                                                                      port.servicePort.targetPort,
-                                                                      port.servicePort.protocol)
-    } yield port.copy(id = portId)
+                                                                      port.name,
+                                                                      port.num,
+                                                                      port.targetPort,
+                                                                      port.protocol)
+    } yield port
 
-  def unmarshalPort(rec: PortRecord): KubernetesPort =
-    KubernetesPort(rec.id,
+  def unmarshalPort(rec: PortRecord): ServicePort =
                    ServicePort(
                      rec.portNum,
                      rec.portName,
                      rec.targetPortNum,
                      rec.protocol
-                   ))
+                   )
 }

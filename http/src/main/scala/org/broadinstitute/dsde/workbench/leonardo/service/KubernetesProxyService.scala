@@ -31,7 +31,7 @@ case class KubernetesProxyConfig(remoteUser: RemoteUser)
 
 class KubernetesProxyService[F[_]](
                                     kubernetesProxyConfig: KubernetesProxyConfig,
-                                    credentials: GoogleCredentials,
+                                    credentials: GoogleCredentials, //TODO: we should be able to get this from the GKEService potentially
                                     kubernetesProxyCache: KubernetesProxyCache[F],
                                     authProvider: LeoAuthProvider[F],
                                     //dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
@@ -152,10 +152,11 @@ class KubernetesProxyService[F[_]](
     "Connection"
   ).map(_.toLowerCase)
 
-  final case class KubernetesProxyException(googleProject: GoogleProject, appName: AppName)
-    extends LeoException(s"Unable to proxy connection to app on ${googleProject.value}/${appName.value}",
-      StatusCodes.InternalServerError)
 }
+
+final case class KubernetesProxyException(googleProject: GoogleProject, appName: AppName)
+  extends LeoException(s"Unable to proxy connection to app on ${googleProject.value}/${appName.value}",
+    StatusCodes.InternalServerError)
 
 final case class AppNotReadyException(googleProject: GoogleProject, appName: AppName)
   extends LeoException(

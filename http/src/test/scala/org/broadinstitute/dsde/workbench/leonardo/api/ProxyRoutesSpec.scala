@@ -170,7 +170,7 @@ class ProxyRoutesSpec
       new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache, Some(queue))
     proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
                                              Some(runtimeSamResource))
-    val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
+    val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, kubernetesProxyService)
     Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Data].path shouldEqual s"/$prefix/$googleProject/$clusterName"

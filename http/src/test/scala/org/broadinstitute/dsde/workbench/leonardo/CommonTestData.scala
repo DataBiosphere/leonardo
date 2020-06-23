@@ -7,35 +7,23 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{
-  DataprocRole,
-  DiskName,
-  InstanceName,
-  MachineTypeName,
-  NetworkName,
-  SubnetworkName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGKEService
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
-import org.broadinstitute.dsde.workbench.leonardo.http.{userScriptStartupOutputUriMetadataKey, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.model.google.{
-  GoogleProject,
-  ServiceAccountKey,
-  ServiceAccountKeyId,
-  ServiceAccountPrivateKeyData,
-  _
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.{RuntimeConfigRequest, userScriptStartupOutputUriMetadataKey}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 object CommonTestData {
@@ -109,6 +97,8 @@ object CommonTestData {
   val clusterBucketConfig = Config.clusterBucketConfig
   val contentSecurityPolicy = Config.contentSecurityPolicy
   val leoKubernetesConfig = Config.leoKubernetesConfig
+  val kubernetesCacheConfig = Config.kubernetesCacheConfig
+  val kubernetesProxyConfig = Config.kubernetesProxyConfig
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),
@@ -120,6 +110,9 @@ object CommonTestData {
     numberOfPreemptibleWorkers = None,
     properties = Map.empty
   )
+
+  class MockGoogleCredentials extends GoogleCredentials {}
+  val mockGoogleCreds = new MockGoogleCredentials
 
   val testClusterRequest = CreateRuntimeRequest(
     Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
@@ -146,6 +139,7 @@ object CommonTestData {
     Some("ThisIsADefaultClientID")
   )
 
+  val mockGKEService = new MockGKEService
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage

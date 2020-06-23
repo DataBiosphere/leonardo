@@ -66,13 +66,14 @@ object KubernetesServiceDbQueries {
                                           nodepoolQuery.filter(_.destroyedDate === dummyDate),
                                           appQuery.findActiveByNameQuery(appName),
                                           labelFilter)
-      validateClusters <- if (clusters.length > 1)
+      _ <- if (clusters.length > 1)
         DBIO.failed(
           GetAppAssertion(
             "(GoogleProject, AppName) uniqueness has been violated, clusters returned > 1 by getActiveFullApp"
           )
         )
       else DBIO.successful(0)
+
       validatedApp <- clusters.headOption.fold[DBIO[Option[GetAppResult]]](
         DBIO.successful(None)
       ) { cluster =>
@@ -275,7 +276,7 @@ object KubernetesServiceDbQueries {
     services
       .map {
         case (serviceRec, portRecs) =>
-          serviceQuery.unmarshalService(serviceRec, portRecs.toList.toSet.toList)
+          serviceQuery.unmarshalService(serviceRec, portRecs.toList.head)
       }
       .toSet
       .toList

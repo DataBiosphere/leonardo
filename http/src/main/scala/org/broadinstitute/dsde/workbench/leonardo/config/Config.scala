@@ -7,6 +7,7 @@ import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{PortName, PortNum, Protocol, ServicePort, TargetPortNum}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleTopicAdminInterpreter, KubernetesName, Location, MachineTypeName, NetworkName, PublisherConfig, RegionName, SubnetworkName, SubscriberConfig, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
@@ -520,12 +521,25 @@ object Config {
 
   implicit val releaseNameReader: ValueReader[ReleaseName] = stringValueReader.map(ReleaseName)
   implicit val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
+  implicit val portNameReader: ValueReader[PortName] = stringValueReader.map(PortName)
+  implicit val protocolReader: ValueReader[Protocol] = stringValueReader.map(Protocol)
+  implicit val targetNumReader: ValueReader[TargetPortNum] = intValueReader.map(TargetPortNum)
+  implicit val portNumReader: ValueReader[PortNum] = intValueReader.map(PortNum)
+
+  implicit val portReader: ValueReader[ServicePort] = ValueReader.relative { config =>
+    ServicePort(
+      config.as[PortNum]("num"),
+      config.as[PortName]("name"),
+      config.as[TargetPortNum]("targetNum"),
+      config.as[Protocol]("protocol")
+    )
+  }
 
   implicit val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
       config.as[KubernetesServiceKindName]("kind"),
-      List() //TODO fill this out if we need ports
+      config.as[ServicePort]("port")
     )
   }
 

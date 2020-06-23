@@ -132,20 +132,17 @@ object KubernetesTestData {
     val name = ServiceName("service" + index)
     KubernetesService(
       ServiceId(-1),
-      ServiceConfig(name, serviceKind, List(makeRandomPort(index.toString), makeRandomPort("0" + index)))
+      ServiceConfig(name, serviceKind, makeRandomPort(index.toString))
     )
   }
 
-  def makeRandomPort(suffix: String): KubernetesPort = {
+  def makeRandomPort(suffix: String): ServicePort = {
     val name = PortName("port" + suffix)
-    KubernetesPort(
-      PortId(-1),
       ServicePort(
         PortNum(Random.nextInt() % 65535),
         name,
         TargetPortNum(Random.nextInt() % 65535),
         protocol
       )
-    )
   }
 }

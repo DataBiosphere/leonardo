@@ -230,13 +230,13 @@ final case class App(id: AppId,
   //TODO this is not the proxy route we want to return from the API call. This is the URL Leo will use internally.
   def getInternalProxyUrls(apiServerIp: KubernetesApiServerIp): Map[ServiceName, UrlAndPort]  =
     appResources.services.map { service =>
-      service.config.ports.headOption
       service.config.name ->
         UrlAndPort(
           new URL(
           s"${apiServerIp.url}/api/v1/namespaces/${appResources.namespace.name.value}/services/${service.config.name}/proxy/"
-        ),
-
+          ),
+          service.config.port.num
+        )
     }.toMap
 }
 
@@ -278,10 +278,9 @@ object AppStatus {
 }
 
 final case class KubernetesService(id: ServiceId, config: ServiceConfig)
-final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, ports: List[KubernetesPort])
+final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, port: ServicePort)
 final case class ServiceId(id: Long) extends AnyVal
 
-final case class KubernetesPort(id: PortId, servicePort: ServicePort)
 final case class PortId(id: Long) extends AnyVal
 
 final case class KubernetesServiceKindName(value: String) extends AnyVal

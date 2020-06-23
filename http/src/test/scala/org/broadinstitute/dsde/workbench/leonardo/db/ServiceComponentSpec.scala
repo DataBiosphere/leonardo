@@ -26,16 +26,4 @@ class ServiceComponentSpec extends FlatSpecLike with TestComponent {
     service3 shouldEqual savedService3
   }
 
-  it should "save without ports" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-
-    val service1 = makeService(1)
-    val serviceToSave = service1.copy(config = service1.config.copy(ports = List()))
-    val savedService1 = dbFutureValue(serviceQuery.saveForApp(savedApp1.id, serviceToSave))
-
-    serviceToSave shouldEqual savedService1
-  }
-
 }

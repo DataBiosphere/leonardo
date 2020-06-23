@@ -42,16 +42,16 @@ object serviceQuery extends TableQuery(new ServiceTable(_)) {
                                                                                   appId,
                                                                                   service.config.name,
                                                                                   service.config.kind)
-      ports <- portQuery.saveAllForService(service.copy(id = serviceId))
-    } yield service.copy(id = serviceId, service.config.copy(ports = ports))
+      port <- portQuery.saveForService(serviceId, service.config.port)
+    } yield service.copy(id = serviceId, service.config.copy(port = port))
 
-  private[db] def unmarshalService(rec: ServiceRecord, ports: List[PortRecord]): KubernetesService =
+  private[db] def unmarshalService(rec: ServiceRecord, port: PortRecord): KubernetesService =
     KubernetesService(
       rec.id,
       ServiceConfig(
         rec.serviceName,
         rec.serviceKind,
-        ports.map(p => portQuery.unmarshalPort(p))
+        portQuery.unmarshalPort(port)
       )
     )
 

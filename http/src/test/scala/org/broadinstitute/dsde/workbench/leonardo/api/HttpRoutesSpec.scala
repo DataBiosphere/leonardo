@@ -48,6 +48,7 @@ class HttpRoutesSpec
     swaggerConfig,
     statusService,
     proxyService,
+    kubernetesProxyService,
     leonardoService,
     MockRuntimeServiceInterp,
     MockDiskServiceInterp,
