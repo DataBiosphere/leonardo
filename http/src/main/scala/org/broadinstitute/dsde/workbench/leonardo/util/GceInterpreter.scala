@@ -70,20 +70,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
                                                     config.gceConfig.zoneName,
                                                     params.runtimeConfig.machineType)
 
-      // Determine is user persisent disk has been formatted before
-      isGceFormatted <- params.runtimeConfig match {
-        case x: RuntimeConfig.GceWithPdConfig =>
-          for {
-            diskId <- F.fromEither(
-              x.persistentDiskId.toRight(
-                new RuntimeException("Missing diskId in the request. This should never happen")
-              )
-            )
-            res <- persistentDiskQuery.getIsGceFormatted(diskId, ctx.now).transaction.map(x => x.isDefined)
-          } yield { res }
-        case _ => F.pure(false)
-      }
-
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
       initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
@@ -99,30 +85,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
                              params.runtimeProjectAndName.googleProject,
                              stagingBucketName,
                              params.serviceAccountInfo)
-        .compile
-        .drain
-
-      templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
-        params,
-        Some(initBucketName),
-        Some(stagingBucketName),
-        None,
-        config.imageConfig,
-        config.welderConfig,
-        config.proxyConfig,
-        config.clusterFilesConfig,
-        config.clusterResourcesConfig,
-        Some(resourceConstraints),
-        isGceFormatted
-      )
-
-      templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
-
-      _ <- bucketHelper
-        .initializeBucketObjects(initBucketName,
-                                 templateParams.serviceAccountKey,
-                                 templateValues,
-                                 params.customEnvironmentVariables)
         .compile
         .drain
 
@@ -144,12 +106,12 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         .setAutoDelete(true)
         .build()
 
-      userDisk <- params.runtimeConfig match {
+      (userDisk, isFormatted) <- params.runtimeConfig match {
         case x: RuntimeConfig.GceWithPdConfig =>
           for {
             diskId <- F.fromEither(
               x.persistentDiskId.toRight(
-                new RuntimeException("Missing diskId in the request. This should never happen")
+                new RuntimeException("Missing diskId in the request. We should have rejected this request in front leo")
               )
             )
             persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
@@ -160,22 +122,36 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
                 )
               )
             )
-          } yield AttachedDisk.newBuilder
-            .setBoot(false)
-            .setDeviceName("user-disk")
-            .setInitializeParams(
-              AttachedDiskInitializeParams
-                .newBuilder()
-                .setDiskName(persistentDisk.name.value)
-                .setDiskSizeGb(persistentDisk.size.gb.toString)
-                .putAllLabels(Map("leonardo" -> "true").asJava)
-                .setDiskType(
-                  persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject, persistentDisk.zone)
+            isFormatted <- persistentDisk.formattedBy match {
+              case Some(FormattedBy.Galaxy) =>
+                F.raiseError(
+                  new RuntimeException(
+                    "Trying to use a Galaxy formatted disk for creating GCE runtime. This should never happen."
+                  )
                 )
-                .build()
-            )
-            .setAutoDelete(false)
-            .build()
+              case Some(FormattedBy.GCE) => F.pure(true)
+              case None                  => F.pure(false)
+            }
+          } yield {
+            val disk = AttachedDisk.newBuilder
+              .setBoot(false)
+              .setDeviceName("user-disk")
+              .setInitializeParams(
+                AttachedDiskInitializeParams
+                  .newBuilder()
+                  .setDiskName(persistentDisk.name.value)
+                  .setDiskSizeGb(persistentDisk.size.gb.toString)
+                  .putAllLabels(Map("leonardo" -> "true").asJava)
+                  .setDiskType(
+                    persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject,
+                                                         persistentDisk.zone)
+                  )
+                  .build()
+              )
+              .setAutoDelete(false)
+              .build()
+            (disk, persistentDisk.formattedBy.isDefined)
+          }
         case x: RuntimeConfig.GceConfig =>
           val disk = AttachedDisk.newBuilder
             .setBoot(false)
@@ -188,12 +164,36 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             )
             .setAutoDelete(true)
             .build()
-          F.pure(disk)
+          F.pure((disk, false))
         case _: RuntimeConfig.DataprocConfig =>
-          F.raiseError[AttachedDisk](
+          F.raiseError[(AttachedDisk, Boolean)](
             new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
           )
       }
+
+      templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
+        params,
+        Some(initBucketName),
+        Some(stagingBucketName),
+        None,
+        config.imageConfig,
+        config.welderConfig,
+        config.proxyConfig,
+        config.clusterFilesConfig,
+        config.clusterResourcesConfig,
+        Some(resourceConstraints),
+        isFormatted
+      )
+
+      templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
+
+      _ <- bucketHelper
+        .initializeBucketObjects(initBucketName,
+                                 templateParams.serviceAccountKey,
+                                 templateValues,
+                                 params.customEnvironmentVariables)
+        .compile
+        .drain
 
       instance = Instance
         .newBuilder()

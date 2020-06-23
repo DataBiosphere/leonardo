@@ -286,7 +286,7 @@ object CommonTestData {
     )
     .build()
 
-  def makePersistentDisk(id: DiskId): PersistentDisk = PersistentDisk(
+  def makePersistentDisk(id: DiskId, formattedBy: Option[FormattedBy] = None): PersistentDisk = PersistentDisk(
     id,
     project,
     zone,
@@ -299,7 +299,7 @@ object CommonTestData {
     diskSize,
     diskType,
     blockSize,
-    None,
+    formattedBy,
     Map.empty
   )
 

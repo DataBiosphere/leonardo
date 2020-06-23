@@ -761,6 +761,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                                       project,
                                                                       userInfo,
                                                                       serviceAccount,
+                                                                      FormattedBy.GCE,
                                                                       whitelistAuthProvider,
                                                                       Config.persistentDiskConfig)
       disk = diskResult.disk
@@ -800,6 +801,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .attempt
@@ -820,6 +822,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .unsafeRunSync()
@@ -843,11 +846,49 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "fail to process a disk reference when the disk is already formatted by another app" in isolatedDbTest {
+    val res = for {
+      t <- ctx.ask
+      gceDisk <- makePersistentDisk(DiskId(1), Some(FormattedBy.GCE)).save()
+      req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
+      formatGceDiskError <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.Galaxy,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .attempt
+      galaxyDisk <- makePersistentDisk(DiskId(2), Some(FormattedBy.Galaxy)).save()
+      req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
+      formatGalaxyDiskError <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.GCE,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .attempt
+    } yield {
+      formatGceDiskError shouldBe Left(
+        DiskAlreadyFormattedByOtherApp(project, gceDisk.name, t.traceId, FormattedBy.GCE)
+      )
+      formatGalaxyDiskError shouldBe Left(
+        DiskAlreadyFormattedByOtherApp(project, galaxyDisk.name, t.traceId, FormattedBy.Galaxy)
+      )
     }
 
     res.unsafeRunSync()
@@ -862,6 +903,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                              project,
                                                              userInfo,
                                                              serviceAccount,
+                                                             FormattedBy.GCE,
                                                              whitelistAuthProvider,
                                                              Config.persistentDiskConfig)
     } yield ()
