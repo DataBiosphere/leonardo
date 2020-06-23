@@ -96,7 +96,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       F.pure(
                         RuntimeConfig.GceConfig(
                           gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
-                          gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize)
+                          gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize),
+                          config.gceConfig.runtimeConfigDefaults.bootDiskSize
                         ): RuntimeConfig
                       )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
@@ -115,7 +116,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                         .map(diskResult =>
                           RuntimeConfig.GceWithPdConfig(
                             gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
-                            Some(diskResult.disk.id)
+                            Some(diskResult.disk.id),
+                            config.gceConfig.runtimeConfigDefaults.bootDiskSize.get // .get here is okay. We've verified the data in Config.scala
                           ): RuntimeConfig
                         )
                   }
@@ -472,7 +474,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
 
       msg <- (runtimeConfig, request) match {
-        case (gceConfig @ RuntimeConfig.GceConfig(_, _), req @ UpdateRuntimeConfigRequest.GceConfig(_, _)) =>
+        case (gceConfig @ RuntimeConfig.GceConfig(_, _, _), req @ UpdateRuntimeConfigRequest.GceConfig(_, _)) =>
           processUpdateGceConfigRequest(req, allowStop, runtime, gceConfig, traceId)
         case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _),
               req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>

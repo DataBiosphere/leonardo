@@ -183,7 +183,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(disk.id))
+          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(disk.id), bootDiskSize = DiskSize(50))
         )
       )
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt

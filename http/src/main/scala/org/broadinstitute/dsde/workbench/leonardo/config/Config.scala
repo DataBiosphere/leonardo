@@ -82,8 +82,9 @@ object Config {
 
   implicit private val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
     RuntimeConfig.GceConfig(
-      config.as[MachineTypeName]("machineType"),
-      config.as[DiskSize]("diskSize")
+      machineType = config.as[MachineTypeName]("machineType"),
+      diskSize = config.as[DiskSize]("diskSize"),
+      bootDiskSize = Some(config.as[DiskSize]("bootDiskSize"))
     )
   }
 
@@ -101,7 +102,6 @@ object Config {
 
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
-      config.as[DiskSize]("bootDiskSize"),
       config.as[GceCustomImage]("customGceImage"),
       config.as[RegionName]("region"),
       config.as[ZoneName]("zone"),

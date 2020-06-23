@@ -323,12 +323,16 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     val res = for {
       savedDisk <- makePersistentDisk(DiskId(1)).save()
       savedRuntime <- IO(
-        makeCluster(1).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id)))
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+        )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(retrievedRuntime.get.runtimeConfigId).transaction
       error <- IO(
-        makeCluster(2).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1))))
+        makeCluster(2).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1)), bootDiskSize = DiskSize(50))
+        )
       ).attempt
     } yield {
       retrievedRuntime shouldBe 'defined

@@ -273,7 +273,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       disk.size shouldBe DiskSize(500)
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
-        Some(disk.id)
+        Some(disk.id),
+        bootDiskSize = DiskSize(50)
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfig, Some(context.traceId))
@@ -284,7 +285,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes,
-          runtimeConfig = RuntimeConfig.GceWithPdConfig(runtimeConfig.machineType, Some(disk.id))
+          runtimeConfig =
+            RuntimeConfig.GceWithPdConfig(runtimeConfig.machineType, Some(disk.id), bootDiskSize = DiskSize(50))
         )
       message shouldBe expectedMessage
     }
@@ -831,7 +833,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       t <- ctx.ask
       savedDisk <- makePersistentDisk(DiskId(1)).save()
       _ <- IO(
-        makeCluster(1).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id)))
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+        )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       err <- RuntimeServiceInterp

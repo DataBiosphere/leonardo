@@ -106,7 +106,11 @@ class HttpRoutesSpec
   it should "list runtimes without a project" in {
     Get("/api/google/v1/runtimes") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
+      val response = responseAs[Vector[ListRuntimeResponse2]]
+      response.map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
+      response.map(_.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig]) shouldBe Vector(
+        CommonTestData.defaultGceRuntimeConfig
+      )
       validateRawCookie(header("Set-Cookie"))
     }
   }
