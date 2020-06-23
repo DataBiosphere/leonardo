@@ -17,11 +17,12 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
   implicit val runtimeConfigWriter: RootJsonWriter[RuntimeConfig] = (obj: RuntimeConfig) => {
     val allFields = obj match {
       case x: RuntimeConfig.GceConfig =>
+        val bootDiskSize = x.bootDiskSize.fold(Map.empty)(s => Map("bootDiskSize" -> s.gb.toJson))
         Map(
           "machineType" -> x.machineType.value.toJson,
           "diskSize" -> x.diskSize.gb.toJson,
           "cloudService" -> x.cloudService.asString.toJson
-        )
+        ) ++ bootDiskSize
       case x: RuntimeConfig.DataprocConfig =>
         Map(
           "numberOfWorkers" -> x.numberOfWorkers.toJson,
@@ -37,7 +38,8 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
         val diskId = x.persistentDiskId.map(id => Map("diskId" -> id.value.toJson)).getOrElse(Map.empty)
         Map(
           "machineType" -> x.machineType.value.toJson,
-          "cloudService" -> x.cloudService.asString.toJson
+          "cloudService" -> x.cloudService.asString.toJson,
+          "bootDiskSize" -> x.bootDiskSize.gb.toJson
         ) ++ diskId
     }
 

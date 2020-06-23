@@ -40,7 +40,6 @@ object Leonardo extends RestClient with LazyLogging {
     def handleClusterSeqResponse(response: String): List[ClusterCopy] = {
       val res = for {
         json <- io.circe.parser.parse(response)
-        _ = println(s"11111: list response ${json}")
         r <- json.as[List[ClusterCopy]]
       } yield r
 
