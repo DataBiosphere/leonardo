@@ -1,43 +1,29 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import java.nio.file.Paths
+import java.nio.file.{Paths}
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
+import scala.collection.JavaConverters._
+import com.google.api.services.container.ContainerScopes
+import com.google.auth.oauth2.GoogleCredentials
 import fs2.Stream
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.{
-  ConfigSSLContextBuilder,
-  DefaultKeyManagerFactoryWrapper,
-  DefaultTrustManagerFactoryWrapper,
-  SSLConfigFactory
-}
+import com.typesafe.sslconfig.ssl.{ConfigSSLContextBuilder, DefaultKeyManagerFactoryWrapper, DefaultTrustManagerFactoryWrapper, SSLConfigFactory}
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
-import org.broadinstitute.dsde.workbench.google2.{GoogleDataprocService, GoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.{Event, GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GooglePublisher, GoogleStorageService, GoogleSubscriber, credentialResource}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleStorageDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO,
-  HttpGoogleStorageDAO
-}
-import org.broadinstitute.dsde.workbench.google2.{
-  Event,
-  GoogleComputeService,
-  GooglePublisher,
-  GoogleStorageService,
-  GoogleSubscriber
-}
+import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
@@ -48,6 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesSer
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
+import org.broadinstitute.dsde.workbench.leonardo.service.{KubernetesProxyCache, KubernetesProxyService}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -128,6 +115,11 @@ object Boot extends IOApp {
                                           appDependencies.authProvider,
                                           appDependencies.dateAccessedUpdaterQueue,
                                           appDependencies.blocker)
+
+
+
+      val kubernetesProxyService = new KubernetesProxyService(kubernetesProxyConfig, appDependencies.kubernetesCredentials, appDependencies.kubernetesProxyCache, appDependencies.authProvider, appDependencies.blocker)
+
       val statusService = new StatusService(appDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
                                             appDependencies.dbReference,
@@ -167,6 +159,7 @@ object Boot extends IOApp {
       val httpRoutes = new HttpRoutes(swaggerConfig,
                                       statusService,
                                       proxyService,
+                                      kubernetesProxyService,
                                       leonardoService,
                                       runtimeService,
                                       diskService,
@@ -262,14 +255,19 @@ object Boot extends IOApp {
   }
 
   private def createDependencies[F[_]: StructuredLogger: ContextShift: Timer](
-    pathToCredentialJson: String
+    appConfig: ApplicationConfig
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
       blocker = Blocker.liftExecutionContext(blockingEc)
+      pathToCredentialJson = appConfig.leoServiceAccountJsonFile.toString
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
+
+      gkeService <- GKEService.resource[F](appConfig.kubernetesServiceAccountJsonFile, blocker, semaphore)
+      credentials <- credentialResource(appConfig.kubernetesServiceAccountJsonFile.toString)
+      scopedCredential = credentials.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
 
       sslContext = getSSLContext()
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
@@ -280,6 +278,7 @@ object Boot extends IOApp {
       concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig, blocker)
+      kubernetesProxyCache = new KubernetesProxyCache(kubernetesCacheConfig, blocker, gkeService)
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
       // As best practice, we should have all related metrics under same prefix separated by `/`
@@ -338,6 +337,8 @@ object Boot extends IOApp {
       storage,
       dbRef,
       clusterDnsCache,
+      kubernetesProxyCache,
+      scopedCredential,
       petGoogleStorageDAO,
       googleComputeService,
       googleDiskService,
@@ -384,6 +385,8 @@ final case class AppDependencies[F[_]](
   google2StorageDao: GoogleStorageService[F],
   dbReference: DbReference[F],
   clusterDnsCache: ClusterDnsCache[F],
+  kubernetesProxyCache: KubernetesProxyCache[F],
+  kubernetesCredentials: GoogleCredentials,
   petGoogleStorageDAO: String => GoogleStorageDAO,
   googleComputeService: GoogleComputeService[F],
   googleDiskService: GoogleDiskService[F],

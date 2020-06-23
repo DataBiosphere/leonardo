@@ -8,4 +8,5 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 case class ApplicationConfig(applicationName: String,
                              leoGoogleProject: GoogleProject,
                              leoServiceAccountJsonFile: Path,
+                             kubernetesServiceAccountJsonFile: Path,
                              leoServiceAccountEmail: WorkbenchEmail)

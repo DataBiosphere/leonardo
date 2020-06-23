@@ -1,16 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.io.{FileInputStream, InputStream}
-import java.security.cert.{Certificate, CertificateFactory}
-import java.security.{KeyStore, SecureRandom}
 import java.time.Instant
-import java.util
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.http.javadsl.model.headers.RawHeader
-import akka.http.scaladsl.{ConnectionContext, HttpsConnectionContext}
+import akka.http.scaladsl.HttpsConnectionContext
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
 import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, StatusCodes}
@@ -20,38 +15,34 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.auth.oauth2.GoogleCredentials
 import com.typesafe.scalalogging.LazyLogging
-import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
-import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
-import org.broadinstitute.dsde.workbench.google2.GKEService
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PortNum
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.AppName
-import org.broadinstitute.dsde.workbench.leonardo.config.CacheConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, ServiceNotFoundException}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
-import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesProxyCache._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.collection.immutable
-import scala.concurrent.ExecutionContext
 
-case class KubernetesProxyConfig(port: Int, remoteUser: String)
+case class RemoteUser(user: String)
+case class KubernetesProxyConfig(remoteUser: RemoteUser)
 
 class KubernetesProxyService[F[_]](
-                              kubernetesProxyConfig: KubernetesProxyConfig,
-                              credentials: GoogleCredentials,
-                              kubernetesDnsCache: KubernetesDnsCache[F],
-authProvider: LeoAuthProvider[F],
-//dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
-blocker: Blocker)
+                                    kubernetesProxyConfig: KubernetesProxyConfig,
+                                    credentials: GoogleCredentials,
+                                    kubernetesProxyCache: KubernetesProxyCache[F],
+                                    authProvider: LeoAuthProvider[F],
+                                    //dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
+                                    blocker: Blocker)
                             (implicit val system: ActorSystem,
                              F: Async[F],
-                             executionContext: ExecutionContext,
+//                             executionContext: ExecutionContext,
                              timer: Timer[F],
-                             cs: ContextShift[F],
-                             cs2: ContextShift[IO],
-                             dbRef: DbReference[F])
+                             cs: ContextShift[IO]
+//                            , dbRef: DbReference[F]
+                            )
   extends LazyLogging {
 
   /*
@@ -62,7 +53,9 @@ blocker: Blocker)
                                    googleProject: GoogleProject,
                                    appName: AppName
 //                                   ,action: _
-                                 )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                                 )(
+//    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
     for {
       x <- F.unit
 //      samResource <- getCachedRuntimeSamResource(googleProject, runtimeName)
@@ -92,17 +85,15 @@ blocker: Blocker)
   ): F[HttpResponse] =
     for {
       _ <- F.delay(logger.debug(
-        s"Received proxy request for ${googleProject}/${appName}: ${kubernetesDnsCache.stats} / ${kubernetesDnsCache.size}"
+        s"Received proxy request for ${googleProject}/${appName}/${serviceName}: ${kubernetesProxyCache.stats} / ${kubernetesProxyCache.size}"
       ))
       ctx <- ev.ask
       resp <- getTargetHost(googleProject, appName, serviceName) flatMap {
-        case HostAppReady(targetHost, sslContext) =>
-          // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
-          // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
-          // The presence of this header distinguishes WebSocket from http requests.
+        case HostAppReady(targetHost, targetPort, sslContext) =>
           val res = for {
+          //TODO: how do?
             //          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, now))
-            response <- handleHttpRequest(userInfo, targetHost, sslContext, request)
+            response <- handleHttpRequest(userInfo, targetHost, targetPort, sslContext, request)
             r <- if (response.status.isFailure())
               F.delay(logger.info(s"Error response for proxied request ${request.uri}: ${response.status}")).as(response)
             else F.pure(response)
@@ -130,13 +121,13 @@ blocker: Blocker)
     } yield resp
 
   def getTargetHost(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[AppHostStatus] =
-    kubernetesDnsCache.getHostStatus(AppStatusCacheKey(googleProject, appName, serviceName))
+    kubernetesProxyCache.getHostStatus(AppStatusCacheKey(googleProject, appName, serviceName))
 
   import akka.http.scaladsl.Http
-  private def handleHttpRequest(userInfo: UserInfo, targetHost: Host, sslContext: HttpsConnectionContext, request: HttpRequest): F[HttpResponse] =
+  private def handleHttpRequest(userInfo: UserInfo, targetHost: Host, targetPort: PortNum, sslContext: HttpsConnectionContext, request: HttpRequest): F[HttpResponse] =
     for {
-     _ <- F.delay(logger.debug(s"Opening https connection to ${targetHost.address}:${kubernetesProxyConfig.port}"))
-    flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, kubernetesProxyConfig.port, sslContext))
+     _ <- F.delay(logger.debug(s"Opening https connection to ${targetHost.address}:${targetPort.value}"))
+    flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, targetPort.value, sslContext))
 
     newHeaders = filterHeaders(request.headers) ++ getKubernetesHeaders(userInfo)
     source <- F.liftIO(IO.fromFuture(IO(

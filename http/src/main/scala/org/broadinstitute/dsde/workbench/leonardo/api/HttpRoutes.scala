@@ -16,14 +16,9 @@ import cats.effect.{ContextShift, IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RouteValidation.RequestValidationError
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  LeonardoService,
-  ProxyService,
-  RuntimeService,
-  StatusService
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, ProxyService, RuntimeService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
+import org.broadinstitute.dsde.workbench.leonardo.service.{KubernetesProxyService, KubernetesService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 
@@ -33,6 +28,7 @@ class HttpRoutes(
   swaggerConfig: SwaggerConfig,
   statusService: StatusService,
   proxyService: ProxyService,
+  kubernetesProxyService: KubernetesProxyService[IO],
   leonardoService: LeonardoService,
   runtimeService: RuntimeService[IO],
   diskService: DiskService[IO],
@@ -44,7 +40,7 @@ class HttpRoutes(
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
-  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
+  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, kubernetesProxyService)
   private val leonardoRoutes = new LeoRoutes(leonardoService, userInfoDirectives)
   private val runtimeRoutes = new RuntimeRoutes(runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)

@@ -15,7 +15,7 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.stream.Materializer
-import cats.effect.{Async, ContextShift, IO, Timer}
+import cats.effect.{Async, ContextShift, Effect, IO, Timer}
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
@@ -25,18 +25,17 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesProxyService
 
-class ProxyRoutes[F[_]](proxyService: ProxyService, corsSupport: CorsSupport, kubernetesProxyService: KubernetesProxyService[F])(
+class ProxyRoutes[F[_]: Effect](proxyService: ProxyService, corsSupport: CorsSupport, kubernetesProxyService: KubernetesProxyService[F])(
   implicit F: Async[F],
   materializer: Materializer,
-  cs: ContextShift[F],
-  timer: Timer[IO],
+//  cs: ContextShift[F],
+  timer: Timer[F],
   cs2: ContextShift[IO]
 ) extends LazyLogging {
   val route: Route =
     //note that the "notebooks" path prefix is deprecated
     pathPrefix("proxy" | "notebooks") {
-//      implicit val traceId1 = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-      implicit val traceId2 = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+      implicit val traceId1 = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
       corsSupport.corsHandler {
 
@@ -87,15 +86,22 @@ class ProxyRoutes[F[_]](proxyService: ProxyService, corsSupport: CorsSupport, ku
                 // Proxy logic handled by the ProxyService class
                 // Note ProxyService calls the LeoAuthProvider internally
                 complete {
-
-                  IO(println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ima actually in this new segment :)")) >>
-                  kubernetesProxyService.proxyRequest(userInfo, googleProject, appName, serviceName, request)
-                    .toIO
+                  val handle = for {
+                 context <- AppContext.generate[F]()
+                  implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+                    context
+                  )
+                   _ <- F.delay(println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ima actually in this new segment :)"))
+                    resp <- kubernetesProxyService.proxyRequest(userInfo, googleProject, appName, serviceName, request)
                     .onError {
                       case e =>
-                        IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
+                        val io = IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
                           .fromFuture(IO(request.entity.discardBytes().future))
+                        F.liftIO(io)
                     }
+                  } yield resp
+
+                  handle.toIO
                 }
               }
             }

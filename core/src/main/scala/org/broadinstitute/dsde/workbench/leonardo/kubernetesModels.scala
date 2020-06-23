@@ -6,16 +6,10 @@ import java.util.UUID
 
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp, ServicePort}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp, PortNum, ServicePort}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.google2.{
-  KubernetesName,
-  Location,
-  MachineTypeName,
-  NetworkName,
-  SubnetworkName
-}
+import org.broadinstitute.dsde.workbench.google2.{KubernetesName, Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -221,6 +215,7 @@ final case class AppName(value: String) extends AnyVal
 //These are async from the perspective of Front Leo saving the app record, but both must exist before the helm command is executed
 final case class AppResources(namespace: Namespace, disk: Option[PersistentDisk], services: List[KubernetesService])
 
+final case class UrlAndPort(url: URL, port: PortNum)
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
@@ -233,12 +228,15 @@ final case class App(id: AppId,
                      appResources: AppResources,
                      errors: List[KubernetesError]) {
   //TODO this is not the proxy route we want to return from the API call. This is the URL Leo will use internally.
-  def getInternalProxyUrls(apiServerIp: KubernetesApiServerIp): Map[ServiceName, URL] =
+  def getInternalProxyUrls(apiServerIp: KubernetesApiServerIp): Map[ServiceName, UrlAndPort]  =
     appResources.services.map { service =>
+      service.config.ports.headOption
       service.config.name ->
-        new URL(
+        UrlAndPort(
+          new URL(
           s"${apiServerIp.url}/api/v1/namespaces/${appResources.namespace.name.value}/services/${service.config.name}/proxy/"
-        )
+        ),
+
     }.toMap
 }
 

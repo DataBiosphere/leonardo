@@ -8,43 +8,17 @@ import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{
-  FirewallRuleName,
-  GoogleTopicAdminInterpreter,
-  KubernetesName,
-  Location,
-  MachineTypeName,
-  NetworkName,
-  PublisherConfig,
-  RegionName,
-  SubnetworkName,
-  SubscriberConfig,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleTopicAdminInterpreter, KubernetesName, Location, MachineTypeName, NetworkName, PublisherConfig, RegionName, SubnetworkName, SubscriberConfig, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.{
-  ConnectSrc,
-  FrameAncestors,
-  ObjectSrc,
-  ReportUri,
-  ScriptSrc,
-  StyleSrc
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.{ConnectSrc, FrameAncestors, ObjectSrc, ReportUri, ScriptSrc, StyleSrc}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  DateAccessedUpdaterConfig,
-  LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitor,
-  PersistentDiskMonitorConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{DateAccessedUpdaterConfig, LeoPubsubMessageSubscriberConfig, PersistentDiskMonitor, PersistentDiskMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.service.{KubernetesProxyConfig, RemoteUser}
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{DataprocInterpreterConfig, GceInterpreterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.VPCInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -62,6 +36,7 @@ object Config {
       config.getString("applicationName"),
       config.as[GoogleProject]("leoGoogleProject"),
       config.as[Path]("leoServiceAccountJsonFile"),
+      config.as[Path]("kubernetesServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail")
     )
   }
@@ -214,6 +189,15 @@ object Config {
         config.getInt("cacheMaxSize")
       )
   }
+
+  implicit private val kubernetesProxyCacheConfigReader: ValueReader[KubernetesProxyConfig] = ValueReader.relative {
+    config =>
+      KubernetesProxyConfig(
+        config.as[RemoteUser]("remoteUser")
+      )
+  }
+
+  implicit private val remoteUserReader: ValueReader[RemoteUser] = stringValueReader.map(RemoteUser)
 
   implicit private val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
     LiquibaseConfig(config.as[String]("changelog"), config.as[Boolean]("initWithLiquibase"))
@@ -443,6 +427,8 @@ object Config {
   val zombieRuntimeMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[CacheConfig]("clusterDnsCache")
+  val kubernetesProxyConfig = config.as[KubernetesProxyConfig]("kubernetesProxyConfig")
+  val kubernetesCacheConfig = config.as[CacheConfig]("kubernetesCacheConfig")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 
