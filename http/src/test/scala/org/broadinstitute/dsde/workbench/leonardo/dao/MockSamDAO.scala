@@ -8,6 +8,7 @@ import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
   AppSamResource,
   PersistentDiskSamResource,
+  ProjectSamResource,
   RuntimeSamResource
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
@@ -82,7 +83,8 @@ class MockSamDAO extends SamDAO[IO] {
         IO(runtimes += (r, userEmailToAuthorization(creatorEmail)) -> runtimeActions)
       case r: PersistentDiskSamResource =>
         IO(persistentDisks += (r, userEmailToAuthorization(creatorEmail)) -> diskActions)
-      case _: AppSamResource => IO.unit //TODO
+      case _: ProjectSamResource => IO.unit //TODO: this may need to be stubbed out more correctly
+      case _: AppSamResource     => IO.unit //TODO
     }
 
   override def deleteResource(resource: SamResource,
@@ -94,7 +96,8 @@ class MockSamDAO extends SamDAO[IO] {
         IO(runtimes.remove((r, userEmailToAuthorization(userEmail))))
       case r: PersistentDiskSamResource =>
         IO(persistentDisks.remove((r, userEmailToAuthorization(userEmail))))
-      case _: AppSamResource => IO.unit //TODO
+      case _: ProjectSamResource => IO.unit //TODO: this may need to be stubbed out more correctly
+      case _: AppSamResource     => IO.unit //TODO
     }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
