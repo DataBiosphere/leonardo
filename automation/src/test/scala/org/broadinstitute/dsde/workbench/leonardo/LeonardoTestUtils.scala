@@ -634,7 +634,7 @@ trait LeonardoTestUtils
     val cluster = createCluster(googleProject, name, request, monitor)
 
     if (monitor) {
-      withClue(s"Monitoring ClusterCopy status: $name") {
+      withClue(s"Monitoring ClusterCopy status: $name...Creating ${request}") {
         val clusterShouldBeStopped = request.stopAfterCreation.getOrElse(false)
         val expectedStatus = if (clusterShouldBeStopped) ClusterStatus.Stopped else ClusterStatus.Running
 
