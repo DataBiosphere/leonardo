@@ -215,7 +215,6 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     scalaTest,
     "org.seleniumhq.selenium" % "selenium-java" % "4.0.0-alpha-6" % "test",
-    "io.github.bonigarcia" % "webdrivermanager" % "3.7.1",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text" % "1.2",
     googleRpc,
