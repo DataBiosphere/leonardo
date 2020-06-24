@@ -29,14 +29,14 @@ class DateAccessedUpdater[F[_]: ContextShift: Timer](
   logger: Logger[F]) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.interval) ++ Stream.eval(check) ++ Stream.eval(logger.info("just checked dateAccess"))).repeat
+    (Stream.sleep[F](config.interval) ++ Stream.eval(check)).repeat
 
   private[monitor] val check: F[Unit] =
-    logger.info(s"going to dequeue dateAccessed queue") >> queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
-      logger.info(s"Going to check dateAccess for ${chunks}") >> chunks
+    logger.info(s"Going to update dateAccessed") >> queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
+      chunks
         .traverse(c =>
           messagesToUpdate(c.toChain)
-            .traverse(x => logger.info(s"updating dateAccess for ${x}") >> updateDateAccessed(x))
+            .traverse(updateDateAccessed)
         )
         .void
     }
