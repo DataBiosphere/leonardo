@@ -16,7 +16,12 @@ import org.http4s.headers.Authorization
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries {
+abstract class RuntimeFixtureSpec
+    extends fixture.FreeSpec
+    with BeforeAndAfterAll
+    with LeonardoTestUtils
+    with Retries
+    with GPAllocBeforeAndAfterAll {
 
   implicit val ronToken: AuthToken = ronAuthToken
 

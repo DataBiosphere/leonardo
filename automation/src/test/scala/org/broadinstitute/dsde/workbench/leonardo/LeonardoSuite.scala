@@ -119,7 +119,7 @@ final class LeonardoTerraDockerSuite
 //      new NotebookBioconductorKernelSpec,
       new NotebookGATKSpec,
       new NotebookHailSpec,
-//      new NotebookPyKernelSpec,
+      new NotebookPyKernelSpec,
 //      new NotebookRKernelSpec,
       new RStudioSpec
     )

@@ -190,7 +190,7 @@ object Boot extends IOApp {
       } yield ()
 
       val allStreams = {
-        val extra = if (leoExecutionModeConfig.backLeo) {
+        val backLeoOnlyProcesses = {
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,
@@ -235,6 +235,7 @@ object Boot extends IOApp {
             appDependencies.jupyterDAO,
             appDependencies.publisherQueue
           )
+
           List(
             asyncTasks.process,
             pubsubSubscriber.process,
@@ -243,13 +244,17 @@ object Boot extends IOApp {
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitor.process // check database to autopause runtimes periodically
           )
-        } else
-          List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
+        }
+
+        val frontLeoOnlyProcesses = List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
+
+        val backLeo = if (leoExecutionModeConfig.backLeo) backLeoOnlyProcesses else List.empty
+        val frontLeo = if (leoExecutionModeConfig.frontLeo) frontLeoOnlyProcesses else List.empty
 
         List(
           appDependencies.leoPublisher.process, //start the publisher queue .dequeue
           Stream.eval[IO, Unit](httpServer) //start http server
-        ) ++ extra
+        ) ++ backLeo ++ frontLeo
       }
 
       val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)

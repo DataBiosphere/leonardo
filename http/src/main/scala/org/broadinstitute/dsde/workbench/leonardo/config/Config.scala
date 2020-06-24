@@ -307,7 +307,8 @@ object Config {
   implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = ValueReader.relative {
     config =>
       LeoExecutionModeConfig(
-        config.getBoolean("backLeo")
+        config.getBoolean("backLeo"),
+        config.getBoolean("frontLeo")
       )
   }
 

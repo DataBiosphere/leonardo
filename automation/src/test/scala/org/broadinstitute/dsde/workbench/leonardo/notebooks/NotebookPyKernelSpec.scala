@@ -9,7 +9,7 @@ import scala.concurrent.duration.DurationLong
 /**
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
  */
-@DoNotDiscover
+//@DoNotDiscover
 class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
@@ -127,7 +127,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     "should update dateAccessed if the notebook is open" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime) { _ =>
           val firstApiCall =
             Leonardo.cluster.getRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
           //Sleeping for 90s to simulate idle notebook
@@ -136,6 +136,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val secondApiCall =
             Leonardo.cluster.getRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
           firstApiCall.auditInfo.dateAccessed should be < secondApiCall.auditInfo.dateAccessed
+          Leonardo.cluster.stopRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
         }
       }
     }
