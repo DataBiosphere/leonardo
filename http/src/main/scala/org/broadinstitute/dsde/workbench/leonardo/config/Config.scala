@@ -304,12 +304,14 @@ object Config {
     )
   }
 
-  implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = ValueReader.relative {
-    config =>
-      LeoExecutionModeConfig(
-        config.getBoolean("backLeo"),
-        config.getBoolean("frontLeo")
-      )
+  implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = stringValueReader.map {
+    s =>
+      s match {
+        case "combined" => LeoExecutionModeConfig.Combined
+        case "backLeo"  => LeoExecutionModeConfig.BackLeoOnly
+        case "frontLeo" => LeoExecutionModeConfig.FrontLeoOnly
+        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: ${x}")
+      }
   }
 
   implicit private val clusterBucketConfigValueReader: ValueReader[RuntimeBucketConfig] = ValueReader.relative {
