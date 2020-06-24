@@ -195,7 +195,27 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting).compile.drain
       }
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, poll, Some(logError(runtime.projectNameString)), ctx.now))
+      fa = if (msg.deleteDisk)
+        runtimeConfig match {
+          case x: RuntimeConfig.GceWithPdConfig =>
+            for {
+              _ <- poll
+              disk <- x.persistentDiskId.flatTraverse(diskId => persistentDiskQuery.getById(diskId).transaction)
+              _ <- disk.traverse { d =>
+                for {
+                  deleteDiskOp <- googleDiskService.deleteDisk(d.googleProject, d.zone, d.name)
+                  _ <- streamFUntilDone(F.pure(deleteDiskOp),
+                                        config.persistentDiskMonitorConfig.delete.maxAttempts,
+                                        config.persistentDiskMonitorConfig.delete.interval).compile.drain
+                  now <- nowInstant
+                  _ <- persistentDiskQuery.delete(d.id, now).transaction[F]
+                } yield ()
+              }
+            } yield ()
+          case _ => F.unit
+        }
+      else F.unit
+      _ <- asyncTasks.enqueue1(Task(ctx.traceId, fa, Some(logError(runtime.projectNameString)), ctx.now))
     } yield ()
 
   private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(
