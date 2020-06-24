@@ -219,7 +219,8 @@ class ProxyService(
           r <- if (response.status.isFailure())
             IO(
               logger.info(
-                s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity).to[String]}"
+                s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
+                  .to[String]}"
               )
             ).as(response)
           else IO.pure(response)
