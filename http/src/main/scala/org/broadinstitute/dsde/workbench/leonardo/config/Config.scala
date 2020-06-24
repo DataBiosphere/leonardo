@@ -446,7 +446,7 @@ object Config {
   val zombieRuntimeMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
-  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
+  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 
   implicit val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>
