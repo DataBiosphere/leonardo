@@ -304,11 +304,14 @@ object Config {
     )
   }
 
-  implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = ValueReader.relative {
-    config =>
-      LeoExecutionModeConfig(
-        config.getBoolean("backLeo")
-      )
+  implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = stringValueReader.map {
+    s =>
+      s match {
+        case "combined" => LeoExecutionModeConfig.Combined
+        case "backLeo"  => LeoExecutionModeConfig.BackLeoOnly
+        case "frontLeo" => LeoExecutionModeConfig.FrontLeoOnly
+        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: ${x}")
+      }
   }
 
   implicit private val clusterBucketConfigValueReader: ValueReader[RuntimeBucketConfig] = ValueReader.relative {
@@ -443,7 +446,7 @@ object Config {
   val zombieRuntimeMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
-  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
+  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 
   implicit val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>

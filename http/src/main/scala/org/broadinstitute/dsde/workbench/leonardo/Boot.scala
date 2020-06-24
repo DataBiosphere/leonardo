@@ -39,6 +39,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
+import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -174,7 +175,7 @@ object Boot extends IOApp {
                                       StandardUserInfoDirectives,
                                       contentSecurityPolicy)
       val httpServer = for {
-        _ <- if (leoExecutionModeConfig.backLeo) {
+        _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
           dataprocInterp.setupDataprocImageGoogleGroup()
         } else IO.unit
         _ <- IO.fromFuture {
@@ -190,7 +191,7 @@ object Boot extends IOApp {
       } yield ()
 
       val allStreams = {
-        val extra = if (leoExecutionModeConfig.backLeo) {
+        val backLeoOnlyProcesses = {
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,
@@ -235,6 +236,7 @@ object Boot extends IOApp {
             appDependencies.jupyterDAO,
             appDependencies.publisherQueue
           )
+
           List(
             asyncTasks.process,
             pubsubSubscriber.process,
@@ -243,13 +245,20 @@ object Boot extends IOApp {
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitor.process // check database to autopause runtimes periodically
           )
-        } else
-          List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
+        }
+
+        val frontLeoOnlyProcesses = List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
+
+        val extraProcesses = leoExecutionModeConfig match {
+          case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
+          case LeoExecutionModeConfig.FrontLeoOnly => frontLeoOnlyProcesses
+          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ frontLeoOnlyProcesses
+        }
 
         List(
           appDependencies.leoPublisher.process, //start the publisher queue .dequeue
           Stream.eval[IO, Unit](httpServer) //start http server
-        ) ++ extra
+        ) ++ extraProcesses
       }
 
       val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)

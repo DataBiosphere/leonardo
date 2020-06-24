@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import DateAccessedUpdater._
 import cats.data.Chain
+import io.chrisdavenport.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
@@ -21,14 +22,24 @@ import scala.concurrent.duration.FiniteDuration
 class DateAccessedUpdater[F[_]: ContextShift: Timer](
   config: DateAccessedUpdaterConfig,
   queue: InspectableQueue[F, UpdateDateAccessMessage]
-)(implicit F: Concurrent[F], metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F], ec: ExecutionContext) {
+)(implicit F: Concurrent[F],
+  metrics: OpenTelemetryMetrics[F],
+  dbRef: DbReference[F],
+  ec: ExecutionContext,
+  logger: Logger[F]) {
 
   val process: Stream[F, Unit] =
     (Stream.sleep[F](config.interval) ++ Stream.eval(check)).repeat
 
-  private[monitor] val check: F[Unit] = queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
-    chunks.traverse(c => messagesToUpdate(c.toChain).traverse(updateDateAccessed)).void
-  }
+  private[monitor] val check: F[Unit] =
+    logger.info(s"Going to update dateAccessed") >> queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
+      chunks
+        .traverse(c =>
+          messagesToUpdate(c.toChain)
+            .traverse(updateDateAccessed)
+        )
+        .void
+    }
 
   private def updateDateAccessed(msg: UpdateDateAccessMessage): F[Unit] =
     metrics.incrementCounter("jupyterAccessCount") >>
