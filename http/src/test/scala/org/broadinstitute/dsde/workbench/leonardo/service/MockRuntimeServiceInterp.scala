@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-object MockRuntimeServiceInterp extends RuntimeService[IO] {
+class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
   override def createRuntime(
     userInfo: UserInfo,
     googleProject: GoogleProject,
@@ -71,3 +71,5 @@ object MockRuntimeServiceInterp extends RuntimeService[IO] {
     req: UpdateRuntimeRequest
   )(implicit as: ApplicativeAsk[IO, AppContext]): IO[Unit] = IO.unit
 }
+
+object MockRuntimeServiceInterp extends BaseMockRuntimeServiceInterp

@@ -224,7 +224,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
       deleteDisk = params
         .get("deleteDisk")
         .map(s => if (s == "true") true else false)
-        .getOrElse(true) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+        .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
       request = DeleteRuntimeRequest(userInfo, googleProject, runtimeName, deleteDisk)
       _ <- runtimeService.deleteRuntime(request)
     } yield StatusCodes.Accepted: ToResponseMarshallable
