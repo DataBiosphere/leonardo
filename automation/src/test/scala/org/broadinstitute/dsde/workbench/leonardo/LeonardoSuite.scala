@@ -98,7 +98,7 @@ final class LeonardoSuite
       new ClusterStatusTransitionsSpec,
       new LabSpec,
       new NotebookClusterMonitoringSpec,
-      new NotebookCustomizationSpec,
+//      new NotebookCustomizationSpec,
       new NotebookDataSyncingSpec,
       new LeoPubsubSpec,
       new ClusterAutopauseSpec,
@@ -106,8 +106,9 @@ final class LeonardoSuite
       new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
       new NotebookGCEClusterMonitoringSpec,
-      new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec
+      new NotebookGCECustomizationSpec
+//      ,
+//      new NotebookGCEDataSyncingSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
