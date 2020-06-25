@@ -133,18 +133,31 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle DeleteRuntimeMessage and delete cluster" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
-
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
+      monitor = new MockRuntimeMonitor {
+        override def pollCheck(a: CloudService)(
+          googleProject: GoogleProject,
+          runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+          operation: com.google.cloud.compute.v1.Operation,
+          action: RuntimeStatus
+        )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+          clusterQuery.completeDeletion(runtime.id, Instant.now()).transaction
+      }
+      queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
+      leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
       _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, false, Some(tr)))
-      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-    } yield {
-      updatedRuntime shouldBe 'defined
-      updatedRuntime.get.status shouldBe RuntimeStatus.Deleting
-    }
+      _ <- withInfiniteStream(
+        asyncTaskProcessor.process,
+        clusterQuery
+          .getClusterStatus(runtime.id)
+          .transaction
+          .map(status => status shouldBe (Some(RuntimeStatus.Deleted)))
+      )
+    } yield ()
 
     res.unsafeRunSync()
   }

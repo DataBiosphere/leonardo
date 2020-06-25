@@ -212,9 +212,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                 } yield ()
               }
             } yield ()
-          case _ => F.unit
+          case _ => poll
         }
-      else F.unit
+      else poll
       _ <- asyncTasks.enqueue1(Task(ctx.traceId, fa, Some(logError(runtime.projectNameString)), ctx.now))
     } yield ()
 
