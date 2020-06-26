@@ -14,6 +14,7 @@ import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
+  DiskName,
   Event,
   GoogleDiskService,
   GoogleSubscriber,
@@ -183,8 +184,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      diskToAutoDelete <- if (msg.deleteDisk) {
+        runtimeConfig match {
+          case x: RuntimeConfig.GceWithPdConfig =>
+            x.persistentDiskId
+              .flatTraverse(id => persistentDiskQuery.getPersistentDiskRecord(id).transaction)
+              .map(_.map(_.name))
+          case _ => F.pure(none[DiskName])
+        }
+      } else F.pure(none[DiskName])
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(runtime.googleProject, runtime.runtimeName, runtime.asyncRuntimeFields)
+        DeleteRuntimeParams(runtime.googleProject,
+                            runtime.runtimeName,
+                            runtime.asyncRuntimeFields.isDefined,
+                            diskToAutoDelete)
       )
       poll = op match {
         case Some(o) =>
@@ -197,20 +210,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       }
       fa = if (msg.deleteDisk)
         runtimeConfig match {
-          case x: RuntimeConfig.GceWithPdConfig =>
+          case rc: RuntimeConfig.GceWithPdConfig =>
             for {
               _ <- poll
-              disk <- x.persistentDiskId.flatTraverse(diskId => persistentDiskQuery.getById(diskId).transaction)
-              _ <- disk.traverse { d =>
-                for {
-                  deleteDiskOp <- googleDiskService.deleteDisk(d.googleProject, d.zone, d.name)
-                  _ <- streamFUntilDone(F.pure(deleteDiskOp),
-                                        config.persistentDiskMonitorConfig.delete.maxAttempts,
-                                        config.persistentDiskMonitorConfig.delete.interval).compile.drain
-                  now <- nowInstant
-                  _ <- persistentDiskQuery.delete(d.id, now).transaction[F]
-                } yield ()
-              }
+              now <- nowInstant
+              _ <- rc.persistentDiskId.traverse(id => persistentDiskQuery.delete(id, now).transaction)
             } yield ()
           case _ => poll
         }

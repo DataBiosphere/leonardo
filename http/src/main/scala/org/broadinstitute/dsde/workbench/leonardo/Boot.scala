@@ -5,6 +5,7 @@ import java.nio.file.Paths
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import cats.Parallel
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
@@ -44,7 +45,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocD
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesServiceInterp, _}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoKubernetesServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
@@ -261,7 +262,7 @@ object Boot extends IOApp {
     }
   }
 
-  private def createDependencies[F[_]: StructuredLogger: ContextShift: Timer](
+  private def createDependencies[F[_]: StructuredLogger: Parallel: ContextShift: Timer](
     pathToCredentialJson: String
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {

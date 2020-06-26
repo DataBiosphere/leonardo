@@ -303,9 +303,12 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
   override def deleteRuntime(
     params: DeleteRuntimeParams
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
-    if (params.asyncRuntimeFields.isDefined)
+    if (params.isAsyncRuntimeFields)
       googleComputeService
-        .deleteInstance(params.googleProject, config.gceConfig.zoneName, InstanceName(params.runtimeName.asString))
+        .deleteInstance(params.googleProject,
+                        config.gceConfig.zoneName,
+                        InstanceName(params.runtimeName.asString),
+                        params.autoDeletePersistentDisk.to[Set])
         .map(x => Some(x))
     else Async[F].pure(None)
 

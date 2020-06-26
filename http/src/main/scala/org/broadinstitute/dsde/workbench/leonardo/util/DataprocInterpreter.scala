@@ -212,7 +212,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     params: DeleteRuntimeParams
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
-      _ <- if (params.asyncRuntimeFields.isDefined) //check if runtime has been created
+      _ <- if (params.isAsyncRuntimeFields) //check if runtime has been created
         Async[F].liftIO(
           IO.fromFuture(IO(gdDAO.deleteCluster(params.googleProject, params.runtimeName)))
         )

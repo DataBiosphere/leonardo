@@ -5,6 +5,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
   FirewallRuleName,
   GoogleComputeService,
   InstanceName,
@@ -26,7 +27,10 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
-  override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+  override def deleteInstance(project: GoogleProject,
+                              zone: ZoneName,
+                              instanceName: InstanceName,
+                              autoDeleteDisks: Set[DiskName] = Set.empty)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 

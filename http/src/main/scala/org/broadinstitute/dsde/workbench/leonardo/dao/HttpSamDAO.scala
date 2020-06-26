@@ -123,19 +123,21 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- logger.info(
         s"${traceId} | creating ${resource.resourceType.asString} resource in sam for ${googleProject}/${resource.resourceId}"
       )
-      _ <- httpClient.fetch[Unit](
-        Request[F](
-          method = Method.POST,
-          uri = config.samUri
-            .withPath(s"/api/resources/v1/${resource.resourceType.asString}/${resource.resourceId}"),
-          headers = Headers.of(authHeader)
+      _ <- httpClient
+        .run(
+          Request[F](
+            method = Method.POST,
+            uri = config.samUri
+              .withPath(s"/api/resources/v1/${resource.resourceType.asString}/${resource.resourceId}"),
+            headers = Headers.of(authHeader)
+          )
         )
-      ) { resp =>
-        if (resp.status.isSuccess)
-          Effect[F].unit
-        else
-          onError(resp).flatMap(Effect[F].raiseError)
-      }
+        .use { resp =>
+          if (resp.status.isSuccess)
+            Effect[F].unit
+          else
+            onError(resp).flatMap(Effect[F].raiseError[Unit])
+        }
     } yield ()
 
   def deleteResource(resource: SamResource,
@@ -154,23 +156,25 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         )(s => Effect[F].pure(s))
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-      _ <- httpClient.fetch[Unit](
-        Request[F](
-          method = Method.DELETE,
-          uri = config.samUri
-            .withPath(s"/api/resources/v1/${resource.resourceType.asString}/${resource.resourceId}"),
-          headers = Headers.of(authHeader)
+      _ <- httpClient
+        .run(
+          Request[F](
+            method = Method.DELETE,
+            uri = config.samUri
+              .withPath(s"/api/resources/v1/${resource.resourceType.asString}/${resource.resourceId}"),
+            headers = Headers.of(authHeader)
+          )
         )
-      ) { resp =>
-        resp.status match {
-          case Status.NotFound =>
-            logger.info(
-              s"Fail to delete ${googleProject}/${resource.resourceId} because ${resource.resourceType.asString} doesn't exist in SAM"
-            )
-          case s if (s.isSuccess) => Effect[F].unit
-          case _                  => onError(resp).flatMap(Effect[F].raiseError)
+        .use { resp =>
+          resp.status match {
+            case Status.NotFound =>
+              logger.info(
+                s"Fail to delete ${googleProject}/${resource.resourceId} because ${resource.resourceType.asString} doesn't exist in SAM"
+              )
+            case s if (s.isSuccess) => Effect[F].unit
+            case _                  => onError(resp).flatMap(Effect[F].raiseError[Unit])
+          }
         }
-      }
     } yield ()
 
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
@@ -243,7 +247,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
   private def onError(response: Response[F])(implicit ev: ApplicativeAsk[F, TraceId]): F[Throwable] =
     for {
       traceId <- ev.ask
-      body <- response.bodyAsText(Charset.`UTF-8`).compile.foldMonoid
+      body <- response.bodyText.compile.foldMonoid
       _ <- logger.error(s"${traceId} | Sam call failed: $body")
     } yield AuthProviderException(traceId, body, response.status.code)
 }

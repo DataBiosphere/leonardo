@@ -222,7 +222,14 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       )
       _ <- metrics.incrementCounter("numOfInactiveZombieRuntimes")
       _ <- zombie.cloudService.interpreter
-        .deleteRuntime(DeleteRuntimeParams(zombie.googleProject, zombie.runtimeName, zombie.asyncRuntimeFields))
+        .deleteRuntime(
+          DeleteRuntimeParams(
+            zombie.googleProject,
+            zombie.runtimeName,
+            zombie.asyncRuntimeFields.isDefined,
+            None
+          ) //TODO: think about this a bit more. We may want to delete disks in certain cases
+        )
         .void
         .recoverWith {
           case e =>

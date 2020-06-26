@@ -5,7 +5,7 @@ import java.time.Instant
 
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Operation
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
@@ -72,7 +72,8 @@ final case class GetRuntimeStatusParams(googleProject: GoogleProject,
                                         zoneName: Option[ZoneName]) // zoneName is only needed for GCE
 final case class DeleteRuntimeParams(googleProject: GoogleProject,
                                      runtimeName: RuntimeName,
-                                     asyncRuntimeFields: Option[AsyncRuntimeFields])
+                                     isAsyncRuntimeFields: Boolean,
+                                     autoDeletePersistentDisk: Option[DiskName])
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)
 final case class StartRuntimeParams(runtime: Runtime, now: Instant)

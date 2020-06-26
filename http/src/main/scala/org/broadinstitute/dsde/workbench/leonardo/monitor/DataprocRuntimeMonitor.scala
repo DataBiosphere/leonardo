@@ -325,9 +325,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime.googleProject,
-                                runtimeAndRuntimeConfig.runtime.runtimeName,
-                                runtimeAndRuntimeConfig.runtime.asyncRuntimeFields)
+            DeleteRuntimeParams(
+              runtimeAndRuntimeConfig.runtime.googleProject,
+              runtimeAndRuntimeConfig.runtime.runtimeName,
+              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined,
+              None
+            )
           )
           .void, //TODO is this right when deleting or stopping fails?
         persistClusterErrors(
