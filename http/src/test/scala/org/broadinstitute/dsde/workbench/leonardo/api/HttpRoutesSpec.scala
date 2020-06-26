@@ -29,12 +29,13 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 class HttpRoutesSpec
-    extends FlatSpec
+    extends AnyFlatSpec
     with ScalatestRouteTest
     with LeonardoTestSuite
     with ScalaFutures
@@ -106,7 +107,11 @@ class HttpRoutesSpec
   it should "list runtimes without a project" in {
     Get("/api/google/v1/runtimes") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
+      val response = responseAs[Vector[ListRuntimeResponse2]]
+      response.map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
+      response.map(_.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig]) shouldBe Vector(
+        CommonTestData.defaultGceRuntimeConfig
+      )
       validateRawCookie(header("Set-Cookie"))
     }
   }

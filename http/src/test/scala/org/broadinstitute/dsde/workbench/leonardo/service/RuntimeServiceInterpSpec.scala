@@ -24,13 +24,14 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.scalatestplus.mockito.MockitoSugar
-import org.scalatest.{Assertion, FlatSpec}
+import org.scalatest.Assertion
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 
-class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
+class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
   def makeRuntimeService(publisherQueue: InspectableQueue[IO, LeoPubsubMessage]) =
     new RuntimeServiceInterp(
@@ -272,7 +273,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       disk.size shouldBe DiskSize(500)
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
-        Some(disk.id)
+        Some(disk.id),
+        bootDiskSize = DiskSize(50)
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfig, Some(context.traceId))
@@ -283,7 +285,8 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes,
-          runtimeConfig = RuntimeConfig.GceWithPdConfig(runtimeConfig.machineType, Some(disk.id))
+          runtimeConfig =
+            RuntimeConfig.GceWithPdConfig(runtimeConfig.machineType, Some(disk.id), bootDiskSize = DiskSize(50))
         )
       message shouldBe expectedMessage
     }
@@ -758,6 +761,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
                                                                       project,
                                                                       userInfo,
                                                                       serviceAccount,
+                                                                      FormattedBy.GCE,
                                                                       whitelistAuthProvider,
                                                                       Config.persistentDiskConfig)
       disk = diskResult.disk
@@ -797,6 +801,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .attempt
@@ -817,6 +822,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .unsafeRunSync()
@@ -830,7 +836,9 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
       t <- ctx.ask
       savedDisk <- makePersistentDisk(DiskId(1)).save()
       _ <- IO(
-        makeCluster(1).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id)))
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+        )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       err <- RuntimeServiceInterp
@@ -838,11 +846,49 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
                                       project,
                                       userInfo,
                                       serviceAccount,
+                                      FormattedBy.GCE,
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "fail to process a disk reference when the disk is already formatted by another app" in isolatedDbTest {
+    val res = for {
+      t <- ctx.ask
+      gceDisk <- makePersistentDisk(DiskId(1), Some(FormattedBy.GCE)).save()
+      req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
+      formatGceDiskError <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.Galaxy,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .attempt
+      galaxyDisk <- makePersistentDisk(DiskId(2), Some(FormattedBy.Galaxy)).save()
+      req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
+      formatGalaxyDiskError <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.GCE,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .attempt
+    } yield {
+      formatGceDiskError shouldBe Left(
+        DiskAlreadyFormattedByOtherApp(project, gceDisk.name, t.traceId, FormattedBy.GCE)
+      )
+      formatGalaxyDiskError shouldBe Left(
+        DiskAlreadyFormattedByOtherApp(project, galaxyDisk.name, t.traceId, FormattedBy.Galaxy)
+      )
     }
 
     res.unsafeRunSync()
@@ -857,6 +903,7 @@ class RuntimeServiceInterpSpec extends FlatSpec with LeonardoTestSuite with Test
                                                              project,
                                                              userInfo,
                                                              serviceAccount,
+                                                             FormattedBy.GCE,
                                                              whitelistAuthProvider,
                                                              Config.persistentDiskConfig)
     } yield ()

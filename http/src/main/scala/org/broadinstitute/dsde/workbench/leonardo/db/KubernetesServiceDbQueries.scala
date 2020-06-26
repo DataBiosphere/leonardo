@@ -113,9 +113,6 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
 
-  def isDiskAttached(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[Boolean] =
-    appQuery.filter(x => x.diskId.isDefined && x.diskId === disk.id).length.result.map(_ > 0)
-
   private[db] def listByProject(
     googleProject: Option[GoogleProject],
     includeDeleted: Boolean = false

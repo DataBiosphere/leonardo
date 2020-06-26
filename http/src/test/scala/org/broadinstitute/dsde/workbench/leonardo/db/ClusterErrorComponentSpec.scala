@@ -4,11 +4,11 @@ package db
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import org.scalatest.FlatSpecLike
 import CommonTestData._
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class ClusterErrorComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
+class ClusterErrorComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils {
 
   "ClusterErrorComponent" should "save, and get" in isolatedDbTest {
     val savedCluster1 = makeCluster(1).save()

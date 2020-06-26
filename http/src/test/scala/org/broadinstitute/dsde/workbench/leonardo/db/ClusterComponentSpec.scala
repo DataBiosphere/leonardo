@@ -11,13 +11,13 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
-import org.scalatest.FlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
+class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue(clusterQuery.listWithLabels) shouldEqual Seq()
 
@@ -323,12 +323,16 @@ class ClusterComponentSpec extends FlatSpecLike with TestComponent with GcsPathU
     val res = for {
       savedDisk <- makePersistentDisk(DiskId(1)).save()
       savedRuntime <- IO(
-        makeCluster(1).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id)))
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+        )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(retrievedRuntime.get.runtimeConfigId).transaction
       error <- IO(
-        makeCluster(2).saveWithRuntimeConfig(RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1))))
+        makeCluster(2).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1)), bootDiskSize = DiskSize(50))
+        )
       ).attempt
     } yield {
       retrievedRuntime shouldBe 'defined

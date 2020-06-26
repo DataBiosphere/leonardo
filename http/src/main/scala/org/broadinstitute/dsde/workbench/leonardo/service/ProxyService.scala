@@ -11,6 +11,7 @@ import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
+import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import cats.implicits._
@@ -216,7 +217,12 @@ class ProxyService(
               IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
           }
           r <- if (response.status.isFailure())
-            IO(logger.info(s"Error response for proxied request ${request.uri}: ${response.status}")).as(response)
+            IO(
+              logger.info(
+                s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
+                  .to[String]}"
+              )
+            ).as(response)
           else IO.pure(response)
         } yield r
 

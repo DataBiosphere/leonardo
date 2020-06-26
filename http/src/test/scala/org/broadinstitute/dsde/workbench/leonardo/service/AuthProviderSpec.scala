@@ -34,10 +34,12 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
+import org.scalatest.{BeforeAndAfterAll, OptionValues}
+import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 
 class AuthProviderSpec
-    extends FreeSpec
+    extends AnyFreeSpec
     with ScalatestRouteTest
     with Matchers
     with TestComponent
@@ -198,7 +200,7 @@ class AuthProviderSpec
       )(any[ApplicativeAsk[IO, TraceId]])
     }
 
-    "should not let you do things if the auth provider says no" in {
+    "should not let you do things if the auth provider says no" in isolatedDbTest {
       val spyProvider = spy(alwaysNoProvider)
       val leo = leoWithAuthProvider(spyProvider)
       val proxy = proxyWithAuthProvider(spyProvider)

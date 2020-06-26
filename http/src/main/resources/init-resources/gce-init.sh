@@ -108,6 +108,7 @@ export NOTEBOOKS_DIR=$(notebooksDir)
 export WELDER_SERVER_NAME=$(welderServerName)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
+export IS_GCE_FORMATTED=$(isGceFormatted)
 
 #####################################################################################################
 # Set up that IS specific to RUNTIME_OPERATION:
@@ -153,6 +154,16 @@ if [[ "$RUNTIME_OPERATION" == 'creating' ]]; then
 
     mkdir -p /work
     mkdir -p /certs
+    # Mount persisent disk
+    export DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+    # Only format disk is it hasn't already been formatted
+    if [ "$IS_GCE_FORMATTED" == "false" ] ; then
+      mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
+    fi
+    mount -o discard,defaults /dev/${DISK_DEVICE_ID} /work
+    # Ensure peristent disk re-mounts if runtime stops and restarts
+    cp /etc/fstab /etc/fstab.backup
+    echo UUID=`blkid -s UUID -o value /dev/${DISK_DEVICE_ID}` /work ext4 discard,defaults,nofail 0 2 | tee -a /etc/fstab
     chmod a+rwx /work
 
     # Add the certificates from the bucket to the VM. They are used by the docker-compose file

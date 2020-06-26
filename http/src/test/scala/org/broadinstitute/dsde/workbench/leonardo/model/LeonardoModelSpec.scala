@@ -8,9 +8,9 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
-import org.scalatest.FlatSpecLike
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class LeonardoModelSpec extends LeonardoTestSuite with FlatSpecLike {
+class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 

@@ -19,11 +19,11 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.scalatest.FlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpec
 
-class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
+class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val diskService = new DiskServiceInterp(
     Config.persistentDiskConfig,
@@ -183,7 +183,7 @@ class DiskServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestCom
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(disk.id))
+          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(disk.id), bootDiskSize = DiskSize(50))
         )
       )
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt

@@ -1,13 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.scalatest.{FlatSpecLike, Matchers}
 import JsonCodec._
 import io.circe.CursorOp.DownField
-import io.circe.DecodingFailure
+import io.circe.{DecodingFailure, Json}
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 
-class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
+
+class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   "JsonCodec" should "decode DataprocConfig properly" in {
     val inputString =
       """
@@ -47,7 +49,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
     val res = decode[RuntimeConfig](inputString)
     val expected = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-8"),
-      DiskSize(500)
+      DiskSize(500),
+      None
     )
     res shouldBe (Right(expected))
   }
@@ -58,14 +61,16 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
       """
         |{
         |   "machineType": "n1-standard-8",
-        |   "cloudService": "GCE"
+        |   "cloudService": "GCE",
+        |   "bootDiskSize": 50
         |}
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
     val expected = RuntimeConfig.GceWithPdConfig(
       MachineTypeName("n1-standard-8"),
-      None
+      None,
+      DiskSize(50)
     )
     res shouldBe (Right(expected))
   }
@@ -95,11 +100,23 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with FlatSpecLike {
         |{
         |   "cloudService": "gce",
         |   "machineType": "n1-standard-8",
-        |   "persistentDiskId": 50
+        |   "persistentDiskId": 50,
+        |   "bootDiskSize": 50
         |}
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50))))
+    res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50)))
+  }
+
+  it should "fail decoding if diskName has upper case" in {
+    val diskNameJson = Json.fromString("PersistentDisk")
+    val res = diskNameDecoder.decodeJson(diskNameJson)
+    res shouldBe Left(
+      DecodingFailure(
+        "Invalid name PersistentDisk. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names",
+        List()
+      )
+    )
   }
 }

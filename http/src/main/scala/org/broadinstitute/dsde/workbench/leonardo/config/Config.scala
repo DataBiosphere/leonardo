@@ -91,8 +91,9 @@ object Config {
 
   implicit private val gceRuntimeConfigReader: ValueReader[RuntimeConfig.GceConfig] = ValueReader.relative { config =>
     RuntimeConfig.GceConfig(
-      config.as[MachineTypeName]("machineType"),
-      config.as[DiskSize]("diskSize")
+      machineType = config.as[MachineTypeName]("machineType"),
+      diskSize = config.as[DiskSize]("diskSize"),
+      bootDiskSize = Some(config.as[DiskSize]("bootDiskSize"))
     )
   }
 
@@ -110,7 +111,6 @@ object Config {
 
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
-      config.as[DiskSize]("bootDiskSize"),
       config.as[GceCustomImage]("customGceImage"),
       config.as[RegionName]("region"),
       config.as[ZoneName]("zone"),
@@ -216,11 +216,12 @@ object Config {
     )
   }
 
-  implicit private val clusterDnsCacheConfigValueReader: ValueReader[CacheConfig] = ValueReader.relative { config =>
-    CacheConfig(
-      toScalaDuration(config.getDuration("cacheExpiryTime")),
-      config.getInt("cacheMaxSize")
-    )
+  implicit private val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative {
+    config =>
+      ClusterDnsCacheConfig(
+        toScalaDuration(config.getDuration("cacheExpiryTime")),
+        config.getInt("cacheMaxSize")
+      )
   }
 
   implicit private val kubernetesProxyCacheConfigReader: ValueReader[KubernetesProxyConfig] = ValueReader.relative {
@@ -321,11 +322,14 @@ object Config {
     )
   }
 
-  implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = ValueReader.relative {
-    config =>
-      LeoExecutionModeConfig(
-        config.getBoolean("backLeo")
-      )
+  implicit private val leoExecutionModeConfigValueReader: ValueReader[LeoExecutionModeConfig] = stringValueReader.map {
+    s =>
+      s match {
+        case "combined" => LeoExecutionModeConfig.Combined
+        case "backLeo"  => LeoExecutionModeConfig.BackLeoOnly
+        case "frontLeo" => LeoExecutionModeConfig.FrontLeoOnly
+        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: ${x}")
+      }
   }
 
   implicit private val clusterBucketConfigValueReader: ValueReader[RuntimeBucketConfig] = ValueReader.relative {
@@ -462,7 +466,7 @@ object Config {
   val clusterDnsCacheConfig = config.as[CacheConfig]("clusterDnsCache")
   val kubernetesProxyConfig = config.as[KubernetesProxyConfig]("kubernetesProxyConfig")
   val kubernetesCacheConfig = config.as[CacheConfig]("kubernetesCacheConfig")
-  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
+  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")  val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 
   implicit val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>

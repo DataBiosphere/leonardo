@@ -9,9 +9,9 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
   ScriptSrc,
   StyleSrc
 }
-import org.scalatest.FlatSpecLike
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class ContentSecurityPolicyConfigSpec extends LeonardoTestSuite with FlatSpecLike {
+class ContentSecurityPolicyConfigSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
   "ContentSecurityPolicyConfig" should "generate a valid string" in {
     val test = ContentSecurityPolicyConfig(

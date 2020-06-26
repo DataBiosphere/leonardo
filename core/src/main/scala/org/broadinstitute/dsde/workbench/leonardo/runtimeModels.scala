@@ -203,13 +203,18 @@ sealed trait RuntimeConfig extends Product with Serializable {
 object RuntimeConfig {
   final case class GceConfig(
     machineType: MachineTypeName,
-    diskSize: DiskSize
+    diskSize: DiskSize,
+    bootDiskSize: Option[
+      DiskSize
+    ] //This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
 
   // When persistentDiskId is None, then we don't have any disk attached to the runtime
-  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: Option[DiskId])
+  final case class GceWithPdConfig(machineType: MachineTypeName,
+                                   persistentDiskId: Option[DiskId],
+                                   bootDiskSize: DiskSize)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }

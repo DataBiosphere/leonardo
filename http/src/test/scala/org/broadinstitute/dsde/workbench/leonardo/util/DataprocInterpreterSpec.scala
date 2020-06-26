@@ -22,15 +22,17 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Creat
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 
 class DataprocInterpreterSpec
     extends TestKit(ActorSystem("leonardotest"))
-    with FlatSpecLike
+    with AnyFlatSpecLike
     with TestComponent
     with Matchers
     with BeforeAndAfterAll

@@ -52,7 +52,8 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           updateWelder: String,
                                           disableDelocalization: String,
                                           rstudioLicenseFile: String,
-                                          proxyServerHostName: String) {
+                                          proxyServerHostName: String,
+                                          isGceFormatted: String) {
 
   def toMap: Map[String, String] =
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
@@ -77,7 +78,8 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 clusterResourcesConfig: ClusterResourcesConfig,
                                                 clusterResourceConstraints: Option[RuntimeResourceConstraints],
                                                 runtimeOperation: RuntimeOperation,
-                                                welderAction: Option[WelderAction])
+                                                welderAction: Option[WelderAction],
+                                                isGceFormatted: Boolean)
 object RuntimeTemplateValuesConfig {
   def fromCreateRuntimeParams(
     params: CreateRuntimeParams,
@@ -89,7 +91,8 @@ object RuntimeTemplateValuesConfig {
     proxyConfig: ProxyConfig,
     clusterFilesConfig: ClusterFilesConfig,
     clusterResourcesConfig: ClusterResourcesConfig,
-    clusterResourceConstraints: Option[RuntimeResourceConstraints]
+    clusterResourceConstraints: Option[RuntimeResourceConstraints],
+    isFormatted: Boolean
   ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       params.runtimeProjectAndName,
@@ -110,7 +113,8 @@ object RuntimeTemplateValuesConfig {
       clusterResourcesConfig,
       clusterResourceConstraints,
       RuntimeOperation.Creating,
-      None
+      None,
+      isFormatted
     )
 
   def fromRuntime(runtime: Runtime,
@@ -143,7 +147,8 @@ object RuntimeTemplateValuesConfig {
       clusterResourcesConfig,
       clusterResourceConstraints,
       runtimeOperation,
-      welderAction
+      welderAction,
+      false
     )
 }
 
@@ -230,7 +235,8 @@ object RuntimeTemplateValues {
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.rstudioLicenseFile.getFileName.toString)).toUri)
         .getOrElse(""),
-      config.proxyConfig.getProxyServerHostName
+      config.proxyConfig.getProxyServerHostName,
+      config.isGceFormatted.toString
     )
 
   def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =

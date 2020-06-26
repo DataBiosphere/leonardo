@@ -4,13 +4,13 @@ package db
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeonardoServiceDbQueries._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ListRuntimeResponse
-import org.scalatest.FlatSpecLike
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 // TODO deprecated in favor of RuntimeServiceDbQueriesSpec
-class LeonardoServiceDbQueriesSpec extends FlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
+class LeonardoServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   it should "get by labels" in isolatedDbTest {
 
     val savedCluster1 =

@@ -2,10 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.GceCustomImage
-import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, MemorySize, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{MemorySize, RuntimeConfig}
 
-case class GceConfig(bootDiskSize: DiskSize,
-                     customGceImage: GceCustomImage,
+case class GceConfig(customGceImage: GceCustomImage,
                      regionName: RegionName,
                      zoneName: ZoneName,
                      defaultScopes: Set[String],

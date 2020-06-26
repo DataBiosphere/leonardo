@@ -69,7 +69,7 @@ object CommonTestData {
     "https://www.googleapis.com/auth/source.read_only"
   )
   val zone = ZoneName("us-central1-a")
-  val diskName = DiskName("diskName")
+  val diskName = DiskName("disk-name")
   val googleId = GoogleId("google-id")
   val diskSamResource = PersistentDiskSamResource("disk-resource-id")
   val diskSize = DiskSize(500)
@@ -180,7 +180,7 @@ object CommonTestData {
     RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty)
 
   val defaultGceRuntimeConfig =
-    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500))
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500), bootDiskSize = Some(DiskSize(50)))
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0),
                                         Some(MachineTypeName("n1-standard-4")),
@@ -191,7 +191,7 @@ object CommonTestData {
                                         None,
                                         Map.empty[String, String])
   val gceRuntimeConfig =
-    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500))
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500), bootDiskSize = Some(DiskSize(50)))
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
@@ -280,7 +280,7 @@ object CommonTestData {
     )
     .build()
 
-  def makePersistentDisk(id: DiskId): PersistentDisk = PersistentDisk(
+  def makePersistentDisk(id: DiskId, formattedBy: Option[FormattedBy] = None): PersistentDisk = PersistentDisk(
     id,
     project,
     zone,
@@ -293,6 +293,7 @@ object CommonTestData {
     diskSize,
     diskType,
     blockSize,
+    formattedBy,
     Map.empty
   )
 

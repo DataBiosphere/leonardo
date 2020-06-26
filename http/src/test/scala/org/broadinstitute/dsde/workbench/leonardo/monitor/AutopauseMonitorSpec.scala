@@ -12,12 +12,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDA
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.FlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
 
-class AutopauseMonitorSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
+class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
   it should "auto freeze the cluster when kernel is idle" in isolatedDbTest {
     val jupyterDAO = new MockJupyterDAO {

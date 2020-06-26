@@ -5,11 +5,11 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.{NodepoolStatus}
-import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class NodepoolComponentSpec extends FlatSpecLike with TestComponent {
+class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
 
   it should "save, get, delete" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()

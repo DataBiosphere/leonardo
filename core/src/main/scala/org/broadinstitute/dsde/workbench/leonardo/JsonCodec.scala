@@ -89,11 +89,12 @@ object JsonCodec {
      x.numberOfPreemptibleWorkers,
      x.cloudService)
   )
-  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct3(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct4(
     "machineType",
     "diskSize",
-    "cloudService"
-  )(x => (x.machineType, x.diskSize, x.cloudService))
+    "cloudService",
+    "bootDiskSize"
+  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize))
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
     "serverExtensions",
@@ -121,11 +122,12 @@ object JsonCodec {
     "size",
     "diskType"
   )(x => PersistentDiskInRuntimeConfig.unapply(x).get)
-  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct3(
+  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct4(
     "machineType",
     "persistentDiskId",
-    "cloudService"
-  )(x => (x.machineType, x.persistentDiskId, x.cloudService))
+    "cloudService",
+    "bootDiskSize"
+  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize))
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {
@@ -293,21 +295,23 @@ object JsonCodec {
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
 
   implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName)
-  implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.map(DiskName)
+  implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
 
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct2(
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct3(
     "machineType",
-    "persistentDiskId"
+    "persistentDiskId",
+    "bootDiskSize"
   )(RuntimeConfig.GceWithPdConfig.apply)
-  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct2(
+  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct3(
     "machineType",
-    "diskSize"
-  )((mt, ds) => RuntimeConfig.GceConfig(mt, ds))
+    "diskSize",
+    "bootDiskSize"
+  )((mt, ds, bds) => RuntimeConfig.GceConfig(mt, ds, bds))
   implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct6(
     "id",
     "zone",

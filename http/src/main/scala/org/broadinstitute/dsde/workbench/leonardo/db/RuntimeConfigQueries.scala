@@ -75,4 +75,11 @@ object RuntimeConfigQueries {
       .filter(x => x.id === id)
       .map(c => (c.diskSize, c.dateAccessed))
       .update((Some(newSizeGb), dateAccessed))
+
+  def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
+    RuntimeConfigQueries.runtimeConfigs
+      .filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === diskId)
+      .length
+      .result
+      .map(_ > 0)
 }

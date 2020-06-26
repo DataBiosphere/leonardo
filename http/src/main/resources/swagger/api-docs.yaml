@@ -2299,6 +2299,7 @@ components:
         runtimeConfig:
           oneOf:
             - $ref: "#/components/schemas/GceConfig"
+            - $ref: "#/components/schemas/GceWithPdConfig"
             - $ref: "#/components/schemas/MachineConfig"
           discriminator:
             propertyName: cloudService
@@ -2546,6 +2547,9 @@ components:
               description: >
                 Optional, the size in gigabytes of the disk on the GCE VM.
                 Minimum size is 50GB. If unspecified, default size is 100GB.
+            bootDiskSize:
+              type: integer
+              description: size for boot disk. For old runtimes (prior 6/22/2020, gce runtimes don't have a separate boot disk)
             machineType:
               type: string
               description: >
@@ -2555,7 +2559,7 @@ components:
                 or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
 
                 see https://cloud.google.com/compute/docs/machine-types
-    GceWithPDConfig:
+    GceWithPdConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
         - $ref: '#/components/schemas/RuntimeConfig'
@@ -2563,6 +2567,9 @@ components:
           properties:
             persistentDisk:
               $ref: "#/components/schemas/PersistentDiskConfig"
+            bootDiskSize:
+              type: integer
+              description: size for boot disk
             machineType:
               type: string
               description: >

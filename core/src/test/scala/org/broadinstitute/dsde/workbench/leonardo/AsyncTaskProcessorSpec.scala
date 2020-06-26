@@ -7,11 +7,12 @@ import cats.effect.concurrent.Deferred
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Config, Task}
-import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class AsyncTaskProcessorSpec extends FlatSpec with Matchers with LeonardoTestSuite {
+class AsyncTaskProcessorSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   val config = Config(20, 5)
   val queue = InspectableQueue.bounded[IO, Task[IO]](config.queueBound).unsafeRunSync()
   val asyncTaskProcessor = new AsyncTaskProcessor[IO](

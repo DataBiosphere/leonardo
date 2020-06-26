@@ -28,7 +28,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       dateAccessed: Instant,
                                       size: DiskSize,
                                       diskType: DiskType,
-                                      blockSize: BlockSize)
+                                      blockSize: BlockSize,
+                                      formattedBy: Option[FormattedBy])
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
@@ -46,6 +47,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def size = column[DiskSize]("sizeGb")
   def diskType = column[DiskType]("type", O.Length(255))
   def blockSize = column[BlockSize]("blockSizeBytes")
+  def formattedBy = column[Option[FormattedBy]]("formattedBy", O.Length(255))
 
   override def * =
     (id,
@@ -62,7 +64,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      dateAccessed,
      size,
      diskType,
-     blockSize) <> (PersistentDiskRecord.tupled, PersistentDiskRecord.unapply)
+     blockSize,
+     formattedBy) <> (PersistentDiskRecord.tupled, PersistentDiskRecord.unapply)
 }
 
 object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
@@ -106,6 +109,11 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
 
+  def updateStatusAndIsFormatted(id: DiskId, newStatus: DiskStatus, formattedBy: FormattedBy, dateAccessed: Instant) =
+    findByIdQuery(id)
+      .map(d => (d.status, d.formattedBy, d.dateAccessed))
+      .update((newStatus, Some(formattedBy), dateAccessed))
+
   def markPendingDeletion(id: DiskId, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(d => (d.status, d.dateAccessed))
@@ -122,7 +130,25 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def updateSize(id: DiskId, newSize: DiskSize, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.size, d.dateAccessed)).update((newSize, dateAccessed))
 
-  // TODO add other queries as needed
+  def getFormattedBy(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[FormattedBy]] =
+    findByIdQuery(id).map(_.formattedBy).result.headOption.map(_.flatten)
+
+  def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
+    for {
+      formattedBy <- getFormattedBy(diskId)
+      r <- formattedBy match {
+        case None =>
+          for {
+            isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
+            isAttached <- if (isAttachedToRuntime) DBIO.successful(true)
+            else appQuery.isDiskAttached(diskId)
+          } yield isAttached
+        case Some(FormattedBy.Galaxy) =>
+          appQuery.isDiskAttached(diskId)
+        case Some(FormattedBy.GCE) =>
+          RuntimeConfigQueries.isDiskAttached(diskId)
+      }
+    } yield r
 
   private[db] def marshalPersistentDisk(disk: PersistentDisk): PersistentDiskRecord =
     PersistentDiskRecord(
@@ -140,7 +166,8 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       disk.auditInfo.dateAccessed,
       disk.size,
       disk.diskType,
-      disk.blockSize
+      disk.blockSize,
+      disk.formattedBy
     )
 
   private[db] def aggregateLabels(
@@ -178,6 +205,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       rec.size,
       rec.diskType,
       rec.blockSize,
+      rec.formattedBy,
       labels
     )
 }

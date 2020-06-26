@@ -6,11 +6,11 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{labelQuery, LabelResourceType, TestComponent}
-import org.scalatest.FlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class LabelComponentSpec extends FlatSpecLike with TestComponent with GcsPathUtils {
+class LabelComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils {
 
   List(LabelResourceType.Runtime, LabelResourceType.PersistentDisk, LabelResourceType.App).foreach { resourceType =>
     it should s"save, get, update, and delete ${resourceType.asString} labels" in isolatedDbTest {

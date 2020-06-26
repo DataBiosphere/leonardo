@@ -135,12 +135,4 @@ object RuntimeServiceDbQueries {
       }.toList
     }
   }
-
-  //TODO: this needs to be updated to check formattedBy first
-  def isDiskAttachedToRuntime(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
-    RuntimeConfigQueries.runtimeConfigs
-      .filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === diskId)
-      .length
-      .result
-      .map(_ > 0)
 }

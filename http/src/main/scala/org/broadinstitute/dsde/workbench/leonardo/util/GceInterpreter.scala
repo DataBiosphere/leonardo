@@ -88,6 +88,89 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         .compile
         .drain
 
+      initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.gceInitScript.asString))
+
+      bootDisk = AttachedDisk.newBuilder
+        .setBoot(true)
+        .setInitializeParams(
+          AttachedDiskInitializeParams
+            .newBuilder()
+            .setDescription("Leonardo Managed Boot Disk")
+            .setSourceImage(config.gceConfig.customGceImage.asString)
+            .setDiskSizeGb(
+              config.gceConfig.runtimeConfigDefaults.bootDiskSize.get.gb.toString //Using `.get` here is okay since `bootDiskSize` always exists in config
+            )
+            .putAllLabels(Map("leonardo" -> "true").asJava)
+            .build()
+        )
+        .setAutoDelete(true)
+        .build()
+
+      (userDisk, isFormatted) <- params.runtimeConfig match {
+        case x: RuntimeConfig.GceWithPdConfig =>
+          for {
+            diskId <- F.fromEither(
+              x.persistentDiskId.toRight(
+                new RuntimeException("Missing diskId in the request. We should have rejected this request in front leo")
+              )
+            )
+            persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
+            persistentDisk <- F.fromEither(
+              persistentDiskOpt.toRight(
+                new Exception(
+                  "Runtime has Persistent Disk enabled, but we can't find it in database. This should never happen."
+                )
+              )
+            )
+            isFormatted <- persistentDisk.formattedBy match {
+              case Some(FormattedBy.Galaxy) =>
+                F.raiseError(
+                  new RuntimeException(
+                    "Trying to use a Galaxy formatted disk for creating GCE runtime. This should never happen."
+                  )
+                )
+              case Some(FormattedBy.GCE) => F.pure(true)
+              case None                  => F.pure(false)
+            }
+          } yield {
+            val disk = AttachedDisk.newBuilder
+              .setBoot(false)
+              .setDeviceName("user-disk")
+              .setInitializeParams(
+                AttachedDiskInitializeParams
+                  .newBuilder()
+                  .setDiskName(persistentDisk.name.value)
+                  .setDiskSizeGb(persistentDisk.size.gb.toString)
+                  .putAllLabels(Map("leonardo" -> "true").asJava)
+                  .setDiskType(
+                    persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject,
+                                                         persistentDisk.zone)
+                  )
+                  .build()
+              )
+              .setAutoDelete(false)
+              .build()
+            (disk, persistentDisk.formattedBy.isDefined)
+          }
+        case x: RuntimeConfig.GceConfig =>
+          val disk = AttachedDisk.newBuilder
+            .setBoot(false)
+            .setDeviceName("user-disk")
+            .setInitializeParams(
+              AttachedDiskInitializeParams
+                .newBuilder()
+                .setDiskSizeGb(x.diskSize.gb.toString)
+                .build()
+            )
+            .setAutoDelete(true)
+            .build()
+          F.pure((disk, false))
+        case _: RuntimeConfig.DataprocConfig =>
+          F.raiseError[(AttachedDisk, Boolean)](
+            new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
+          )
+      }
+
       templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
         params,
         Some(initBucketName),
@@ -98,7 +181,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         config.proxyConfig,
         config.clusterFilesConfig,
         config.clusterResourcesConfig,
-        Some(resourceConstraints)
+        Some(resourceConstraints),
+        isFormatted
       )
 
       templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
@@ -111,71 +195,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         .compile
         .drain
 
-      initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.gceInitScript.asString))
-
-      bootDisk = AttachedDisk.newBuilder
-        .setBoot(true)
-        .setInitializeParams(
-          AttachedDiskInitializeParams
-            .newBuilder()
-            .setDescription("Leonardo Managed Boot Disk")
-            .setSourceImage(config.gceConfig.customGceImage.asString)
-            .setDiskSizeGb(
-              config.gceConfig.bootDiskSize.gb.toString
-            )
-            .putAllLabels(Map("leonardo" -> "true").asJava)
-            .build()
-        )
-        .setAutoDelete(true)
-        .build()
-
-      userDisk <- params.runtimeConfig match {
-        case x: RuntimeConfig.GceWithPdConfig =>
-          for {
-            diskId <- F.fromEither(
-              x.persistentDiskId
-                .toRight(new RuntimeException("Missing diskId in the request. This should never happen"))
-            )
-            persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
-            persistentDisk <- F.fromEither(
-              persistentDiskOpt.toRight(
-                new Exception(
-                  "Runtime has Persistent Disk enabled, but we can't find it in database. This should never happen."
-                )
-              )
-            )
-          } yield AttachedDisk.newBuilder
-            .setBoot(false)
-            .setInitializeParams(
-              AttachedDiskInitializeParams
-                .newBuilder()
-                .setDiskName(persistentDisk.name.value)
-                .setDiskSizeGb(persistentDisk.size.gb.toString)
-                .putAllLabels(Map("leonardo" -> "true").asJava)
-                .setDiskType(
-                  persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject, persistentDisk.zone)
-                )
-                .build()
-            )
-            .setAutoDelete(false)
-            .build()
-        case x: RuntimeConfig.GceConfig =>
-          val disk = AttachedDisk.newBuilder
-            .setBoot(false)
-            .setInitializeParams(
-              AttachedDiskInitializeParams
-                .newBuilder()
-                .setDiskSizeGb(x.diskSize.gb.toString)
-                .build()
-            )
-            .setAutoDelete(true)
-            .build()
-          F.pure(disk)
-        case _: RuntimeConfig.DataprocConfig =>
-          F.raiseError[AttachedDisk](
-            new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
-          )
-      }
       instance = Instance
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)

@@ -113,6 +113,11 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         _.asString,
         x => LabelResourceType.stringToLabelResourceType.getOrElse(x, throw new Exception(s"Unknown resource type $x"))
       )
+    implicit val formattedByMappedColumnType: BaseColumnType[FormattedBy] =
+      MappedColumnType.base[FormattedBy, String](
+        _.asString,
+        s => FormattedBy.withNameInsensitiveOption(s).getOrElse(throw new RuntimeException(s"Unknown formattedBy $s"))
+      )
 
     //Kubernetes column implicits
     implicit val kubernetesClusterLeoIdColumnType: BaseColumnType[KubernetesClusterLeoId] =

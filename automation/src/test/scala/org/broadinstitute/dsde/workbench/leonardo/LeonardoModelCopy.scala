@@ -30,6 +30,25 @@ case class ClusterCopy(clusterName: RuntimeName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
+object ClusterCopy {
+  def fromGetRuntimeResponseCopy(getRuntimeResponse: GetRuntimeResponseCopy) =
+    ClusterCopy(
+      getRuntimeResponse.runtimeName,
+      getRuntimeResponse.googleProject,
+      getRuntimeResponse.serviceAccount,
+      getRuntimeResponse.runtimeConfig,
+      getRuntimeResponse.status,
+      getRuntimeResponse.auditInfo.creator,
+      getRuntimeResponse.labels,
+      getRuntimeResponse.asyncRuntimeFields.map(_.stagingBucket),
+      getRuntimeResponse.errors,
+      getRuntimeResponse.auditInfo.dateAccessed,
+      false,
+      getRuntimeResponse.autopauseThreshold,
+      false
+    )
+}
+
 sealed trait RuntimeConfigRequestCopy extends Product with Serializable {
   def typedCloudService: CloudService
 }
