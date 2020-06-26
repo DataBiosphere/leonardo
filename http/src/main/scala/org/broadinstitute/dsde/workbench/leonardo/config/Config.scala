@@ -216,12 +216,11 @@ object Config {
     )
   }
 
-  implicit private val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative {
-    config =>
-      ClusterDnsCacheConfig(
-        toScalaDuration(config.getDuration("cacheExpiryTime")),
-        config.getInt("cacheMaxSize")
-      )
+  implicit private val clusterDnsCacheConfigValueReader: ValueReader[CacheConfig] = ValueReader.relative { config =>
+    CacheConfig(
+      toScalaDuration(config.getDuration("cacheExpiryTime")),
+      config.getInt("cacheMaxSize")
+    )
   }
 
   implicit private val kubernetesProxyCacheConfigReader: ValueReader[KubernetesProxyConfig] = ValueReader.relative {
@@ -466,7 +465,7 @@ object Config {
   val clusterDnsCacheConfig = config.as[CacheConfig]("clusterDnsCache")
   val kubernetesProxyConfig = config.as[KubernetesProxyConfig]("kubernetesProxyConfig")
   val kubernetesCacheConfig = config.as[CacheConfig]("kubernetesCacheConfig")
-  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")  val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
+  val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 
   implicit val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>

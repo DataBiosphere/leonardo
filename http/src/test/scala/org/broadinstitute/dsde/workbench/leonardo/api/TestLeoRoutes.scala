@@ -5,12 +5,17 @@ package api
 import java.io.ByteArrayInputStream
 
 import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{
+  MockGoogleDirectoryDAO,
+  MockGoogleIamDAO,
+  MockGoogleProjectDAO,
+  MockGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -20,10 +25,35 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelder
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.service.{KubernetesProxyCache, KubernetesProxyService, MockDiskServiceInterp}
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, BucketHelperConfig, DataprocInterpreter, GceInterpreter, QueueFactory, RuntimeInstances, VPCInterpreter}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesServiceInterp, LeonardoService, MockProxyService, RuntimeServiceConfig, RuntimeServiceInterp, StatusService}
-import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, BucketHelperConfig, DataprocInterpreter, GceInterpreter, QueueFactory, RuntimeInstances, VPCInterpreter}
+import org.broadinstitute.dsde.workbench.leonardo.service.MockDiskServiceInterp
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  BucketHelper,
+  BucketHelperConfig,
+  DataprocInterpreter,
+  GceInterpreter,
+  QueueFactory,
+  RuntimeInstances,
+  VPCInterpreter
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  KubernetesProxyCache,
+  KubernetesProxyService,
+  LeoKubernetesServiceInterp,
+  LeonardoService,
+  MockProxyService,
+  RuntimeServiceConfig,
+  RuntimeServiceInterp,
+  StatusService
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  BucketHelper,
+  BucketHelperConfig,
+  DataprocInterpreter,
+  GceInterpreter,
+  QueueFactory,
+  RuntimeInstances,
+  VPCInterpreter
+}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
 import org.scalatest.concurrent.ScalaFutures
@@ -136,7 +166,11 @@ trait TestLeoRoutes {
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, testDbRef, dnsCacheConfig, blocker)
 
   val kubernetesProxyCache = new KubernetesProxyCache(kubernetesCacheConfig, blocker, mockGKEService)
-  val kubernetesProxyService = new KubernetesProxyService(kubernetesProxyConfig, mockGoogleCreds, kubernetesProxyCache, whitelistAuthProvider, blocker)
+  val kubernetesProxyService = new KubernetesProxyService(kubernetesProxyConfig,
+                                                          mockGoogleCreds,
+                                                          kubernetesProxyCache,
+                                                          whitelistAuthProvider,
+                                                          blocker)
   val proxyService =
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache)
   val statusService =
@@ -185,7 +219,7 @@ trait TestLeoRoutes {
   val timedHttpRoutes = new HttpRoutes(swaggerConfig,
                                        statusService,
                                        proxyService,
-                                        kubernetesProxyService,
+                                       kubernetesProxyService,
                                        leonardoService,
                                        runtimeService,
                                        MockDiskServiceInterp,
