@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import java.io.{ByteArrayInputStream, InputStream}
 import java.security.KeyStore
@@ -15,16 +17,27 @@ import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp, KubernetesClusterCaCert, PortNum}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
+  KubernetesApiServerIp,
+  KubernetesClusterCaCert,
+  PortNum
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.leonardo.config.CacheConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, GetAppResult, KubernetesServiceDbQueries}
-import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesProxyCache.{AppStatusCacheKey, _}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.google2.{GKEService, autoClosableResourceF}
+import org.broadinstitute.dsde.workbench.google2.{autoClosableResourceF, GKEService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesProxyCache.{
+  AppHostStatus,
+  AppStatusCacheKey,
+  ClusterSSLContextCacheKey,
+  HostAppNotFound,
+  HostAppNotReady,
+  HostAppReady,
+  HostServiceNotFound
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 
@@ -40,44 +53,41 @@ object KubernetesProxyCache {
   case class ClusterSSLContextCacheKey(kubernetesClusterId: KubernetesClusterId, appKey: AppStatusCacheKey)
 }
 
-class KubernetesProxyCache[F[_]: Effect: ContextShift: Sync: Timer](kubernetesCacheConfig: CacheConfig,
-                                                                    blocker: Blocker,
-                                                                    gkeService: GKEService[F])(implicit ec: ExecutionContext, dbRef: DbReference[F], F: Async[F])
-  extends LazyLogging {
+class KubernetesProxyCache[F[_]: Effect: ContextShift: Sync: Timer](
+  kubernetesCacheConfig: CacheConfig,
+  blocker: Blocker,
+  gkeService: GKEService[F]
+)(implicit ec: ExecutionContext, dbRef: DbReference[F], F: Async[F])
+    extends LazyLogging {
 
   def getHostStatus(key: AppStatusCacheKey): F[AppHostStatus] =
     blocker.blockOn(Effect[F].delay(projectAppToHostStatus.get(key)))
   def size: Long = projectAppToHostStatus.size
   def stats: CacheStats = projectAppToHostStatus.stats
 
-  private val projectAppToHostStatus = CacheBuilder
-    .newBuilder()
-    .expireAfterWrite(kubernetesCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
-    .maximumSize(kubernetesCacheConfig.cacheMaxSize)
-    .recordStats
-    .build(
-      new CacheLoader[AppStatusCacheKey, AppHostStatus] {
-        def load(key: AppStatusCacheKey): AppHostStatus = {
-          logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.appName} / ${key.serviceName} ...loading from DB...")
-          val getApp = dbRef
-            .inTransaction {
-              KubernetesServiceDbQueries.getActiveFullAppByName(key.googleProject, key.appName)
-            }
-            .toIO
-            .unsafeRunSync()
-
-
-
-          getApp match {
-            case Some(app) => {
-              hostStatusByAppResult(app, key)
-            }
-            case None =>
-              HostAppNotFound
+  private val projectAppToHostStatus =
+    CacheBuilder
+      .newBuilder()
+      .expireAfterWrite(kubernetesCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+      .maximumSize(kubernetesCacheConfig.cacheMaxSize)
+      .recordStats
+      .build(
+        new CacheLoader[AppStatusCacheKey, AppHostStatus] {
+          def load(key: AppStatusCacheKey): AppHostStatus = {
+            logger.debug(
+              s"DNS Cache miss for ${key.googleProject} / ${key.appName} / ${key.serviceName} ...loading from DB..."
+            )
+            val res = for {
+              appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(key.googleProject, key.appName).transaction
+              status = appOpt match {
+                case Some(app) => hostStatusByAppResult(app, key)
+                case None      => HostAppNotFound
+              }
+            } yield status
+            res.toIO.unsafeRunSync
           }
         }
-      }
-    )
+      )
 
   private val clusterSSLContextCache =
     CacheBuilder
@@ -88,34 +98,32 @@ class KubernetesProxyCache[F[_]: Effect: ContextShift: Sync: Timer](kubernetesCa
       .build(
         new CacheLoader[ClusterSSLContextCacheKey, HttpsConnectionContext] {
           def load(key: ClusterSSLContextCacheKey): HttpsConnectionContext = {
-            logger.debug(s"DNS Cache miss for ${key.kubernetesClusterId.toString}. Loading SSLContext with a google call...")
+            logger.debug(
+              s"DNS Cache miss for ${key.kubernetesClusterId.toString}. Loading SSLContext with a google call..."
+            )
             implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-
-            performCacheLoad(key)
-              .toIO
-              .unsafeRunSync
+            performCacheLoad(key).toIO.unsafeRunSync
           }
         }
       )
 
-  def performCacheLoad(key: ClusterSSLContextCacheKey)
-                      (implicit ev: ApplicativeAsk[F, TraceId]): F[HttpsConnectionContext] = {
+  def performCacheLoad(
+    key: ClusterSSLContextCacheKey
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[HttpsConnectionContext] =
     for {
       clusterOpt <- gkeService.getCluster(key.kubernetesClusterId)
       cluster <- F.fromOption(clusterOpt, AppIsReadyButClusterNotFound(key.kubernetesClusterId, key.appKey))
       cert = KubernetesClusterCaCert(cluster.getMasterAuth.getClusterCaCertificate)
       cert <- F.fromEither(cert.base64Cert)
       certResource = autoClosableResourceF(new ByteArrayInputStream(cert))
-      sslContext <- certResource.use { certStream =>
-          getSSLContext(certStream)
-      }
+      sslContext <- certResource.use(certStream => getSSLContext(certStream))
     } yield sslContext
-  }
 
-  case class AppIsReadyButClusterNotFound(kubernetesClusterId:  KubernetesClusterId, appKey: AppStatusCacheKey) extends LeoException(
-    s"App ${appKey.googleProject}/${appKey.appName}/${appKey.serviceName} had a ready status in the database, but cluster ${kubernetesClusterId.toString} was not found in google.",
-    StatusCodes.InternalServerError
-  )
+  case class AppIsReadyButClusterNotFound(kubernetesClusterId: KubernetesClusterId, appKey: AppStatusCacheKey)
+      extends LeoException(
+        s"App ${appKey.googleProject}/${appKey.appName}/${appKey.serviceName} had a ready status in the database, but cluster ${kubernetesClusterId.toString} was not found in google.",
+        StatusCodes.InternalServerError
+      )
 
   def getSSLContext(sslCaCert: InputStream): F[HttpsConnectionContext] =
     // see https://stackoverflow.com/questions/889406/using-multiple-ssl-client-certificates-in-java-with-the-same-host
@@ -141,23 +149,26 @@ class KubernetesProxyCache[F[_]: Effect: ContextShift: Sync: Timer](kubernetesCa
       _ <- F.delay(sslContext.init(keyManagerFactory.getKeyManagers, trustManagerFactory.getTrustManagers, null))
     } yield ConnectionContext.https(sslContext)
 
-  private def readyAppToHost(appResult: GetAppResult, ip: KubernetesApiServerIp, key: AppStatusCacheKey): AppHostStatus =
-    appResult.app.getInternalProxyUrls(ip).get(
-      key.serviceName
-    ).fold[AppHostStatus](HostServiceNotFound)(urlAndPort => {
-      val sslContext = clusterSSLContextCache.get(ClusterSSLContextCacheKey(appResult.cluster.getGkeClusterId, key))
-    HostAppReady(
-      Host(urlAndPort.url.getPath),
-      urlAndPort.port,
-      sslContext
-    )
-    }
-    )
+  private def readyAppToHost(appResult: GetAppResult,
+                             ip: KubernetesApiServerIp,
+                             key: AppStatusCacheKey): AppHostStatus =
+    appResult.app
+      .getInternalProxyUrls(ip)
+      .get(
+        key.serviceName
+      )
+      .fold[AppHostStatus](HostServiceNotFound) { urlAndPort =>
+        val sslContext = clusterSSLContextCache.get(ClusterSSLContextCacheKey(appResult.cluster.getGkeClusterId, key))
+        HostAppReady(
+          Host(urlAndPort.url.getPath),
+          urlAndPort.port,
+          sslContext
+        )
+      }
 
   private def hostStatusByAppResult(appResult: GetAppResult, key: AppStatusCacheKey): AppHostStatus =
-    appResult.cluster.asyncFields.map(_.apiServerIp)
-      .fold[AppHostStatus](HostAppNotReady)(ip =>
-        readyAppToHost(appResult, ip, key)
-    )
+    appResult.cluster.asyncFields
+      .map(_.apiServerIp)
+      .fold[AppHostStatus](HostAppNotReady)(ip => readyAppToHost(appResult, ip, key))
 
 }

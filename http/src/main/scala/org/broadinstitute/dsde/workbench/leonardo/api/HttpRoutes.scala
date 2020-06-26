@@ -16,9 +16,15 @@ import cats.effect.{ContextShift, IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RouteValidation.RequestValidationError
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeonardoService, ProxyService, RuntimeService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  LeonardoService,
+  ProxyService,
+  RuntimeService,
+  StatusService
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.service.{KubernetesProxyService, KubernetesService}
+import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesProxyService
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 

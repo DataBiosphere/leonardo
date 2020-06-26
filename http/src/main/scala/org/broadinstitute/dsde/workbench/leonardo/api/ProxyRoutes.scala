@@ -9,33 +9,29 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path, _}
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{KubernetesProxyService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
-import akka.stream.Materializer
-import cats.effect.{Async, ContextShift, Effect, IO, Timer}
+import cats.effect.{Effect, IO}
+import cats.effect.implicits._
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
-import cats.implicits._
-import cats.effect.implicits._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
-import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesProxyService
 
-class ProxyRoutes[F[_]: Effect](proxyService: ProxyService, corsSupport: CorsSupport, kubernetesProxyService: KubernetesProxyService[F])(
-  implicit F: Async[F],
-  materializer: Materializer,
-//  cs: ContextShift[F],
-  timer: Timer[F],
-  cs2: ContextShift[IO]
-) extends LazyLogging {
+class ProxyRoutes[F[_]: Effect](proxyService: ProxyService,
+                                corsSupport: CorsSupport,
+                                kubernetesProxyService: KubernetesProxyService[F])
+    extends LazyLogging {
   val route: Route =
     //note that the "notebooks" path prefix is deprecated
     pathPrefix("proxy" | "notebooks") {
-      implicit val traceId1 = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+      val traceId = TraceId(UUID.randomUUID())
+      implicit val traceIO = ApplicativeAsk.const[IO, TraceId](traceId)
+      implicit val traceF = ApplicativeAsk.const[F, TraceId](traceId)
 
       corsSupport.corsHandler {
 
@@ -59,67 +55,48 @@ class ProxyRoutes[F[_]: Effect](proxyService: ProxyService, corsSupport: CorsSup
                 }
               }
             }
-          } ~ path("jupyter" | "rstudio") {
-            (extractRequest & extractUserInfo) { (request, userInfo) =>
-              (logRequestResultForMetrics(userInfo)) {
-                // Proxy logic handled by the ProxyService class
-                // Note ProxyService calls the LeoAuthProvider internally
-                complete {
-                  // we are discarding the request entity here. we have noticed that PUT requests caused by
-                  // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
-                  // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                  IO(println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@lol jupyter/rstudio work")) >>
-                    proxyService.proxyRequest(userInfo, googleProject, clusterName, request).onError {
-                      case e =>
-                        IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
-                          .fromFuture(IO(request.entity.discardBytes().future))
-                    }
+          } ~
+            pathPrefix("jupyter" | "rstudio") {
+              (extractRequest & extractUserInfo) { (request, userInfo) =>
+                logRequestResultForMetrics(userInfo) {
+                  // Proxy logic handled by the ProxyService class
+                  // Note ProxyService calls the LeoAuthProvider internally
+                  complete {
+                    proxyService.proxyRequest(userInfo, googleProject, clusterName, request)
+                  }
+                }
+              }
+            } ~
+            pathPrefix(Segment) { serviceNameString =>
+              val serviceName = ServiceName(serviceNameString)
+              val appName = AppName(clusterNameParam)
+
+              (extractRequest & extractUserInfo) { (request, userInfo) =>
+                logRequestResultForMetrics(userInfo) {
+                  // Proxy logic handled by the ProxyService class
+                  // Note ProxyService calls the LeoAuthProvider internally
+                  complete {
+                    kubernetesProxyService
+                      .proxyRequest(userInfo, googleProject, appName, serviceName, request)
+                      .toIO
+                  }
                 }
               }
             }
-          } ~ path(Segment) { serviceNameString =>
-            val serviceName = ServiceName(serviceNameString)
-            val appName = AppName(clusterNameParam)
-
-            (extractRequest & extractUserInfo) { (request, userInfo) =>
-              (logRequestResultForMetrics(userInfo)) {
-                // Proxy logic handled by the ProxyService class
-                // Note ProxyService calls the LeoAuthProvider internally
-                complete {
-                  val handle = for {
-                 context <- AppContext.generate[F]()
-                  implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
-                    context
-                  )
-                   _ <- F.delay(println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ima actually in this new segment :)"))
-                    resp <- kubernetesProxyService.proxyRequest(userInfo, googleProject, appName, serviceName, request)
-                    .onError {
-                      case e =>
-                        val io = IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
-                          .fromFuture(IO(request.entity.discardBytes().future))
-                        F.liftIO(io)
-                    }
-                  } yield resp
-
-                  handle.toIO
-                }
-              }
-            }
-          }
-            // No need to lookup the user or consult the auth provider for this endpoint
+        // No need to lookup the user or consult the auth provider for this endpoint
         } ~
           path("invalidateToken") {
-          get {
-            extractToken { token =>
-              complete {
-                proxyService.invalidateAccessToken(token).map { _ =>
-                  logger.debug(s"Invalidated access token $token")
-                  StatusCodes.OK
+            get {
+              extractToken { token =>
+                complete {
+                  proxyService.invalidateAccessToken(token).map { _ =>
+                    logger.debug(s"Invalidated access token $token")
+                    StatusCodes.OK
+                  }
                 }
               }
             }
           }
-        }
       }
     }
 

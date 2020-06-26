@@ -13,15 +13,36 @@ import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import fs2.Stream
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.{ConfigSSLContextBuilder, DefaultKeyManagerFactoryWrapper, DefaultTrustManagerFactoryWrapper, SSLConfigFactory}
+import com.typesafe.sslconfig.ssl.{
+  ConfigSSLContextBuilder,
+  DefaultKeyManagerFactoryWrapper,
+  DefaultTrustManagerFactoryWrapper,
+  SSLConfigFactory
+}
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
-import org.broadinstitute.dsde.workbench.google2.{Event, GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GooglePublisher, GoogleStorageService, GoogleSubscriber, credentialResource}
+import org.broadinstitute.dsde.workbench.google2.{
+  credentialResource,
+  Event,
+  GKEService,
+  GoogleComputeService,
+  GoogleDataprocService,
+  GoogleDiskService,
+  GooglePublisher,
+  GoogleStorageService,
+  GoogleSubscriber
+}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleStorageDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO,
+  HttpGoogleStorageDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -34,7 +55,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesSer
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
-import org.broadinstitute.dsde.workbench.leonardo.service.{KubernetesProxyCache, KubernetesProxyService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{KubernetesProxyCache, KubernetesProxyService}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -116,9 +137,11 @@ object Boot extends IOApp {
                                           appDependencies.dateAccessedUpdaterQueue,
                                           appDependencies.blocker)
 
-
-
-      val kubernetesProxyService = new KubernetesProxyService(kubernetesProxyConfig, appDependencies.kubernetesCredentials, appDependencies.kubernetesProxyCache, appDependencies.authProvider, appDependencies.blocker)
+      val kubernetesProxyService = new KubernetesProxyService(kubernetesProxyConfig,
+                                                              appDependencies.kubernetesCredentials,
+                                                              appDependencies.kubernetesProxyCache,
+                                                              appDependencies.authProvider,
+                                                              appDependencies.blocker)
 
       val statusService = new StatusService(appDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,

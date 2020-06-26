@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -17,43 +19,47 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PortNum
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.AppName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, ServiceNotFoundException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesProxyCache.{
+  AppHostStatus,
+  AppStatusCacheKey,
+  HostAppNotFound,
+  HostAppNotReady,
+  HostAppReady,
+  HostServiceNotFound
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
-import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesProxyCache._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.collection.immutable
 
-case class RemoteUser(user: String)
-case class KubernetesProxyConfig(remoteUser: RemoteUser)
+final case class RemoteUser(user: String)
+final case class KubernetesProxyConfig(remoteUser: RemoteUser)
 
 class KubernetesProxyService[F[_]](
-                                    kubernetesProxyConfig: KubernetesProxyConfig,
-                                    credentials: GoogleCredentials, //TODO: we should be able to get this from the GKEService potentially
-                                    kubernetesProxyCache: KubernetesProxyCache[F],
-                                    authProvider: LeoAuthProvider[F],
-                                    //dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
-                                    blocker: Blocker)
-                            (implicit val system: ActorSystem,
-                             F: Async[F],
+  kubernetesProxyConfig: KubernetesProxyConfig,
+  credentials: GoogleCredentials, //TODO: we should be able to get this from the GKEService potentially
+  kubernetesProxyCache: KubernetesProxyCache[F],
+  authProvider: LeoAuthProvider[F],
+  //dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
+  blocker: Blocker
+)(implicit val system: ActorSystem,
+  F: Async[F],
 //                             executionContext: ExecutionContext,
-                             timer: Timer[F],
-                             cs: ContextShift[IO]
+  timer: Timer[F],
+  cs: ContextShift[IO]
 //                            , dbRef: DbReference[F]
-                            )
-  extends LazyLogging {
+) extends LazyLogging {
 
   /*
-  * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the runtime exists
-  */
+   * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the runtime exists
+   */
   private[leonardo] def authCheck(
-                                   userInfo: UserInfo,
-                                   googleProject: GoogleProject,
-                                   appName: AppName
+    userInfo: UserInfo,
+    googleProject: GoogleProject,
+    appName: AppName
 //                                   ,action: _
-                                 )(
+  )(
 //    implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
@@ -71,7 +77,11 @@ class KubernetesProxyService[F[_]](
 //      } else IO.unit
     } yield ()
 
-  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName, serviceName: ServiceName, request: HttpRequest)(
+  def proxyRequest(userInfo: UserInfo,
+                   googleProject: GoogleProject,
+                   appName: AppName,
+                   serviceName: ServiceName,
+                   request: HttpRequest)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[HttpResponse] =
     for {
@@ -80,22 +90,30 @@ class KubernetesProxyService[F[_]](
       r <- proxyInternal(userInfo, googleProject, appName, serviceName, request, Instant.ofEpochMilli(now))
     } yield r
 
-  def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName, serviceName: ServiceName, request: HttpRequest, now: Instant)(
+  def proxyInternal(userInfo: UserInfo,
+                    googleProject: GoogleProject,
+                    appName: AppName,
+                    serviceName: ServiceName,
+                    request: HttpRequest,
+                    now: Instant)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[HttpResponse] =
     for {
-      _ <- F.delay(logger.debug(
-        s"Received proxy request for ${googleProject}/${appName}/${serviceName}: ${kubernetesProxyCache.stats} / ${kubernetesProxyCache.size}"
-      ))
+      _ <- F.delay(
+        logger.debug(
+          s"Received proxy request for ${googleProject}/${appName}/${serviceName}: ${kubernetesProxyCache.stats} / ${kubernetesProxyCache.size}"
+        )
+      )
       ctx <- ev.ask
       resp <- getTargetHost(googleProject, appName, serviceName) flatMap {
         case HostAppReady(targetHost, targetPort, sslContext) =>
           val res = for {
-          //TODO: how do?
+            //TODO: how do?
             //          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, now))
             response <- handleHttpRequest(userInfo, targetHost, targetPort, sslContext, request)
             r <- if (response.status.isFailure())
-              F.delay(logger.info(s"Error response for proxied request ${request.uri}: ${response.status}")).as(response)
+              F.delay(logger.info(s"Error response for proxied request ${request.uri}: ${response.status}"))
+                .as(response)
             else F.pure(response)
           } yield r
 
@@ -110,9 +128,10 @@ class KubernetesProxyService[F[_]](
             AppNotReadyException(googleProject, appName)
           )
         case HostServiceNotFound =>
-          F.delay(logger.warn(s"service not found for ${googleProject}/${appName}/${serviceName}")) >> F.raiseError[HttpResponse](
-            ServiceNotFoundException(googleProject, appName, serviceName, ctx)
-          )
+          F.delay(logger.warn(s"service not found for ${googleProject}/${appName}/${serviceName}")) >> F
+            .raiseError[HttpResponse](
+              ServiceNotFoundException(googleProject, appName, serviceName, ctx)
+            )
         case HostAppNotFound =>
           F.delay(logger.warn(s"proxy host not found for ${googleProject}/${appName}")) >> F.raiseError[HttpResponse](
             AppNotFoundException(googleProject, appName, ctx)
@@ -124,18 +143,26 @@ class KubernetesProxyService[F[_]](
     kubernetesProxyCache.getHostStatus(AppStatusCacheKey(googleProject, appName, serviceName))
 
   import akka.http.scaladsl.Http
-  private def handleHttpRequest(userInfo: UserInfo, targetHost: Host, targetPort: PortNum, sslContext: HttpsConnectionContext, request: HttpRequest): F[HttpResponse] =
+  private def handleHttpRequest(userInfo: UserInfo,
+                                targetHost: Host,
+                                targetPort: PortNum,
+                                sslContext: HttpsConnectionContext,
+                                request: HttpRequest): F[HttpResponse] =
     for {
-     _ <- F.delay(logger.debug(s"Opening https connection to ${targetHost.address}:${targetPort.value}"))
-    flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, targetPort.value, sslContext))
+      _ <- F.delay(logger.debug(s"Opening https connection to ${targetHost.address}:${targetPort.value}"))
+      flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, targetPort.value, sslContext))
 
-    newHeaders = filterHeaders(request.headers) ++ getKubernetesHeaders(userInfo)
-    source <- F.liftIO(IO.fromFuture(IO(
-      Source
-      .single(request.copy(headers = newHeaders))
-      .via(flow)
-      .runWith(Sink.head)
-    )))
+      newHeaders = filterHeaders(request.headers) ++ getKubernetesHeaders(userInfo)
+      source <- F.liftIO(
+        IO.fromFuture(
+          IO(
+            Source
+              .single(request.copy(headers = newHeaders))
+              .via(flow)
+              .runWith(Sink.head)
+          )
+        )
+      )
     } yield source
 
   private def getKubernetesHeaders(userInfo: UserInfo): immutable.Seq[HttpHeader] =
@@ -155,21 +182,17 @@ class KubernetesProxyService[F[_]](
 }
 
 final case class KubernetesProxyException(googleProject: GoogleProject, appName: AppName)
-  extends LeoException(s"Unable to proxy connection to app on ${googleProject.value}/${appName.value}",
-    StatusCodes.InternalServerError)
+    extends LeoException(s"Unable to proxy connection to app on ${googleProject.value}/${appName.value}",
+                         StatusCodes.InternalServerError)
 
 final case class AppNotReadyException(googleProject: GoogleProject, appName: AppName)
-  extends LeoException(
-    s"App ${googleProject.value}/${appName.value} is not ready yet. It may be creating, try again later",
-    StatusCodes.Locked
-  )
+    extends LeoException(
+      s"App ${googleProject.value}/${appName.value} is not ready yet. It may be creating, try again later",
+      StatusCodes.Locked
+    )
 
 final case class AppPausedException(googleProject: GoogleProject, appName: AppName)
-  extends LeoException(
-    s"Runtime ${googleProject.value}/${appName.value} is stopped. Start your app before proceeding.",
-    StatusCodes.UnprocessableEntity
-  )
-
-final case class ProxyException(googleProject: GoogleProject, appName: AppName)
-  extends LeoException(s"Unable to proxy connection to app ${googleProject.value}/${appName.value}",
-    StatusCodes.InternalServerError)
+    extends LeoException(
+      s"Runtime ${googleProject.value}/${appName.value} is stopped. Start your app before proceeding.",
+      StatusCodes.UnprocessableEntity
+    )
