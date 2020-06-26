@@ -156,24 +156,24 @@ class HttpRoutesSpec
     }
   }
 
-  it should "not delete a runtime and disk if deleteDisk is false" in {
+  it should "keep disk when deleting runtime if deleteDisk is false" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
         implicit as: ApplicativeAsk[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteRuntime =
-          DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), true)
+          DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
         deleteRuntimeRequest shouldBe expectedDeleteRuntime
       }
     }
     val routes = fakeRoutes(runtimeService)
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=true") ~> routes.route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=false") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "not delete a runtime with PD enabled when deleteDisk is not set" in {
+  it should "not delete disk when deleting a runtime with PD enabled if deleteDisk is not set" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
         implicit as: ApplicativeAsk[IO, AppContext]
