@@ -10,18 +10,14 @@ import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.{ConnectionContext, HttpsConnectionContext}
-import akka.http.scaladsl.model.Uri.Host
+import akka.http.scaladsl.model.Uri.{Host, Path}
 import cats.effect.implicits._
 import cats.effect.{Async, Blocker, ContextShift, Effect, Sync, Timer}
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
-  KubernetesApiServerIp,
-  KubernetesClusterCaCert,
-  PortNum
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp, KubernetesClusterCaCert}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.CacheConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, GetAppResult, KubernetesServiceDbQueries}
@@ -29,10 +25,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.{autoClosableResourceF, GKEService}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesProxyCache.{
-  AppHostStatus,
-  AppStatusCacheKey,
-  ClusterSSLContextCacheKey,
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppHostStatus.{
   HostAppNotFound,
   HostAppNotReady,
   HostAppReady,
@@ -42,16 +35,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.ExecutionContext
-
-object KubernetesProxyCache {
-  sealed trait AppHostStatus
-  case object HostAppNotFound extends AppHostStatus
-  case object HostServiceNotFound extends AppHostStatus
-  case object HostAppNotReady extends AppHostStatus
-  case class HostAppReady(hostname: Host, targetPort: PortNum, sslContext: HttpsConnectionContext) extends AppHostStatus
-  case class AppStatusCacheKey(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName)
-  case class ClusterSSLContextCacheKey(kubernetesClusterId: KubernetesClusterId, appKey: AppStatusCacheKey)
-}
 
 class KubernetesProxyCache[F[_]: Effect: ContextShift: Sync: Timer](
   kubernetesCacheConfig: CacheConfig,
@@ -151,20 +134,23 @@ class KubernetesProxyCache[F[_]: Effect: ContextShift: Sync: Timer](
 
   private def readyAppToHost(appResult: GetAppResult,
                              ip: KubernetesApiServerIp,
-                             key: AppStatusCacheKey): AppHostStatus =
-    appResult.app
-      .getInternalProxyUrls(ip)
-      .get(
-        key.serviceName
-      )
-      .fold[AppHostStatus](HostServiceNotFound) { urlAndPort =>
-        val sslContext = clusterSSLContextCache.get(ClusterSSLContextCacheKey(appResult.cluster.getGkeClusterId, key))
-        HostAppReady(
-          Host(urlAndPort.url.getPath),
-          urlAndPort.port,
-          sslContext
+                             key: AppStatusCacheKey): AppHostStatus = {
+
+    val service = appResult.app.appResources.services.filter(_.config.name == key.serviceName).headOption
+    service.fold[AppHostStatus](HostServiceNotFound) { s =>
+      val internalHost = Host(ip.value)
+      val internalPath =
+        Path(
+          s"/api/v1/namespaces/${appResult.app.appResources.namespace.name.value}/services/${s.config.name.value}:${s.config.port.num.value}/proxy/"
         )
-      }
+      val sslContext = clusterSSLContextCache.get(ClusterSSLContextCacheKey(appResult.cluster.getGkeClusterId, key))
+      HostAppReady(
+        internalHost,
+        internalPath,
+        sslContext
+      )
+    }
+  }
 
   private def hostStatusByAppResult(appResult: GetAppResult, key: AppStatusCacheKey): AppHostStatus =
     appResult.cluster.asyncFields
@@ -172,3 +158,14 @@ class KubernetesProxyCache[F[_]: Effect: ContextShift: Sync: Timer](
       .fold[AppHostStatus](HostAppNotReady)(ip => readyAppToHost(appResult, ip, key))
 
 }
+
+sealed trait AppHostStatus extends Product with Serializable
+object AppHostStatus {
+  final case object HostAppNotFound extends AppHostStatus
+  final case object HostServiceNotFound extends AppHostStatus
+  final case object HostAppNotReady extends AppHostStatus
+  final case class HostAppReady(hostname: Host, path: Path, sslContext: HttpsConnectionContext) extends AppHostStatus
+}
+
+case class AppStatusCacheKey(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName)
+case class ClusterSSLContextCacheKey(kubernetesClusterId: KubernetesClusterId, appKey: AppStatusCacheKey)

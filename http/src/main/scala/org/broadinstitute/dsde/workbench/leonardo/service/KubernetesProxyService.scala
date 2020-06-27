@@ -8,20 +8,17 @@ import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
 import akka.http.javadsl.model.headers.RawHeader
 import akka.http.scaladsl.HttpsConnectionContext
-import akka.http.scaladsl.model.Uri.Host
+import akka.http.scaladsl.model.Uri.{Host, Path}
 import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
-import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.stream.scaladsl.{Sink, Source}
 import cats.effect.{Async, Blocker, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.auth.oauth2.GoogleCredentials
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PortNum
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesProxyCache.{
-  AppHostStatus,
-  AppStatusCacheKey,
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppHostStatus.{
   HostAppNotFound,
   HostAppNotReady,
   HostAppReady,
@@ -106,11 +103,11 @@ class KubernetesProxyService[F[_]](
       )
       ctx <- ev.ask
       resp <- getTargetHost(googleProject, appName, serviceName) flatMap {
-        case HostAppReady(targetHost, targetPort, sslContext) =>
+        case HostAppReady(targetHost, targetPath, sslContext) =>
           val res = for {
             //TODO: how do?
             //          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, now))
-            response <- handleHttpRequest(userInfo, targetHost, targetPort, sslContext, request)
+            response <- handleHttpRequest(userInfo, targetHost, targetPath, sslContext, request)
             r <- if (response.status.isFailure())
               F.delay(logger.info(s"Error response for proxied request ${request.uri}: ${response.status}"))
                 .as(response)
@@ -124,18 +121,20 @@ class KubernetesProxyService[F[_]](
               )
           }
         case HostAppNotReady =>
-          F.delay(logger.warn(s"proxy host not ready for ${googleProject}/${appName}")) >> F.raiseError[HttpResponse](
-            AppNotReadyException(googleProject, appName)
-          )
+          F.delay(logger.warn(s"proxy host not ready for ${googleProject.value}/${appName.value}")) >> F
+            .raiseError[HttpResponse](
+              AppNotReadyException(googleProject, appName)
+            )
         case HostServiceNotFound =>
-          F.delay(logger.warn(s"service not found for ${googleProject}/${appName}/${serviceName}")) >> F
+          F.delay(logger.warn(s"service not found for ${googleProject.value}/${appName.value}/${serviceName.value}")) >> F
             .raiseError[HttpResponse](
               ServiceNotFoundException(googleProject, appName, serviceName, ctx)
             )
         case HostAppNotFound =>
-          F.delay(logger.warn(s"proxy host not found for ${googleProject}/${appName}")) >> F.raiseError[HttpResponse](
-            AppNotFoundException(googleProject, appName, ctx)
-          )
+          F.delay(logger.warn(s"proxy host not found for ${googleProject.value}/${appName.value}")) >> F
+            .raiseError[HttpResponse](
+              AppNotFoundException(googleProject, appName, ctx)
+            )
       }
     } yield resp
 
@@ -145,19 +144,23 @@ class KubernetesProxyService[F[_]](
   import akka.http.scaladsl.Http
   private def handleHttpRequest(userInfo: UserInfo,
                                 targetHost: Host,
-                                targetPort: PortNum,
+                                targetPath: Path,
                                 sslContext: HttpsConnectionContext,
                                 request: HttpRequest): F[HttpResponse] =
     for {
-      _ <- F.delay(logger.debug(s"Opening https connection to ${targetHost.address}:${targetPort.value}"))
-      flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, targetPort.value, sslContext))
+      _ <- F.delay(logger.debug(s"Opening https connection to https://${targetHost.address}/${targetPath.toString}"))
+      flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, connectionContext = sslContext))
 
-      newHeaders = filterHeaders(request.headers) ++ getKubernetesHeaders(userInfo)
+      // TODO I think a bearer token needs to be passed
+      newHeaders = filterHeaders(request.headers)
+      newUri = Uri(path = targetPath, queryString = request.uri.queryString())
+      newRequest = request.copy(headers = newHeaders, uri = newUri)
+
       source <- F.liftIO(
         IO.fromFuture(
           IO(
             Source
-              .single(request.copy(headers = newHeaders))
+              .single(newRequest)
               .via(flow)
               .runWith(Sink.head)
           )
