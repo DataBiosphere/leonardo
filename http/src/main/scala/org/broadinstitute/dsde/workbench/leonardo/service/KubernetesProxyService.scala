@@ -29,6 +29,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.collection.immutable
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 final case class RemoteUser(user: String)
 final case class KubernetesProxyConfig(remoteUser: RemoteUser)
@@ -150,14 +152,15 @@ class KubernetesProxyService[F[_]](
     for {
       _ <- F.delay(logger.debug(s"Opening https connection to https://${targetHost.address}/${targetPath.toString}"))
       flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, connectionContext = sslContext))
+      _ <- F.delay(credentials.refreshIfExpired())
 
-      // TODO throws NPE, need to refresh token?
       newHeaders = Authorization(OAuth2BearerToken(credentials.getAccessToken.getTokenValue)) +: filterHeaders(
         request.headers
       )
       newUri = Uri(path = targetPath, queryString = request.uri.queryString())
       newRequest = request.copy(headers = newHeaders, uri = newUri)
 
+      implicit0(ec: ExecutionContext) = system.dispatcher
       source <- F.liftIO(
         IO.fromFuture(
           IO(
@@ -165,6 +168,7 @@ class KubernetesProxyService[F[_]](
               .single(newRequest)
               .via(flow)
               .runWith(Sink.head)
+              .flatMap(_.toStrict(1.minute))
           )
         )
       )
