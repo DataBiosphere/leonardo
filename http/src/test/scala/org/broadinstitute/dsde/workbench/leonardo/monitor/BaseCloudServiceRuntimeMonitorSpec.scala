@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.CheckTools
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.global
@@ -51,52 +50,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(now, runtime.id, tid, RuntimeStatus.Creating)
-      r <- runtimeMonitor.handleCheckTools(monitorContext,
-                                           runtimeAndRuntimeConfig,
-                                           IP("1.2.3.4"),
-                                           Set.empty,
-                                           List.empty)
+      r <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
     } yield {
-      r shouldBe (((), None))
-    }
-    res.unsafeRunSync()
-  }
-
-  it should "checkAgain if one of the tools is not ready yet" in isolatedDbTest {
-    val runtimeMonitor = baseRuntimeMonitor(false)
-    val res = for {
-      now <- nowInstant
-      tid <- traceId.ask
-      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
-      monitorContext = MonitorContext(now, runtime.id, tid, RuntimeStatus.Creating)
-      r <- runtimeMonitor.handleCheckTools(monitorContext,
-                                           runtimeAndRuntimeConfig,
-                                           IP("1.2.3.4"),
-                                           Set.empty,
-                                           List.empty)
-    } yield {
-      r shouldBe (((),
-                   Some(CheckTools(IP("1.2.3.4"), runtimeAndRuntimeConfig, List(RuntimeImageType.Welder), Set.empty))))
-    }
-    res.unsafeRunSync()
-  }
-
-  it should "check only the tool when specified" in isolatedDbTest {
-    val runtimeMonitor = baseRuntimeMonitor(false)
-    val res = for {
-      now <- nowInstant
-      tid <- traceId.ask
-      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
-      monitorContext = MonitorContext(now, runtime.id, tid, RuntimeStatus.Creating)
-      r <- runtimeMonitor.handleCheckTools(monitorContext,
-                                           runtimeAndRuntimeConfig,
-                                           IP("1.2.3.4"),
-                                           Set.empty,
-                                           List(RuntimeImageType.Jupyter))
-    } yield {
-      // since welder is down, if we're checking both tools, we won't terminate here
       r shouldBe (((), None))
     }
     res.unsafeRunSync()
