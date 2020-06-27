@@ -297,8 +297,11 @@ object Boot extends IOApp {
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
-      gkeService <- GKEService.resource[F](appConfig.kubernetesServiceAccountJsonFile, blocker, semaphore)
-      credentials <- credentialResource(appConfig.kubernetesServiceAccountJsonFile.toString)
+      // TODO until IA-1891 is done
+      gkeService <- GKEService.resource[F](appConfig.leoServiceAccountJsonFile, blocker, semaphore)
+      credentials <- credentialResource(appConfig.leoServiceAccountJsonFile.toString)
+//      gkeService <- GKEService.resource[F](appConfig.kubernetesServiceAccountJsonFile, blocker, semaphore)
+//      credentials <- credentialResource(appConfig.kubernetesServiceAccountJsonFile.toString)
       scopedCredential = credentials.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
 
       sslContext = getSSLContext()

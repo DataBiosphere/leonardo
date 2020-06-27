@@ -151,8 +151,10 @@ class KubernetesProxyService[F[_]](
       _ <- F.delay(logger.debug(s"Opening https connection to https://${targetHost.address}/${targetPath.toString}"))
       flow <- F.delay(Http().outgoingConnectionHttps(targetHost.address, connectionContext = sslContext))
 
-      // TODO I think a bearer token needs to be passed
-      newHeaders = filterHeaders(request.headers)
+      // TODO throws NPE, need to refresh token?
+      newHeaders = Authorization(OAuth2BearerToken(credentials.getAccessToken.getTokenValue)) +: filterHeaders(
+        request.headers
+      )
       newUri = Uri(path = targetPath, queryString = request.uri.queryString())
       newRequest = request.copy(headers = newHeaders, uri = newUri)
 
