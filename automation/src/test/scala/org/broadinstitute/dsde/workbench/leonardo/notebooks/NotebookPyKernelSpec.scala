@@ -141,9 +141,9 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    //TODO: uncomment the test when selenium issue is fixed
+    //TODO: uncomment this
 
-    //    Seq(Python3).foreach { kernel =>
+//    Seq(Python3).foreach { kernel =>
 //      s"should preinstall google cloud subpackages for ${kernel.string}" in { runtimeFixture =>
 //        withWebDriver { implicit driver =>
 //          withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
@@ -162,9 +162,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 //        }
 //      }
 //    }
-
-    //TODO: uncomment the test when selenium issue is fixed
-    // https://github.com/DataBiosphere/leonardo/issues/797
+//
+//    // https://github.com/DataBiosphere/leonardo/issues/797
 //    s"should be able to import ggplot for ${Python3.toString}" in { runtimeFixture =>
 //      withWebDriver { implicit driver =>
 //        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
@@ -173,10 +172,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 //        }
 //      }
 //    }
-
-    //TODO: uncomment the test when selenium issue is fixed
-
-    //    s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { runtimeFixture =>
+//
+//    s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { runtimeFixture =>
 //      withWebDriver { implicit driver =>
 //        withNewNotebookInSubfolder(runtimeFixture.runtime, Python3) { notebookPage =>
 //          notebookPage.executeCell("import os")
@@ -193,10 +190,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 //        }
 //      }
 //    }
-
-    //TODO: uncomment the test when selenium issue is fixed
-
-    // https://github.com/DataBiosphere/leonardo/issues/891
+//
+//    // https://github.com/DataBiosphere/leonardo/issues/891
 //    "should be able to install python libraries with C bindings" in { runtimeFixture =>
 //      withWebDriver { implicit driver =>
 //        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
