@@ -24,8 +24,8 @@ import org.broadinstitute.dsde.workbench.util._
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
-import org.scalatest.{Matchers, Suite}
-
+import org.scalatest.Suite
+import org.scalatest.matchers.should.Matchers
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Success, Try}
 
