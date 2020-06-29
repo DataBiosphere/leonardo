@@ -92,6 +92,9 @@ object KubernetesClusterStatus {
 
   val deletableStatuses: Set[KubernetesClusterStatus] =
     Set(Unspecified, Running, Reconciling, Error, Degraded)
+
+  val creatingStatuses: Set[KubernetesClusterStatus] =
+    Set(Precreating, Provisioning)
 }
 
 /** Google Container Nodepool statuses

@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.{unmarshalKubernetesCluster}
+import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
@@ -9,9 +9,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import cats.data.Chain
 import cats.implicits._
 import LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate}
-
+import akka.http.scaladsl.model.StatusCodes
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 
 object KubernetesServiceDbQueries {
   //the 'full' here means that all joins possible are done, meaning all fields in the cluster, nodepool, and app will be present
@@ -43,17 +44,16 @@ object KubernetesServiceDbQueries {
     for {
       clusterOpt <- kubernetesClusterQuery.getMinimalActiveClusterByName(saveKubernetesCluster.googleProject)
 
-      failure = DBIO.failed(
-        KubernetesAppCreationException(
-          s"You cannot create an app while a cluster is in ${KubernetesClusterStatus.Precreating} or ${KubernetesClusterStatus.Provisioning}"
-        )
-      )
       eitherClusterOrError <- clusterOpt match {
         case Some(cluster) =>
           cluster.status match {
-            case KubernetesClusterStatus.Precreating  => failure
-            case KubernetesClusterStatus.Provisioning => failure
-            case _                                    => DBIO.successful(SaveClusterResult(cluster, true))
+            case s if KubernetesClusterStatus.creatingStatuses contains s =>
+              DBIO.failed(
+                KubernetesAppCreationException(
+                  s"You cannot create an app while a cluster is in ${KubernetesClusterStatus.creatingStatuses}. Status: ${s}"
+                )
+              )
+            case _ => DBIO.successful(SaveClusterResult(cluster, true))
           }
         case _ => kubernetesClusterQuery.save(saveKubernetesCluster).map(c => SaveClusterResult(c, false))
       }
@@ -282,4 +282,5 @@ object KubernetesServiceDbQueries {
 //minimal cluster has the nodepools, but no namespaces or apps
 case class SaveClusterResult(minimalCluster: KubernetesCluster, doesActiveClusterExist: Boolean)
 case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
-case class GetAppAssertion(message: String) extends Exception
+case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError)
+case class KubernetesAppCreationException(msg: String) extends LeoException(msg, StatusCodes.Conflict)

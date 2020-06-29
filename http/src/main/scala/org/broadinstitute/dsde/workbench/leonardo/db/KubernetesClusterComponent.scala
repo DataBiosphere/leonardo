@@ -210,8 +210,6 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
 }
 
-case class KubernetesAppCreationException(message: String) extends Exception
-
 case class SaveKubernetesCluster(googleProject: GoogleProject,
                                  clusterName: KubernetesClusterName,
                                  location: Location,
