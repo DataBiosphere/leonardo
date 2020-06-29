@@ -31,14 +31,14 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.bioconductorImageUrl)
   "NotebookBioconductorKernelSpec" - {
 
-    "should use Bioconductor version 3.10" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
-          // Make sure BiocManager has the correct version of Bioconductor
-          notebookPage.executeCell("""BiocManager::version() == "3.10"""")
-        }
-      }
-    }
+//    "should use Bioconductor version 3.10" in { runtimeFixture =>
+//      withWebDriver { implicit driver =>
+//        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
+//          // Make sure BiocManager has the correct version of Bioconductor
+//          notebookPage.executeCell("""BiocManager::version() == "3.10"""")
+//        }
+//      }
+//    }
 
     "should create a notebook with a working R kernel and install package rsbml" ignore { runtimeFixture =>
       withWebDriver { implicit driver =>
