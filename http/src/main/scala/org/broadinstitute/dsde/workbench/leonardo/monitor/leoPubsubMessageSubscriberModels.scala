@@ -120,7 +120,8 @@ object LeoPubsubMessage {
       )
   }
 
-  final case class DeleteRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
+  final case class DeleteRuntimeMessage(runtimeId: Long, deleteDisk: Boolean, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteRuntime
   }
 
@@ -163,7 +164,7 @@ object LeoPubsubCodec {
     Decoder.forProduct2("clusterId", "clusterStatus")(RuntimePatchDetails.apply)
 
   implicit val deleteRuntimeDecoder: Decoder[DeleteRuntimeMessage] =
-    Decoder.forProduct2("runtimeId", "traceId")(DeleteRuntimeMessage.apply)
+    Decoder.forProduct3("runtimeId", "deleteDisk", "traceId")(DeleteRuntimeMessage.apply)
 
   implicit val stopRuntimeDecoder: Decoder[StopRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(StopRuntimeMessage.apply)
@@ -280,7 +281,9 @@ object LeoPubsubCodec {
     )(CreateRuntimeMessage.apply)
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =
-    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
+    Encoder.forProduct4("messageType", "runtimeId", "deleteDisk", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.deleteDisk, x.traceId)
+    )
 
   implicit val stopRuntimeMessageEncoder: Encoder[StopRuntimeMessage] =
     Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))

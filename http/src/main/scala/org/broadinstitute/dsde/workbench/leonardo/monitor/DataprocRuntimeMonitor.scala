@@ -116,11 +116,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                   case Some(ip) =>
                     // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                     Timer[F]
-                      .sleep(8 seconds) >> handleCheckTools(monitorContext,
-                                                            runtimeAndRuntimeConfig,
-                                                            ip,
-                                                            instances,
-                                                            List.empty)
+                      .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
                   case None =>
                     checkAgain(monitorContext,
                                runtimeAndRuntimeConfig,
@@ -190,11 +186,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                 Timer[F]
-                  .sleep(8 seconds) >> handleCheckTools(monitorContext,
-                                                        runtimeAndRuntimeConfig,
-                                                        ip,
-                                                        instances,
-                                                        List.empty)
+                  .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
               case None =>
                 checkAgain(monitorContext, runtimeAndRuntimeConfig, instances, Some("Could not retrieve instance IP"))
             }
@@ -287,11 +279,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait a few seconds before we check jupyter
                 Timer[F]
-                  .sleep(3 seconds) >> handleCheckTools(monitorContext,
-                                                        runtimeAndRuntimeConfig,
-                                                        ip,
-                                                        instances,
-                                                        List.empty)
+                  .sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
               case None =>
                 checkAgain(monitorContext, runtimeAndRuntimeConfig, instances, Some("Could not retrieve instance IP"))
             }
@@ -325,9 +313,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime.googleProject,
-                                runtimeAndRuntimeConfig.runtime.runtimeName,
-                                runtimeAndRuntimeConfig.runtime.asyncRuntimeFields)
+            DeleteRuntimeParams(
+              runtimeAndRuntimeConfig.runtime.googleProject,
+              runtimeAndRuntimeConfig.runtime.runtimeName,
+              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined,
+              None
+            )
           )
           .void, //TODO is this right when deleting or stopping fails?
         persistClusterErrors(

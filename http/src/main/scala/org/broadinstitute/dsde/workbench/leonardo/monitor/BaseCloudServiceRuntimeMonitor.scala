@@ -18,8 +18,10 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeAlgebra, StopRunt
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import monocle.macros.syntax.lens._
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -31,6 +33,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   implicit def ec: ExecutionContext
   implicit def runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType]
   implicit def openTelemetry: OpenTelemetryMetrics[F]
+
+  implicit val toolsDoneCheckable: DoneCheckable[List[(RuntimeImageType, Boolean)]] = x => x.forall(_._2)
 
   def runtimeAlg: RuntimeAlgebra[F]
   def logger: Logger[F]
@@ -75,9 +79,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             .as(((), None))
         case Some(_) =>
           monitorState match {
-            case MonitorState.Initial => handleInitial(monitorContext)
-            case MonitorState.CheckTools(ip, runtimeAndRuntimeConfig, images, dataprocInstances) =>
-              handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, dataprocInstances, images)
+            case MonitorState.Initial                        => handleInitial(monitorContext)
             case MonitorState.Check(runtimeAndRuntimeConfig) => handleCheck(monitorContext, runtimeAndRuntimeConfig)
           }
       }
@@ -139,8 +141,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
     dataprocInstances: Set[DataprocInstance], //only applies to dataproc
     message: Option[String],
-    ip: Option[IP] = None,
-    toolsToCheck: List[RuntimeImageType] = List.empty // If empty, then check all tools; if defined, then only check specified tools
+    ip: Option[IP] = None
   ): F[CheckResult] =
     for {
       now <- nowInstant[F]
@@ -180,23 +181,12 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               )
           } yield r
         case _ =>
-          ip match {
-            case Some(x) =>
-              logger
-                .info(
-                  s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s tools(${toolsToCheck
-                    .mkString(", ")}) is not ready yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
-                    .getOrElse("")}"
-                )
-                .as(((), Some(CheckTools(x, runtimeAndRuntimeConfig, toolsToCheck, dataprocInstances))))
-            case None =>
-              logger
-                .info(
-                  s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
-                    .getOrElse("")}"
-                )
-                .as(((), Some(Check(runtimeAndRuntimeConfig))))
-          }
+          logger
+            .info(
+              s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
+                .getOrElse("")}"
+            )
+            .as(((), Some(Check(runtimeAndRuntimeConfig))))
       }
     } yield res
 
@@ -301,8 +291,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
-                                        dataprocInstances: Set[DataprocInstance], // only applies to dataproc
-                                        toolsToCheck: List[RuntimeImageType])(
+                                        dataprocInstances: Set[DataprocInstance]) // only applies to dataproc
+  (
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[CheckResult] =
     // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
@@ -310,17 +300,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
     for {
       ctx <- ev.ask
-      imageTypes <- if (toolsToCheck.nonEmpty) //If toolsToCheck is defined, we've checked some tools already, and only checking tools that haven't been available yet
-        F.pure(toolsToCheck)
-      else
-        dbRef
-          .inTransaction { //If toolsToCheck is not defined, then we haven't check any tools yet. Hence retrieve all tools from database
-            for {
-              _ <- clusterQuery.updateClusterHostIp(runtimeAndRuntimeConfig.runtime.id, Some(ip), ctx.now)
-              images <- clusterImageQuery.getAllForCluster(runtimeAndRuntimeConfig.runtime.id)
-            } yield images.toList.map(_.imageType)
-          }
-      availableTools <- imageTypes.traverseFilter { imageType =>
+      imageTypes <- dbRef
+        .inTransaction { //If toolsToCheck is not defined, then we haven't check any tools yet. Hence retrieve all tools from database
+          for {
+            _ <- clusterQuery.updateClusterHostIp(runtimeAndRuntimeConfig.runtime.id, Some(ip), ctx.now)
+            images <- clusterImageQuery.getAllForCluster(runtimeAndRuntimeConfig.runtime.id)
+          } yield images.toList.map(_.imageType)
+        }
+      checkTools = imageTypes.traverseFilter { imageType =>
         RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType
           .get(imageType)
           .traverse(
@@ -328,18 +315,19 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                                runtimeAndRuntimeConfig.runtime.runtimeName).map(b => (imageType, b))
           )
       }
+      availableTools <- streamFUntilDone(checkTools, 10, 5 seconds).compile.lastOrError
       res <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
-          checkAgain(
+          failedRuntime(
             monitorContext,
             runtimeAndRuntimeConfig,
-            dataprocInstances,
-            Some(s"Services not available: ${toolsStillNotAvailable}"),
-            Some(ip),
-            toolsStillNotAvailable
+            Some(
+              RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up"))
+            ),
+            dataprocInstances
           )
       }
     } yield res

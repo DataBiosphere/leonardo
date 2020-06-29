@@ -14,6 +14,7 @@ import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
+  DiskName,
   Event,
   GoogleDiskService,
   GoogleSubscriber,
@@ -183,8 +184,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      diskToAutoDelete <- if (msg.deleteDisk) {
+        runtimeConfig match {
+          case x: RuntimeConfig.GceWithPdConfig =>
+            x.persistentDiskId
+              .flatTraverse(id => persistentDiskQuery.getPersistentDiskRecord(id).transaction)
+              .map(_.map(_.name))
+          case _ => F.pure(none[DiskName])
+        }
+      } else F.pure(none[DiskName])
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(runtime.googleProject, runtime.runtimeName, runtime.asyncRuntimeFields)
+        DeleteRuntimeParams(runtime.googleProject,
+                            runtime.runtimeName,
+                            runtime.asyncRuntimeFields.isDefined,
+                            diskToAutoDelete)
       )
       poll = op match {
         case Some(o) =>
@@ -195,7 +208,18 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting).compile.drain
       }
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, poll, Some(logError(runtime.projectNameString)), ctx.now))
+      fa = if (msg.deleteDisk)
+        runtimeConfig match {
+          case rc: RuntimeConfig.GceWithPdConfig =>
+            for {
+              _ <- poll
+              now <- nowInstant
+              _ <- rc.persistentDiskId.traverse(id => persistentDiskQuery.delete(id, now).transaction)
+            } yield ()
+          case _ => poll
+        }
+      else poll
+      _ <- asyncTasks.enqueue1(Task(ctx.traceId, fa, Some(logError(runtime.projectNameString)), ctx.now))
     } yield ()
 
   private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(

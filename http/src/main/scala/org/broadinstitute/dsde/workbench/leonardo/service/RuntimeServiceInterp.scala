@@ -199,36 +199,38 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .toVector
     }
 
-  override def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  override def deleteRuntime(req: DeleteRuntimeRequest)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
       // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(req.googleProject, req.runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done getActiveClusterByNameMinimal")))
       runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
+        F.raiseError[Runtime](RuntimeNotFoundException(req.googleProject, req.runtimeName, "no record in database"))
       )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(googleProject,
+      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(req.googleProject,
                                                                              runtime.samResource,
-                                                                             userInfo)
+                                                                             req.userInfo)
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
       _ <- if (hasStatusPermission) F.unit
       else
-        F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName, "no active runtime record in database"))
+        F.raiseError[Unit](
+          RuntimeNotFoundException(req.googleProject, req.runtimeName, "no active runtime record in database")
+        )
 
       // throw 403 if no DeleteCluster permission
 
       hasDeletePermission = listOfPermissions.toSet.contains(RuntimeAction.DeleteRuntime)
 
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(req.userInfo.userEmail)))
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
       else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
@@ -237,7 +239,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreDeleting, ctx.now).transaction >> publisherQueue
           .enqueue1(
-            DeleteRuntimeMessage(runtime.id, Some(ctx.traceId))
+            DeleteRuntimeMessage(runtime.id, req.deleteDisk, Some(ctx.traceId))
           )
       } else {
         clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyResourceDeleted(

@@ -111,7 +111,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   private def onError(response: Response[F])(implicit ev: ApplicativeAsk[F, TraceId]): F[Throwable] =
     for {
       traceId <- ev.ask
-      body <- response.bodyAsText(Charset.`UTF-8`).compile.foldMonoid
+      body <- response.bodyText.compile.foldMonoid
       _ <- logger.error(s"${traceId} | Docker call failed: $body")
     } yield DockerImageException(traceId, body)
 

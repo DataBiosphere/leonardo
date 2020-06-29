@@ -23,7 +23,11 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetRuntimeResponse, RuntimeService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  DeleteRuntimeRequest,
+  GetRuntimeResponse,
+  RuntimeService
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
@@ -114,15 +118,18 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                         }
                       } ~
                       delete {
-                        traceRequestForService(serviceData) { span =>
-                          complete(
-                            deleteRuntimeHandler(
-                              userInfo,
-                              googleProject,
-                              runtimeName,
-                              span
+                        parameterMap { params =>
+                          traceRequestForService(serviceData) { span =>
+                            complete(
+                              deleteRuntimeHandler(
+                                userInfo,
+                                googleProject,
+                                runtimeName,
+                                params,
+                                span
+                              )
                             )
-                          )
+                          }
                         }
                       }
                   } ~
@@ -210,10 +217,16 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   private[api] def deleteRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
+                                        params: Map[String, String],
                                         span: Span): IO[ToResponseMarshallable] = {
     val res = for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-      _ <- runtimeService.deleteRuntime(userInfo, googleProject, runtimeName)
+      deleteDisk = params
+        .get("deleteDisk")
+        .map(s => if (s == "true") true else false)
+        .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+      request = DeleteRuntimeRequest(userInfo, googleProject, runtimeName, deleteDisk)
+      _ <- runtimeService.deleteRuntime(request)
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
     spanResource[IO](span, "deleteRuntime")

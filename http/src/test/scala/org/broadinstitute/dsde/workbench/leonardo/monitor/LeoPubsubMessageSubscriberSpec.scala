@@ -133,15 +133,54 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle DeleteRuntimeMessage and delete cluster" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
-
     val res = for {
-      now <- IO(Instant.now)
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
+      monitor = new MockRuntimeMonitor {
+        override def pollCheck(a: CloudService)(
+          googleProject: GoogleProject,
+          runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+          operation: com.google.cloud.compute.v1.Operation,
+          action: RuntimeStatus
+        )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+          clusterQuery.completeDeletion(runtime.id, Instant.now()).transaction
+      }
+      queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
+      leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
-      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, Some(tr)))
+      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, false, Some(tr)))
+      _ <- withInfiniteStream(
+        asyncTaskProcessor.process,
+        clusterQuery
+          .getClusterStatus(runtime.id)
+          .transaction
+          .map(status => status shouldBe (Some(RuntimeStatus.Deleted)))
+      )
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "delete disk when handling DeleteRuntimeMessage with deleteDisk being true" in isolatedDbTest {
+    val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+
+    val res = for {
+      disk <- makePersistentDisk(DiskId(1), Some(FormattedBy.GCE)).save()
+      runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                                                    bootDiskSize = DiskSize(50),
+                                                    persistentDiskId = Some(disk.id))
+
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
+      tr <- traceId.ask
+      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, true, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      _ <- withInfiniteStream(
+        asyncTaskProcessor.process,
+        persistentDiskQuery.getStatus(disk.id).transaction.map(status => status shouldBe (Some(DiskStatus.Deleted)))
+      )
     } yield {
       updatedRuntime shouldBe 'defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Deleting
@@ -156,7 +195,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
-      message = DeleteRuntimeMessage(runtime.id, Some(tr))
+      message = DeleteRuntimeMessage(runtime.id, false, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
       attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
@@ -362,7 +401,6 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      now <- IO(Instant.now)
       disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Deleting).save()
       tr <- traceId.ask
 
@@ -380,7 +418,6 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      now <- IO(Instant.now)
       disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Ready).save()
       tr <- traceId.ask
       message = DeleteDiskMessage(disk.id, Some(tr))

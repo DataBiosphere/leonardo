@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.mock.{BaseFakeGoogleDataprocService, FakeGoogleDataprocService}
 import org.broadinstitute.dsde.workbench.google2.{
   ClusterError,
-  DataprocRole,
   GoogleComputeService,
   GoogleDataprocService,
   InstanceName,
@@ -23,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeSe
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.{Check, CheckTools}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.Check
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -125,46 +124,6 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     } yield {
       r._2 shouldBe None
       error.head.errorMessage shouldBe ("Can't find master instance for this cluster")
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "will check again status is Running but Jupyter is not up and running" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Starting
-    )
-
-    val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
-
-    val res = for {
-      ctx <- appContext.ask
-      monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
-      savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      val expectedResult = Some(
-        CheckTools(
-          IP("fakeIp"),
-          runtimeAndRuntimeConfig,
-          List(RuntimeImageType.Jupyter, RuntimeImageType.Welder),
-          Set(
-            DataprocInstance(
-              DataprocInstanceKey(savedRuntime.googleProject, ZoneName("zone-a"), InstanceName("master-instance")),
-              BigInt(100),
-              GceInstanceStatus.Running,
-              Some(IP("fakeIp")),
-              DataprocRole.Master,
-              ctx.now
-            )
-          )
-        )
-      )
-      r._2 shouldBe expectedResult
     }
 
     res.unsafeRunSync()
@@ -515,48 +474,6 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
       r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "checkTools if not all tools are available" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Updating
-    )
-
-    val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
-
-    val res = for {
-      ctx <- appContext.ask
-      monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Updating)
-      savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(
-        failureToolDao
-      )
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      val expectedResult = Some(
-        CheckTools(
-          IP("fakeIp"),
-          runtimeAndRuntimeConfig,
-          List(RuntimeImageType.Jupyter, RuntimeImageType.Welder),
-          Set(
-            DataprocInstance(
-              DataprocInstanceKey(savedRuntime.googleProject, ZoneName("zone-a"), InstanceName("master-instance")),
-              BigInt(100),
-              GceInstanceStatus.Running,
-              Some(IP("fakeIp")),
-              DataprocRole.Master,
-              ctx.now
-            )
-          )
-        )
-      )
-      r._2 shouldBe expectedResult
     }
 
     res.unsafeRunSync()

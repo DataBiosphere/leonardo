@@ -59,14 +59,14 @@ class GceRuntimeMonitor[F[_]: Parallel](
         .pollOperation(googleProject, operation, config.pollingInterval, config.pollCheckMaxAttempts)
         .compile
         .lastOrError
+      op <- poll
+      timeAfterPoll <- nowInstant
+      implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+        AppContext(traceId, timeAfterPoll)
+      )
       _ <- action match {
         case RuntimeStatus.Deleting =>
           for {
-            op <- poll
-            timeAfterPoll <- nowInstant
-            implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
-              AppContext(traceId, timeAfterPoll)
-            )
             _ <- if (op.isDone) deletedRuntime(monitorContext, runtimeAndRuntimeConfig)
             else
               failedRuntime(
@@ -82,11 +82,6 @@ class GceRuntimeMonitor[F[_]: Parallel](
           } yield ()
         case RuntimeStatus.Stopping =>
           for {
-            op <- poll
-            timeAfterPoll <- nowInstant
-            implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
-              AppContext(traceId, timeAfterPoll)
-            )
             _ <- if (op.isDone) stopRuntime(runtimeAndRuntimeConfig, Set.empty, monitorContext)
             else
               failedRuntime(
@@ -174,7 +169,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
               )
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
-                  checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg), None)
+                  checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
                 case UserScriptsValidationResult.Error(msg) =>
                   failedRuntime(monitorContext, runtimeAndRuntimeConfig, Some(RuntimeErrorDetails(msg)), Set.empty)
                 case UserScriptsValidationResult.Success =>
@@ -182,11 +177,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Timer[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext,
-                                                              runtimeAndRuntimeConfig,
-                                                              ip,
-                                                              Set.empty,
-                                                              List.empty)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
@@ -258,11 +249,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Timer[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext,
-                                                              runtimeAndRuntimeConfig,
-                                                              ip,
-                                                              Set.empty,
-                                                              List.empty)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
@@ -302,7 +289,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
               monitorContext,
               runtimeAndRuntimeConfig,
               Set.empty,
-              Some(s"hasn't been terminated yet")
+              Some(s"hasn't been terminated yet"),
+              None
             )
         }
     }
@@ -320,9 +308,12 @@ class GceRuntimeMonitor[F[_]: Parallel](
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(runtimeAndRuntimeConfig.runtime.googleProject,
-                                runtimeAndRuntimeConfig.runtime.runtimeName,
-                                runtimeAndRuntimeConfig.runtime.asyncRuntimeFields)
+            DeleteRuntimeParams(
+              runtimeAndRuntimeConfig.runtime.googleProject,
+              runtimeAndRuntimeConfig.runtime.runtimeName,
+              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined,
+              None
+            )
           )
           .void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB

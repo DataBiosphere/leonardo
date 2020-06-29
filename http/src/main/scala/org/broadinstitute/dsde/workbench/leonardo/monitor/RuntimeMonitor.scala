@@ -128,11 +128,6 @@ sealed abstract class MonitorState extends Product with Serializable
 object MonitorState {
   final case object Initial extends MonitorState
   final case class Check(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig) extends MonitorState
-  final case class CheckTools(ip: IP,
-                              runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                              toolsToCheck: List[RuntimeImageType],
-                              dataprocInstance: Set[DataprocInstance])
-      extends MonitorState
 }
 
 sealed trait MonitorConfig {

@@ -21,7 +21,7 @@ trait RuntimeService[F[_]] {
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 
-  def deleteRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit]
 
@@ -38,3 +38,8 @@ trait RuntimeService[F[_]] {
                     runtimeName: RuntimeName,
                     req: UpdateRuntimeRequest)(implicit as: ApplicativeAsk[F, AppContext]): F[Unit]
 }
+
+final case class DeleteRuntimeRequest(userInfo: UserInfo,
+                                      googleProject: GoogleProject,
+                                      runtimeName: RuntimeName,
+                                      deleteDisk: Boolean)

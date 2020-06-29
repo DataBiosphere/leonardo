@@ -99,6 +99,9 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
   def getById(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
 
+  def getStatus(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[DiskStatus]] =
+    getPersistentDiskRecord(id).map(_.map(_.status))
+
   def getPersistentDiskRecord(id: DiskId): DBIO[Option[PersistentDiskRecord]] =
     findByIdQuery(id).result.headOption
 

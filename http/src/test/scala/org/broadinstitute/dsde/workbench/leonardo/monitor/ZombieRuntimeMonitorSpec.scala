@@ -11,6 +11,7 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
   GoogleComputeService,
   GoogleDiskService,
   InstanceName,
@@ -290,7 +291,10 @@ class ZombieRuntimeMonitorSpec
         } else {
           IO.pure(None)
         }
-      override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+      override def deleteInstance(project: GoogleProject,
+                                  zone: ZoneName,
+                                  instanceName: InstanceName,
+                                  autoDeleteDisks: Set[DiskName] = Set.empty)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Operation] = {
         instanceName.value shouldBe (deletedRuntime2.runtimeName.asString)

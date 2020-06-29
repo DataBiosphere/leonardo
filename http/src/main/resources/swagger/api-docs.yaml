@@ -277,6 +277,13 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not disk should be deleted if the runtime is using persistent disk. Default to false if not specified
+          required: false
+          schema:
+            type: boolean
+            default: false
       responses:
         "202":
           description: Runtime deletion request accepted

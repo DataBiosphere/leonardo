@@ -365,7 +365,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
 
-      _ <- service.deleteRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      _ <- service.deleteRuntime(
+        DeleteRuntimeRequest(userInfo, testRuntime.googleProject, testRuntime.runtimeName, false)
+      )
       res <- withLeoPublisher(publisherQueue) {
         for {
           dbRuntimeOpt <- clusterQuery

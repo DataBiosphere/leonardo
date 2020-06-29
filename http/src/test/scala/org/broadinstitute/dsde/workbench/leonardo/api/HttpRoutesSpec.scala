@@ -7,6 +7,8 @@ import java.time.Instant
 
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
@@ -14,14 +16,21 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{GetAppResponse, GetRuntimeResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  DeleteRuntimeRequest,
+  GetAppResponse,
+  GetRuntimeResponse,
+  ListAppResponse,
+  RuntimeService
+}
 import org.broadinstitute.dsde.workbench.leonardo.service.{
+  BaseMockRuntimeServiceInterp,
   MockDiskServiceInterp,
   MockKubernetesServiceInterp,
   MockRuntimeServiceInterp
@@ -124,6 +133,57 @@ class HttpRoutesSpec
   }
 
   it should "delete a runtime" in {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "delete a runtime and disk if deleteDisk is true" in {
+    val runtimeService = new BaseMockRuntimeServiceInterp {
+      override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
+        implicit as: ApplicativeAsk[IO, AppContext]
+      ): IO[Unit] = IO {
+        val expectedDeleteRuntime =
+          DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), true)
+        deleteRuntimeRequest shouldBe expectedDeleteRuntime
+      }
+    }
+    val routes = fakeRoutes(runtimeService)
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=true") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "keep disk when deleting runtime if deleteDisk is false" in {
+    val runtimeService = new BaseMockRuntimeServiceInterp {
+      override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
+        implicit as: ApplicativeAsk[IO, AppContext]
+      ): IO[Unit] = IO {
+        val expectedDeleteRuntime =
+          DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
+        deleteRuntimeRequest shouldBe expectedDeleteRuntime
+      }
+    }
+    val routes = fakeRoutes(runtimeService)
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=false") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "not delete disk when deleting a runtime with PD enabled if deleteDisk is not set" in {
+    val runtimeService = new BaseMockRuntimeServiceInterp {
+      override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
+        implicit as: ApplicativeAsk[IO, AppContext]
+      ): IO[Unit] = IO {
+        val expectedDeleteRuntime =
+          DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
+        deleteRuntimeRequest shouldBe expectedDeleteRuntime
+      }
+    }
+    val routes = fakeRoutes(runtimeService)
     Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -342,6 +402,19 @@ class HttpRoutesSpec
       handled shouldBe false
     }
   }
+
+  def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes =
+    new HttpRoutes(
+      swaggerConfig,
+      statusService,
+      proxyService,
+      leonardoService,
+      runtimeService,
+      MockDiskServiceInterp,
+      MockKubernetesServiceInterp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy
+    )
 }
 
 object HttpRoutesSpec {
