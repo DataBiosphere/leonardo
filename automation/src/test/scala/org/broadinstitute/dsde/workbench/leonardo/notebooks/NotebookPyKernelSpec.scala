@@ -141,6 +141,20 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
+    "should have packages in appropriate directories" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(runtimeFixture.runtime) { notebookPage =>
+          // image installed package
+          notebookPage.executeCell("! pip show matplotlib").get should include("/usr/local/lib/python3.7/dist-packages")
+          // user installed package
+          notebookPage.executeCell("! pip install beautifulSoup4")
+          notebookPage.executeCell("! pip show beautifulSoup4").get should include(
+            "/home/jupyter-user/notebooks/packages"
+          )
+        }
+      }
+    }
+
     //TODO: uncomment this
 
 //    Seq(Python3).foreach { kernel =>
