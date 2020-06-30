@@ -9,6 +9,7 @@ import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{
+  DeviceName,
   FirewallRuleName,
   GoogleTopicAdminInterpreter,
   KubernetesName,
@@ -57,6 +58,8 @@ import scala.concurrent.duration._
 object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
+  implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
+
   implicit private val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
     ApplicationConfig(
       config.getString("applicationName"),
@@ -103,6 +106,7 @@ object Config {
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
       config.as[GceCustomImage]("customGceImage"),
+      config.as[DeviceName]("userDiskDeviceName"),
       config.as[RegionName]("region"),
       config.as[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,

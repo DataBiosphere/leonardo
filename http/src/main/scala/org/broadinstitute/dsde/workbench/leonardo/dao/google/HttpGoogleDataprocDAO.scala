@@ -24,7 +24,7 @@ import com.google.api.services.dataproc.model.{
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
-import org.broadinstitute.dsde.workbench.google2.{InstanceName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{InstanceName, OperationName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService

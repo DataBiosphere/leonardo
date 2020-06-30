@@ -6,16 +6,21 @@ import cats.effect.{Async, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Instance
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.DoneCheckableInstances.computeDoneCheckable
-import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService, InstanceName}
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  GoogleComputeService,
+  GoogleStorageService,
+  InstanceName
+}
 import org.broadinstitute.dsde.workbench.leonardo.GceInstanceStatus._
-import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.getInstanceIP
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -29,8 +34,10 @@ import scala.concurrent.duration._
 class GceRuntimeMonitor[F[_]: Parallel](
   config: GceMonitorConfig,
   googleComputeService: GoogleComputeService[F],
+  computePollOperation: ComputePollOperation[F],
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
+  publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage],
   override val runtimeAlg: RuntimeAlgebra[F]
 )(implicit override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
@@ -44,6 +51,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
 
+  val pollCheckSupportedStatuses = Set(RuntimeStatus.Deleting, RuntimeStatus.Stopping)
   // Function used for transitions that we can get an Operation
   override def pollCheck(googleProject: GoogleProject,
                          runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
@@ -55,50 +63,88 @@ class GceRuntimeMonitor[F[_]: Parallel](
       startMonitoring <- nowInstant
       monitorContext = MonitorContext(startMonitoring, runtimeAndRuntimeConfig.runtime.id, traceId, action)
       _ <- Timer[F].sleep(config.initialDelay)
-      poll = googleComputeService
-        .pollOperation(googleProject, operation, config.pollingInterval, config.pollCheckMaxAttempts)
-        .compile
-        .lastOrError
-      op <- poll
+      haltWhenTrue = (Stream
+        .eval(clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction.map { newStatus =>
+          if (action == RuntimeStatus.Deleting) // Deleting is not interruptible
+            false
+          else {
+            newStatus != Some(action) && newStatus == Some(
+              RuntimeStatus.Deleting
+            ) // Interrupt Stopping if new Deleting request comes in
+          }
+        }) ++ Stream.sleep_(5 seconds)).repeat
+      _ <- if (pollCheckSupportedStatuses.contains(action))
+        F.unit
+      else F.raiseError(new Exception(s"Monitoring ${action} with pollOperation is not supported"))
+      _ <- computePollOperation
+        .pollOperation(googleProject,
+                       operation,
+                       config.pollingInterval,
+                       config.pollCheckMaxAttempts,
+                       Some(haltWhenTrue))(
+          handlePollCheckCompletion(monitorContext, runtimeAndRuntimeConfig),
+          handlePollCheckTimeout(monitorContext, runtimeAndRuntimeConfig),
+          handlePollCheckWhenInterrupted(monitorContext, runtimeAndRuntimeConfig)
+        )
+    } yield ()
+
+  def handlePollCheckCompletion(monitorContext: MonitorContext,
+                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+    for {
       timeAfterPoll <- nowInstant
       implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
-        AppContext(traceId, timeAfterPoll)
+        AppContext(monitorContext.traceId, timeAfterPoll)
       )
-      _ <- action match {
+      _ <- monitorContext.action match {
         case RuntimeStatus.Deleting =>
-          for {
-            _ <- if (op.isDone) deletedRuntime(monitorContext, runtimeAndRuntimeConfig)
-            else
-              failedRuntime(
-                monitorContext,
-                runtimeAndRuntimeConfig,
-                Some(
-                  RuntimeErrorDetails(
-                    s"${action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner"
-                  )
-                ),
-                Set.empty
-              )
-          } yield ()
+          deletedRuntime(monitorContext, runtimeAndRuntimeConfig)
         case RuntimeStatus.Stopping =>
-          for {
-            _ <- if (op.isDone) stopRuntime(runtimeAndRuntimeConfig, Set.empty, monitorContext)
-            else
-              failedRuntime(
-                monitorContext,
-                runtimeAndRuntimeConfig,
-                Some(
-                  RuntimeErrorDetails(
-                    s"${action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner",
-                    labels = Map("transition" -> "starting")
-                  )
-                ),
-                Set.empty
-              )
-          } yield ()
+          stopRuntime(runtimeAndRuntimeConfig, Set.empty, monitorContext)
         case x =>
           F.raiseError(new Exception(s"Monitoring ${x} with pollOperation is not supported"))
       }
+    } yield ()
+
+  def handlePollCheckTimeout(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig) =
+    for {
+      timeAfterPoll <- nowInstant
+      implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+        AppContext(monitorContext.traceId, timeAfterPoll)
+      )
+      _ <- failedRuntime(
+        monitorContext,
+        runtimeAndRuntimeConfig,
+        Some(
+          RuntimeErrorDetails(
+            s"${monitorContext.action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner"
+          )
+        ),
+        Set.empty
+      )
+    } yield ()
+
+  def handlePollCheckWhenInterrupted(monitorContext: MonitorContext,
+                                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+    for {
+      newStatus <- clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction
+      timeWhenInterrupted <- nowInstant
+      _ <- (monitorContext.action, newStatus) match {
+        case (RuntimeStatus.Stopping, Some(RuntimeStatus.Deleting)) =>
+          clusterQuery
+            .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.PreDeleting, timeWhenInterrupted)
+            .transaction >> publisherQueue
+            .enqueue1(
+              DeleteRuntimeMessage(runtimeAndRuntimeConfig.runtime.id, false, Some(monitorContext.traceId))
+              //Known limitation, we set deleteDisk is falsehere; but in reality, it could be `true`
+            )
+        case _ =>
+          F.unit
+      }
+      tags = Map("original_status" -> monitorContext.action.toString, "interrupted_by" -> newStatus.toString)
+      _ <- openTelemetry.incrementCounter("earlyTerminationOfMonitoring", 1, tags)
+      _ <- logger.warn(
+        s"${monitorContext} | status transitioned from ${monitorContext.action} -> ${newStatus}. This could be caused by a new status transition call!"
+      )
     } yield ()
 
   /**
@@ -311,8 +357,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
             DeleteRuntimeParams(
               runtimeAndRuntimeConfig.runtime.googleProject,
               runtimeAndRuntimeConfig.runtime.runtimeName,
-              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined,
-              None
+              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined
             )
           )
           .void, //TODO is this right when deleting or stopping fails?

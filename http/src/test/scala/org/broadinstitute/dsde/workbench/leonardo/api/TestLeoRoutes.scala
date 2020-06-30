@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleStorageInterpreter, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
@@ -72,7 +72,10 @@ trait TestLeoRoutes {
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
-  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
+  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
+                                         mockGoogleProjectDAO,
+                                         MockGoogleComputeService,
+                                         new MockComputePollOperation)
   val dataprocInterp =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
@@ -168,6 +171,8 @@ trait TestLeoRoutes {
     serviceAccountProvider,
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,
+    MockGoogleComputeService,
+    new MockComputePollOperation,
     QueueFactory.makePublisherQueue()
   )
 

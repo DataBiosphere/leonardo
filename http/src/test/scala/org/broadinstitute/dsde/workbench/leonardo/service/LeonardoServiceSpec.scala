@@ -16,6 +16,7 @@ import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
+import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.GCR
@@ -97,7 +98,10 @@ class LeonardoServiceSpec
       BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
     val bucketHelper =
       new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
-    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
+    val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
+                                           projectDAO,
+                                           MockGoogleComputeService,
+                                           new MockComputePollOperation)
     dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                  bucketHelper,
                                                  vpcInterp,

@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   Location,
   MachineTypeName,
   NetworkName,
+  OperationName,
   SubnetworkName,
   ZoneName
 }
@@ -115,14 +116,6 @@ object JsonCodec {
     "imageUrl",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-  implicit val persistentDiskEncoder: Encoder[PersistentDiskInRuntimeConfig] = Encoder.forProduct6(
-    "id",
-    "zone",
-    "name",
-    "status",
-    "size",
-    "diskType"
-  )(x => PersistentDiskInRuntimeConfig.unapply(x).get)
   implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct4(
     "machineType",
     "persistentDiskId",
@@ -326,14 +319,6 @@ object JsonCodec {
     "diskSize",
     "bootDiskSize"
   )((mt, ds, bds) => RuntimeConfig.GceConfig(mt, ds, bds))
-  implicit val persistentDiskDecoder: Decoder[PersistentDiskInRuntimeConfig] = Decoder.forProduct6(
-    "id",
-    "zone",
-    "name",
-    "status",
-    "size",
-    "diskType"
-  )(PersistentDiskInRuntimeConfig.apply)
 
   implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
     for {

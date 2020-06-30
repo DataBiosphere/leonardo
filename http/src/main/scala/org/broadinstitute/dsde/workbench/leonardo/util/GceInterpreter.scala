@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDiskService,
   InstanceName,
   MachineTypeName,
+  OperationName,
   SubnetworkName,
   ZoneName
 }
@@ -22,6 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbRef
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -90,6 +92,16 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
 
       initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.gceInitScript.asString))
 
+      bootDiskSize <- params.runtimeConfig match {
+        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.bootDiskSize)
+        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.bootDiskSize)
+        case _ =>
+          F.raiseError[DiskSize](
+            new RuntimeException(
+              "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+            )
+          )
+      }
       bootDisk = AttachedDisk.newBuilder
         .setBoot(true)
         .setInitializeParams(
@@ -98,7 +110,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             .setDescription("Leonardo Managed Boot Disk")
             .setSourceImage(config.gceConfig.customGceImage.asString)
             .setDiskSizeGb(
-              config.gceConfig.runtimeConfigDefaults.bootDiskSize.get.gb.toString //Using `.get` here is okay since `bootDiskSize` always exists in config
+              bootDiskSize.gb.toString
             )
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
@@ -107,14 +119,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         .build()
 
       (userDisk, isFormatted) <- params.runtimeConfig match {
-        case x: RuntimeConfig.GceWithPdConfig =>
+        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
           for {
-            diskId <- F.fromEither(
-              x.persistentDiskId.toRight(
-                new RuntimeException("Missing diskId in the request. We should have rejected this request in front leo")
-              )
-            )
-            persistentDiskOpt <- persistentDiskQuery.getById(diskId).transaction
+            persistentDiskOpt <- persistentDiskQuery.getById(x.persistentDiskId).transaction
             persistentDisk <- F.fromEither(
               persistentDiskOpt.toRight(
                 new Exception(
@@ -124,7 +131,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             )
             isFormatted <- persistentDisk.formattedBy match {
               case Some(FormattedBy.Galaxy) =>
-                F.raiseError(
+                F.raiseError[Boolean](
                   new RuntimeException(
                     "Trying to use a Galaxy formatted disk for creating GCE runtime. This should never happen."
                   )
@@ -135,7 +142,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
           } yield {
             val disk = AttachedDisk.newBuilder
               .setBoot(false)
-              .setDeviceName("user-disk")
+              .setDeviceName(config.gceConfig.userDiskDeviceName.asString)
               .setInitializeParams(
                 AttachedDiskInitializeParams
                   .newBuilder()
@@ -150,9 +157,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
               )
               .setAutoDelete(false)
               .build()
-            (disk, persistentDisk.formattedBy.isDefined)
+            (disk, isFormatted)
           }
-        case x: RuntimeConfig.GceConfig =>
+        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig =>
           val disk = AttachedDisk.newBuilder
             .setBoot(false)
             .setDeviceName("user-disk")
@@ -165,7 +172,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
             .setAutoDelete(true)
             .build()
           F.pure((disk, false))
-        case _: RuntimeConfig.DataprocConfig =>
+        case _: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
           F.raiseError[(AttachedDisk, Boolean)](
             new Exception("This is wrong! GceInterpreter shouldn't get a dataproc runtimeConfig request")
           )
@@ -254,7 +261,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
         .map(instanceStatusToRuntimeStatus)
     } yield status
 
-  override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
+  override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: Option[RuntimeConfig.DataprocConfig])(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
@@ -305,10 +312,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
     if (params.isAsyncRuntimeFields)
       googleComputeService
-        .deleteInstance(params.googleProject,
-                        config.gceConfig.zoneName,
-                        InstanceName(params.runtimeName.asString),
-                        params.autoDeletePersistentDisk.to[Set])
+        .deleteInstance(params.googleProject, config.gceConfig.zoneName, InstanceName(params.runtimeName.asString))
         .map(x => Some(x))
     else Async[F].pure(None)
 

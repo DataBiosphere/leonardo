@@ -158,7 +158,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             r <- // Take care not to Error out a cluster if it timed out in Starting status
             if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Starting) {
               for {
-                _ <- runtimeAlg.stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, now))
+                _ <- runtimeAlg.stopRuntime(
+                  StopRuntimeParams(runtimeAndRuntimeConfig.runtime,
+                                    LeoLenses.dataprocPrism.getOption(runtimeAndRuntimeConfig.runtimeConfig),
+                                    now)
+                )
                 // Stopping the runtime
                 _ <- clusterQuery
                   .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopping, ip, now)

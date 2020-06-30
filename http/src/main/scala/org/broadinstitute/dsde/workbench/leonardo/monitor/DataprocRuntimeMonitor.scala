@@ -316,8 +316,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             DeleteRuntimeParams(
               runtimeAndRuntimeConfig.runtime.googleProject,
               runtimeAndRuntimeConfig.runtime.runtimeName,
-              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined,
-              None
+              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined
             )
           )
           .void, //TODO is this right when deleting or stopping fails?

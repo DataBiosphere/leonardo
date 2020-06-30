@@ -14,7 +14,16 @@ import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GcsBlobName, GoogleStorageService, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  DiskName,
+  GcsBlobName,
+  GoogleComputeService,
+  GoogleStorageService,
+  InstanceName,
+  MachineTypeName,
+  OperationName
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -30,12 +39,17 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInt
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimePatchDetails}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  LeoPubsubMessage,
+  RuntimeConfigInCreateRuntimeMessage,
+  RuntimePatchDetails
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
@@ -44,6 +58,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            serviceAccountProvider: ServiceAccountProvider[F],
                                            dockerDAO: DockerDAO[F],
                                            googleStorageService: GoogleStorageService[F],
+                                           googleComputeService: GoogleComputeService[F],
+                                           computePollOperation: ComputePollOperation[F],
                                            publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],
@@ -92,22 +108,30 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                               req.welderRegistry,
                                               req.welderDockerImage)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
+            // .get here should be okay since this is from config, and it should always be defined; Ideally we probaly should use a different type for reading this config than RuntimeConfig
+            bootDiskSize = config.gceConfig.runtimeConfigDefaults.bootDiskSize.get
+
+            defaultRuntimeConfig = RuntimeConfigInCreateRuntimeMessage.GceConfig(
+              config.gceConfig.runtimeConfigDefaults.machineType,
+              config.gceConfig.runtimeConfigDefaults.diskSize,
+              bootDiskSize
+            )
             runtimeConfig <- req.runtimeConfig
-              .fold[F[RuntimeConfig]](F.pure(config.gceConfig.runtimeConfigDefaults)) { // default to gce if no runtime specific config is provided
+              .fold[F[RuntimeConfigInCreateRuntimeMessage]](F.pure(defaultRuntimeConfig)) { // default to gce if no runtime specific config is provided
                 c =>
                   c match {
                     case gce: RuntimeConfigRequest.GceConfig =>
                       F.pure(
-                        RuntimeConfig.GceConfig(
+                        RuntimeConfigInCreateRuntimeMessage.GceConfig(
                           gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
                           gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize),
-                          config.gceConfig.runtimeConfigDefaults.bootDiskSize
-                        ): RuntimeConfig
+                          bootDiskSize
+                        ): RuntimeConfigInCreateRuntimeMessage
                       )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
                       F.pure(
-                        dataproc
-                          .toRuntimeConfigDataprocConfig(config.dataprocConfig.runtimeConfigDefaults): RuntimeConfig
+                        RuntimeConfigInCreateRuntimeMessage
+                          .fromDataprocInRuntimeConfigRequest(dataproc, config.dataprocConfig.runtimeConfigDefaults): RuntimeConfigInCreateRuntimeMessage
                       )
                     case gce: RuntimeConfigRequest.GceWithPdConfig =>
                       RuntimeServiceInterp
@@ -119,11 +143,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                       authProvider,
                                                       diskConfig)
                         .map(diskResult =>
-                          RuntimeConfig.GceWithPdConfig(
+                          RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
                             gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
-                            Some(diskResult.disk.id),
-                            config.gceConfig.runtimeConfigDefaults.bootDiskSize.get // .get here is okay. We've verified the data in Config.scala
-                          ): RuntimeConfig
+                            diskResult.disk.id,
+                            bootDiskSize
+                          ): RuntimeConfigInCreateRuntimeMessage
                         )
                   }
               }
@@ -160,8 +184,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 ) >> F.raiseError(t)
               }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
-
-            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = context.now)
+            runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
+            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.enqueue1(
               CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
@@ -239,6 +263,39 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (runtime.status.isDeletable) F.unit
       else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
       // delete the runtime
+
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- runtimeConfig match {
+        case x: RuntimeConfig.GceWithPdConfig =>
+          x.persistentDiskId.traverse { diskId =>
+            for {
+              diskOpt <- persistentDiskQuery.getPersistentDiskRecord(diskId).transaction
+              disk <- F.fromEither(
+                diskOpt.toRight(new RuntimeException(s"Can't find ${diskId} in PERSISTENT_DISK table"))
+              )
+              detachOp <- googleComputeService.detachDisk(req.googleProject,
+                                                          disk.zone,
+                                                          InstanceName(runtime.runtimeName.asString),
+                                                          config.gceConfig.userDiskDeviceName)
+              _ <- computePollOperation.pollZoneOperation(
+                req.googleProject,
+                disk.zone,
+                OperationName(detachOp.getName),
+                3 seconds,
+                5,
+                None
+              )(F.unit,
+                F.raiseError(
+                  new RuntimeException(
+                    s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner"
+                  )
+                ),
+                F.unit)
+              _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
+            } yield ()
+          }
+        case _ => F.unit
+      }
 
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreDeleting, ctx.now).transaction >> publisherQueue

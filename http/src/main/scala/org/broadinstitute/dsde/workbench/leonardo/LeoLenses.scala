@@ -2,10 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.time.Instant
 
-import monocle.{Lens, Optional}
+import monocle.{Lens, Optional, Prism}
 import monocle.macros.GenLens
 import org.broadinstitute.dsde.workbench.leonardo.db.GetClusterKey
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeResponse, ListRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
+import org.broadinstitute.dsde.workbench.leonardo.http.dataprocRuntimeToDataprocInCreateRuntimeMsg
 
 object LeoLenses {
   val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
@@ -85,4 +88,54 @@ object LeoLenses {
   )
 
   val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
+
+  val runtimeConfigPrism = Prism[RuntimeConfig, RuntimeConfigInCreateRuntimeMessage] {
+    case x: RuntimeConfig.GceConfig =>
+      Some(
+        RuntimeConfigInCreateRuntimeMessage.GceConfig(
+          x.machineType,
+          x.diskSize,
+          x.bootDiskSize
+            .getOrElse(
+              throw new Exception(
+                "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to bootDiskSize not defined"
+              )
+            )
+        )
+      )
+    case x: RuntimeConfig.GceWithPdConfig =>
+      Some(
+        RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
+          x.machineType,
+          x.persistentDiskId.getOrElse(
+            throw new Exception(
+              "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to persistentDiskId not defined"
+            )
+          ),
+          x.bootDiskSize
+        )
+      )
+    case x: RuntimeConfig.DataprocConfig =>
+      Some(dataprocRuntimeToDataprocInCreateRuntimeMsg(x))
+  } {
+    case x: RuntimeConfigInCreateRuntimeMessage.GceConfig =>
+      RuntimeConfig.GceConfig(
+        x.machineType,
+        x.diskSize,
+        Some(x.bootDiskSize)
+      )
+    case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
+      RuntimeConfig.GceWithPdConfig(
+        x.machineType,
+        Some(x.persistentDiskId),
+        x.bootDiskSize
+      )
+    case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
+      dataprocInCreateRuntimeMsgToDataprocRuntime(x)
+  }
+
+  val dataprocPrism = Prism[RuntimeConfig, RuntimeConfig.DataprocConfig] {
+    case x: RuntimeConfig.DataprocConfig => Some(x)
+    case _                               => None
+  }(identity)
 }

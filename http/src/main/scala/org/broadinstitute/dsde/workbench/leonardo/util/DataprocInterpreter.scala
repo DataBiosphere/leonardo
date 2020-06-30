@@ -22,12 +22,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidDataprocMachineConfigException
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -89,7 +91,6 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       _ <- vpcAlg.setUpProjectFirewalls(
         SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
       )
-
       resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                           params.runtimeConfig.machineType)
 
@@ -149,11 +150,12 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       else config.dataprocConfig.customDataprocImage
 
       res <- params.runtimeConfig match {
-        case _: RuntimeConfig.GceConfig | _: RuntimeConfig.GceWithPdConfig =>
+        case _: RuntimeConfigInCreateRuntimeMessage.GceConfig |
+            _: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
           Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
-        case x: RuntimeConfig.DataprocConfig =>
+        case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
           val createClusterConfig = CreateClusterConfig(
-            x,
+            dataprocInCreateRuntimeMsgToDataprocRuntime(x),
             initScripts,
             params.serviceAccountInfo,
             credentialsFileName,
@@ -225,21 +227,21 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
     } yield ()
 
-  override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
+  override protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
 
       // First remove all its preemptible instances, if any
-      _ <- runtimeConfig match {
-        case x: RuntimeConfig.DataprocConfig if x.numberOfPreemptibleWorkers.exists(_ > 0) =>
+      _ <- dataprocConfig.traverse_ { x =>
+        if (x.numberOfPreemptibleWorkers.exists(_ > 0))
           Async[F].liftIO(
             IO.fromFuture(
               IO(gdDAO.resizeCluster(runtime.googleProject, runtime.runtimeName, numPreemptibles = Some(0)))
             )
           )
-        case _ => Async[F].unit
+        else Async[F].unit
       }
 
       // Now stop each instance individually

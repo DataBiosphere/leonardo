@@ -7,6 +7,7 @@ import java.time.Instant
 
 import cats.implicits._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._

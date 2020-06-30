@@ -5,9 +5,10 @@ import java.time.Instant
 
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Operation
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
@@ -43,7 +44,7 @@ final case class CreateRuntimeParams(id: Long,
                                      scopes: Set[String],
                                      welderEnabled: Boolean,
                                      customEnvironmentVariables: Map[String, String],
-                                     runtimeConfig: RuntimeConfig)
+                                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage)
 object CreateRuntimeParams {
   def fromCreateRuntimeMessage(message: CreateRuntimeMessage): CreateRuntimeParams =
     CreateRuntimeParams(
@@ -72,10 +73,9 @@ final case class GetRuntimeStatusParams(googleProject: GoogleProject,
                                         zoneName: Option[ZoneName]) // zoneName is only needed for GCE
 final case class DeleteRuntimeParams(googleProject: GoogleProject,
                                      runtimeName: RuntimeName,
-                                     isAsyncRuntimeFields: Boolean,
-                                     autoDeletePersistentDisk: Option[DiskName])
+                                     isAsyncRuntimeFields: Boolean)
 final case class FinalizeDeleteParams(runtime: Runtime)
-final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)
+final case class StopRuntimeParams(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig], now: Instant)
 final case class StartRuntimeParams(runtime: Runtime, now: Instant)
 final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName, now: Instant)
 final case class UpdateDiskSizeParams(runtime: Runtime, diskSize: DiskSize)

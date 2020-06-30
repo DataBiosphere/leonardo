@@ -3,15 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  DeviceName,
   DiskName,
   FirewallRuleName,
   GoogleComputeService,
   InstanceName,
   MachineTypeName,
   NetworkName,
-  OperationName,
   RegionName,
   SubnetworkName,
   ZoneName
@@ -19,18 +19,13 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.duration.FiniteDuration
-
 // TODO move to wb-libs
 class MockGoogleComputeService extends GoogleComputeService[IO] {
   override def createInstance(project: GoogleProject, zone: ZoneName, instance: Instance)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
-  override def deleteInstance(project: GoogleProject,
-                              zone: ZoneName,
-                              instanceName: InstanceName,
-                              autoDeleteDisks: Set[DiskName] = Set.empty)(
+  override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
@@ -97,25 +92,16 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
 
-  override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
+  def detachDisk(project: GoogleProject, zone: ZoneName, instanceName: InstanceName, deviceName: DeviceName)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+  ): IO[Operation] = ???
 
-  override def getRegionOperation(project: GoogleProject, regionName: RegionName, operationName: OperationName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
-
-  override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Operation] = IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
-
-  override def pollOperation(project: GoogleProject, operation: Operation, delay: FiniteDuration, maxAttempts: Int)(
-    implicit ev: ApplicativeAsk[IO, TraceId],
-    doneEv: DoneCheckable[Operation]
-  ): fs2.Stream[IO, Operation] =
-    fs2.Stream.emit(
-      Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("DONE").build()
-    )
+  override def deleteInstanceWithAutoDeleteDisk(
+    project: GoogleProject,
+    zone: ZoneName,
+    instanceName: InstanceName,
+    autoDeleteDisks: Set[DiskName]
+  )(implicit ev: ApplicativeAsk[IO, TraceId], computePollOperation: ComputePollOperation[IO]): IO[Operation] = ???
 }
 
 object MockGoogleComputeService extends MockGoogleComputeService

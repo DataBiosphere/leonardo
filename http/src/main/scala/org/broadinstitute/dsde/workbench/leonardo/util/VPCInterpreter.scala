@@ -4,18 +4,23 @@ import cats.Parallel
 import cats.effect.{Async, ContextShift, IO}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.cloud.compute.v1.{Allowed, Firewall, Network, Operation, Subnetwork}
+import com.google.cloud.compute.v1._
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, GoogleComputeService, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  FirewallRuleName,
+  GoogleComputeService,
+  NetworkName,
+  SubnetworkName
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.FirewallRuleConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.collection.JavaConverters._
-import org.broadinstitute.dsde.workbench.DoneCheckableInstances.computeDoneCheckable
-import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 
 final case class InvalidVPCSetupException(project: GoogleProject)
     extends LeoException(s"Invalid VPC configuration in project ${project.value}")
@@ -31,11 +36,12 @@ final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork:
 final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName)
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time")
 
-final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
+final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
   config: VPCInterpreterConfig,
   googleProjectDAO: GoogleProjectDAO,
-  googleComputeService: GoogleComputeService[F]
-)(implicit cs: ContextShift[IO])
+  googleComputeService: GoogleComputeService[F],
+  computePollOperation: ComputePollOperation[F]
+)(implicit cs: ContextShift[IO], F: Async[F])
     extends VPCAlgebra[F] {
 
   val defaultNetworkName = NetworkName("default")
@@ -46,13 +52,13 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
     for {
       // For high-security projects, the network and subnetwork are pre-created and specified by project label.
       // See https://github.com/broadinstitute/gcp-dm-templates/blob/44b13216e5284d1ce46f58514fe51404cdf8f393/firecloud_project.py#L355-L359
-      projectLabels <- Async[F].liftIO(IO.fromFuture(IO(googleProjectDAO.getLabels(params.project.value))))
+      projectLabels <- F.liftIO(IO.fromFuture(IO(googleProjectDAO.getLabels(params.project.value))))
       networkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectNetworkLabel.value)
       subnetworkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectSubnetworkLabel.value)
       (network, subnetwork) <- (networkFromLabel, subnetworkFromLabel) match {
         // If we found project labels, we're done
         case (Some(network), Some(subnet)) =>
-          Async[F].pure((NetworkName(network), SubnetworkName(subnet)))
+          F.pure((NetworkName(network), SubnetworkName(subnet)))
         // Otherwise, we potentially need to create the network and subnet
         case (None, None) =>
           for {
@@ -66,7 +72,7 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
             // If we specify autoCreateSubnetworks, a subnet is automatically created in each region with the same name as the network.
             // See https://cloud.google.com/vpc/docs/vpc#subnet-ranges
             subnetworkName <- if (config.vpcConfig.autoCreateSubnetworks) {
-              Async[F].pure(SubnetworkName(config.vpcConfig.networkName.value))
+              F.pure(SubnetworkName(config.vpcConfig.networkName.value))
             } else {
               // create the subnet
               createIfAbsent(
@@ -82,7 +88,7 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
             }
           } yield (config.vpcConfig.networkName, subnetworkName)
         case _ =>
-          Async[F].raiseError[(NetworkName, SubnetworkName)](InvalidVPCSetupException(params.project))
+          F.raiseError[(NetworkName, SubnetworkName)](InvalidVPCSetupException(params.project))
       }
     } yield (network, subnetwork)
 
@@ -104,7 +110,7 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       _ <- if (defaultNetwork.isDefined) {
         config.vpcConfig.firewallsToRemove
           .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
-      } else Async[F].unit
+      } else F.unit
     } yield ()
 
   private def createIfAbsent[A](project: GoogleProject, get: F[Option[A]], create: F[Operation], fail: Throwable)(
@@ -115,13 +121,14 @@ final class VPCInterpreter[F[_]: Async: Parallel: ContextShift: Logger](
       _ <- if (existing.isEmpty) {
         for {
           initialOp <- create
-          lastOp <- googleComputeService
-            .pollOperation(project, initialOp, config.vpcConfig.pollPeriod, config.vpcConfig.maxAttempts)
-            .compile
-            .lastOrError
-          _ <- if (lastOp.isDone) Async[F].unit else Async[F].raiseError[Unit](fail)
+          _ <- computePollOperation
+            .pollOperation(project, initialOp, config.vpcConfig.pollPeriod, config.vpcConfig.maxAttempts, None)(
+              F.unit,
+              F.raiseError[Unit](fail),
+              F.unit
+            )
         } yield ()
-      } else Async[F].unit
+      } else F.unit
     } yield ()
 
   private[util] def buildNetwork(project: GoogleProject): Network =

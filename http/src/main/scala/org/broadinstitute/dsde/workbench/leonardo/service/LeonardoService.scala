@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition.
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateRuntimeMessage,
   DeleteRuntimeMessage,
@@ -263,10 +263,17 @@ class LeonardoService(
                                                             userEmail,
                                                             request,
                                                             clusterImages)
+
+      defaultDataprocConfig = dataprocRuntimeToDataprocInCreateRuntimeMsg(dataprocConfig.runtimeConfigDefaults)
       machineConfig = request.runtimeConfig
-        .asInstanceOf[Option[RuntimeConfigRequest.DataprocConfig]]
-        .map(_.toRuntimeConfigDataprocConfig(dataprocConfig.runtimeConfigDefaults))
-        .getOrElse(dataprocConfig.runtimeConfigDefaults)
+        .map(x =>
+          RuntimeConfigInCreateRuntimeMessage.fromDataprocInRuntimeConfigRequest(
+            x.asInstanceOf[RuntimeConfigRequest.DataprocConfig],
+            dataprocConfig.runtimeConfigDefaults
+          )
+        )
+        .getOrElse(defaultDataprocConfig)
+
       now <- nowInstant
       autopauseThreshold = calculateAutopauseThreshold(request.autopause, request.autopauseThreshold, autoFreezeConfig)
       clusterScopes = if (request.scopes.isEmpty) dataprocConfig.defaultScopes else request.scopes
@@ -295,13 +302,14 @@ class LeonardoService(
           s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
         ) >> IO.raiseError(t)
       }
-      saveCluster = SaveCluster(cluster = initialClusterToSave, runtimeConfig = machineConfig, now = now)
+      runtimeConfigToSave = dataprocInCreateRuntimeMsgToDataprocRuntime(machineConfig)
+      saveCluster = SaveCluster(cluster = initialClusterToSave, runtimeConfig = runtimeConfigToSave, now = now)
       cluster <- clusterQuery.save(saveCluster).transaction
       _ <- log.info(
         s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
       _ <- publisherQueue.enqueue1(CreateRuntimeMessage.fromRuntime(cluster, machineConfig, Some(traceId)))
-    } yield CreateRuntimeResponse.fromRuntime(cluster, machineConfig)
+    } yield CreateRuntimeResponse.fromRuntime(cluster, runtimeConfigToSave)
 
   // throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(

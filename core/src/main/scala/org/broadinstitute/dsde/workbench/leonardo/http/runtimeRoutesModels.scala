@@ -7,7 +7,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   ContainerRegistry,
   DiskSize,
   LabelMap,
-  RuntimeConfig,
   UserJupyterExtensionConfig,
   UserScriptPath
 }
@@ -43,36 +42,6 @@ object RuntimeConfigRequest {
                                   properties: Map[String, String])
       extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
-
-    def toRuntimeConfigDataprocConfig(default: RuntimeConfig.DataprocConfig): RuntimeConfig.DataprocConfig = {
-      val minimumDiskSize = 10
-      val masterDiskSizeFinal = math.max(minimumDiskSize, masterDiskSize.getOrElse(default.masterDiskSize).gb)
-      numberOfWorkers match {
-        case None | Some(0) =>
-          RuntimeConfig.DataprocConfig(
-            0,
-            masterMachineType.getOrElse(default.masterMachineType),
-            DiskSize(masterDiskSizeFinal),
-            None,
-            None,
-            None,
-            None,
-            properties
-          )
-        case Some(numWorkers) =>
-          val wds = workerDiskSize.orElse(default.workerDiskSize)
-          RuntimeConfig.DataprocConfig(
-            numWorkers,
-            masterMachineType.getOrElse(default.masterMachineType),
-            DiskSize(masterDiskSizeFinal),
-            workerMachineType.orElse(default.workerMachineType),
-            wds.map(s => DiskSize(math.max(minimumDiskSize, s.gb))),
-            numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
-            numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
-            properties
-          )
-      }
-    }
   }
 }
 

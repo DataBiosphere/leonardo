@@ -5,10 +5,17 @@ import java.time.Instant
 
 import io.circe.Printer
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  OperationName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, PersistentDiskSamResource}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}

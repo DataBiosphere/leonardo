@@ -269,7 +269,7 @@ object LeonardoApiClient {
 
   private def onError(response: Response[IO]): IO[Throwable] =
     for {
-      body <- response.bodyAsText(Charset.`UTF-8`).compile.foldMonoid
+      body <- response.bodyText.compile.foldMonoid
     } yield new Exception(body)
 }
 
