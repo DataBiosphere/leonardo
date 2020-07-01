@@ -167,13 +167,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                                    request: HttpRequest): IO[ToResponseMarshallable] =
     for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO]()
+      t <- ctx.ask
       res <- proxyService
         .proxyAppRequest(userInfo, googleProject, appName, serviceName, request)
         .onError {
           case e =>
             IO(
               logger.warn(
-                s"proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${appName.value} ${serviceName.value}",
+                s"${t.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${appName.value} ${serviceName.value}",
                 e
               )
             ) <* IO
@@ -187,11 +188,12 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                                        request: HttpRequest): IO[ToResponseMarshallable] =
     for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO]()
+      t <- ctx.ask
       res <- proxyService.proxyRequest(userInfo, googleProject, runtimeName, request).onError {
         case e =>
           IO(
             logger.warn(
-              s"proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${runtimeName.asString}",
+              s"${t.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${runtimeName.asString}",
               e
             )
           ) <* IO
