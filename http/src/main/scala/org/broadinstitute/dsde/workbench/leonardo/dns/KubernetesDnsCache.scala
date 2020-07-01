@@ -64,6 +64,6 @@ class KubernetesDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
       case None => Effect[F].pure(HostNotReady)
       case Some(ip) =>
         val h = host(appResult.cluster)
-        Effect[F].delay(HostToIpMapping.hostToIpMapping.mutate(_ + (h -> ip))).as(HostReady(h))
+        HostToIpMapping.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h)).to[F]
     }
 }

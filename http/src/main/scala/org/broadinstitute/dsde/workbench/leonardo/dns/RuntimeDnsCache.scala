@@ -5,13 +5,14 @@ import java.util.concurrent.TimeUnit
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect}
+import cats.implicits._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.{IP, Runtime, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
@@ -49,33 +50,24 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
     .build(
       new CacheLoader[RuntimeDnsCacheKey, HostStatus] {
         def load(key: RuntimeDnsCacheKey): HostStatus = {
-          logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
-          val res = dbRef
-            .inTransaction {
+          val res = for {
+            _ <- Effect[F]
+              .delay(logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB..."))
+            runtimeOpt <- dbRef.inTransaction {
               clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
             }
-            .toIO
-            .unsafeRunSync()
+            hostStatus <- runtimeOpt match {
+              case Some(runtime) =>
+                hostStatusByProjectAndCluster(runtime)
+              case None =>
+                Effect[F].pure[HostStatus](HostNotFound)
+            }
+          } yield hostStatus
 
-          res match {
-            case Some(runtime) =>
-              getHostStatusAndUpdateHostToIpIfHostReady(runtime)
-            case None =>
-              HostNotFound
-          }
+          res.toIO.unsafeRunSync
         }
       }
     )
-
-  private def getHostStatusAndUpdateHostToIpIfHostReady(runtime: Runtime): HostStatus = {
-    val hostStatus = hostStatusByProjectAndCluster(runtime)
-
-    PartialFunction.condOpt(hostStatus) {
-      case HostReady(_) => HostToIpMapping.hostToIpMapping.mutate(_ + hostToIpEntry(runtime))
-    }
-
-    hostStatus
-  }
 
   private def host(r: Runtime): Host = {
     val googleId = r.asyncRuntimeFields.map(_.googleId)
@@ -85,14 +77,16 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
     Host(googleId.get.value + proxyConfig.proxyDomain)
   }
 
-  private def hostToIpEntry(r: Runtime): (Host, IP) = host(r) -> r.asyncRuntimeFields.flatMap(_.hostIp).get
-
-  private def hostStatusByProjectAndCluster(r: Runtime): HostStatus =
-    if (r.asyncRuntimeFields.flatMap(_.hostIp).isDefined)
-      HostReady(host(r))
-    else if (r.status.isStartable)
-      HostPaused
-    else
-      HostNotReady
+  private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] =
+    r.asyncRuntimeFields.flatMap(_.hostIp) match {
+      case Some(ip) =>
+        val h = host(r)
+        HostToIpMapping.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h)).to[F]
+      case None =>
+        if (r.status.isStartable)
+          Effect[F].pure(HostPaused)
+        else
+          Effect[F].pure(HostNotReady)
+    }
 
 }

@@ -70,9 +70,11 @@ class RuntimeDnsCacheSpec
     runtimeDnsCache.stats.loadCount shouldBe 3
     runtimeDnsCache.stats.evictionCount shouldBe 0
 
-    HostToIpMapping.hostToIp.get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
-    HostToIpMapping.hostToIp.get(clusterBeingCreatedHost) shouldBe None
-    HostToIpMapping.hostToIp.get(stoppedClusterHost) shouldBe None
+    HostToIpMapping.hostToIpMapping.get
+      .unsafeRunSync()
+      .get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
+    HostToIpMapping.hostToIpMapping.get.unsafeRunSync().get(clusterBeingCreatedHost) shouldBe None
+    HostToIpMapping.hostToIpMapping.get.unsafeRunSync().get(stoppedClusterHost) shouldBe None
 
     val cacheKeys = Set(cacheKeyForClusterBeingCreated, cacheKeyForRunningCluster, cacheKeyForStoppedCluster)
 

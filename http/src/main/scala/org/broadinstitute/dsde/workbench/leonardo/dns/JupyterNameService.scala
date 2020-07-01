@@ -3,13 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import java.net.{InetAddress, UnknownHostException}
 
 import akka.http.scaladsl.model.Uri.Host
+import cats.effect.IO
+import cats.effect.concurrent.Ref
 import org.broadinstitute.dsde.workbench.leonardo.IP
-import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import sun.net.spi.nameservice.{NameService, NameServiceDescriptor}
 
-/**
- * Created by rtitle on 8/25/17.
- */
 class JupyterNameService extends NameService {
 
   override def getHostByAddr(addr: Array[Byte]): String =
@@ -17,9 +15,13 @@ class JupyterNameService extends NameService {
     throw new UnknownHostException
 
   override def lookupAllHostAddr(host: String): Array[InetAddress] =
-    HostToIpMapping.hostToIp.get(Host(host)).map(ip => Array(InetAddress.getByName(ip.value))).getOrElse {
-      throw new UnknownHostException(s"Unknown address: $host")
-    }
+    HostToIpMapping.hostToIpMapping.get
+      .unsafeRunSync()
+      .get(Host(host))
+      .map(ip => Array(InetAddress.getByName(ip.value)))
+      .getOrElse {
+        throw new UnknownHostException(s"Unknown address: $host")
+      }
 }
 
 class JupyterNameServiceDescriptor extends NameServiceDescriptor {
@@ -29,6 +31,5 @@ class JupyterNameServiceDescriptor extends NameServiceDescriptor {
 }
 
 object HostToIpMapping {
-  private[dns] val hostToIpMapping: ValueBox[Map[Host, IP]] = ValueBox(Map.empty)
-  def hostToIp: Map[Host, IP] = hostToIpMapping.value
+  private[dns] val hostToIpMapping: Ref[IO, Map[Host, IP]] = Ref.unsafe(Map.empty)
 }
