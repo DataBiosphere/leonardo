@@ -55,7 +55,10 @@ object KubernetesServiceDbQueries {
               )
             case _  => DBIO.successful(ClusterExists(cluster))
           }
-        case _ => kubernetesClusterQuery.save(saveKubernetesCluster).map(c => ClusterDoesNotExist(c, DefaultNodepool.fromNodepool(c.nodepools.head)))
+        case _ =>
+          kubernetesClusterQuery
+            .save(saveKubernetesCluster)
+            .map(c => ClusterDoesNotExist(c, DefaultNodepool.fromNodepool(c.nodepools.head)))
       }
     } yield eitherClusterOrError
 
@@ -113,28 +116,31 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
 
-  def markPendingCreating(nodepoolId: NodepoolLeoId, appId: AppId, clusterId: Option[CreateCluster])(implicit ec: ExecutionContext):  DBIO[Unit] =
+  def markPendingCreating(nodepoolId: NodepoolLeoId, appId: AppId, clusterId: Option[CreateCluster])(
+    implicit ec: ExecutionContext
+  ): DBIO[Unit] =
     for {
-     _ <- clusterId.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
-      for {
-       _ <- kubernetesClusterQuery.updateStatus(createCluster.clusterId, KubernetesClusterStatus.Provisioning)
-      _ <- nodepoolQuery.updateStatus(createCluster.nodepoolId, NodepoolStatus.Provisioning)
-      } yield ())
+      _ <- clusterId.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
+        for {
+          _ <- kubernetesClusterQuery.updateStatus(createCluster.clusterId, KubernetesClusterStatus.Provisioning)
+          _ <- nodepoolQuery.updateStatus(createCluster.nodepoolId, NodepoolStatus.Provisioning)
+        } yield ()
+      )
       _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Provisioning)
       _ <- appQuery.updateStatus(appId, AppStatus.Provisioning)
     } yield ()
 
-  def markPreDeleting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext):  DBIO[Unit] =
+  def markPreDeleting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
     for {
       _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Predeleting)
       _ <- appQuery.updateStatus(appId, AppStatus.Predeleting)
     } yield ()
 
   def markPendingDeletion(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
-      for {
+    for {
       _ <- nodepoolQuery.markPendingDeletion(nodepoolId)
       _ <- appQuery.markPendingDeletion(appId)
-     } yield ()
+    } yield ()
 
   private[db] def listClustersByProject(
     googleProject: Option[GoogleProject],
@@ -293,7 +299,8 @@ object KubernetesServiceDbQueries {
 sealed trait SaveClusterResult {
   def minimalCluster: KubernetesCluster
 }
-case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool) extends SaveClusterResult
+case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool)
+    extends SaveClusterResult
 case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
 
 case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)

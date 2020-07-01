@@ -179,14 +179,32 @@ case class DefaultNodepool(id: NodepoolLeoId,
                            machineType: MachineTypeName,
                            numNodes: NumNodes,
                            autoscalingEnabled: Boolean,
-                           autoscalingConfig: Option[AutoscalingConfig])  {
-  def toNodepool(): Nodepool = {
-    Nodepool(id, clusterId, nodepoolName, status, auditInfo, machineType, numNodes, autoscalingEnabled, autoscalingConfig, List.empty, List.empty, true)
-  }
+                           autoscalingConfig: Option[AutoscalingConfig]) {
+  def toNodepool(): Nodepool =
+    Nodepool(id,
+             clusterId,
+             nodepoolName,
+             status,
+             auditInfo,
+             machineType,
+             numNodes,
+             autoscalingEnabled,
+             autoscalingConfig,
+             List.empty,
+             List.empty,
+             true)
 }
 object DefaultNodepool {
   def fromNodepool(n: Nodepool) =
-    DefaultNodepool(n.id, n.clusterId, n.nodepoolName, n.status, n.auditInfo, n.machineType, n.numNodes, n.autoscalingEnabled, n.autoscalingConfig)
+    DefaultNodepool(n.id,
+                    n.clusterId,
+                    n.nodepoolName,
+                    n.status,
+                    n.auditInfo,
+                    n.machineType,
+                    n.numNodes,
+                    n.autoscalingEnabled,
+                    n.autoscalingConfig)
 }
 
 final case class AutoscalingConfig(autoscalingMin: AutoscalingMin, autoscalingMax: AutoscalingMax)

@@ -4,7 +4,17 @@ package db
 
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.leonardo.db.{AppExistsForProjectException, ClusterDoesNotExist, ClusterExists, KubernetesAppCreationException, KubernetesServiceDbQueries, SaveKubernetesCluster, TestComponent, appQuery, nodepoolQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  nodepoolQuery,
+  AppExistsForProjectException,
+  ClusterDoesNotExist,
+  ClusterExists,
+  KubernetesAppCreationException,
+  KubernetesServiceDbQueries,
+  SaveKubernetesCluster,
+  TestComponent
+}
 import org.scalatest.FlatSpecLike
 import CommonTestData._
 import KubernetesTestData._
@@ -230,7 +240,7 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
     val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetForApp(saveCluster1))
 
     val x = saveResult match {
-      case _: ClusterExists => false
+      case _: ClusterExists       => false
       case _: ClusterDoesNotExist => true
     }
     x shouldEqual true
@@ -252,7 +262,7 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
-          DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
       .get
     val saveCluster2 = Some(makeCluster2)
@@ -263,7 +273,7 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
-          DefaultNodepool.fromNodepool( c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
       .get
 
@@ -292,13 +302,13 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
-          DefaultNodepool.fromNodepool( c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
       .get
     val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetForApp(saveCluster2))
 
     val x = saveClusterResult match {
-      case _: ClusterExists => true
+      case _: ClusterExists       => true
       case _: ClusterDoesNotExist => false
     }
     x shouldEqual true

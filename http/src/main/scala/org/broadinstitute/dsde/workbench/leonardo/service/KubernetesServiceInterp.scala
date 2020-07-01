@@ -10,9 +10,23 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.leonardo.db.{ClusterDoesNotExist, ClusterExists, DbReference, KubernetesServiceDbQueries, SaveApp, SaveKubernetesCluster, appQuery, nodepoolQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  nodepoolQuery,
+  ClusterDoesNotExist,
+  ClusterExists,
+  DbReference,
+  KubernetesServiceDbQueries,
+  SaveApp,
+  SaveKubernetesCluster
+}
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.config.{GalaxyAppConfig, KubernetesClusterConfig, NodepoolConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  GalaxyAppConfig,
+  KubernetesClusterConfig,
+  NodepoolConfig,
+  PersistentDiskConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -98,7 +112,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       createAppMessage = CreateAppMessage(
         saveClusterResult match {
-          case _: ClusterExists => None
+          case _: ClusterExists         => None
           case res: ClusterDoesNotExist => Some(CreateCluster(res.minimalCluster.id, res.defaultNodepool.id))
         },
         app.id,
@@ -174,7 +188,10 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <- if (canDelete) F.unit
-      else F.raiseError[Unit](AppCannotBeDeletedException(params.googleProject, params.appName, appResult.app.status, ctx.traceId))
+      else
+        F.raiseError[Unit](
+          AppCannotBeDeletedException(params.googleProject, params.appName, appResult.app.status, ctx.traceId)
+        )
 
       _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
 

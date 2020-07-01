@@ -3,12 +3,36 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppCannotBeDeletedException, AppNotFoundException, AppRequiresDiskException, DeleteAppParams, DiskAlreadyAttachedException, LeoKubernetesServiceInterp}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppAlreadyExistsException,
+  AppCannotBeDeletedException,
+  AppNotFoundException,
+  AppRequiresDiskException,
+  DeleteAppParams,
+  DiskAlreadyAttachedException,
+  LeoKubernetesServiceInterp
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, CreateCluster, DiskId, KubernetesClusterStatus, LabelMap, LeonardoTestSuite, NodepoolStatus}
-import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent, appQuery, kubernetesClusterQuery, persistentDiskQuery}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AppStatus,
+  AppType,
+  CreateCluster,
+  DiskId,
+  KubernetesClusterStatus,
+  LabelMap,
+  LeonardoTestSuite,
+  NodepoolStatus
+}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  KubernetesServiceDbQueries,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
@@ -20,16 +44,12 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
 
   //used when we care about queue state
-  def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage]) = {
-    new LeoKubernetesServiceInterp[IO](whitelistAuthProvider,
-      serviceAccountProvider,
-      leoKubernetesConfig,
-      queue)
-  }
+  def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage]) =
+    new LeoKubernetesServiceInterp[IO](whitelistAuthProvider, serviceAccountProvider, leoKubernetesConfig, queue)
   val kubeServiceInterp = new LeoKubernetesServiceInterp[IO](whitelistAuthProvider,
-    serviceAccountProvider,
-    leoKubernetesConfig,
-    QueueFactory.makePublisherQueue())
+                                                             serviceAccountProvider,
+                                                             leoKubernetesConfig,
+                                                             QueueFactory.makePublisherQueue())
 
   it should "create an app and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
@@ -91,10 +111,12 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
     createAppMessage.nodepoolId shouldBe getApp.nodepool.id
     createAppMessage.project shouldBe project
     createAppMessage.createDisk shouldBe true
-    createAppMessage.cluster shouldBe Some(CreateCluster(
-      getMinimalCluster.id,
-      defaultNodepool.id
-    ))
+    createAppMessage.cluster shouldBe Some(
+      CreateCluster(
+        getMinimalCluster.id,
+        defaultNodepool.id
+      )
+    )
   }
 
   it should "create an app with an existing disk" in isolatedDbTest {

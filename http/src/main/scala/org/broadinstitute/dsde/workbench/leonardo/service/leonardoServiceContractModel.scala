@@ -242,9 +242,9 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   labels: LabelMap = Map.empty)
 
 final case class DeleteAppParams(userInfo: UserInfo,
-                                                                        googleProject: GoogleProject,
+                                 googleProject: GoogleProject,
                                  appName: AppName,
-                                                                        deleteDisk: Boolean)
+                                 deleteDisk: Boolean)
 
 final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[KubernetesError],

@@ -6,7 +6,19 @@ import cats.effect.concurrent.Semaphore
 import cats.effect.{IO, Resource}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
-import org.broadinstitute.dsde.workbench.leonardo.{App, CommonTestData, DefaultNodepool, GcsPathUtils, KubernetesCluster, LeonardoTestSuite, Nodepool, PersistentDisk, Runtime, RuntimeConfig, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
+  CommonTestData,
+  DefaultNodepool,
+  GcsPathUtils,
+  KubernetesCluster,
+  LeonardoTestSuite,
+  Nodepool,
+  PersistentDisk,
+  Runtime,
+  RuntimeConfig,
+  RuntimeName
+}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -122,9 +134,11 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.status,
             c.serviceAccount,
             c.auditInfo,
-            DefaultNodepool.fromNodepool(c.nodepools.headOption
-              .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
-          ))
+            DefaultNodepool.fromNodepool(
+              c.nodepools.headOption
+                .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
+            )
+          )
         )
       }
   }
