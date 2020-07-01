@@ -27,9 +27,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.scalatest.flatspec.AnyFlatSpec
 
-/**
- * Created by rtitle on 8/10/17.
- */
 class ProxyRoutesSpec
     extends AnyFlatSpec
     with BeforeAndAfterAll
@@ -145,7 +142,12 @@ class ProxyRoutesSpec
   it should s"pass through paths ($prefix)" in {
     val queue = InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync
     val proxyService =
-      new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache, Some(queue))
+      new MockProxyService(proxyConfig,
+                           mockGoogleDataprocDAO,
+                           whitelistAuthProvider,
+                           runtimeDnsCache,
+                           kubernetesDnsCache,
+                           Some(queue))
     proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
                                              Some(runtimeSamResource))
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)

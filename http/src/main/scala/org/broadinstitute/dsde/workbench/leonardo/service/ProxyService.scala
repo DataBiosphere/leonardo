@@ -175,7 +175,7 @@ class ProxyService(
     for {
       _ <- authCheck(userInfo, googleProject, runtimeName, ConnectToRuntime)
       now <- nowInstant
-      hostStatus <- Proxy.getRuntimeTargetHost[IO](runtimeDnsCache, googleProject, runtimeName)
+      hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
         case HostReady(_) => dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, now))
         case _            => IO.unit
@@ -193,10 +193,16 @@ class ProxyService(
   ): IO[HttpResponse] =
     for {
       _ <- IO(logger.info(s"authorizing ${userInfo.userEmail}")) // TODO placeholder for auth check
-      hostStatus <- Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
+      hostStatus <- getAppTargetHost(googleProject, appName)
       hostContext = HostContext(hostStatus, s"{$googleProject.value}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
     } yield r
+
+  private[service] def getRuntimeTargetHost(googleProject: GoogleProject, runtimeName: RuntimeName): IO[HostStatus] =
+    Proxy.getRuntimeTargetHost[IO](runtimeDnsCache, googleProject, runtimeName)
+
+  private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
+    Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
 
   private def proxyInternal(hostContext: HostContext,
                             request: HttpRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[HttpResponse] =

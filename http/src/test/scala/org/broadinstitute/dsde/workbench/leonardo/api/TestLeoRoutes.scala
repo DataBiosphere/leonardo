@@ -23,43 +23,19 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.service.MockDiskServiceInterp
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  BucketHelper,
-  BucketHelperConfig,
-  DataprocInterpreter,
-  GceInterpreter,
-  QueueFactory,
-  RuntimeInstances,
-  VPCInterpreter
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  LeoKubernetesServiceInterp,
-  LeonardoService,
-  MockProxyService,
-  RuntimeServiceConfig,
-  RuntimeServiceInterp,
-  StatusService
-}
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  BucketHelper,
-  BucketHelperConfig,
-  DataprocInterpreter,
-  GceInterpreter,
-  QueueFactory,
-  RuntimeInstances,
-  VPCInterpreter
-}
+import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.duration._
 import scala.util.matching.Regex
-import org.scalatest.matchers.should.Matchers
 
 trait TestLeoRoutes {
   this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
@@ -161,10 +137,11 @@ trait TestLeoRoutes {
       publisherQueue
     )(executor, system, loggerIO, cs, testTimer, testDbRef, runtimeInstances)
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, testDbRef, dnsCacheConfig, blocker)
+  val runtimeDnsCache = new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, blocker)
+  val kubernetesDnsCache = new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, blocker)
 
   val proxyService =
-    new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, clusterDnsCache)
+    new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, runtimeDnsCache, kubernetesDnsCache)
   val statusService =
     new StatusService(mockGoogleDataprocDAO, mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)

@@ -104,7 +104,6 @@ object CommonTestData {
   val swaggerConfig = Config.swaggerConfig
   val autoFreezeConfig = Config.autoFreezeConfig
   val clusterToolConfig = Config.clusterToolMonitorConfig
-  val dnsCacheConfig = Config.clusterDnsCacheConfig
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val clusterBucketConfig = Config.clusterBucketConfig
   val contentSecurityPolicy = Config.contentSecurityPolicy
