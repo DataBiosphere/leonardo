@@ -7,35 +7,21 @@ import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect}
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
+import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
-import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import org.broadinstitute.dsde.workbench.leonardo.{IP, Runtime, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 
-object ClusterDnsCache {
-  // This is stored as volatile in the object instead of inside the actor because it needs to be
-  // accessed by JupyterNameService. JupyterNameService is instantiated by the container and is
-  // stateless, so it doesn't have an ExecutionContext, etc needed to interact with an Actor.
-  private val hostToIpMapping: ValueBox[Map[Host, IP]] = ValueBox(Map.empty)
-  def hostToIp: Map[Host, IP] = hostToIpMapping.value
-
-  sealed trait HostStatus
-  case object HostNotFound extends HostStatus
-  case object HostNotReady extends HostStatus
-  case object HostPaused extends HostStatus
-  case class HostReady(hostname: Host) extends HostStatus
-}
-
-case class DnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
+final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
 
 /**
  * This class provides in-memory caches of:
- * 1. (GoogleProject, ClusterName) -> HostStatus
- *    This is used by ProxyService to look up the hostname to connect to given the GoogleProject/ClusterName
+ * 1. (GoogleProject, RuntimeName) -> HostStatus
+ *    This is used by ProxyService to look up the hostname to connect to given the GoogleProject/RuntimeName
  *    in the Leo request URI.
  * 2. Hostname -> IP
  *    This is used by JupyterNameService to match a "fake" hostname to a real IP address. Note
@@ -44,25 +30,25 @@ case class DnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
  * @param proxyConfig the proxy configuration
  * @param dbRef provides access to the database
  */
-class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
+class RuntimeDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
                                                   dbRef: DbReference[F],
-                                                  dnsCacheConfig: ClusterDnsCacheConfig,
+                                                  cacheConfig: CacheConfig,
                                                   blocker: Blocker)(implicit ec: ExecutionContext)
     extends LazyLogging {
 
-  def getHostStatus(key: DnsCacheKey): F[HostStatus] =
+  def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
     blocker.blockOn(Effect[F].delay(projectClusterToHostStatus.get(key)))
   def size: Long = projectClusterToHostStatus.size
   def stats: CacheStats = projectClusterToHostStatus.stats
 
   private val projectClusterToHostStatus = CacheBuilder
     .newBuilder()
-    .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
-    .maximumSize(dnsCacheConfig.cacheMaxSize)
+    .expireAfterWrite(cacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(cacheConfig.cacheMaxSize)
     .recordStats
     .build(
-      new CacheLoader[DnsCacheKey, HostStatus] {
-        def load(key: DnsCacheKey): HostStatus = {
+      new CacheLoader[RuntimeDnsCacheKey, HostStatus] {
+        def load(key: RuntimeDnsCacheKey): HostStatus = {
           logger.debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
           val res = dbRef
             .inTransaction {
@@ -85,7 +71,7 @@ class ClusterDnsCache[F[_]: Effect: ContextShift](proxyConfig: ProxyConfig,
     val hostStatus = hostStatusByProjectAndCluster(runtime)
 
     PartialFunction.condOpt(hostStatus) {
-      case HostReady(_) => hostToIpMapping.mutate(_ + hostToIpEntry(runtime))
+      case HostReady(_) => HostToIpMapping.hostToIpMapping.mutate(_ + hostToIpEntry(runtime))
     }
 
     hostStatus

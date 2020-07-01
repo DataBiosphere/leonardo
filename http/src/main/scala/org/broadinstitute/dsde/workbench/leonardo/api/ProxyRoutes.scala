@@ -10,7 +10,6 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
@@ -27,67 +26,77 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
   cs: ContextShift[IO]
 ) extends LazyLogging {
   val route: Route =
-    //note that the "notebooks" path prefix is deprecated
+    // Note that the "notebooks" path prefix is deprecated
     pathPrefix("proxy" | "notebooks") {
       implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
       corsSupport.corsHandler {
 
-        pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
-          val googleProject = GoogleProject(googleProjectParam)
-          val clusterName = RuntimeName(clusterNameParam)
-
-          path("setCookie") {
-            extractUserInfo { userInfo =>
-              get {
-                // Check the user for ConnectToCluster privileges and set a cookie in the response
-                onSuccess(
-                  proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToRuntime).unsafeToFuture()
-                ) {
-                  CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
-                    complete {
-                      logger.debug(s"Successfully set cookie for user $userInfo")
-                      StatusCodes.NoContent
+        // "apps" proxy routes
+        pathPrefix("google" / "v1" / "apps") {
+          pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
+            (googleProject, appName, serviceName) =>
+              (extractRequest & extractUserInfo) { (request, userInfo) =>
+                logRequestResultForMetrics(userInfo) {
+                  complete {
+                    proxyService.proxyAppRequest(userInfo, googleProject, appName, serviceName, request).onError {
+                      case e =>
+                        IO(
+                          logger.warn(
+                            s"proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${appName.value} ${serviceName.value}",
+                            e
+                          )
+                        ) <* IO
+                          .fromFuture(IO(request.entity.discardBytes().future))
                     }
                   }
                 }
               }
-            }
-          } ~
-            (extractRequest & extractUserInfo) { (request, userInfo) =>
-              (logRequestResultForMetrics(userInfo)) {
-                // Proxy logic handled by the ProxyService class
-                // Note ProxyService calls the LeoAuthProvider internally
-                complete {
-                  // we are discarding the request entity here. we have noticed that PUT requests caused by
-                  // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
-                  // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                  proxyService.proxyRequest(userInfo, googleProject, clusterName, request).onError {
-                    case e =>
-                      IO(logger.warn(s"proxy request failed for ${userInfo} ${googleProject} ${clusterName}", e)) <* IO
-                        .fromFuture(IO(request.entity.discardBytes().future))
+          }
+        } ~
+          // Legacy "runtimes" proxy routes
+          pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
+            // Note this exists at the top-level /proxy/setCookie as well
+            path("setCookie") {
+              extractUserInfo { userInfo =>
+                get {
+                  // Check the user for ConnectToCluster privileges and set a cookie in the response
+                  onSuccess(
+                    proxyService.authCheck(userInfo, googleProject, runtimeName, ConnectToRuntime).unsafeToFuture()
+                  ) {
+                    CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+                      complete {
+                        logger.debug(s"Successfully set cookie for user $userInfo")
+                        StatusCodes.NoContent
+                      }
+                    }
                   }
                 }
               }
             } ~
-            (extractRequest & extractUserInfo) { (request, userInfo) =>
-              (logRequestResultForMetrics(userInfo)) {
-                // Proxy logic handled by the ProxyService class
-                // Note ProxyService calls the LeoAuthProvider internally
-                path("api" / "localize") { // route for custom Jupyter server extension
+              (extractRequest & extractUserInfo) { (request, userInfo) =>
+                logRequestResultForMetrics(userInfo) {
+                  // Proxy logic handled by the ProxyService class
+                  // Note ProxyService calls the LeoAuthProvider internally
                   complete {
                     // we are discarding the request entity here. we have noticed that PUT requests caused by
                     // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
                     // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                    proxyService
-                      .proxyLocalize(userInfo, googleProject, clusterName, request)
-                      .onError { case _ => IO.fromFuture(IO(request.entity.discardBytes().future)).void }
+                    proxyService.proxyRequest(userInfo, googleProject, runtimeName, request).onError {
+                      case e =>
+                        IO(
+                          logger.warn(
+                            s"proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${runtimeName.asString}",
+                            e
+                          )
+                        ) <* IO
+                          .fromFuture(IO(request.entity.discardBytes().future))
+                    }
                   }
                 }
               }
-            }
-        } ~
-          // No need to lookup the user or consult the auth provider for this endpoint
+          } ~
+          // No need to consult the auth provider for these endpoints
           path("invalidateToken") {
             get {
               extractToken { token =>
@@ -95,6 +104,18 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                   proxyService.invalidateAccessToken(token).map { _ =>
                     logger.debug(s"Invalidated access token $token")
                     StatusCodes.OK
+                  }
+                }
+              }
+            }
+          } ~
+          path("setCookie") {
+            extractUserInfo { userInfo =>
+              get {
+                CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+                  complete {
+                    logger.debug(s"Successfully set cookie for user $userInfo")
+                    StatusCodes.NoContent
                   }
                 }
               }

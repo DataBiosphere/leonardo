@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import java.net.{InetAddress, UnknownHostException}
 
 import akka.http.scaladsl.model.Uri.Host
+import org.broadinstitute.dsde.workbench.leonardo.IP
+import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import sun.net.spi.nameservice.{NameService, NameServiceDescriptor}
 
 /**
@@ -15,7 +17,7 @@ class JupyterNameService extends NameService {
     throw new UnknownHostException
 
   override def lookupAllHostAddr(host: String): Array[InetAddress] =
-    ClusterDnsCache.hostToIp.get(Host(host)).map(ip => Array(InetAddress.getByName(ip.value))).getOrElse {
+    HostToIpMapping.hostToIp.get(Host(host)).map(ip => Array(InetAddress.getByName(ip.value))).getOrElse {
       throw new UnknownHostException(s"Unknown address: $host")
     }
 }
@@ -24,4 +26,9 @@ class JupyterNameServiceDescriptor extends NameServiceDescriptor {
   override def createNameService(): NameService = new JupyterNameService
   override def getProviderName: String = "Jupyter"
   override def getType: String = "dns"
+}
+
+object HostToIpMapping {
+  private[dns] val hostToIpMapping: ValueBox[Map[Host, IP]] = ValueBox(Map.empty)
+  def hostToIp: Map[Host, IP] = hostToIpMapping.value
 }

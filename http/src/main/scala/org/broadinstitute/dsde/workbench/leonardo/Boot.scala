@@ -44,7 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoKubernetesServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
@@ -126,7 +126,8 @@ object Boot extends IOApp {
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(proxyConfig,
                                           appDependencies.googleDataprocDAO,
-                                          appDependencies.clusterDnsCache,
+                                          appDependencies.runtimeDnsCache,
+                                          appDependencies.kubernetesDnsCache,
                                           appDependencies.authProvider,
                                           appDependencies.dateAccessedUpdaterQueue,
                                           appDependencies.blocker)
@@ -289,16 +290,17 @@ object Boot extends IOApp {
       samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
       concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
-      clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig, blocker)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
+      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
       // As best practice, we should have all related metrics under same prefix separated by `/`
       implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
         .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName, blocker)
-      welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
+      welderDao = new HttpWelderDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
       dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
-      jupyterDao = new HttpJupyterDAO[F](clusterDnsCache, clientWithRetryAndLogging)
-      rstudioDAO = new HttpRStudioDAO(clusterDnsCache, clientWithRetryAndLogging)
+      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
+      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, clientWithRetryAndLogging)
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
@@ -347,7 +349,8 @@ object Boot extends IOApp {
     } yield AppDependencies(
       storage,
       dbRef,
-      clusterDnsCache,
+      runtimeDnsCache,
+      kubernetesDnsCache,
       petGoogleStorageDAO,
       googleComputeService,
       googleDiskService,
@@ -393,7 +396,8 @@ object Boot extends IOApp {
 final case class AppDependencies[F[_]](
   google2StorageDao: GoogleStorageService[F],
   dbReference: DbReference[F],
-  clusterDnsCache: ClusterDnsCache[F],
+  runtimeDnsCache: RuntimeDnsCache[F],
+  kubernetesDnsCache: KubernetesDnsCache[F],
   petGoogleStorageDAO: String => GoogleStorageDAO,
   googleComputeService: GoogleComputeService[F],
   googleDiskService: GoogleDiskService[F],
