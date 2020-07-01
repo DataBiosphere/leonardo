@@ -37,11 +37,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.FlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpec
 
-class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
+class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
   //used when we care about queue state
   def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage]) =

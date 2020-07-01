@@ -15,7 +15,6 @@ HELP_TEXT="$(cat <<EOF
    jar : build Leonardo jar
    -d | --docker : (default: no action) provide either "build" or "push" to
            build or push a docker image.  "push" will also perform build.
-   -dr | --dockerhub-registry: The dockerhub registry to push to
    -gr | --gcr-registry: The GCR registry to push to
    -n | --notebook-repo: (default: --project) the repo to push the notebooks
            image. Can be a dockerhub or GCR repo.
@@ -23,7 +22,6 @@ HELP_TEXT="$(cat <<EOF
    -k | --service-account-key-file: (optional) path to a service account key json
            file. If set, the script will call "gcloud auth activate-service-account".
            Otherwise, the script will not authenticate with gcloud.
-   -ui | --user-interface: (optional) build the user interface docker image.
    -h | --help: print help text.
 
  Examples:
@@ -75,11 +73,6 @@ while [ "$1" != "" ]; do
             RUN_DOCKER=true
             DOCKER_CMD="$1"
             ;;
-        -dr | --dockerhub-registry)
-            shift
-            echo "registry == $1"
-            DOCKERHUB_REGISTRY=$1
-            ;;
         -gr | --gcr-registry)
             shift
             echo "gcr registry == $1"
@@ -130,7 +123,6 @@ DOCKER_REMOTES_BINARY="docker"
 GCR_REMOTES_BINARY="gcloud docker --"
 NOTEBOOK_REPO="${NOTEBOOK_REPO:-us.gcr.io/broad-dsp-gcr-public}"
 DEFAULT_IMAGE="broadinstitute/$TARGET"
-DOCKERHUB_IMAGE="${DOCKERHUB_REGISTRY}/$TARGET"
 GCR_IMAGE="${GCR_REGISTRY}/$TARGET"
 TESTS_IMAGE=$DEFAULT_IMAGE-tests
 
@@ -157,7 +149,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          broadinstitute/scala-baseimage \
+                          hseeberger/scala-sbt:graalvm-ce-20.0.0-java8_1.3.13_2.12.11 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db
@@ -184,25 +176,11 @@ function docker_cmd()
             DOCKER_TAG_TESTS=${GIT_SHA:0:12}
         fi
 
-        # Build the UI if specified.
-        if $BUILD_UI; then
-          bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
-        fi
-
         docker build -t "${DEFAULT_IMAGE}:${DOCKER_TAG}" .
         echo "building $TESTS_IMAGE docker image..."
         docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG_TESTS}" .
 
         if [ $DOCKER_CMD = "push" ]; then
-
-            if [ -n "$DOCKERHUB_REGISTRY" ]; then
-                echo "pushing $DOCKERHUB_IMAGE docker image..."
-                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} $DOCKERHUB_IMAGE:${DOCKER_TAG}
-                $DOCKER_REMOTES_BINARY push $DOCKERHUB_IMAGE:${DOCKER_TAG}
-                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} $DOCKERHUB_IMAGE:${GIT_BRANCH}
-                $DOCKER_REMOTES_BINARY push $DOCKERHUB_IMAGE:${GIT_BRANCH}
-            fi
-
             if [ -n "$GCR_REGISTRY" ]; then
                 echo "pushing $GCR_IMAGE docker image..."
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
@@ -216,11 +194,6 @@ function docker_cmd()
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
             $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${GIT_BRANCH}
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
-
-            # push the UI docker image.
-            if $BUILD_UI; then
-              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
-            fi
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"

@@ -15,14 +15,14 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   SaveKubernetesCluster,
   TestComponent
 }
-import org.scalatest.FlatSpecLike
 import CommonTestData._
 import KubernetesTestData._
 import TestUtils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
+class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
   it should "return None when there is no matching app" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()

@@ -6,14 +6,19 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
+import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.scalatest.freespec.FixtureAnyFreeSpec
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries {
+abstract class ClusterFixtureSpec
+    extends FixtureAnyFreeSpec
+    with BeforeAndAfterAll
+    with LeonardoTestUtils
+    with Retries {
 
   implicit val ronToken: AuthToken = ronAuthToken
 

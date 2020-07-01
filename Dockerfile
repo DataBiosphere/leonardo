@@ -1,4 +1,4 @@
-FROM openjdk:8
+FROM oracle/graalvm-ce:20.0.0-java8
 
 EXPOSE 8080
 EXPOSE 5050

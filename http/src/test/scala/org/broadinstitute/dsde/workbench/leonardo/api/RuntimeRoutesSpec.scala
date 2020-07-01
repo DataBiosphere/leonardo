@@ -5,9 +5,10 @@ package api
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
+class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   it should "decode RuntimeConfigRequest.GceWithPdConfig correctly" in {
     val jsonString =
       """

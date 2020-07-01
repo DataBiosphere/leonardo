@@ -16,8 +16,9 @@ import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
   RuntimePatchSpec,
   RuntimeStatusTransitionsSpec
 }
+import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
-trait GPAllocFixtureSpec extends fixture.FreeSpecLike with Retries {
+trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -97,17 +98,17 @@ final class LeonardoSuite
       new RuntimeCreationDiskSpec,
       new ClusterStatusTransitionsSpec,
       new LabSpec,
-//      new NotebookClusterMonitoringSpec,
-//      new NotebookCustomizationSpec,
-//      new NotebookDataSyncingSpec,
+      new NotebookClusterMonitoringSpec,
+      new NotebookCustomizationSpec,
+      new NotebookDataSyncingSpec,
       new LeoPubsubSpec,
       new ClusterAutopauseSpec,
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
-      new RuntimeStatusTransitionsSpec
-//      new NotebookGCEClusterMonitoringSpec,
-//      new NotebookGCECustomizationSpec,
-//      new NotebookGCEDataSyncingSpec
+      new RuntimeStatusTransitionsSpec,
+      new NotebookGCEClusterMonitoringSpec,
+      new NotebookGCECustomizationSpec,
+      new NotebookGCEDataSyncingSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
@@ -115,9 +116,9 @@ final class LeonardoSuite
 
 final class LeonardoTerraDockerSuite
     extends Suites(
-//      new NotebookAouSpec,
+      new NotebookAouSpec,
       new NotebookBioconductorKernelSpec,
-//      new NotebookGATKSpec,
+      new NotebookGATKSpec,
       new NotebookHailSpec,
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
