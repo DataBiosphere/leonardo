@@ -54,7 +54,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
               }
           }
         } ~
-          // Legacy "runtimes" proxy routes
+          // "runtimes" proxy routes
           pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
             // Note this exists at the top-level /proxy/setCookie as well
             path("setCookie") {
@@ -96,7 +96,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                 }
               }
           } ~
-          // No need to consult the auth provider for these endpoints
+          // Top-level routes
           path("invalidateToken") {
             get {
               extractToken { token =>

@@ -550,8 +550,7 @@ object Config {
   implicit val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
-      config.as[KubernetesServiceKindName]("kind"),
-      List() //TODO fill this out if we need ports
+      config.as[KubernetesServiceKindName]("kind")
     )
   }
 

@@ -4,7 +4,6 @@ package dao
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.implicits._
 import cats.effect.{Concurrent, ContextShift, Timer}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -26,7 +25,6 @@ object Proxy {
 
   def getAppTargetHost[F[_]: Timer: ContextShift: Concurrent](kubernetesDnsCache: KubernetesDnsCache[F],
                                                               googleProject: GoogleProject,
-                                                              appName: AppName,
-                                                              serviceName: ServiceName): F[HostStatus] =
-    kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(googleProject, appName, serviceName)).timeout(5 seconds)
+                                                              appName: AppName): F[HostStatus] =
+    kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(googleProject, appName)).timeout(5 seconds)
 }

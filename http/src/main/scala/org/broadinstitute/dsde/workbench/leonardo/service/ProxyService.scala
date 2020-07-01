@@ -40,23 +40,23 @@ import scala.concurrent.{ExecutionContext, Future}
 
 final case class HostContext(status: HostStatus, description: String)
 
-final case class ProxyHostNotReadyException(context: HostContext)
+final case class ProxyHostNotReadyException(context: HostContext, traceId: TraceId)
     extends LeoException(
-      s"Proxy host ${context.description} is not ready yet. It may be updating, try again later",
+      s"${traceId} | Proxy host ${context.description} is not ready yet. It may be updating, try again later",
       StatusCodes.Locked
     )
 
-final case class ProxyHostPausedException(context: HostContext)
+final case class ProxyHostPausedException(context: HostContext, traceId: TraceId)
     extends LeoException(
-      s"Proxy host ${context.description} is stopped. Start your runtime before proceeding.",
+      s"${traceId} | Proxy host ${context.description} is stopped. Start your runtime before proceeding.",
       StatusCodes.UnprocessableEntity
     )
 
-case class ProxyHostNotFoundException(context: HostContext)
-    extends LeoException(s"Proxy host ${context.description} not found", StatusCodes.NotFound)
+case class ProxyHostNotFoundException(context: HostContext, traceId: TraceId)
+    extends LeoException(s"${traceId} | Proxy host ${context.description} not found", StatusCodes.NotFound)
 
-final case class ProxyException(context: HostContext)
-    extends LeoException(s"Unable to proxy connection to tool on ${context.description}",
+final case class ProxyException(context: HostContext, traceId: TraceId)
+    extends LeoException(s"${traceId} | Unable to proxy connection to tool on ${context.description}",
                          StatusCodes.InternalServerError)
 
 final case object AccessTokenExpiredException
@@ -181,7 +181,7 @@ class ProxyService(
         case _            => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
-      r <- proxyInternal(hostContext, request, now)
+      r <- proxyInternal(hostContext, request)
     } yield r
 
   def proxyAppRequest(userInfo: UserInfo,
@@ -192,60 +192,63 @@ class ProxyService(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[HttpResponse] =
     for {
-      _ <- IO.unit // TODO placeholder for auth check
-      now <- nowInstant
-      hostStatus <- Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName, serviceName)
+      _ <- IO(logger.info(s"authorizing ${userInfo.userEmail}")) // TODO placeholder for auth check
+      hostStatus <- Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
       hostContext = HostContext(hostStatus, s"{$googleProject.value}/${appName.value}/${serviceName.value}")
-      r <- proxyInternal(hostContext, request, now)
+      r <- proxyInternal(hostContext, request)
     } yield r
 
-  private def proxyInternal(hostContext: HostContext, request: HttpRequest, now: Instant): IO[HttpResponse] =
-    IO(
-      logger.debug(
-        s"Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
+  private def proxyInternal(hostContext: HostContext,
+                            request: HttpRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[HttpResponse] =
+    for {
+      traceId <- ev.ask
+      _ <- IO(
+        logger.debug(
+          s"${traceId} | Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
+        )
       )
-    ) >> (hostContext.status match {
-      case HostReady(targetHost) =>
-        // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
-        // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
-        // The presence of this header distinguishes WebSocket from http requests.
-        val res = for {
+      res <- hostContext.status match {
+        case HostReady(targetHost) =>
+          // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
+          // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
+          // The presence of this header distinguishes WebSocket from http requests.
+          val res = for {
+            response <- request.header[UpgradeToWebSocket] match {
+              case Some(upgrade) =>
+                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
+              case None =>
+                IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
+            }
+            r <- if (response.status.isFailure())
+              IO(
+                logger.info(
+                  s"${traceId} | Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
+                    .to[String]}"
+                )
+              ).as(response)
+            else IO.pure(response)
+          } yield r
 
-          response <- request.header[UpgradeToWebSocket] match {
-            case Some(upgrade) =>
-              IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
-            case None =>
-              IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
-          }
-          r <- if (response.status.isFailure())
-            IO(
-              logger.info(
-                s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
-                  .to[String]}"
+          res.recoverWith {
+            case e =>
+              IO(logger.error(s"${traceId} | Error occurred in proxy", e)) >> IO.raiseError[HttpResponse](
+                ProxyException(hostContext, traceId)
               )
-            ).as(response)
-          else IO.pure(response)
-        } yield r
-
-        res.recoverWith {
-          case e =>
-            IO(logger.error("Error occurred in proxy", e)) >> IO.raiseError[HttpResponse](
-              ProxyException(hostContext)
-            )
-        }
-      case HostNotReady =>
-        IO(logger.warn(s"proxy host not ready for ${hostContext.description}")) >> IO.raiseError(
-          ProxyHostNotReadyException(hostContext)
-        )
-      case HostPaused =>
-        IO(logger.warn(s"proxy host paused for ${hostContext.description}")) >> IO.raiseError(
-          ProxyHostPausedException(hostContext)
-        )
-      case HostNotFound =>
-        IO(logger.warn(s"proxy host not found for ${hostContext.description}")) >> IO.raiseError(
-          ProxyHostNotFoundException(hostContext)
-        )
-    })
+          }
+        case HostNotReady =>
+          IO(logger.warn(s"${traceId} | proxy host not ready for ${hostContext.description}")) >> IO.raiseError(
+            ProxyHostNotReadyException(hostContext, traceId)
+          )
+        case HostPaused =>
+          IO(logger.warn(s"${traceId} | proxy host paused for ${hostContext.description}")) >> IO.raiseError(
+            ProxyHostPausedException(hostContext, traceId)
+          )
+        case HostNotFound =>
+          IO(logger.warn(s"${traceId} | proxy host not found for ${hostContext.description}")) >> IO.raiseError(
+            ProxyHostNotFoundException(hostContext, traceId)
+          )
+      }
+    } yield res
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
