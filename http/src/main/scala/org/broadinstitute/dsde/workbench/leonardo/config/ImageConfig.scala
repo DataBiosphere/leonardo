@@ -3,7 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 import org.broadinstitute.dsde.workbench.leonardo.ContainerImage
 
 final case class ImageConfig(
-  welderImage: ContainerImage,
+  welderGcrImage: ContainerImage,
+  welderDockerHubImage: ContainerImage,
+  welderHash: String,
   jupyterImage: ContainerImage,
   legacyJupyterImage: ContainerImage,
   proxyImage: ContainerImage,

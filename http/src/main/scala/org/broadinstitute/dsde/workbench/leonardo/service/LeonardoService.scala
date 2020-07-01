@@ -582,7 +582,12 @@ class LeonardoService(
       // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
       // - If welder is not enabled, we won't use any image.
       welderImageOpt = if (clusterRequest.enableWelder.getOrElse(false)) {
-        val imageUrl = clusterRequest.welderDockerImage.map(_.imageUrl).getOrElse(imageConfig.welderImage.imageUrl)
+        val imageUrl = clusterRequest.welderDockerImage
+          .map(_.imageUrl)
+          .getOrElse(clusterRequest.welderRegistry match {
+            case Some(ContainerRegistry.DockerHub) => imageConfig.welderDockerHubImage.imageUrl
+            case _                                 => imageConfig.welderGcrImage.imageUrl
+          })
         Some(RuntimeImage(Welder, imageUrl, now))
       } else None
       // Get the proxy image

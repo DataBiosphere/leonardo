@@ -74,6 +74,7 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
       None,
       None,
       None,
+      None,
       Set.empty,
       Map.empty
     )
@@ -101,6 +102,7 @@ class RuntimeRoutesSpec extends FlatSpec with Matchers with LeonardoTestSuite {
           Some(DiskSize(100))
         )
       ),
+      None,
       None,
       None,
       None,

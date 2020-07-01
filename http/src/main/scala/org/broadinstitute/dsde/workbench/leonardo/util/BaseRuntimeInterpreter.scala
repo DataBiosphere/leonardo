@@ -97,8 +97,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       val labelFound = config.welderConfig.updateWelderLabel.exists(runtime.labels.contains)
 
       val imageChanged = runtime.runtimeImages.find(_.imageType == Welder) match {
-        case Some(welderImage) if welderImage.imageUrl != config.imageConfig.welderImage => true
-        case _                                                                           => false
+        case Some(welderImage) if welderImage.hash != Some(config.imageConfig.welderHash) => true
+        case _                                                                            => false
       }
 
       if (labelFound && imageChanged) Some(UpdateWelder)
@@ -121,12 +121,25 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 
   private def updateWelder(runtime: Runtime, now: Instant): F[Runtime] =
     for {
-      _ <- Logger[F].info(s"Will deploy welder to cluster ${runtime.projectNameString}")
+      _ <- Logger[F].info(s"Will deploy welder to runtime ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/upgrade")
-      welderImage = RuntimeImage(Welder, config.imageConfig.welderImage.imageUrl, now)
+
+      newWelderImageUrl <- Async[F].fromEither(
+        runtime.runtimeImages
+          .find(_.imageType == Welder)
+          .map(x =>
+            x.registry match {
+              case Some(ContainerRegistry.GCR)       => config.imageConfig.welderGcrImage.imageUrl
+              case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
+              case None                              => throw new Exception(s"Unable to update Welder: registry for ${x.imageUrl} not parsable")
+            }
+          )
+          .toRight(new Exception(s"Unable to update welder because current welder image is not available"))
+      )
+      welderImage = RuntimeImage(Welder, newWelderImageUrl, now)
 
       _ <- dbRef.inTransaction {
-        clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, config.imageConfig.welderImage.imageUrl, now), now)
+        clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, newWelderImageUrl, now), now)
       }
 
       newRuntime = runtime.copy(welderEnabled = true,

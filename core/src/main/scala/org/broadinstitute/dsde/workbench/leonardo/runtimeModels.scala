@@ -313,7 +313,13 @@ object RuntimeContainerServiceType extends Enum[RuntimeContainerServiceType] {
 }
 
 /** Information about an image running on a runtime */
-final case class RuntimeImage(imageType: RuntimeImageType, imageUrl: String, timestamp: Instant)
+final case class RuntimeImage(imageType: RuntimeImageType, imageUrl: String, timestamp: Instant) {
+  def hash: Option[String] = {
+    val splitUrl = imageUrl.split(":")
+    if (splitUrl isDefinedAt 1) Some(splitUrl(1)) else None
+  }
+  def registry: Option[ContainerRegistry] = ContainerRegistry.inferRegistry(imageUrl)
+}
 
 /** Audit information about a runtime */
 final case class AuditInfo(creator: WorkbenchEmail,

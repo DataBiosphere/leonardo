@@ -2245,6 +2245,10 @@ components:
           type: string
           description: The tool docker image to install. May be Dockerhub or GCR. If not
             set, a default Jupyter image will be installed.
+        welderRegistry:
+          type: string
+          enum: [GCR, DockerHub]
+          description: The container registry from which to pull the latest version of welder.
         welderDockerImage:
           type: string
           description: >
@@ -2329,6 +2333,10 @@ components:
           type: string
           description: The tool docker image to install. May be Dockerhub or GCR. If not
             set, a default Jupyter image will be installed.
+        welderRegistry:
+          type: string
+          enum: [GCR, DockerHub]
+          description: The container registry from which to pull the latest version of welder.
         welderDockerImage:
           type: string
           description: >

@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.{DockerHub, GCR}
+import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
@@ -16,19 +16,19 @@ import org.scalatest.matchers.should.Matchers
 class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
   val jupyterImages = List(
     // dockerhub no tag
-    DockerHub("broadinstitute/leonardo-notebooks"),
+    ContainerImage("broadinstitute/leonardo-notebooks", DockerHub),
     // dockerhub with tag
-    DockerHub("broadinstitute/leonardo-notebooks:dev"),
+    ContainerImage("broadinstitute/leonardo-notebooks:dev", DockerHub),
     // dockerhub with sha
     // TODO: shas are currently not working
 //    DockerHub(
 //      "broadinstitute/leonardo-notebooks@sha256:bb959cf74f31d2a10f7bb8ee0f0754138d7c90f7ed8a92c3697ac994ff8b40b7"
 //    ),
     // gcr with tag
-    GCR("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"),
-    GCR("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.4"),
-    GCR("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.5"),
-    GCR("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.4")
+    ContainerImage("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev", GCR),
+    ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.4", GCR),
+    ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.5", GCR),
+    ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.4", GCR)
     // gcr with sha
     // TODO shas are currently not working
 //    GCR(
@@ -38,16 +38,16 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   val rstudioImages = List(
     // dockerhub no tag
-    DockerHub("rtitle/anvil-rstudio-base"),
+    ContainerImage("rtitle/anvil-rstudio-base", DockerHub),
     // dockerhub with tag
-    DockerHub("rtitle/anvil-rstudio-base:0.0.1"),
+    ContainerImage("rtitle/anvil-rstudio-base:0.0.1", DockerHub),
     // dockerhub with sha
     // TODO: shas are currently not working
 //    DockerHub(
 //      "rocker/rstudio@sha256:5aea617714eb38a97a21de652ab667c6d7bb486d7468a4ab6b4d515154fec383"
 //    ),
     // gcr with tag
-    GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.1")
+    ContainerImage("us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.1", GCR)
     // gcr with sha
     // TODO shas are currently not working
 //    GCR(
@@ -76,7 +76,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
   }
 
   it should s"detect ImageParseException" in withDockerDAO { dockerDAO =>
-    val image = GCR("us.gcr.io/anvil-gcr-public/anvil-rstudio-base") // non existent tag
+    val image = ContainerImage("us.gcr.io/anvil-gcr-public/anvil-rstudio-base", GCR) // non existent tag
     val res = for {
       ctx <- appContext.ask
       response <- dockerDAO.detectTool(image).attempt
@@ -88,7 +88,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   it should s"detect invalid GCR image if image doesn't have proper environment variables set" in withDockerDAO {
     dockerDAO =>
-      val image = GCR("us.gcr.io/broad-dsp-gcr-public/welder-server:latest") // not a supported tool
+      val image = ContainerImage("us.gcr.io/broad-dsp-gcr-public/welder-server:latest", GCR) // not a supported tool
       val res = for {
         ctx <- appContext.ask
         response <- dockerDAO.detectTool(image).attempt
@@ -100,7 +100,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   it should s"detect invalid dockerhub image if image doesn't have proper environment variables set" in withDockerDAO {
     dockerDAO =>
-      val image = DockerHub("library/nginx:latest") // not a supported tool
+      val image = ContainerImage("library/nginx:latest", DockerHub) // not a supported tool
       val res = for {
         ctx <- appContext.ask
         response <- dockerDAO.detectTool(image).attempt
