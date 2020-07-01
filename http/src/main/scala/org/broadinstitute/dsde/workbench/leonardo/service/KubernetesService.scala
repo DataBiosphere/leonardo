@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, DeleteAppParams, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -31,7 +31,7 @@ trait KubernetesService[F[_]] {
     params: Map[String, String]
   ): F[Vector[ListAppResponse]]
 
-  def deleteApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+  def deleteApp(params: DeleteAppParams)(
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit]
 }

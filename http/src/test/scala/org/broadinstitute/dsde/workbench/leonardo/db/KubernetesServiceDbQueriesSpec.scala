@@ -4,15 +4,7 @@ package db
 
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  nodepoolQuery,
-  AppExistsForProjectException,
-  KubernetesAppCreationException,
-  KubernetesServiceDbQueries,
-  SaveKubernetesCluster,
-  TestComponent
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{AppExistsForProjectException, ClusterDoesNotExist, ClusterExists, KubernetesAppCreationException, KubernetesServiceDbQueries, SaveKubernetesCluster, TestComponent, appQuery, nodepoolQuery}
 import org.scalatest.FlatSpecLike
 import CommonTestData._
 import KubernetesTestData._
@@ -231,13 +223,17 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
-                              c.nodepools.headOption.get)
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
       .get
 
     val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetForApp(saveCluster1))
 
-    saveResult.doesActiveClusterExist shouldEqual false
+    val x = saveResult match {
+      case _: ClusterExists => false
+      case _: ClusterDoesNotExist => true
+    }
+    x shouldEqual true
     saveResult.minimalCluster shouldEqual makeCluster1
   }
 
@@ -256,7 +252,7 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
-                              c.nodepools.headOption.get)
+          DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
       .get
     val saveCluster2 = Some(makeCluster2)
@@ -267,7 +263,7 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
-                              c.nodepools.headOption.get)
+          DefaultNodepool.fromNodepool( c.nodepools.headOption.get))
       )
       .get
 
@@ -296,11 +292,16 @@ class KubernetesServiceDbQueriesSpec extends FlatSpecLike with TestComponent {
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
-                              c.nodepools.headOption.get)
+          DefaultNodepool.fromNodepool( c.nodepools.headOption.get))
       )
       .get
     val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetForApp(saveCluster2))
-    saveClusterResult.doesActiveClusterExist shouldEqual true
+
+    val x = saveClusterResult match {
+      case _: ClusterExists => true
+      case _: ClusterDoesNotExist => false
+    }
+    x shouldEqual true
     saveClusterResult.minimalCluster shouldEqual makeCluster1
   }
 

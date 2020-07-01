@@ -44,6 +44,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F],
   monitor: RuntimeMonitor[F, CloudService]) {
+
   private[monitor] def messageResponder(
     message: LeoPubsubMessage
   )(implicit traceId: ApplicativeAsk[F, AppContext]): F[Unit] =
@@ -64,6 +65,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         handleDeleteDiskMessage(msg)
       case msg: UpdateDiskMessage =>
         handleUpdateDiskMessage(msg)
+      case msg: CreateAppMessage =>
+        handleCreateAppMessage(msg)
+      case msg: DeleteAppMessage =>
+        handleDeleteAppMessage(msg)
     }
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
@@ -459,6 +464,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}")), ctx.now)
       )
     } yield ()
+
+  def handleCreateAppMessage(msg: CreateAppMessage): F[Unit] = F.unit
+
+  def handleDeleteAppMessage(msg: DeleteAppMessage): F[Unit] = F.unit
 
   private def logError(projectAndName: String): Throwable => F[Unit] =
     t => logger.error(t)(s"Fail to monitor ${projectAndName}")

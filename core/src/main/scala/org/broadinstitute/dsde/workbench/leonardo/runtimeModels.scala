@@ -76,7 +76,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   val values = findValues
   // Leonardo defined runtime statuses.
 
-  // These statuses exist when we save a runtime during an API request, but we haven't published the even to back leo
+  // These statuses exist when we save a runtime during an API request, but we haven't published the event to back leo
   case object PreCreating extends RuntimeStatus
   case object PreDeleting extends RuntimeStatus
   case object PreStarting extends RuntimeStatus

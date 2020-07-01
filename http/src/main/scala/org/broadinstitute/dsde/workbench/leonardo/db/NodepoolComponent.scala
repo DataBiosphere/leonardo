@@ -36,7 +36,8 @@ case class NodepoolRecord(
   numNodes: NumNodes,
   autoscalingEnabled: Boolean,
   autoscalingMin: Option[AutoscalingMin],
-  autoscalingMax: Option[AutoscalingMax]
+  autoscalingMax: Option[AutoscalingMax],
+  isDefault: Boolean
 )
 
 class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
@@ -53,6 +54,7 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
   def autoscalingEnabled = column[Boolean]("autoscalingEnabled")
   def autoscalingMin = column[Option[AutoscalingMin]]("autoscalingMin")
   def autoscalingMax = column[Option[AutoscalingMax]]("autoscalingMax")
+  def isDefault = column[Boolean]("isDefault")
 
   def cluster = foreignKey("FK_NODEPOOL_CLUSTER_ID", clusterId, kubernetesClusterQuery)(_.id)
   def * =
@@ -68,7 +70,8 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
      numNodes,
      autoscalingEnabled,
      autoscalingMin,
-     autoscalingMax) <>
+     autoscalingMax,
+     isDefault) <>
       (NodepoolRecord.tupled, NodepoolRecord.unapply)
 
 }
@@ -99,7 +102,8 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
           n.numNodes,
           n.autoscalingEnabled,
           n.autoscalingConfig.map(_.autoscalingMin),
-          n.autoscalingConfig.map(_.autoscalingMax)
+          n.autoscalingConfig.map(_.autoscalingMax),
+          n.isDefault
         )
     } yield n.copy(id = nodepoolId)
 
@@ -156,6 +160,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
         case _                                            => None
       },
       List(),
-      apps
+      apps,
+      rec.isDefault
     )
 }

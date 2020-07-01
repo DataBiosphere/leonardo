@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 
@@ -240,6 +240,11 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   appType: AppType,
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty)
+
+final case class DeleteAppParams(userInfo: UserInfo,
+                                                                        googleProject: GoogleProject,
+                                 appName: AppName,
+                                                                        deleteDisk: Boolean)
 
 final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[KubernetesError],

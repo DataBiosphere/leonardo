@@ -10,21 +10,9 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  nodepoolQuery,
-  DbReference,
-  KubernetesServiceDbQueries,
-  SaveApp,
-  SaveKubernetesCluster
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{ClusterDoesNotExist, ClusterExists, DbReference, KubernetesServiceDbQueries, SaveApp, SaveKubernetesCluster, appQuery, nodepoolQuery}
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  GalaxyAppConfig,
-  KubernetesClusterConfig,
-  NodepoolConfig,
-  PersistentDiskConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{GalaxyAppConfig, KubernetesClusterConfig, NodepoolConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -35,8 +23,9 @@ import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 
 import scala.concurrent.ExecutionContext
@@ -105,8 +94,20 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       saveApp <- F.fromEither(
         getSavableApp(googleProject, appName, userInfo, samResourceId, req, diskResultOpt.map(_.disk), nodepool.id, ctx)
       )
-      _ <- appQuery.save(saveApp).transaction
-////      _ <- publisherQueue.enqueue1() //TODO: queue cluster/nodepool/app creation, queue disk creation
+      app <- appQuery.save(saveApp).transaction
+
+      createAppMessage = CreateAppMessage(
+        saveClusterResult match {
+          case _: ClusterExists => None
+          case res: ClusterDoesNotExist => Some(CreateCluster(res.minimalCluster.id, res.defaultNodepool.id))
+        },
+        app.id,
+        nodepool.id,
+        saveClusterResult.minimalCluster.googleProject,
+        diskResultOpt.map(_.creationNeeded).getOrElse(false),
+        Some(ctx.traceId)
+      )
+      _ <- publisherQueue.enqueue1(createAppMessage)
     } yield ()
 
   override def getApp(
@@ -159,26 +160,32 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         .toVector
     }
 
-  override def deleteApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+  override def deleteApp(params: DeleteAppParams)(
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
+      appResult <- F.fromOption(appOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
 
       //TODO implement SAM check
       hasPermission <- F.pure(true)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(params.userInfo.userEmail)))
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <- if (canDelete) F.unit
-      else F.raiseError[Unit](AppCannotBeDeletedException(googleProject, appName, appResult.app.status, ctx.traceId))
-//
-      //TODO: do atomically and send message at the same time?
-      _ <- nodepoolQuery.markPendingDeletion(appResult.nodepool.id).transaction
-      _ <- appQuery.markPendingDeletion(appResult.app.id).transaction
-      //TODO queue disk/cluster/nodepool/app creation
+      else F.raiseError[Unit](AppCannotBeDeletedException(params.googleProject, params.appName, appResult.app.status, ctx.traceId))
+
+      _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+
+      deleteMessage = DeleteAppMessage(
+        appResult.app.id,
+        appResult.nodepool.id,
+        appResult.cluster.googleProject,
+        params.deleteDisk,
+        Some(ctx.traceId)
+      )
+      _ <- publisherQueue.enqueue1(deleteMessage)
     } yield ()
 
   private[service] def getSavableCluster(userInfo: UserInfo,
@@ -188,7 +195,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
     val defaultNodepool = for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
-    } yield Nodepool(
+    } yield DefaultNodepool(
       NodepoolLeoId(-1),
       clusterId = KubernetesClusterLeoId(-1),
       nodepoolName,
@@ -197,9 +204,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       machineType = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
       numNodes = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes,
       autoscalingEnabled = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.autoscalingEnabled,
-      autoscalingConfig = None,
-      List.empty,
-      List()
+      autoscalingConfig = None
     )
 
     for {
@@ -243,7 +248,8 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       autoscalingEnabled = machineConfig.autoscalingEnabled,
       autoscalingConfig = Some(leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingConfig),
       List.empty,
-      List.empty
+      List.empty,
+      true
     )
   }
 

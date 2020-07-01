@@ -4,11 +4,11 @@ package service
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, DeleteAppParams, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-object MockKubernetesServiceInterp extends KubernetesService[IO] {
+class MockKubernetesServiceInterp extends KubernetesService[IO] {
   override def createApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName, req: CreateAppRequest)(
     implicit as: ApplicativeAsk[IO, AppContext]
   ): IO[Unit] =
@@ -24,8 +24,10 @@ object MockKubernetesServiceInterp extends KubernetesService[IO] {
                        params: Map[String, String]): IO[Vector[ListAppResponse]] =
     IO.pure(listAppResponse)
 
-  override def deleteApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+  override def deleteApp(params: DeleteAppParams)(
     implicit as: ApplicativeAsk[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 }
+
+object MockKubernetesServiceInterp extends MockKubernetesServiceInterp

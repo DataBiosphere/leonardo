@@ -53,9 +53,9 @@ object KubernetesServiceDbQueries {
                   s"You cannot create an app while a cluster is in ${KubernetesClusterStatus.creatingStatuses}. Status: ${s}"
                 )
               )
-            case _ => DBIO.successful(SaveClusterResult(cluster, true))
+            case _  => DBIO.successful(ClusterExists(cluster))
           }
-        case _ => kubernetesClusterQuery.save(saveKubernetesCluster).map(c => SaveClusterResult(c, false))
+        case _ => kubernetesClusterQuery.save(saveKubernetesCluster).map(c => ClusterDoesNotExist(c, DefaultNodepool.fromNodepool(c.nodepools.head)))
       }
     } yield eitherClusterOrError
 
@@ -112,6 +112,29 @@ object KubernetesServiceDbQueries {
   def getFullClusterById(id: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
+
+  def markPendingCreating(nodepoolId: NodepoolLeoId, appId: AppId, clusterId: Option[CreateCluster])(implicit ec: ExecutionContext):  DBIO[Unit] =
+    for {
+     _ <- clusterId.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
+      for {
+       _ <- kubernetesClusterQuery.updateStatus(createCluster.clusterId, KubernetesClusterStatus.Provisioning)
+      _ <- nodepoolQuery.updateStatus(createCluster.nodepoolId, NodepoolStatus.Provisioning)
+      } yield ())
+      _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Provisioning)
+      _ <- appQuery.updateStatus(appId, AppStatus.Provisioning)
+    } yield ()
+
+  def markPreDeleting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext):  DBIO[Unit] =
+    for {
+      _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Predeleting)
+      _ <- appQuery.updateStatus(appId, AppStatus.Predeleting)
+    } yield ()
+
+  def markPendingDeletion(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
+      for {
+      _ <- nodepoolQuery.markPendingDeletion(nodepoolId)
+      _ <- appQuery.markPendingDeletion(appId)
+     } yield ()
 
   private[db] def listClustersByProject(
     googleProject: Option[GoogleProject],
@@ -267,7 +290,12 @@ object KubernetesServiceDbQueries {
 }
 
 //minimal cluster has the nodepools, but no namespaces or apps
-case class SaveClusterResult(minimalCluster: KubernetesCluster, doesActiveClusterExist: Boolean)
+sealed trait SaveClusterResult {
+  def minimalCluster: KubernetesCluster
+}
+case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool) extends SaveClusterResult
+case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
+
 case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError)
 case class KubernetesAppCreationException(msg: String) extends LeoException(msg, StatusCodes.Conflict)

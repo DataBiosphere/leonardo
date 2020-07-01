@@ -93,7 +93,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
     val clusterRecord = saveCluster.toClusterRecord()
     for {
       clusterId <- kubernetesClusterQuery returning kubernetesClusterQuery.map(_.id) += clusterRecord
-      nodepool <- nodepoolQuery.saveForCluster(saveCluster.defaultNodepool.copy(clusterId = clusterId))
+      nodepool <- nodepoolQuery.saveForCluster(saveCluster.defaultNodepool.copy(clusterId = clusterId).toNodepool())
     } yield unmarshalKubernetesCluster(clusterRecord.copy(id = clusterId), List(nodepool), List())
   }
 
@@ -215,7 +215,7 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
                                  status: KubernetesClusterStatus,
                                  serviceAccount: WorkbenchEmail,
                                  auditInfo: AuditInfo,
-                                 defaultNodepool: Nodepool) {
+                                 defaultNodepool: DefaultNodepool) {
   def toClusterRecord(): KubernetesClusterRecord =
     KubernetesClusterRecord(
       KubernetesClusterLeoId(0),
