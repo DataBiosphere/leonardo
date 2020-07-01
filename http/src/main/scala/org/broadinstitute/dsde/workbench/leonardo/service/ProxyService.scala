@@ -199,7 +199,7 @@ class ProxyService(
     for {
       _ <- IO(logger.info(s"authorizing ${userInfo.userEmail}")) // TODO placeholder for auth check
       hostStatus <- getAppTargetHost(googleProject, appName)
-      hostContext = HostContext(hostStatus, s"{$googleProject.value}/${appName.value}/${serviceName.value}")
+      hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
     } yield r
 
