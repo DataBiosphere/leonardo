@@ -146,7 +146,6 @@ trait TestLeoRoutes {
     new StatusService(mockGoogleDataprocDAO, mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
   val corsSupport = new CorsSupport(contentSecurityPolicy)
-  val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
   val statusRoutes = new StatusRoutes(statusService)
   val userInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo

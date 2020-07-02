@@ -68,20 +68,20 @@ class ProxyRoutesSpec
   }
 
   "runtime proxy routes" should "listen on /proxy/{project}/{name}" in {
-    Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors()
     }
-    Get(s"/proxy/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors()
     }
-    Get(s"/proxy/").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe false
     }
-    Get(s"/api/proxy").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/api/proxy").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe false
     }
   }
@@ -89,13 +89,13 @@ class ProxyRoutesSpec
   it should "404 for non-existent runtimes" in {
     val newName = "aDifferentClusterName"
     // should 404 since the internal id cannot be looked up
-    Get(s"/proxy/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
     // should still 404 even if a cache entry is present
     proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(newName)),
                                              Some(runtimeSamResource))
-    Get(s"/proxy/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
@@ -103,7 +103,7 @@ class ProxyRoutesSpec
   it should "set CORS headers in runtime proxy requests" in {
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Cookie(tokenCookie))
-      .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors(origin = Some("http://example.com"))
@@ -152,23 +152,23 @@ class ProxyRoutesSpec
   }
 
   it should "pass through query string params in runtime proxy requests" in {
-    Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].qs shouldBe None
     }
     Get(s"/proxy/$googleProject/$clusterName?foo=bar&baz=biz")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
     }
   }
 
   it should "pass through http methods in runtime proxy requests" in {
-    Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].method shouldBe "GET"
     }
-    Post(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Post(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].method shouldBe "POST"
     }
-    Put(s"/prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Put(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].method shouldBe "PUT"
     }
   }
@@ -177,7 +177,7 @@ class ProxyRoutesSpec
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Cookie(tokenCookie))
       .addHeader(RawHeader("foo", "bar"))
-      .addHeader(RawHeader("baz", "biz")) ~> proxyRoutes.route ~> check {
+      .addHeader(RawHeader("baz", "biz")) ~> httpRoutes.route ~> check {
       responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
     }
   }
@@ -185,7 +185,7 @@ class ProxyRoutesSpec
   it should "remove utf-8'' from content-disposition header filenames" in {
     // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
     Get(s"/proxy/$googleProject/$clusterName/content-disposition-test")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[HttpResponse].headers should contain(
         `Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb"))
       )
@@ -230,18 +230,18 @@ class ProxyRoutesSpec
 
   "app proxy routes" should "listen on /proxy/google/v1/apps/{project}/{name}/{service}" in {
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors()
     }
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName/foo")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors()
     }
-    Get(s"/proxy/google/v1/apps/$googleProject").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/api/google/v1/apps/foo").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       handled shouldBe false
     }
   }
@@ -249,7 +249,7 @@ class ProxyRoutesSpec
   it should "404 for non-existent apps" in {
     val newName = "killerApp"
     // should 404 since the internal id cannot be looked up
-    Get(s"/proxy/google/v1/apps/$newName/$serviceName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+    Get(s"/proxy/google/v1/apps/$newName/$serviceName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
@@ -257,7 +257,7 @@ class ProxyRoutesSpec
   it should "set CORS headers in app proxy requests" in {
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
       .addHeader(Cookie(tokenCookie))
-      .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors(origin = Some("http://example.com"))
@@ -271,13 +271,6 @@ class ProxyRoutesSpec
     }
   }
 
-  it should "404 when using a non-white-listed user in app proxy requests" in {
-    Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
-      .addHeader(Cookie(unauthorizedTokenCookie)) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.NotFound
-    }
-  }
-
   it should s"401 when using an expired token in app proxy requests" in {
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
       .addHeader(Cookie(expiredTokenCookie)) ~> httpRoutes.route ~> check {
@@ -287,7 +280,7 @@ class ProxyRoutesSpec
 
   it should s"pass through paths in app proxy requests" in {
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Data].path shouldEqual s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName"
     }
@@ -295,22 +288,22 @@ class ProxyRoutesSpec
 
   it should "pass through query string params in app proxy requests" in {
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName?foo=bar&baz=biz")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
     }
   }
 
   it should "pass through http methods in app proxy requests" in {
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].method shouldBe "GET"
     }
     Post(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].method shouldBe "POST"
     }
     Put(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
-      .addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].method shouldBe "PUT"
     }
   }
@@ -319,7 +312,7 @@ class ProxyRoutesSpec
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
       .addHeader(Cookie(tokenCookie))
       .addHeader(RawHeader("foo", "bar"))
-      .addHeader(RawHeader("baz", "biz")) ~> proxyRoutes.route ~> check {
+      .addHeader(RawHeader("baz", "biz")) ~> httpRoutes.route ~> check {
       responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
     }
   }
@@ -330,7 +323,7 @@ class ProxyRoutesSpec
     // login request with Authorization header should succeed and return a Set-Cookie header
     Get(s"/proxy/$googleProject/$clusterName/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-      .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       validateRawCookie(setCookie = header("Set-Cookie"), age = 3600)
       status shouldEqual StatusCodes.NoContent
       validateCors(origin = Some("http://example.com"))
@@ -343,7 +336,7 @@ class ProxyRoutesSpec
   it should "handle preflight OPTIONS requests" in {
     Options(s"/proxy/$googleProject/$clusterName/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-      .addHeader(Origin("http://example.com")) ~> proxyRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.NoContent
       header[`Set-Cookie`] shouldBe None
@@ -405,7 +398,7 @@ class ProxyRoutesSpec
    * So for websocket tests, manually create a server binding on port 9000 for the proxy.
    */
   def withWebsocketProxy[T](testCode: => T): T = {
-    val bindingFuture = Http().bindAndHandle(proxyRoutes.route, "0.0.0.0", 9000)
+    val bindingFuture = Http().bindAndHandle(httpRoutes.route, "0.0.0.0", 9000)
     try {
       testCode
     } finally {
