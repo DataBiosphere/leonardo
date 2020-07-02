@@ -135,16 +135,30 @@ class RuntimeCreationDiskSpec
                                                   defaultCreateDiskRequest.copy(size = Some(diskSize)))
         runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
+        // validate that saved files and user installed packages persist
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val createNewFile =
               """! echo 'this should save' >> /home/jupyter-user/notebooks/test.txt""".stripMargin
             notebookPage.executeCell(createNewFile)
+            notebookPage.executeCell("! pip install beautifulSoup4")
+          }
+        })
+        // validate that disk remained attached when runtime is stopped and
+        // disk remains mounted after restarting
+        _ <- IO(stopRuntime(googleProject, runtimeName, true))
+        stoppedRuntime <- getRuntime(googleProject, runtimeName)
+        _ <- IO(startRuntime(googleProject, runtimeName, true))
+        _ <- IO(withWebDriver { implicit driver =>
+          withNewNotebook(clusterCopy, Python3) { notebookPage =>
+            val res = notebookPage.executeCell("! df -H").get
+            res should include("/dev/sdb")
+            res should include("/home/jupyter-user/notebooks")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName)
 
-        // Creating new runtime with existing disk should have test.txt file
+        // Creating new runtime with existing disk should have test.txt file and user installed package
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntimeRequest)
         clusterCopyWithData = ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData)
         _ <- IO(withWebDriver { implicit driver =>
@@ -152,6 +166,8 @@ class RuntimeCreationDiskSpec
             val persistedData =
               """! cat /home/jupyter-user/notebooks/test.txt""".stripMargin
             notebookPage.executeCell(persistedData).get should include("this should save")
+            val persistedPackage = "! pip show beautifulSoup4"
+            notebookPage.executeCell(persistedPackage).get should include("/home/jupyter-user/notebooks/packages")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName)
@@ -159,6 +175,8 @@ class RuntimeCreationDiskSpec
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
         runtime.diskConfig.map(_.size) shouldBe Some(diskSize)
+        stoppedRuntime.status shouldBe ClusterStatus.Stopped
+        stoppedRuntime.diskConfig.map(_.name) shouldBe Some(diskName)
       }
     }
 
