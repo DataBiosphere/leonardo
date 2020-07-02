@@ -4,6 +4,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
   CloudService,
   ContainerImage,
+  ContainerRegistry,
   DiskSize,
   LabelMap,
   RuntimeConfig,
@@ -75,15 +76,18 @@ object RuntimeConfigRequest {
   }
 }
 
-final case class CreateRuntime2Request(labels: LabelMap,
-                                       jupyterUserScriptUri: Option[UserScriptPath],
-                                       jupyterStartUserScriptUri: Option[UserScriptPath],
-                                       runtimeConfig: Option[RuntimeConfigRequest],
-                                       userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                                       autopause: Option[Boolean],
-                                       autopauseThreshold: Option[FiniteDuration],
-                                       defaultClientId: Option[String],
-                                       toolDockerImage: Option[ContainerImage],
-                                       welderDockerImage: Option[ContainerImage],
-                                       scopes: Set[String],
-                                       customEnvironmentVariables: Map[String, String])
+final case class CreateRuntime2Request(
+  labels: LabelMap,
+  jupyterUserScriptUri: Option[UserScriptPath],
+  jupyterStartUserScriptUri: Option[UserScriptPath],
+  runtimeConfig: Option[RuntimeConfigRequest],
+  userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+  autopause: Option[Boolean],
+  autopauseThreshold: Option[FiniteDuration],
+  defaultClientId: Option[String],
+  toolDockerImage: Option[ContainerImage],
+  welderRegistry: Option[ContainerRegistry],
+  welderDockerImage: Option[ContainerImage], //TODO: remove once AoU starts using welderRegistry
+  scopes: Set[String],
+  customEnvironmentVariables: Map[String, String]
+)

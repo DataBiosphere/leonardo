@@ -152,8 +152,17 @@ object Config {
   }
 
   implicit private val imageConfigReader: ValueReader[ImageConfig] = ValueReader.relative { config =>
+    val welderGcrUri = config.getString("welderGcrUri")
+    val welderDockerHubUri = config.getString("welderDockerHubUri")
+    val welderHash = config.getString("welderHash")
     ImageConfig(
-      config.as[ContainerImage]("welderImage"),
+      ContainerImage
+        .fromPrefixAndHash(welderGcrUri, welderHash)
+        .getOrElse(throw new RuntimeException(s"Invalid welder image: $welderGcrUri:$welderHash")),
+      ContainerImage
+        .fromPrefixAndHash(welderDockerHubUri, welderHash)
+        .getOrElse(throw new RuntimeException(s"Invalid welder image: $welderDockerHubUri:$welderHash")),
+      config.getString("welderHash"),
       config.as[ContainerImage]("jupyterImage"),
       config.as[ContainerImage]("legacyJupyterImage"),
       config.as[ContainerImage]("proxyImage"),
@@ -372,7 +381,7 @@ object Config {
     stringValueReader.map(DataprocCustomImage)
   implicit private val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
   implicit private val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(s =>
-    ContainerImage.fromString(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
+    ContainerImage.fromImageUrl(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )
   implicit private val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit private val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>

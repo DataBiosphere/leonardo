@@ -109,6 +109,7 @@ object JsonCodec {
   )(x => AuditInfo.unapply(x).get)
   implicit val runtimeImageTypeEncoder: Encoder[RuntimeImageType] = Encoder.encodeString.contramap(_.toString)
   implicit val containerImageEncoder: Encoder[ContainerImage] = Encoder.encodeString.contramap(_.imageUrl)
+  implicit val containerRegistryEncoder: Encoder[ContainerRegistry] = Encoder.encodeString.contramap(_.entryName)
   implicit val runtimeImageEncoder: Encoder[RuntimeImage] = Encoder.forProduct3(
     "imageType",
     "imageUrl",
@@ -206,7 +207,11 @@ object JsonCodec {
   implicit val googleIdDecoder: Decoder[GoogleId] = Decoder.decodeString.map(GoogleId)
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
   implicit val containerImageDecoder: Decoder[ContainerImage] =
-    Decoder.decodeString.emap(s => ContainerImage.fromString(s).toRight(s"invalid container image ${s}"))
+    Decoder.decodeString.emap(s => ContainerImage.fromImageUrl(s).toRight(s"invalid container image ${s}"))
+  implicit val containerRegistryDecoder: Decoder[ContainerRegistry] =
+    Decoder.decodeString.emap(s =>
+      ContainerRegistry.withNameInsensitiveOption(s).toRight(s"Unsupported container registry ${s}")
+    )
   implicit val cloudServiceDecoder: Decoder[CloudService] =
     Decoder.decodeString.emap(s => CloudService.withNameInsensitiveOption(s).toRight(s"Unsupported cloud service ${s}"))
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)

@@ -71,7 +71,7 @@ abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(
           billingProject,
           runtimeName,
-          getRuntimeRequest(CloudService.GCE, toolDockerImage.map(ContainerImage.GCR))
+          getRuntimeRequest(CloudService.GCE, toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)))
         )
       } yield {
         ronCluster = ClusterCopy(
@@ -165,6 +165,7 @@ object RuntimeFixtureSpec {
       userJupyterExtensionConfig = None,
       autopauseThreshold = None,
       defaultClientId = None,
+      welderRegistry = None,
       welderDockerImage = None,
       scopes = Set.empty,
       customEnvironmentVariables = Map.empty

@@ -1,51 +1,47 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import ca.mrvisser.sealerate
+import enumeratum.{Enum, EnumEntry}
 
 import scala.util.matching.Regex
 
 /** Container registry, e.g. GCR, Dockerhub */
-sealed trait ContainerRegistry extends Product with Serializable {
+sealed trait ContainerRegistry extends EnumEntry with Product with Serializable {
   def regex: Regex
 }
-object ContainerRegistry {
+object ContainerRegistry extends Enum[ContainerRegistry] {
+  val values = findValues
+
   final case object GCR extends ContainerRegistry {
     val regex: Regex =
       """^((?:us\.|eu\.|asia\.)?gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
-    override def toString: String = "gcr"
+    override def toString: String = "GCR"
   }
 
   // Repo format: https://docs.docker.com/docker-hub/repos/
   final case object DockerHub extends ContainerRegistry {
     val regex: Regex = """^([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
-    override def toString: String = "docker hub"
+    override def toString: String = "DockerHub"
   }
+
+  def inferRegistry(imageUrl: String): Option[ContainerRegistry] =
+    List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
+      .find(image => image.regex.pattern.asPredicate().test(imageUrl))
 
   val allRegistries: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
 }
 
 /** Information about an image including its URL and registry */
-sealed trait ContainerImage extends Product with Serializable {
-  def imageUrl: String
-  def registry: ContainerRegistry
-}
+final case class ContainerImage(imageUrl: String, registry: ContainerRegistry)
+
 object ContainerImage {
-
-  final case class GCR(imageUrl: String) extends ContainerImage {
-    val registry: ContainerRegistry = ContainerRegistry.GCR
+  def fromImageUrl(imageUrl: String): Option[ContainerImage] = {
+    val registryOpt = ContainerRegistry.inferRegistry(imageUrl)
+    registryOpt.map(r => ContainerImage(imageUrl, r))
   }
-
-  final case class DockerHub(imageUrl: String) extends ContainerImage {
-    val registry: ContainerRegistry = ContainerRegistry.DockerHub
+  def fromPrefixAndHash(prefix: String, hash: String): Option[ContainerImage] = {
+    val imageUrl = prefix + ":" + hash
+    val registryOpt = ContainerRegistry.inferRegistry(imageUrl)
+    registryOpt.map(r => ContainerImage(imageUrl, r))
   }
-
-  def fromString(imageUrl: String): Option[ContainerImage] =
-    List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
-      .find(image => image.regex.pattern.asPredicate().test(imageUrl))
-      .map { dockerRegistry =>
-        dockerRegistry match {
-          case ContainerRegistry.GCR       => ContainerImage.GCR(imageUrl)
-          case ContainerRegistry.DockerHub => ContainerImage.DockerHub(imageUrl)
-        }
-      }
 }

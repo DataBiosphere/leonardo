@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurit
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
+import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   DeleteRuntimeRequest,
@@ -76,8 +77,9 @@ class HttpRoutesSpec
       Some(true),
       Some(30.minutes),
       None,
-      Some(ContainerImage.DockerHub("myrepo/myimage")),
-      Some(ContainerImage.DockerHub("broadinstitute/welder")),
+      Some(ContainerImage("myrepo/myimage", DockerHub)),
+      None,
+      Some(ContainerImage("broadinstitute/welder", DockerHub)),
       Set.empty,
       Map.empty
     )

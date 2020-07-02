@@ -91,6 +91,7 @@ object LeoRoutesJsonCodec {
       defaultClientId <- c.downField("defaultClientId").as[Option[String]]
       jupyterDockerImage <- c.downField("jupyterDockerImage").as[Option[ContainerImage]]
       toolDockerImage <- c.downField("toolDockerImage").as[Option[ContainerImage]]
+      welderRegistry <- c.downField("welderRegistry").as[Option[ContainerRegistry]]
       welderDockerImage <- c.downField("welderDockerImage").as[Option[ContainerImage]]
       scopes <- c.downField("scopes").as[Option[Set[String]]]
       enableWelder <- c.downField("enableWelder").as[Option[Boolean]]
@@ -123,6 +124,7 @@ object LeoRoutesJsonCodec {
         defaultClientId,
         jupyterDockerImage,
         toolDockerImage,
+        welderRegistry,
         welderDockerImage,
         scopes.getOrElse(Set.empty),
         enableWelder,

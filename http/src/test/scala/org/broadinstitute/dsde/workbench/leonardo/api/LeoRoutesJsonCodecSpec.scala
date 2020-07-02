@@ -225,6 +225,7 @@ class LeoRoutesJsonCodecSpec extends AnyFlatSpec with Matchers {
       None,
       None,
       None,
+      None,
       Set(
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",

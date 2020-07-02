@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.ContainerImage.GCR
+import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.GCR
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
@@ -192,32 +192,52 @@ class LeonardoServiceSpec
     TestUtils.compareClusterAndCreateClusterAPIResponse(clusterGetResponse, clusterCreateResponse)
   }
 
-  it should "create a cluster with the default welder image" in isolatedDbTest {
+  it should "create a cluster with the latest welder from welderRegistry" in isolatedDbTest {
     // create the cluster
-    val clusterRequest = testClusterRequest.copy(
+    val clusterRequest1 = testClusterRequest.copy(
+      runtimeConfig = Some(singleNodeDefaultMachineConfigRequest),
+      stopAfterCreation = Some(true),
+      welderRegistry = Some(ContainerRegistry.GCR),
+      enableWelder = Some(true)
+    )
+    val clusterRequest2 = testClusterRequest.copy(
+      runtimeConfig = Some(singleNodeDefaultMachineConfigRequest),
+      stopAfterCreation = Some(true),
+      welderRegistry = Some(ContainerRegistry.DockerHub),
+      enableWelder = Some(true)
+    )
+    val clusterRequest3 = testClusterRequest.copy(
       runtimeConfig = Some(singleNodeDefaultMachineConfigRequest),
       stopAfterCreation = Some(true),
       enableWelder = Some(true)
     )
 
-    val clusterResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
+    val clusterResponse1 = leo.createCluster(userInfo, project, name1, clusterRequest1).unsafeToFuture.futureValue
+    val clusterResponse2 = leo.createCluster(userInfo, project, name2, clusterRequest2).unsafeToFuture.futureValue
+    val clusterResponse3 = leo.createCluster(userInfo, project, name3, clusterRequest3).unsafeToFuture.futureValue
 
     // check the cluster persisted to the database matches the create response
-    val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
-    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
+    val dbCluster1 = dbFutureValue(clusterQuery.getClusterById(clusterResponse1.id))
+    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster1.get, clusterResponse1)
+    val dbCluster2 = dbFutureValue(clusterQuery.getClusterById(clusterResponse2.id))
+    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster2.get, clusterResponse2)
+    val dbCluster3 = dbFutureValue(clusterQuery.getClusterById(clusterResponse3.id))
+    TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster3.get, clusterResponse3)
 
-    // cluster images should contain welder and Jupyter
-    clusterResponse.clusterImages.find(_.imageType == Jupyter).map(_.imageUrl) shouldBe Some(
-      imageConfig.jupyterImage.imageUrl
+    // cluster images should contain correct welder images
+    clusterResponse1.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
+      imageConfig.welderGcrImage.imageUrl
     )
-    clusterResponse.clusterImages.find(_.imageType == RStudio) shouldBe None
-    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
-      imageConfig.welderImage.imageUrl
+    clusterResponse2.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
+      imageConfig.welderDockerHubImage.imageUrl
+    )
+    clusterResponse3.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
+      imageConfig.welderGcrImage.imageUrl
     )
   }
 
   it should "create a cluster with a client-supplied welder image" in isolatedDbTest {
-    val customWelderImage = GCR("my-custom-welder-image-link")
+    val customWelderImage = ContainerImage("my-custom-welder-image-link", GCR)
 
     // create the cluster
     val clusterRequest = testClusterRequest.copy(
@@ -242,7 +262,7 @@ class LeonardoServiceSpec
   }
 
   it should "create a cluster with an rstudio image" in isolatedDbTest {
-    val rstudioImage = GCR("some-rstudio-image")
+    val rstudioImage = ContainerImage("some-rstudio-image", GCR)
 
     // create the cluster
     val clusterRequest = testClusterRequest.copy(toolDockerImage = Some(rstudioImage), enableWelder = Some(true))
@@ -272,7 +292,7 @@ class LeonardoServiceSpec
     clusterResponse.clusterImages.find(_.imageType == RStudio).map(_.imageUrl) shouldBe Some(rstudioImage.imageUrl)
     clusterResponse.clusterImages.find(_.imageType == Jupyter) shouldBe None
     clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
-      imageConfig.welderImage.imageUrl
+      imageConfig.welderGcrImage.imageUrl
     )
     clusterResponse.labels.get("tool") shouldBe Some("RStudio")
     clusterResponse.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name1.asString}/rstudio")

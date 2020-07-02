@@ -328,6 +328,7 @@ object RuntimeRoutes {
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
       dc <- c.downField("defaultClientId").as[Option[String]]
       tdi <- c.downField("toolDockerImage").as[Option[ContainerImage]]
+      wr <- c.downField("welderRegistry").as[Option[ContainerRegistry]]
       wdi <- c.downField("welderDockerImage").as[Option[ContainerImage]]
       s <- c.downField("scopes").as[Option[Set[String]]]
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
@@ -341,6 +342,7 @@ object RuntimeRoutes {
       apt.map(_.minute),
       dc,
       tdi,
+      wr,
       wdi,
       s.getOrElse(Set.empty),
       cv.getOrElse(Map.empty)

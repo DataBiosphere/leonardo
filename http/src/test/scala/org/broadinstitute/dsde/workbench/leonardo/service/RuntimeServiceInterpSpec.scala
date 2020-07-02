@@ -60,6 +60,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     None,
     None,
     None,
+    None,
     Set.empty,
     Map.empty
   )
@@ -116,7 +117,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes
@@ -173,7 +174,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
@@ -223,12 +224,78 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
       message shouldBe expectedMessage
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "create a runtime with the latest welder from welderRegistry" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val googleProject = GoogleProject("googleProject")
+    val runtimeName1 = RuntimeName("runtimeName1")
+    val runtimeName2 = RuntimeName("runtimeName2")
+    val runtimeName3 = RuntimeName("runtimeName3")
+
+    val res = for {
+      r1 <- runtimeService
+        .createRuntime(
+          userInfo,
+          googleProject,
+          runtimeName1,
+          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.DockerHub))
+        )
+        .attempt
+      r2 <- runtimeService
+        .createRuntime(
+          userInfo,
+          googleProject,
+          runtimeName2,
+          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GCR))
+        )
+        .attempt
+      r3 <- runtimeService
+        .createRuntime(
+          userInfo,
+          googleProject,
+          runtimeName3,
+          emptyCreateRuntimeReq
+        )
+        .attempt
+
+      runtimeOpt1 <- clusterQuery.getActiveClusterByName(googleProject, runtimeName1).transaction
+      runtime1 = runtimeOpt1.get
+      welder1 = runtime1.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
+      _ <- publisherQueue.dequeue1
+
+      runtimeOpt2 <- clusterQuery.getActiveClusterByName(googleProject, runtimeName2).transaction
+      runtime2 = runtimeOpt2.get
+      welder2 = runtime2.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
+      _ <- publisherQueue.dequeue1
+
+      runtimeOpt3 <- clusterQuery.getActiveClusterByName(googleProject, runtimeName3).transaction
+      runtime3 = runtimeOpt3.get
+      welder3 = runtime3.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
+      _ <- publisherQueue.dequeue1
+    } yield {
+      r1 shouldBe Right(())
+      runtime1.runtimeName shouldBe (runtimeName1)
+      welder1 shouldBe defined
+      welder1.get.imageUrl shouldBe Config.imageConfig.welderDockerHubImage.imageUrl
+
+      r2 shouldBe Right(())
+      runtime2.runtimeName shouldBe (runtimeName2)
+      welder2 shouldBe defined
+      welder2.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
+
+      r3 shouldBe Right(())
+      runtime3.runtimeName shouldBe (runtimeName3)
+      welder3 shouldBe defined
+      welder3.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
     }
     res.unsafeRunSync()
   }
@@ -281,7 +348,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes,

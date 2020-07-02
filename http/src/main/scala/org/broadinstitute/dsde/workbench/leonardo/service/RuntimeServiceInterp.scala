@@ -86,7 +86,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 ) as None
             }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
-            runtimeImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderDockerImage)
+            runtimeImages <- getRuntimeImages(petToken,
+                                              context.now,
+                                              req.toolDockerImage,
+                                              req.welderRegistry,
+                                              req.welderDockerImage)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
             runtimeConfig <- req.runtimeConfig
               .fold[F[RuntimeConfig]](F.pure(config.gceConfig.runtimeConfigDefaults)) { // default to gce if no runtime specific config is provided
@@ -397,6 +401,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     petToken: Option[String],
     now: Instant,
     toolDockerImage: Option[ContainerImage],
+    welderRegistry: Option[ContainerRegistry],
     welderDockerImage: Option[ContainerImage]
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Set[RuntimeImage]] =
     for {
@@ -410,11 +415,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       defaultJupyterImage = RuntimeImage(Jupyter, config.imageConfig.jupyterImage.imageUrl, now)
       toolImage = autodetectedImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
-      // - If welder is enabled, we will use the client-supplied image if present, otherwise we will use a default.
-      // - If welder is not enabled, we won't use any image.
+      // - If present, we will use the client-supplied image.
+      // - Otherwise we will pull the latest from the specified welderRegistry.
+      // - If welderRegistry is undefined, we take the default GCR image from config.
       welderImage = RuntimeImage(
         Welder,
-        welderDockerImage.map(_.imageUrl).getOrElse(config.imageConfig.welderImage.imageUrl),
+        welderDockerImage
+          .map(_.imageUrl)
+          .getOrElse(welderRegistry match {
+            case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
+            case _                                 => config.imageConfig.welderGcrImage.imageUrl
+          }),
         now
       )
       // Get the proxy image

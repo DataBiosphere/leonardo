@@ -138,7 +138,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     )
   }
 
-  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct16(
+  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct17(
     "labels",
     "jupyterUserScriptUri",
     "jupyterStartUserScriptUri",
@@ -151,6 +151,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     "defaultClientId",
     "jupyterDockerImage",
     "toolDockerImage",
+    "welderRegistry",
     "welderDockerImage",
     "scopes",
     "enableWelder",
