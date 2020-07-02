@@ -102,7 +102,9 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
       kubernetesClusterQuery.getMinimalClusterById(getApp.cluster.id)
     }.get
 
-    val defaultNodepool = getMinimalCluster.nodepools.filter(_.isDefault).head
+    val defaultNodepools = getMinimalCluster.nodepools.filter(_.isDefault)
+    defaultNodepools.length shouldBe 1
+    val defaultNodepool = defaultNodepools.head
 
     val message = publisherQueue.dequeue1.unsafeRunSync()
     message.messageType shouldBe LeoPubsubMessageType.CreateApp

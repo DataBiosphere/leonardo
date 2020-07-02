@@ -266,7 +266,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       autoscalingConfig = Some(leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingConfig),
       List.empty,
       List.empty,
-      true
+      false
     )
   }
 
