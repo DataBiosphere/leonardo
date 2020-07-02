@@ -127,14 +127,14 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       newWelderImageUrl <- Async[F].fromEither(
         runtime.runtimeImages
           .find(_.imageType == Welder)
-          .map(x =>
+          .toRight(new Exception(s"Unable to update welder because current welder image is not available"))
+          .flatMap(x =>
             x.registry match {
-              case Some(ContainerRegistry.GCR)       => config.imageConfig.welderGcrImage.imageUrl
-              case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
-              case None                              => throw new Exception(s"Unable to update Welder: registry for ${x.imageUrl} not parsable")
+              case Some(ContainerRegistry.GCR)       => Right(config.imageConfig.welderGcrImage.imageUrl)
+              case Some(ContainerRegistry.DockerHub) => Right(config.imageConfig.welderDockerHubImage.imageUrl)
+              case None                              => Left(new Exception(s"Unable to update Welder: registry for ${x.imageUrl} not parsable"))
             }
           )
-          .toRight(new Exception(s"Unable to update welder because current welder image is not available"))
       )
       welderImage = RuntimeImage(Welder, newWelderImageUrl, now)
 
