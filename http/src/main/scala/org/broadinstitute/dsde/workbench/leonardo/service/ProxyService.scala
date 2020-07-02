@@ -379,6 +379,7 @@ class ProxyService(
     headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
 
   private val HeadersToFilter = Set(
+    "Host",
     "Timeout-Access",
     "Sec-WebSocket-Accept",
     "Sec-WebSocket-Version",

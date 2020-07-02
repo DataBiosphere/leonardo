@@ -48,7 +48,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
         } ~
           // "runtimes" proxy routes
           pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
-            // Note this exists at the top-level /proxy/setCookie as well
+            // Note this endpoint exists at the top-level /proxy/setCookie as well
             path("setCookie") {
               extractUserInfo { userInfo =>
                 get {
@@ -62,8 +62,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                   } {
                     CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
                       complete {
-                        logger.debug(s"Successfully set cookie for user $userInfo")
-                        StatusCodes.NoContent
+                        IO(logger.debug(s"Successfully set cookie for user $userInfo"))
+                          .as(StatusCodes.NoContent)
                       }
                     }
                   }
@@ -86,8 +86,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
               extractToken { token =>
                 complete {
                   proxyService.invalidateAccessToken(token).map { _ =>
-                    logger.debug(s"Invalidated access token $token")
-                    StatusCodes.OK
+                    IO(logger.debug(s"Invalidated access token $token"))
+                      .as(StatusCodes.OK)
                   }
                 }
               }
@@ -98,8 +98,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
               get {
                 CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
                   complete {
-                    logger.debug(s"Successfully set cookie for user $userInfo")
-                    StatusCodes.NoContent
+                    IO(logger.debug(s"Successfully set cookie for user $userInfo"))
+                      .as(StatusCodes.NoContent)
                   }
                 }
               }
