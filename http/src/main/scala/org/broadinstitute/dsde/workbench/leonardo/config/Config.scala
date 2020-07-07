@@ -569,7 +569,7 @@ object Config {
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
-  val gkeAppConfig = config.as[GalaxyAppConfig]("gke.app")
+  val gkeAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
                                                 gkeClusterConfig,

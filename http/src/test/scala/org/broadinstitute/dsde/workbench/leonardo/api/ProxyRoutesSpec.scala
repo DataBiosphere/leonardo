@@ -317,6 +317,14 @@ class ProxyRoutesSpec
     }
   }
 
+  it should "add Galaxy remote user headers" in {
+    Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
+      responseAs[Data].headers.toList should contain allElementsOf Map("HTTP_REMOTE_USER" -> "galaxy-user",
+                                                                       "HTTP_GX_SECRET" -> "galaxy-secret").toList
+    }
+  }
+
   "setCookie" should "set a cookie given a valid Authorization header" in {
     // cache should not initially contain the token
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
