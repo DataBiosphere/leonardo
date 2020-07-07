@@ -152,8 +152,17 @@ class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirecti
 }
 
 object KubernetesRoutes {
+
   implicit val createAppDecoder: Decoder[CreateAppRequest] =
-    Decoder.forProduct4("kubernetesRuntimeConfig", "appType", "diskConfig", "labels")(CreateAppRequest.apply)
+    Decoder.instance { x =>
+      for {
+        c <- x.downField("kubernetesRuntimeConfig").as[Option[KubernetesRuntimeConfig]]
+        a <- x.downField("appType").as[Option[AppType]]
+        d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
+        l <- x.downField("labels").as[Option[LabelMap]]
+      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty))
+    }
+
   implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
   implicit val getAppDecoder: Decoder[GetAppResponse] =
     Decoder.forProduct5("kubernetesRuntimeConfig", "errors", "status", "proxyUrls", "diskName")(GetAppResponse.apply)
