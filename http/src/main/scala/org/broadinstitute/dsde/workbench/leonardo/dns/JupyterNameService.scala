@@ -30,6 +30,15 @@ class JupyterNameServiceDescriptor extends NameServiceDescriptor {
   override def getType: String = "dns"
 }
 
+// This is used by JupyterNameService to look up an IP given a hostname.
+// It is populated by RuntimeDnsCache and KubernetesDnsCache.
+//
+// We use cats-effect Ref to provide a concurrent, mutable, atomic reference.
+// See https://typelevel.org/cats-effect/concurrency/ref.html
+//
+// This is defined statically in an object via Ref.unsafe() because JupyterNameService
+// needs to be initialized with a no-arg constructor. Normally, we'd initialize this
+// in Boot and pass via constructor to classes that need it.
 object HostToIpMapping {
   private[dns] val hostToIpMapping: Ref[IO, Map[Host, IP]] = Ref.unsafe(Map.empty)
 }
