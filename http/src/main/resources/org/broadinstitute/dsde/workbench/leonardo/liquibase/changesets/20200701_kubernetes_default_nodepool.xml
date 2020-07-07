@@ -2,6 +2,7 @@
     <changeSet logicalFilePath="leonardo" author="jcanas" id="add_default_nodepool_flag">
         <addColumn tableName="NODEPOOL">
             <column name="isDefault" type="boolean" defaultValue="false">
+                <constraints nullable="false"/>
             </column>
         </addColumn>
     </changeSet>
