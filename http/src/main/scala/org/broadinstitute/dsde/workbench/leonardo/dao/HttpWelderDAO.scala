@@ -4,15 +4,15 @@ package dao
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
+import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 
 class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
-  val clusterDnsCache: ClusterDnsCache[F],
+  val runtimeDnsCache: RuntimeDnsCache[F],
   client: Client[F]
 )(
   implicit metrics: OpenTelemetryMetrics[F]
@@ -20,7 +20,7 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
 
   def flushCache(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit] =
     for {
-      host <- Proxy.getTargetHost(clusterDnsCache, googleProject, runtimeName)
+      host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, googleProject, runtimeName)
       res <- host match {
         case HostReady(targetHost) =>
           client.successful(
@@ -46,7 +46,7 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
 
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     for {
-      host <- Proxy.getTargetHost(clusterDnsCache, googleProject, runtimeName)
+      host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, googleProject, runtimeName)
       res <- host match {
         case HostReady(targetHost) =>
           client

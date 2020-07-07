@@ -1,14 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
-  KubernetesApiServerIp,
-  PortName,
-  PortNum,
-  Protocol,
-  ServicePort,
-  TargetPortNum
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -17,8 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.util.Random
-
 object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
@@ -26,7 +17,7 @@ object KubernetesTestData {
   val appSamId = AppSamResource("067e2867-5d4a-47f3-a53c-fd711529b289")
   val location = Location("us-central1-a")
 
-  val apiServerIp = KubernetesApiServerIp("0.0.0.0")
+  val externalIp = IP("0.0.0.0")
   val namespace0 = NamespaceName("namespace00")
   val namespace1 = NamespaceName("namespace01")
 
@@ -132,20 +123,7 @@ object KubernetesTestData {
     val name = ServiceName("service" + index)
     KubernetesService(
       ServiceId(-1),
-      ServiceConfig(name, serviceKind, List(makeRandomPort(index.toString), makeRandomPort("0" + index)))
-    )
-  }
-
-  def makeRandomPort(suffix: String): KubernetesPort = {
-    val name = PortName("port" + suffix)
-    KubernetesPort(
-      PortId(-1),
-      ServicePort(
-        PortNum(Random.nextInt() % 65535),
-        name,
-        TargetPortNum(Random.nextInt() % 65535),
-        protocol
-      )
+      ServiceConfig(name, serviceKind)
     )
   }
 }

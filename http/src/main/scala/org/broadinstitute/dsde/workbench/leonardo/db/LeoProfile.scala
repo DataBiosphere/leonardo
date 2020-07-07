@@ -7,13 +7,6 @@ import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
-  KubernetesApiServerIp,
-  PortName,
-  PortNum,
-  Protocol,
-  TargetPortNum
-}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, PersistentDiskSamResource}
@@ -133,8 +126,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[OperationName, String](_.value, OperationName.apply)
     implicit val locationColumnType: BaseColumnType[Location] =
       MappedColumnType.base[Location, String](_.value, Location.apply)
-    implicit val apiServerIpColumnType: BaseColumnType[KubernetesApiServerIp] =
-      MappedColumnType.base[KubernetesApiServerIp, String](_.value, KubernetesApiServerIp.apply)
+    implicit val ipColumnType: BaseColumnType[IP] =
+      MappedColumnType.base[IP, String](_.value, IP.apply)
 
     implicit val networkNameColumnType: BaseColumnType[NetworkName] =
       MappedColumnType.base[NetworkName, String](_.value, NetworkName.apply)
@@ -187,17 +180,6 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[ServiceName, String](_.value, ServiceName.apply)
     implicit val serviceKindColumnType: BaseColumnType[KubernetesServiceKindName] =
       MappedColumnType.base[KubernetesServiceKindName, String](_.value, KubernetesServiceKindName.apply)
-
-    implicit val portIdColumnType: BaseColumnType[PortId] =
-      MappedColumnType.base[PortId, Long](_.id, PortId.apply)
-    implicit val portNameColumnType: BaseColumnType[PortName] =
-      MappedColumnType.base[PortName, String](_.value, PortName.apply)
-    implicit val portNumColumnType: BaseColumnType[PortNum] =
-      MappedColumnType.base[PortNum, Int](_.value, PortNum.apply)
-    implicit val targetPortNumColumnType: BaseColumnType[TargetPortNum] =
-      MappedColumnType.base[TargetPortNum, Int](_.value, TargetPortNum.apply)
-    implicit val protocolColumnType: BaseColumnType[Protocol] =
-      MappedColumnType.base[Protocol, String](_.value, Protocol.apply)
   }
 
   case class ColumnDecodingException(message: String) extends Exception

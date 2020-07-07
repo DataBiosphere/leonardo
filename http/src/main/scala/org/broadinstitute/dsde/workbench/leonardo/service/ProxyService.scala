@@ -18,14 +18,15 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import fs2.concurrent.InspectableQueue
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.Proxy
+import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, Proxy}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -37,32 +38,35 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
-final case class RuntimeNotReadyException(googleProject: GoogleProject, runtimeName: RuntimeName)
+final case class HostContext(status: HostStatus, description: String)
+
+final case class ProxyHostNotReadyException(context: HostContext, traceId: TraceId)
     extends LeoException(
-      s"Runtime ${googleProject.value}/${runtimeName.asString} is not ready yet. It may be updating, try again later",
+      s"${traceId} | Proxy host ${context.description} is not ready yet. It may be updating, try again later",
       StatusCodes.Locked
     )
 
-final case class RuntimePausedException(googleProject: GoogleProject, runtimeName: RuntimeName)
+final case class ProxyHostPausedException(context: HostContext, traceId: TraceId)
     extends LeoException(
-      s"Runtime ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding.",
+      s"${traceId} | Proxy host ${context.description} is stopped. Start your runtime before proceeding.",
       StatusCodes.UnprocessableEntity
     )
 
-final case class ProxyException(googleProject: GoogleProject, runtimeName: RuntimeName)
-    extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${runtimeName.asString}",
+case class ProxyHostNotFoundException(context: HostContext, traceId: TraceId)
+    extends LeoException(s"${traceId} | Proxy host ${context.description} not found", StatusCodes.NotFound)
+
+final case class ProxyException(context: HostContext, traceId: TraceId)
+    extends LeoException(s"${traceId} | Unable to proxy connection to tool on ${context.description}",
                          StatusCodes.InternalServerError)
 
 final case object AccessTokenExpiredException
     extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
 
-/**
- * Created by rtitle on 8/15/17.
- */
 class ProxyService(
   proxyConfig: ProxyConfig,
   gdDAO: GoogleDataprocDAO,
-  clusterDnsCache: ClusterDnsCache[IO],
+  runtimeDnsCache: RuntimeDnsCache[IO],
+  kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
   dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
   blocker: Blocker
@@ -91,12 +95,12 @@ class ProxyService(
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
     for {
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
+      now <- nowInstant
       cache <- blocker.blockOn(IO.fromFuture(IO(googleTokenCache.get(token))))
       res <- cache match {
         case (userInfo, expireTime) =>
-          if (expireTime.isAfter(Instant.ofEpochMilli(now)))
-            IO.pure(userInfo.copy(tokenExpiresIn = expireTime.getEpochSecond - now / 1000))
+          if (expireTime.isAfter(now))
+            IO.pure(userInfo.copy(tokenExpiresIn = expireTime.getEpochSecond - now.getEpochSecond))
           else
             IO.raiseError(AccessTokenExpiredException)
       }
@@ -120,33 +124,38 @@ class ProxyService(
     )
 
   def getCachedRuntimeSamResource(googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[RuntimeSamResource] =
-    blocker.blockOn(IO(runtimeSamResourceCache.get((googleProject, runtimeName)))).flatMap {
-      case Some(runtimeSamResource) => IO.pure(runtimeSamResource)
-      case None =>
-        IO(
-          logger.error(
-            s"${ev.ask.unsafeRunSync()} | Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
+    for {
+      ctx <- ev.ask
+      cache <- blocker.blockOn(IO(runtimeSamResourceCache.get((googleProject, runtimeName))))
+      res <- cache match {
+        case Some(runtimeSamResource) => IO.pure(runtimeSamResource)
+        case None =>
+          IO(
+            logger.error(
+              s"${ctx.traceId} | Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
+            )
+          ) >> IO.raiseError[RuntimeSamResource](
+            RuntimeNotFoundException(
+              googleProject,
+              runtimeName,
+              s"Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
+            )
           )
-        ) >> IO.raiseError[RuntimeSamResource](
-          RuntimeNotFoundException(
-            googleProject,
-            runtimeName,
-            s"Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
-          )
-        )
-    }
+      }
+    } yield res
 
   /*
    * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the runtime exists
    */
+  // TODO implement for apps
   private[leonardo] def authCheck(
     userInfo: UserInfo,
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     notebookAction: RuntimeAction
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] =
     for {
       samResource <- getCachedRuntimeSamResource(googleProject, runtimeName)
       hasViewPermission <- authProvider
@@ -161,91 +170,96 @@ class ProxyService(
       } else IO.unit
     } yield ()
 
-  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[HttpResponse] =
-    for {
-      _ <- authCheck(userInfo, googleProject, runtimeName, SyncDataToRuntime)
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      r <- proxyInternal(googleProject, runtimeName, request, Instant.ofEpochMilli(now))
-    } yield r
-
   def invalidateAccessToken(token: String): IO[Unit] =
     blocker.blockOn(IO(googleTokenCache.invalidate(token)))
 
-  /**
-   * Entry point to this class. Given a google project, cluster name, and HTTP request,
-   * looks up the notebook server IP and proxies the HTTP request to the notebook server.
-   * Returns NotFound if a notebook server IP could not be found for the project/cluster name.
-   * @param userInfo the current user
-   * @param googleProject the Google project
-   * @param runtimeName the cluster name
-   * @param request the HTTP request to proxy
-   * @return HttpResponse future representing the proxied response, or NotFound if a notebook
-   *         server IP could not be found.
-   */
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[HttpResponse] =
     for {
+      ctx <- ev.ask
       _ <- authCheck(userInfo, googleProject, runtimeName, ConnectToRuntime)
-      now <- timer.clock.realTime(TimeUnit.MILLISECONDS)
-      r <- proxyInternal(googleProject, runtimeName, request, Instant.ofEpochMilli(now))
+      hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
+      _ <- hostStatus match {
+        case HostReady(_) =>
+          dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
+        case _ => IO.unit
+      }
+      hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
+      r <- proxyInternal(hostContext, request)
     } yield r
 
-  def getTargetHost(googleProject: GoogleProject, runtimeName: RuntimeName): IO[HostStatus] =
-    Proxy.getTargetHost[IO](clusterDnsCache, googleProject, runtimeName)
+  def proxyAppRequest(userInfo: UserInfo,
+                      googleProject: GoogleProject,
+                      appName: AppName,
+                      serviceName: ServiceName,
+                      request: HttpRequest)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[HttpResponse] =
+    for {
+      _ <- IO(logger.info(s"authorizing ${userInfo.userEmail}")) // TODO placeholder for auth check
+      hostStatus <- getAppTargetHost(googleProject, appName)
+      hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
+      r <- proxyInternal(hostContext, request)
+    } yield r
 
-  private def proxyInternal(googleProject: GoogleProject,
-                            runtimeName: RuntimeName,
-                            request: HttpRequest,
-                            now: Instant): IO[HttpResponse] = {
-    logger.debug(
-      s"Received proxy request for ${googleProject}/${runtimeName}: ${clusterDnsCache.stats} / ${clusterDnsCache.size}"
-    )
-    getTargetHost(googleProject, runtimeName) flatMap {
-      case HostReady(targetHost) =>
-        // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
-        // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
-        // The presence of this header distinguishes WebSocket from http requests.
-        val res = for {
-          _ <- dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, now))
-          response <- request.header[UpgradeToWebSocket] match {
-            case Some(upgrade) =>
-              IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
-            case None =>
-              IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
-          }
-          r <- if (response.status.isFailure())
-            IO(
-              logger.info(
-                s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
-                  .to[String]}"
+  private[service] def getRuntimeTargetHost(googleProject: GoogleProject, runtimeName: RuntimeName): IO[HostStatus] =
+    Proxy.getRuntimeTargetHost[IO](runtimeDnsCache, googleProject, runtimeName)
+
+  private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
+    Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
+
+  private def proxyInternal(hostContext: HostContext,
+                            request: HttpRequest)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[HttpResponse] =
+    for {
+      ctx <- ev.ask
+      _ <- IO(
+        logger.debug(
+          s"${ctx.traceId} | Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
+        )
+      )
+      res <- hostContext.status match {
+        case HostReady(targetHost) =>
+          // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
+          // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
+          // The presence of this header distinguishes WebSocket from http requests.
+          val res = for {
+            response <- request.header[UpgradeToWebSocket] match {
+              case Some(upgrade) =>
+                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
+              case None =>
+                IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
+            }
+            r <- if (response.status.isFailure())
+              IO(
+                logger.info(
+                  s"${ctx.traceId} | Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
+                    .to[String]}"
+                )
+              ).as(response)
+            else IO.pure(response)
+          } yield r
+
+          res.recoverWith {
+            case e =>
+              IO(logger.error(s"${ctx.traceId} | Error occurred in proxy", e)) >> IO.raiseError[HttpResponse](
+                ProxyException(hostContext, ctx.traceId)
               )
-            ).as(response)
-          else IO.pure(response)
-        } yield r
-
-        res.recoverWith {
-          case e =>
-            IO(logger.error("Error occurred in proxy", e)) >> IO.raiseError[HttpResponse](
-              ProxyException(googleProject, runtimeName)
-            )
-        }
-      case HostNotReady =>
-        IO(logger.warn(s"proxy host not ready for ${googleProject}/${runtimeName}")) >> IO.raiseError(
-          RuntimeNotReadyException(googleProject, runtimeName)
-        )
-      case HostPaused =>
-        IO(logger.warn(s"proxy host paused for ${googleProject}/${runtimeName}")) >> IO.raiseError(
-          RuntimePausedException(googleProject, runtimeName)
-        )
-      case HostNotFound =>
-        IO(logger.warn(s"proxy host not found for ${googleProject}/${runtimeName}")) >> IO.raiseError(
-          RuntimeNotFoundException(googleProject, runtimeName, "proxy host not found")
-        )
-    }
-  }
+          }
+        case HostNotReady =>
+          IO(logger.warn(s"${ctx.traceId} | proxy host not ready for ${hostContext.description}")) >> IO.raiseError(
+            ProxyHostNotReadyException(hostContext, ctx.traceId)
+          )
+        case HostPaused =>
+          IO(logger.warn(s"${ctx.traceId} | proxy host paused for ${hostContext.description}")) >> IO.raiseError(
+            ProxyHostPausedException(hostContext, ctx.traceId)
+          )
+        case HostNotFound =>
+          IO(logger.warn(s"${ctx.traceId} | proxy host not found for ${hostContext.description}")) >> IO.raiseError(
+            ProxyHostNotFoundException(hostContext, ctx.traceId)
+          )
+      }
+    } yield res
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
@@ -365,6 +379,7 @@ class ProxyService(
     headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
 
   private val HeadersToFilter = Set(
+    "Host",
     "Timeout-Access",
     "Sec-WebSocket-Accept",
     "Sec-WebSocket-Version",

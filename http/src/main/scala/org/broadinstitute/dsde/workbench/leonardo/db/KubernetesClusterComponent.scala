@@ -4,7 +4,6 @@ package db
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.{Location, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -27,7 +26,7 @@ final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                          createdDate: Instant,
                                          destroyedDate: Instant,
                                          dateAccessed: Instant,
-                                         apiServerIp: Option[KubernetesApiServerIp],
+                                         externalIp: Option[IP],
                                          networkName: Option[NetworkName],
                                          subNetworkName: Option[SubnetworkName],
                                          subNetworkIpRange: Option[IpRange])
@@ -43,7 +42,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
-  def apiServerIp = column[Option[KubernetesApiServerIp]]("apiServerIp", O.Length(254))
+  def externalIp = column[Option[IP]]("externalIp", O.Length(254))
   def networkName = column[Option[NetworkName]]("networkName", O.Length(254))
   def subNetworkName = column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
   def subNetworkIpRange = column[Option[IpRange]]("subNetworkIpRange", O.Length(254))
@@ -61,7 +60,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      createdDate,
      destroyedDate,
      dateAccessed,
-     apiServerIp,
+     externalIp,
      networkName,
      subNetworkName,
      subNetworkIpRange) <> (KubernetesClusterRecord.tupled, KubernetesClusterRecord.unapply)
@@ -105,9 +104,9 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
   def updateAsyncFields(id: KubernetesClusterLeoId, asyncFields: KubernetesClusterAsyncFields): DBIO[Int] =
     findByIdQuery(id)
-      .map(c => (c.apiServerIp, c.networkName, c.subNetworkName, c.subNetworkIpRange))
+      .map(c => (c.externalIp, c.networkName, c.subNetworkName, c.subNetworkIpRange))
       .update(
-        (Some(asyncFields.apiServerIp),
+        (Some(asyncFields.externalIp),
          Some(asyncFields.networkInfo.networkName),
          Some(asyncFields.networkInfo.subNetworkName),
          Some(asyncFields.networkInfo.subNetworkIpRange))
@@ -178,9 +177,9 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
         unmarshalDestroyedDate(cr.destroyedDate),
         cr.dateAccessed
       ),
-      (cr.apiServerIp, unmarshalNetwork(cr)) match {
-        case (Some(apiServerIp), Some(networkFields)) => Some(KubernetesClusterAsyncFields(apiServerIp, networkFields))
-        case _                                        => None
+      (cr.externalIp, unmarshalNetwork(cr)) match {
+        case (Some(externalIp), Some(networkFields)) => Some(KubernetesClusterAsyncFields(externalIp, networkFields))
+        case _                                       => None
       },
       namespaces,
       nodepools,

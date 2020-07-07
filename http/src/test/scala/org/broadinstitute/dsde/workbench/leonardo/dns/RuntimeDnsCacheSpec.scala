@@ -4,18 +4,16 @@ import akka.http.scaladsl.model.Uri.Host
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfigId, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
 
-/**
- * Created by rtitle on 9/1/17.
- */
-class ClusterDnsCacheSpec
+class RuntimeDnsCacheSpec
     extends AnyFlatSpecLike
     with BeforeAndAfterAll
     with TestComponent
@@ -33,9 +31,10 @@ class ClusterDnsCacheSpec
     makeCluster(3)
       .copy(status = RuntimeStatus.Stopped, asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)))
 
-  val cacheKeyForClusterBeingCreated = DnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.runtimeName)
-  val cacheKeyForRunningCluster = DnsCacheKey(runningCluster.googleProject, runningCluster.runtimeName)
-  val cacheKeyForStoppedCluster = DnsCacheKey(stoppedCluster.googleProject, stoppedCluster.runtimeName)
+  val cacheKeyForClusterBeingCreated =
+    RuntimeDnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.runtimeName)
+  val cacheKeyForRunningCluster = RuntimeDnsCacheKey(runningCluster.googleProject, runningCluster.runtimeName)
+  val cacheKeyForStoppedCluster = RuntimeDnsCacheKey(stoppedCluster.googleProject, stoppedCluster.runtimeName)
 
   val runningClusterHost = Host(
     s"${runningCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
@@ -47,7 +46,7 @@ class ClusterDnsCacheSpec
     s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
   )
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, testDbRef, dnsCacheConfig, blocker)
+  val runtimeDnsCache = new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, blocker)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db
@@ -59,32 +58,34 @@ class ClusterDnsCacheSpec
     // This replicates how the proxy accesses these maps as well.
     // projectClusterToHostStatus read updates the HostToIP map.
     eventually {
-      clusterDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).unsafeRunSync() shouldEqual HostNotReady
+      runtimeDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).unsafeRunSync() shouldEqual HostNotReady
     }
     eventually {
-      clusterDnsCache.getHostStatus(cacheKeyForRunningCluster).unsafeRunSync() shouldEqual HostReady(runningClusterHost)
+      runtimeDnsCache.getHostStatus(cacheKeyForRunningCluster).unsafeRunSync() shouldEqual HostReady(runningClusterHost)
     }
-    eventually(clusterDnsCache.getHostStatus(cacheKeyForStoppedCluster).unsafeRunSync() shouldEqual HostPaused)
+    eventually(runtimeDnsCache.getHostStatus(cacheKeyForStoppedCluster).unsafeRunSync() shouldEqual HostPaused)
 
-    clusterDnsCache.size shouldBe 3
-    clusterDnsCache.stats.missCount shouldBe 3
-    clusterDnsCache.stats.loadCount shouldBe 3
-    clusterDnsCache.stats.evictionCount shouldBe 0
+    runtimeDnsCache.size shouldBe 3
+    runtimeDnsCache.stats.missCount shouldBe 3
+    runtimeDnsCache.stats.loadCount shouldBe 3
+    runtimeDnsCache.stats.evictionCount shouldBe 0
 
-    ClusterDnsCache.hostToIp.get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
-    ClusterDnsCache.hostToIp.get(clusterBeingCreatedHost) shouldBe None
-    ClusterDnsCache.hostToIp.get(stoppedClusterHost) shouldBe None
+    HostToIpMapping.hostToIpMapping.get
+      .unsafeRunSync()
+      .get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
+    HostToIpMapping.hostToIpMapping.get.unsafeRunSync().get(clusterBeingCreatedHost) shouldBe None
+    HostToIpMapping.hostToIpMapping.get.unsafeRunSync().get(stoppedClusterHost) shouldBe None
 
     val cacheKeys = Set(cacheKeyForClusterBeingCreated, cacheKeyForRunningCluster, cacheKeyForStoppedCluster)
 
     // Check that the cache entries are eventually evicted and get re-loaded upon re-reading
     eventually {
-      cacheKeys.foreach(x => clusterDnsCache.getHostStatus(x).unsafeRunSync())
-      clusterDnsCache.stats.evictionCount shouldBe 3
+      cacheKeys.foreach(x => runtimeDnsCache.getHostStatus(x).unsafeRunSync())
+      runtimeDnsCache.stats.evictionCount shouldBe 3
     }
 
-    clusterDnsCache.size shouldBe 3
-    clusterDnsCache.stats.missCount shouldBe 6
-    clusterDnsCache.stats.loadCount shouldBe 6
+    runtimeDnsCache.size shouldBe 3
+    runtimeDnsCache.stats.missCount shouldBe 6
+    runtimeDnsCache.stats.loadCount shouldBe 6
   }
 }

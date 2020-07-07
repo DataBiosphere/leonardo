@@ -21,7 +21,7 @@ object KubernetesServiceDbQueries {
                    labelFilter: LabelMap = Map(),
                    includeDeleted: Boolean = false)(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
-      listByProject(googleProject, includeDeleted),
+      listClustersByProject(googleProject, includeDeleted),
       includeDeleted match {
         case true  => nodepoolQuery
         case false => nodepoolQuery.filter(_.destroyedDate === dummyDate)
@@ -63,17 +63,17 @@ object KubernetesServiceDbQueries {
     implicit ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
     for {
-      clusters <- joinFullAppAndUnmarshal(listByProject(Some(googleProject)),
+      clusters <- joinFullAppAndUnmarshal(listClustersByProject(Some(googleProject)),
                                           nodepoolQuery.filter(_.destroyedDate === dummyDate),
                                           appQuery.findActiveByNameQuery(appName),
                                           labelFilter)
-      validateClusters <- if (clusters.length > 1)
+      _ <- if (clusters.length > 1)
         DBIO.failed(
           GetAppAssertion(
             "(GoogleProject, AppName) uniqueness has been violated, clusters returned > 1 by getActiveFullApp"
           )
         )
-      else DBIO.successful(0)
+      else DBIO.successful(())
       validatedApp <- clusters.headOption.fold[DBIO[Option[GetAppResult]]](
         DBIO.successful(None)
       ) { cluster =>
@@ -84,14 +84,14 @@ object KubernetesServiceDbQueries {
                 "(GoogleProject, AppName) uniqueness has been violated, num nodepools returned != 1 by getActiveFullApp"
               )
             )
-          else DBIO.successful(0)
+          else DBIO.successful(())
           _ <- if (cluster.nodepools.head.apps.length != 1)
             DBIO.failed(
               GetAppAssertion(
                 "(GoogleProject, AppName) uniqueness has been violated, num apps returned != 1 by getActiveFullApp"
               )
             )
-          else DBIO.successful(0)
+          else DBIO.successful(())
           appResult <- DBIO.successful(
             Some(
               GetAppResult(
@@ -113,7 +113,7 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
 
-  private[db] def listByProject(
+  private[db] def listClustersByProject(
     googleProject: Option[GoogleProject],
     includeDeleted: Boolean = false
   ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] = {
@@ -143,8 +143,7 @@ object KubernetesServiceDbQueries {
                               baseAppQuery: Query[AppTable, AppRecord, Seq],
                               labelFilter: LabelMap) = {
     val query = for {
-      (((((((((app, nodepool), cluster), label), clusterNamespaces), appNamespace), services), ports), disks),
-       diskLabels) <- baseAppQuery join
+      ((((((((app, nodepool), cluster), label), clusterNamespaces), appNamespace), services), disks), diskLabels) <- baseAppQuery join
         baseNodepoolQuery on (_.nodepoolId === _.id) join
         baseClusterQuery on (_._2.clusterId === _.id) joinLeft
         labelQuery on {
@@ -156,17 +155,16 @@ object KubernetesServiceDbQueries {
         namespaceQuery on (_._1._2.id === _.clusterId) join
         namespaceQuery on (_._1._1._1._1.namespaceId === _.id) joinLeft
         serviceQuery on (_._1._1._1._1._1.id === _.appId) joinLeft
-        portQuery on (_._2.map(_.id) === _.serviceId) joinLeft
-        persistentDiskQuery on (_._1._1._1._1._1._1._1.diskId === _.id) joinLeft
+        persistentDiskQuery on (_._1._1._1._1._1._1.diskId === _.id) joinLeft
         labelQuery on {
         case (c, lbl) =>
           lbl.resourceId
-            .mapTo[DiskId] === c._1._1._1._1._1._1._1._1.diskId && lbl.resourceType === LabelResourceType.persistentDisk
+            .mapTo[DiskId] === c._1._1._1._1._1._1._1.diskId && lbl.resourceType === LabelResourceType.persistentDisk
       }
-    } yield (cluster, nodepool, app, label, clusterNamespaces, appNamespace, services, ports, disks, diskLabels)
+    } yield (cluster, nodepool, app, label, clusterNamespaces, appNamespace, services, disks, diskLabels)
 
     query.filter {
-      case (_, _, app, _, _, _, _, _, _, _) =>
+      case (_, _, app, _, _, _, _, _, _) =>
         labelQuery
           .filter(lbl => lbl.resourceId.mapTo[AppId] === app.id && lbl.resourceType === LabelResourceType.app)
           .filter(lbl =>
@@ -187,7 +185,6 @@ object KubernetesServiceDbQueries {
        Option[NamespaceRecord],
        NamespaceRecord,
        Option[ServiceRecord],
-       Option[PortRecord],
        Option[PersistentDiskRecord],
        Option[LabelRecord])
     ]
@@ -201,16 +198,15 @@ object KubernetesServiceDbQueries {
             clusterNamespaceRecordOpt,
             appNamespaceRecord,
             serviceRecord,
-            portRecord,
             diskRecordOpt,
             diskLabelOpt) =>
-        val serviceMap = serviceRecord.map(s => Map(s -> Chain.fromSeq(portRecord.toList))).getOrElse(Map.empty)
         val labelMap = labelRecordOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
         val diskLabelMap = diskLabelOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
         val diskMap = diskRecordOpt.fold[Map[PersistentDiskRecord, Map[String, Chain[String]]]](Map())(disk =>
           Map(disk -> diskLabelMap)
         )
-        val appMap = Map(appRecord -> (serviceMap, Chain(appNamespaceRecord), labelMap, diskMap))
+        val appMap =
+          Map(appRecord -> (Chain.fromSeq(serviceRecord.toList), Chain(appNamespaceRecord), labelMap, diskMap))
         val nodepoolMap = Map(nodepoolRecord -> appMap)
 
         Map(clusterRecord -> (nodepoolMap, clusterNamespaceRecordOpt.toList))
@@ -228,7 +224,7 @@ object KubernetesServiceDbQueries {
 
   private def unmarshalNodepoolMap(
     nodepools: Map[NodepoolRecord, Map[AppRecord,
-                                       (Map[ServiceRecord, Chain[PortRecord]],
+                                       (Chain[ServiceRecord],
                                         Chain[NamespaceRecord],
                                         Map[String, Chain[String]],
                                         Map[PersistentDiskRecord, Map[String, Chain[String]]])]]
@@ -243,17 +239,17 @@ object KubernetesServiceDbQueries {
 
   private def unmarshalAppMap(
     apps: Map[AppRecord,
-              (Map[ServiceRecord, Chain[PortRecord]],
+              (Chain[ServiceRecord],
                Chain[NamespaceRecord],
                Map[String, Chain[String]],
                Map[PersistentDiskRecord, Map[String, Chain[String]]])]
   ): List[App] =
     apps
       .map {
-        case (appRec, (serviceMap, namespaces, labelMap, diskMap)) =>
+        case (appRec, (services, namespaces, labelMap, diskMap)) =>
           appQuery.unmarshalApp(
             appRec,
-            unmarshalServiceMap(serviceMap),
+            services.map(serviceQuery.unmarshalService).toList,
             labelMap.mapValues(_.toList.toSet.head),
             //the database ensures we always have a single namespace here
             namespaceQuery.unmarshalNamespace(namespaces.headOption.get),
@@ -268,15 +264,6 @@ object KubernetesServiceDbQueries {
       case (disk, labels) =>
         persistentDiskQuery.unmarshalPersistentDisk(disk, labels.mapValues(_.toList.toSet.head))
     }.headOption
-
-  private def unmarshalServiceMap(services: Map[ServiceRecord, Chain[PortRecord]]): List[KubernetesService] =
-    services
-      .map {
-        case (serviceRec, portRecs) =>
-          serviceQuery.unmarshalService(serviceRec, portRecs.toList.toSet.toList)
-      }
-      .toSet
-      .toList
 }
 
 //minimal cluster has the nodepools, but no namespaces or apps

@@ -92,11 +92,9 @@ object TestUtils extends Matchers {
 
   private def fixIdForService(service: KubernetesService): KubernetesService = {
     val FixedServiceId = ServiceId(0)
-    val FixedPortId = PortId(0)
     service.copy(
       id = FixedServiceId,
       config = service.config
-        .copy(ports = service.config.ports.map(p => p.copy(id = FixedPortId)).sortBy(_.servicePort.name.value))
     )
   }
 

@@ -1,14 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesApiServerIp, ServicePort}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.google2.{
   KubernetesName,
   Location,
@@ -17,6 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
@@ -39,7 +37,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
   def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
 
-final case class KubernetesClusterAsyncFields(apiServerIp: KubernetesApiServerIp, networkInfo: NetworkFields)
+final case class KubernetesClusterAsyncFields(externalIp: IP, networkInfo: NetworkFields)
 
 final case class NetworkFields(networkName: NetworkName, subNetworkName: SubnetworkName, subNetworkIpRange: IpRange)
 
@@ -234,16 +232,7 @@ final case class App(id: AppId,
                      labels: LabelMap,
                      //this is populated async to app creation
                      appResources: AppResources,
-                     errors: List[KubernetesError]) {
-  //TODO this is not the proxy route we want to return from the API call. This is the URL Leo will use internally.
-  def getInternalProxyUrls(apiServerIp: KubernetesApiServerIp): Map[ServiceName, URL] =
-    appResources.services.map { service =>
-      service.config.name ->
-        new URL(
-          s"${apiServerIp.url}/api/v1/namespaces/${appResources.namespace.name.value}/services/${service.config.name}/proxy/"
-        )
-    }.toMap
-}
+                     errors: List[KubernetesError])
 
 sealed abstract class AppStatus
 object AppStatus {
@@ -283,12 +272,8 @@ object AppStatus {
 }
 
 final case class KubernetesService(id: ServiceId, config: ServiceConfig)
-final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, ports: List[KubernetesPort])
 final case class ServiceId(id: Long) extends AnyVal
-
-final case class KubernetesPort(id: PortId, servicePort: ServicePort)
-final case class PortId(id: Long) extends AnyVal
-
+final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName)
 final case class KubernetesServiceKindName(value: String) extends AnyVal
 
 final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: MachineTypeName, autoscalingEnabled: Boolean)

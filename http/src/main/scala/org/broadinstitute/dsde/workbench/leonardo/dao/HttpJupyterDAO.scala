@@ -6,19 +6,19 @@ import com.typesafe.scalalogging.LazyLogging
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 
-class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache: ClusterDnsCache[F], client: Client[F])
+class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])
     extends JupyterDAO[F]
     with LazyLogging {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
-    Proxy.getTargetHost[F](clusterDnsCache, googleProject, runtimeName) flatMap {
+    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
         client
           .successful(
@@ -35,7 +35,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val clusterDnsCache:
 
   def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     for {
-      hostStatus <- Proxy.getTargetHost[F](clusterDnsCache, googleProject, runtimeName)
+      hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName)
       resp <- hostStatus match {
         case HostReady(host) =>
           for {

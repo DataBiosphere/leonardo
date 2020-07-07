@@ -216,12 +216,11 @@ object Config {
     )
   }
 
-  implicit private val clusterDnsCacheConfigValueReader: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative {
-    config =>
-      ClusterDnsCacheConfig(
-        toScalaDuration(config.getDuration("cacheExpiryTime")),
-        config.getInt("cacheMaxSize")
-      )
+  implicit private val cacheConfigValueReader: ValueReader[CacheConfig] = ValueReader.relative { config =>
+    CacheConfig(
+      toScalaDuration(config.getDuration("cacheExpiryTime")),
+      config.getInt("cacheMaxSize")
+    )
   }
 
   implicit private val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
@@ -454,7 +453,8 @@ object Config {
 
   val zombieRuntimeMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
-  val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
+  val runtimeDnsCacheConfig = config.as[CacheConfig]("runtimeDnsCache")
+  val kubernetesDnsCacheConfig = config.as[CacheConfig]("kubernetesDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 
@@ -550,8 +550,7 @@ object Config {
   implicit val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
-      config.as[KubernetesServiceKindName]("kind"),
-      List() //TODO fill this out if we need ports
+      config.as[KubernetesServiceKindName]("kind")
     )
   }
 
