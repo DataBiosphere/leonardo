@@ -208,7 +208,6 @@ class HttpGoogleDataprocDAO(
   }
 
   override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] = {
-    oauth2.re
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     retry(retryPredicates: _*)(() => executeGoogleRequest(request)).map { tokenInfo =>
       (UserInfo(OAuth2BearerToken(accessToken),

@@ -540,7 +540,9 @@ object Config {
     GalaxyAppConfig(
       config.as[ReleaseName]("releaseName"),
       config.as[NamespaceName]("namespaceNameSuffix"),
-      config.as[List[ServiceConfig]]("services")
+      config.as[List[ServiceConfig]]("services"),
+      config.as[RemoteUserName]("remoteUserName"),
+      config.as[RemoteUserSecret]("remoteUserSecret")
     )
   }
 
@@ -565,16 +567,20 @@ object Config {
   )
   implicit val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
     stringValueReader.map(KubernetesServiceKindName)
+  implicit val remoteUserNameValueReader: ValueReader[RemoteUserName] =
+    stringValueReader.map(RemoteUserName)
+  implicit val remoteUserSecretValueReader: ValueReader[RemoteUserSecret] =
+    stringValueReader.map(RemoteUserSecret)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
-  val gkeAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
+  val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
                                                 gkeClusterConfig,
                                                 gkeNodepoolConfig,
-                                                gkeAppConfig,
+                                                gkeGalaxyAppConfig,
                                                 persistentDiskConfig)
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
