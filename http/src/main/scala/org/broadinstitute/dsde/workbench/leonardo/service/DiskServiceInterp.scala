@@ -59,7 +59,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       ctx <- as.ask
 
       hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       serviceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
@@ -159,7 +159,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                                                       userInfo,
                                                                       DeletePersistentDisk,
                                                                       googleProject)
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the disk is not deletable
       _ <- if (disk.status.isDeletable) F.unit
       else F.raiseError[Unit](DiskCannotBeDeletedException(disk.googleProject, disk.name, disk.status, ctx.traceId))
@@ -204,7 +204,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                                                       userInfo,
                                                                       ModifyPersistentDisk,
                                                                       googleProject)
-      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the disk is not updatable
       _ <- if (disk.status.isUpdatable) F.unit
       else

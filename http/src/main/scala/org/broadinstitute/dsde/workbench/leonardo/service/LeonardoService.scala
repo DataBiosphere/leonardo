@@ -44,8 +44,8 @@ import org.broadinstitute.dsde.workbench.util.Retry
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-case class AuthorizationError(email: Option[WorkbenchEmail] = None)
-    extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized." +
+case class AuthorizationError(email: WorkbenchEmail)
+    extends LeoException(s"${email.value} is unauthorized." +
       "If you have proper permissions to use the workspace, make sure you are also added to the billing account",
                          StatusCodes.Forbidden)
 
@@ -171,7 +171,7 @@ class LeonardoService(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
     authProvider.hasProjectPermission(userInfo, action, project) flatMap {
-      case false => IO.raiseError(AuthorizationError(Option(userInfo.userEmail)))
+      case false => IO.raiseError(AuthorizationError(userInfo.userEmail))
       case true  => IO.unit
     }
 
@@ -197,7 +197,7 @@ class LeonardoService(
             )
             .flatMap { _ =>
               if (throw403)
-                IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
+                IO.raiseError(AuthorizationError(userInfo.userEmail))
               else
                 IO.raiseError(
                   RuntimeNotFoundException(runtimeProjectAndName.googleProject,

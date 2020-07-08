@@ -68,7 +68,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       ctx <- as.ask
       //TODO check SAM permissions
       hasPermission <- F.pure(true)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
       _ <- appOpt.fold(F.unit)(c =>
@@ -184,7 +184,9 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       //TODO implement SAM check
       hasPermission <- F.pure(true)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(params.userInfo.userEmail)))
+
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(params.userInfo.userEmail))
+
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <- if (canDelete) F.unit

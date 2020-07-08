@@ -56,7 +56,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         )
         .attempt
     } yield {
-      d shouldBe (Left(AuthorizationError(Some(userInfo.userEmail))))
+      d shouldBe (Left(AuthorizationError(userInfo.userEmail)))
     }
     res.unsafeRunSync()
   }

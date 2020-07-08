@@ -62,7 +62,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       context <- as.ask
       hasPermission <- authProvider.hasProjectPermission(userInfo, CreateRuntime, googleProject)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       runtimeServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
@@ -234,7 +234,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       hasDeletePermission = listOfPermissions.toSet.contains(RuntimeAction.DeleteRuntime)
 
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(req.userInfo.userEmail)))
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(req.userInfo.userEmail))
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
       else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
@@ -295,7 +295,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 403 if no StopStartCluster permission
       hasStopPermission = listOfPermissions.toSet.contains(RuntimeAction.StopStartRuntime)
 
-      _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the cluster is not stoppable
       _ <- if (runtime.status.isStoppable) F.unit
       else
@@ -334,7 +334,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       hasStartPermission = listOfPermissions.contains(RuntimeAction.StopStartRuntime)
       // throw 403 if no StopStartCluster permission
-      _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
       // throw 409 if the cluster is not startable
       _ <- if (runtime.status.isStartable) F.unit
@@ -378,7 +378,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 403 if no ModifyCluster permission
       hasModifyPermission = listOfPermissions.contains(RuntimeAction.ModifyRuntime)
 
-      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the cluster is not updatable
       _ <- if (runtime.status.isUpdatable) F.unit
       else
@@ -727,12 +727,14 @@ object RuntimeServiceInterp {
                                                                       userInfo,
                                                                       PersistentDiskAction.AttachPersistentDisk,
                                                                       googleProject)
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
           } yield PersistentDiskRequestResult(pd, false)
+
         case None =>
           for {
             hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
             samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(userInfo,

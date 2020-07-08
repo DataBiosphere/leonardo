@@ -83,7 +83,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
         .attempt
     } yield {
-      r shouldBe (Left(AuthorizationError(Some(userInfo.userEmail))))
+      r shouldBe (Left(AuthorizationError(userInfo.userEmail)))
     }
     res.unsafeRunSync()
   }
@@ -897,7 +897,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .unsafeRunSync()
     }
 
-    thrown shouldBe AuthorizationError(Some(userInfo.userEmail))
+    thrown shouldBe AuthorizationError(userInfo.userEmail)
   }
 
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
@@ -981,7 +981,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       res.unsafeRunSync()
     }
 
-    thrown shouldBe AuthorizationError(Some(userInfo.userEmail))
+    thrown shouldBe AuthorizationError(userInfo.userEmail)
   }
 
   private def withLeoPublisher(
