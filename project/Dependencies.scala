@@ -10,13 +10,13 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.0"
-  val scalaTestV = "3.1.2"
+  val scalaTestV = "3.2.0"
   val slickV = "3.3.2"
   val http4sVersion = "0.21.0" //remove http4s related dependencies once workbench-libs are upgraded
   val guavaV = "28.2-jre"
   val monocleV = "2.0.0"
   val opencensusV = "0.26.0"
-  val serviceTestV = "0.18-d57f8a6"
+  val serviceTestV = "0.18-61887ce"
 
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
@@ -79,11 +79,10 @@ object Dependencies {
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.28.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
   val googleOAuth2: ModuleID =              "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1" excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
 
-  val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV  % "test"
-  val mockito: ModuleID =   "org.mockito"   % "mockito-core"  % "3.2.4"    % "test"
-  val scalaTestScalaCheck = "org.scalatestplus" %% "scalatestplus-scalacheck" % "3.1.0.0-RC2" % Test //Since scalatest 3.1.0, scalacheck support is moved to `scalatestplus`
-  val scalaTestMockito = "org.scalatestplus" %% "scalatestplus-mockito" % "1.0.0-M2" % Test //Since scalatest 3.1.0, mockito support is moved to `scalatestplus`
-  val scalaTestSelenium =  "org.scalatestplus" %% "scalatestplus-selenium" % "1.0.0-M2" % Test //Since scalatest 3.1.0, selenium support is moved to `scalatestplus`
+  val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % "test"
+  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-14" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
+  val scalaTestMockito = "org.scalatestplus" %% "mockito-3-3" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -165,7 +164,6 @@ object Dependencies {
     googleDataproc,
     googleRpc,
     googleOAuth2,
-    mockito,
     hikariCP,
     workbenchUtil,
     workbenchGoogle,
@@ -214,7 +212,6 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     scalaTest,
-    "org.seleniumhq.selenium" % "selenium-java" % "4.0.0-alpha-6" % "test",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text" % "1.2",
     googleRpc,

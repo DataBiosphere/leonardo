@@ -4,7 +4,7 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.{fixture, BeforeAndAfterAll, Outcome, Retries}
+import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 import RuntimeFixtureSpec._
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
@@ -12,11 +12,16 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, R
 import org.http4s.{AuthScheme, Credentials}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
+import org.scalatest.freespec.FixtureAnyFreeSpec
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class RuntimeFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with Retries {
+abstract class RuntimeFixtureSpec
+    extends FixtureAnyFreeSpec
+    with BeforeAndAfterAll
+    with LeonardoTestUtils
+    with Retries {
 
   implicit val ronToken: AuthToken = ronAuthToken
 

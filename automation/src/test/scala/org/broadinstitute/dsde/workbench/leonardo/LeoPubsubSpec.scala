@@ -4,10 +4,11 @@ import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.scalatest.time.{Minutes, Span}
-import org.scalatest.{DoNotDiscover, FlatSpec}
+import org.scalatest.DoNotDiscover
+import org.scalatest.flatspec.AnyFlatSpec
 
 @DoNotDiscover
-class LeoPubsubSpec extends FlatSpec with LeonardoTestUtils {
+class LeoPubsubSpec extends AnyFlatSpec with LeonardoTestUtils {
 
   "Google publisher" should "be able to auth" in {
     logger.info(s"publisher config is: ${LeonardoConfig.Leonardo.publisherConfig}")

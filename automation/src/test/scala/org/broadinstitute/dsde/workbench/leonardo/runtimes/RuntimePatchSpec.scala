@@ -13,13 +13,13 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.scalatest.{fixture, DoNotDiscover, Outcome}
-
+import org.scalatest.{DoNotDiscover, Outcome}
+import org.scalatest.freespec.FixtureAnyFreeSpec
 import scala.concurrent.duration._
 
 // extending fixture.Freespec just so we can use `taggedAs`. Not really need fixture for anything
 @DoNotDiscover
-class RuntimePatchSpec extends fixture.FreeSpec with LeonardoTestUtils with LeonardoTestSuite {
+class RuntimePatchSpec extends FixtureAnyFreeSpec with LeonardoTestUtils with LeonardoTestSuite {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 

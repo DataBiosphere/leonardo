@@ -2,15 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.sql.SQLIntegrityConstraintViolationException
 
-import org.scalatest.FlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, DiskId, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
 
-class AppComponentSpec extends FlatSpecLike with TestComponent {
+class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
 
   it should "save basic app" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()

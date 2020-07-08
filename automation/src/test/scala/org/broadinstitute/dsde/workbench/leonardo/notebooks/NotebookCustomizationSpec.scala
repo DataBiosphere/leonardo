@@ -182,6 +182,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                 // Start the cluster
                 startAndMonitor(cluster.googleProject, cluster.clusterName)
 
+                // To remediate errors like https://fc-jenkins.dsp-techops.broadinstitute.org/job/leonardo-fiab-test-runner/25553/artifact/failure_screenshots/NotebookCustomizationSpec_21-00-50-419.png
+                // We cache cluster's IP, so we might get old IP after restart
                 withNewNotebook(cluster, Python3) { notebookPage =>
                   notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
                 }

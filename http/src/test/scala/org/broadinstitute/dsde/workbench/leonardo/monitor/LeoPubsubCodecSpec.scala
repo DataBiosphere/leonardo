@@ -13,13 +13,14 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.{FlatSpec, Matchers}
 import _root_.io.circe.syntax._
 import _root_.io.circe.parser.decode
 import LeoPubsubCodec._
 import io.circe.Printer
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class LeoPubsubCodecSpec extends FlatSpec with Matchers {
+class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   it should "encode/decode CreateRuntimeMessage properly" in {
     val now = Instant.now()
     val originalMessage = CreateRuntimeMessage(

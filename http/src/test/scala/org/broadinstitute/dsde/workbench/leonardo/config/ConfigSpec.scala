@@ -7,11 +7,12 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   PersistentDiskMonitorConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.{BlockSize, DiskSize, DiskType}
-import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class ConfigSpec extends FlatSpec with Matchers {
+class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read PersistentDiskConfig properly" in {
     val expectedResult = PersistentDiskConfig(
       DiskSize(30),

@@ -9,11 +9,12 @@ import cats.effect.IO
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.serviceData
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 // This test is useful if we try to manually test cloud tracing. But it's ignored in CI
 class CloudTraceSpec
-    extends FlatSpec
+    extends AnyFlatSpec
     with ScalatestRouteTest
     with RequestBuilding
     with Matchers

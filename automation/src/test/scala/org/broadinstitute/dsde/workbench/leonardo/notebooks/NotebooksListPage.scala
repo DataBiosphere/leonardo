@@ -76,7 +76,7 @@ class NotebooksListPage(override val url: String)(implicit override val authToke
     result.get
   }
 
-  def withNewNotebook[T](kernel: NotebookKernel = Python2,
+  def withNewNotebook[T](kernel: NotebookKernel = Python3,
                          timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       await visible (newButton, timeout.toSeconds)
@@ -88,12 +88,19 @@ class NotebooksListPage(override val url: String)(implicit override val authToke
     val notebookPage = new NotebookPage(currentUrl)
     notebookPage.awaitReadyKernel(timeout)
     val result = Try(testCode(notebookPage))
-    Try(notebookPage.shutdownKernel()).recover {
-      case e =>
-        logger.error(s"Error occurred shutting down ${kernel} kernel", e)
-    }
+    shutDownKernel(notebookPage, kernel, 0)
     result.get
   }
+
+  def shutDownKernel(page: NotebookPage, kernel: NotebookKernel, attempt: Int): Unit =
+    if (attempt > 5)
+      logger.error(s"Error occurred shutting down ${kernel} kernel")
+    else
+      Try(page.shutdownKernel()).recover {
+        case e =>
+          logger.error(s"Error occurred shutting down ${kernel} kernel on attempt ${attempt}", e)
+          shutDownKernel(page, kernel, attempt + 1)
+      }
 
   def withSubFolder[T](timeout: FiniteDuration = 1.minutes)(testCode: NotebooksListPage => T): T = {
     if (!findUntitledFolder.isDefined) {
