@@ -116,11 +116,11 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
 
-  def markPendingCreating(nodepoolId: NodepoolLeoId, appId: AppId, clusterId: Option[CreateCluster])(
+  def markPendingCreating(nodepoolId: NodepoolLeoId, appId: AppId, createCluster: Option[CreateCluster])(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
     for {
-      _ <- clusterId.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
+      _ <- createCluster.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
         for {
           _ <- kubernetesClusterQuery.updateStatus(createCluster.clusterId, KubernetesClusterStatus.Provisioning)
           _ <- nodepoolQuery.updateStatus(createCluster.nodepoolId, NodepoolStatus.Provisioning)
