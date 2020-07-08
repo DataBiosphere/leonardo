@@ -512,7 +512,7 @@ object Config {
     KubernetesClusterConfig(config.as[Location]("location"))
   }
 
-  implicit val defaultNodepoolConfig: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
+  implicit val defaultNodepoolConfigReader: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
     DefaultNodepoolConfig(
       config.as[MachineTypeName]("machineType"),
       config.as[NumNodes]("numNodes"),
@@ -520,7 +520,7 @@ object Config {
     )
   }
 
-  implicit val galaxyNodepoolConfig: ValueReader[GalaxyNodepoolConfig] = ValueReader.relative { config =>
+  implicit val galaxyNodepoolConfigReader: ValueReader[GalaxyNodepoolConfig] = ValueReader.relative { config =>
     GalaxyNodepoolConfig(
       config.as[MachineTypeName]("machineType"),
       config.as[NumNodes]("numNodes"),
@@ -529,7 +529,7 @@ object Config {
     )
   }
 
-  implicit val autoscalingConfig: ValueReader[AutoscalingConfig] = ValueReader.relative { config =>
+  implicit val autoscalingConfigReader: ValueReader[AutoscalingConfig] = ValueReader.relative { config =>
     AutoscalingConfig(
       config.as[AutoscalingMin]("autoscalingMin"),
       config.as[AutoscalingMax]("autoscalingMax")
