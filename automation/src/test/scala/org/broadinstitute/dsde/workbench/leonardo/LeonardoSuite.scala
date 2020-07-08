@@ -98,7 +98,7 @@ final class LeonardoSuite
       new RuntimeCreationDiskSpec,
       new ClusterStatusTransitionsSpec,
       new LabSpec,
-      new NotebookClusterMonitoringSpec,
+//      new NotebookClusterMonitoringSpec,
       new NotebookCustomizationSpec,
       new NotebookDataSyncingSpec,
       new LeoPubsubSpec,
@@ -106,7 +106,7 @@ final class LeonardoSuite
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
-      new NotebookGCEClusterMonitoringSpec,
+//      new NotebookGCEClusterMonitoringSpec,
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec
     )
