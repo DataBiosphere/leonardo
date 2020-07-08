@@ -138,6 +138,10 @@ object NodepoolStatus {
     override def toString: String = "PRECREATING"
   }
 
+  final case object Predeleting extends NodepoolStatus {
+    override def toString: String = "PREDELETING"
+  }
+
   def values: Set[NodepoolStatus] = sealerate.values[NodepoolStatus]
   def stringToObject: Map[String, NodepoolStatus] = values.map(v => v.toString -> v).toMap
 
@@ -159,11 +163,48 @@ final case class Nodepool(id: NodepoolLeoId,
                           autoscalingEnabled: Boolean,
                           autoscalingConfig: Option[AutoscalingConfig],
                           errors: List[KubernetesError],
-                          apps: List[App])
+                          apps: List[App],
+                          isDefault: Boolean)
 object KubernetesNameUtils {
   //UUID almost works for this use case, but kubernetes names must start with a-z
   def getUniqueName[A](apply: String => A): Either[Throwable, A] =
     KubernetesName.withValidation('k' + UUID.randomUUID().toString.toLowerCase.substring(1), apply)
+}
+
+case class DefaultNodepool(id: NodepoolLeoId,
+                           clusterId: KubernetesClusterLeoId,
+                           nodepoolName: NodepoolName,
+                           status: NodepoolStatus,
+                           auditInfo: AuditInfo,
+                           machineType: MachineTypeName,
+                           numNodes: NumNodes,
+                           autoscalingEnabled: Boolean,
+                           autoscalingConfig: Option[AutoscalingConfig]) {
+  def toNodepool(): Nodepool =
+    Nodepool(id,
+             clusterId,
+             nodepoolName,
+             status,
+             auditInfo,
+             machineType,
+             numNodes,
+             autoscalingEnabled,
+             autoscalingConfig,
+             List.empty,
+             List.empty,
+             true)
+}
+object DefaultNodepool {
+  def fromNodepool(n: Nodepool) =
+    DefaultNodepool(n.id,
+                    n.clusterId,
+                    n.nodepoolName,
+                    n.status,
+                    n.auditInfo,
+                    n.machineType,
+                    n.numNodes,
+                    n.autoscalingEnabled,
+                    n.autoscalingConfig)
 }
 
 final case class AutoscalingConfig(autoscalingMin: AutoscalingMin, autoscalingMax: AutoscalingMax)
@@ -260,6 +301,10 @@ object AppStatus {
     override def toString: String = "PRECREATING"
   }
 
+  final case object Predeleting extends AppStatus {
+    override def toString: String = "PREDELETING"
+  }
+
   final case object Provisioning extends AppStatus {
     override def toString: String = "PROVISIONING"
   }
@@ -277,3 +322,6 @@ final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindNam
 final case class KubernetesServiceKindName(value: String) extends AnyVal
 
 final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: MachineTypeName, autoscalingEnabled: Boolean)
+
+//used in pubsub messaging to indicate the cluster and dummy nodepool to be created
+final case class CreateCluster(clusterId: KubernetesClusterLeoId, nodepoolId: NodepoolLeoId)

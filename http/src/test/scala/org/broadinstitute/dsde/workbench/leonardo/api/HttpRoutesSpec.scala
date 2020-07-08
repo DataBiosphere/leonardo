@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  DeleteAppParams,
   DeleteRuntimeRequest,
   GetAppResponse,
   GetRuntimeResponse,
@@ -32,6 +33,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.service.{
   BaseMockRuntimeServiceInterp,
+  KubernetesService,
   MockDiskServiceInterp,
   MockKubernetesServiceInterp,
   MockRuntimeServiceInterp
@@ -187,6 +189,23 @@ class HttpRoutesSpec
     }
     val routes = fakeRoutes(runtimeService)
     Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in {
+    val kubernetesService = new MockKubernetesServiceInterp {
+      override def deleteApp(deleteAppRequest: DeleteAppParams)(
+        implicit as: ApplicativeAsk[IO, AppContext]
+      ): IO[Unit] = IO {
+        val expectedDeleteApp =
+          DeleteAppParams(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)
+        deleteAppRequest shouldBe expectedDeleteApp
+      }
+    }
+    val routes = fakeRoutes(kubernetesService)
+    Delete("/api/google/v1/app/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -414,6 +433,19 @@ class HttpRoutesSpec
       runtimeService,
       MockDiskServiceInterp,
       MockKubernetesServiceInterp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy
+    )
+
+  def fakeRoutes(kubernetesService: KubernetesService[IO]): HttpRoutes =
+    new HttpRoutes(
+      swaggerConfig,
+      statusService,
+      proxyService,
+      leonardoService,
+      runtimeService,
+      MockDiskServiceInterp,
+      kubernetesService,
       timedUserInfoDirectives,
       contentSecurityPolicy
     )

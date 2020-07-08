@@ -1,12 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.effect.IO
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AppAlreadyExistsException,
   AppCannotBeDeletedException,
   AppNotFoundException,
   AppRequiresDiskException,
+  DeleteAppParams,
   DiskAlreadyAttachedException,
   LeoKubernetesServiceInterp
 }
@@ -17,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppName,
   AppStatus,
   AppType,
+  CreateCluster,
   DiskId,
   KubernetesClusterStatus,
   LabelMap,
@@ -31,17 +34,22 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.FlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with TestComponent {
-  val publisherQueue = QueueFactory.makePublisherQueue()
+
+  //used when we care about queue state
+  def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage]) =
+    new LeoKubernetesServiceInterp[IO](whitelistAuthProvider, serviceAccountProvider, leoKubernetesConfig, queue)
   val kubeServiceInterp = new LeoKubernetesServiceInterp[IO](whitelistAuthProvider,
                                                              serviceAccountProvider,
                                                              leoKubernetesConfig,
-                                                             publisherQueue)
+                                                             QueueFactory.makePublisherQueue())
 
   it should "create an app and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
@@ -75,6 +83,44 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
+  it should "queue the proper message when creating an app and a new disk" in isolatedDbTest {
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+
+    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
+
+    val getApp = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
+    }.get
+
+    val getMinimalCluster = dbFutureValue {
+      kubernetesClusterQuery.getMinimalClusterById(getApp.cluster.id)
+    }.get
+
+    val defaultNodepools = getMinimalCluster.nodepools.filter(_.isDefault)
+    defaultNodepools.length shouldBe 1
+    val defaultNodepool = defaultNodepools.head
+
+    val message = publisherQueue.dequeue1.unsafeRunSync()
+    message.messageType shouldBe LeoPubsubMessageType.CreateApp
+    val createAppMessage = message.asInstanceOf[CreateAppMessage]
+    createAppMessage.appId shouldBe getApp.app.id
+    createAppMessage.nodepoolId shouldBe getApp.nodepool.id
+    createAppMessage.project shouldBe project
+    createAppMessage.createDisk shouldBe true
+    createAppMessage.cluster shouldBe Some(
+      CreateCluster(
+        getMinimalCluster.id,
+        defaultNodepool.id
+      )
+    )
+  }
+
   it should "create an app with an existing disk" in isolatedDbTest {
     val disk = makePersistentDisk(DiskId(1)).copy(googleProject = project).save().unsafeRunSync()
 
@@ -82,7 +128,14 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
     kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
+
+    val message = publisherQueue.dequeue1.unsafeRunSync()
+    message.messageType shouldBe LeoPubsubMessageType.CreateApp
+    message.asInstanceOf[CreateAppMessage].createDisk shouldBe false
+
     val appResult = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
@@ -137,6 +190,8 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
   }
 
   it should "delete an app and update status appropriately" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
@@ -156,16 +211,28 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
     appResultPreDelete.get.app.status shouldEqual AppStatus.Running
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    kubeServiceInterp.deleteApp(userInfo, project, appName).unsafeRunSync()
+    val params = DeleteAppParams(userInfo, project, appName, false)
+    kubeServiceInterp.deleteApp(params).unsafeRunSync()
     val clusterPostDelete = dbFutureValue {
       KubernetesServiceDbQueries.listFullApps(Some(project), includeDeleted = true)
     }
 
     clusterPostDelete.length shouldEqual 1
     val nodepool = clusterPostDelete.head.nodepools.head
-    nodepool.status shouldEqual NodepoolStatus.Deleting
+    nodepool.status shouldEqual NodepoolStatus.Predeleting
     val app = nodepool.apps.head
-    app.status shouldEqual AppStatus.Deleting
+    app.status shouldEqual AppStatus.Predeleting
+
+    //throw away create message
+    publisherQueue.dequeue1.unsafeRunSync()
+
+    val message = publisherQueue.dequeue1.unsafeRunSync()
+    message.messageType shouldBe LeoPubsubMessageType.DeleteApp
+    val deleteAppMessage = message.asInstanceOf[DeleteAppMessage]
+    deleteAppMessage.appId shouldBe app.id
+    deleteAppMessage.nodepoolId shouldBe nodepool.id
+    deleteAppMessage.project shouldBe project
+    deleteAppMessage.deleteDisk shouldBe false
   }
 
   it should "error on delete if app is in a status that cannot be deleted" in isolatedDbTest {
@@ -183,8 +250,9 @@ class KubernetesServiceInterpSpec extends FlatSpec with LeonardoTestSuite with T
     appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
+    val params = DeleteAppParams(userInfo, project, appName, false)
     the[AppCannotBeDeletedException] thrownBy {
-      kubeServiceInterp.deleteApp(userInfo, project, appName).unsafeRunSync()
+      kubeServiceInterp.deleteApp(params).unsafeRunSync()
     }
   }
 

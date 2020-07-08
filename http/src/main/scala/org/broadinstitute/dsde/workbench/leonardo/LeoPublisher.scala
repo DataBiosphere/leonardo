@@ -9,12 +9,13 @@ import fs2.{Pipe, Stream}
 import io.chrisdavenport.log4cats.Logger
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 /**
@@ -24,7 +25,7 @@ import scala.concurrent.duration._
 final class LeoPublisher[F[_]: Logger: Timer](
   publisherQueue: InspectableQueue[F, LeoPubsubMessage],
   googlePublisher: GooglePublisher[F]
-)(implicit F: Concurrent[F], dbReference: DbReference[F], metrics: OpenTelemetryMetrics[F]) {
+)(implicit F: Concurrent[F], dbReference: DbReference[F], metrics: OpenTelemetryMetrics[F], ec: ExecutionContext) {
   val process: Stream[F, Unit] = {
     val publishingStream = Stream.eval(Logger[F].info(s"Initializing publisher")) ++ publisherQueue.dequeue.flatMap {
       event =>
@@ -65,6 +66,10 @@ final class LeoPublisher[F[_]: Logger: Timer](
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Starting, now).transaction
         case m: LeoPubsubMessage.DeleteRuntimeMessage =>
           clusterQuery.markPendingDeletion(m.runtimeId, now).transaction
+        case m: LeoPubsubMessage.DeleteAppMessage =>
+          KubernetesServiceDbQueries.markPendingDeletion(m.nodepoolId, m.appId).transaction
+        case m: LeoPubsubMessage.CreateAppMessage =>
+          KubernetesServiceDbQueries.markPendingCreating(m.nodepoolId, m.appId, m.cluster).transaction
         case _ => F.unit
       }
     } yield ()

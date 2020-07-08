@@ -14,7 +14,12 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.server.Directives._
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  CreateAppRequest,
+  DeleteAppParams,
+  GetAppResponse,
+  ListAppResponse
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
@@ -71,13 +76,16 @@ class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirecti
                         )
                       } ~
                       delete {
-                        complete(
-                          deleteAppHandler(
-                            userInfo,
-                            googleProject,
-                            appName
+                        parameterMap { params =>
+                          complete(
+                            deleteAppHandler(
+                              userInfo,
+                              googleProject,
+                              appName,
+                              params
+                            )
                           )
-                        )
+                        }
                       }
                   }
                 }
@@ -136,16 +144,25 @@ class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirecti
 
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
-                                    appName: AppName): IO[ToResponseMarshallable] =
+                                    appName: AppName,
+                                    params: Map[String, String]): IO[ToResponseMarshallable] =
     for {
       context <- AppContext.generate[IO]()
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
         context
       )
-      _ <- kubernetesService.deleteApp(
+      deleteDisk = params
+        .get("deleteDisk")
+        .map(s => s == "true")
+        .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+      deleteParams = DeleteAppParams(
         userInfo,
         googleProject,
-        appName
+        appName,
+        deleteDisk
+      )
+      _ <- kubernetesService.deleteApp(
+        deleteParams
       )
     } yield StatusCodes.Accepted
 

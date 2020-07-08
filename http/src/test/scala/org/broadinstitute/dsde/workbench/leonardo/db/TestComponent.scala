@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfi
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
   CommonTestData,
+  DefaultNodepool,
   GcsPathUtils,
   KubernetesCluster,
   LeonardoTestSuite,
@@ -133,8 +134,10 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.status,
             c.serviceAccount,
             c.auditInfo,
-            c.nodepools.headOption
-              .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
+            DefaultNodepool.fromNodepool(
+              c.nodepools.headOption
+                .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
+            )
           )
         )
       }

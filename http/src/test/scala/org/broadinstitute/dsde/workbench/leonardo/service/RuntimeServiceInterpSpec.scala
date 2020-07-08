@@ -836,7 +836,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      diskResult.doesExist shouldBe false
+      diskResult.creationNeeded shouldBe true
       disk.googleProject shouldBe project
       disk.zone shouldBe Config.persistentDiskConfig.zone
       disk.name shouldBe diskName
@@ -875,7 +875,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       Config.persistentDiskConfig)
         .attempt
     } yield {
-      returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, true))
+      returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
     }
 
     res.unsafeRunSync()

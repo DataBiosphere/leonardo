@@ -60,7 +60,7 @@ object KubernetesTestData {
   val listAppResponse =
     ListAppResponse.fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp))))).toVector
 
-  def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId, prefix: String = "") = {
+  def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId, prefix: String = "", isDefault: Boolean = false) = {
     val name = NodepoolName(prefix + "nodepoolname" + index)
     Nodepool(
       NodepoolLeoId(-1), //will be replaced
@@ -73,7 +73,8 @@ object KubernetesTestData {
       false,
       None,
       List(),
-      List()
+      List(),
+      isDefault
     )
   }
 
@@ -90,7 +91,7 @@ object KubernetesTestData {
       auditInfo,
       None,
       List(),
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster")),
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", true)),
       List()
     )
   }

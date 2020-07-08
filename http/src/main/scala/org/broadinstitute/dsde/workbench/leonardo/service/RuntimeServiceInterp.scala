@@ -728,7 +728,7 @@ object RuntimeServiceInterp {
                                                                       PersistentDiskAction.AttachPersistentDisk,
                                                                       googleProject)
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(Some(userInfo.userEmail)))
-          } yield PersistentDiskRequestResult(pd, true)
+          } yield PersistentDiskRequestResult(pd, false)
         case None =>
           for {
             hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
@@ -752,11 +752,11 @@ object RuntimeServiceInterp {
                 ) >> F.raiseError(t)
               }
             pd <- persistentDiskQuery.save(diskBeforeSave).transaction
-          } yield PersistentDiskRequestResult(pd, false)
+          } yield PersistentDiskRequestResult(pd, true)
       }
     } yield disk
 
-  case class PersistentDiskRequestResult(disk: PersistentDisk, doesExist: Boolean)
+  case class PersistentDiskRequestResult(disk: PersistentDisk, creationNeeded: Boolean)
 }
 
 final case class RuntimeServiceConfig(proxyUrlBase: String,
