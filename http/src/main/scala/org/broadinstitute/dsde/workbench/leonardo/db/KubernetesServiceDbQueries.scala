@@ -53,7 +53,7 @@ object KubernetesServiceDbQueries {
                   s"You cannot create an app while a cluster is in ${KubernetesClusterStatus.creatingStatuses}. Status: ${s}"
                 )
               )
-            case _  => DBIO.successful(ClusterExists(cluster))
+            case _ => DBIO.successful(ClusterExists(cluster))
           }
         case _ =>
           kubernetesClusterQuery
