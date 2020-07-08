@@ -25,11 +25,11 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val getBxPython =
             """import bx.bitset
               |bx.bitset.sys.copyright""".stripMargin
-          val getPandasVersion = "! pip show pandas"
+          val getPandasLocation = "! pip3 show pandas"
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell(getPythonVersion).get should include("3.7")
           notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
-          notebookPage.executeCell(getPandasVersion).get should include("/usr/local/lib/python3.7/dist-packages")
+          notebookPage.executeCell(getPandasLocation).get should include("/usr/local/lib/python3.7/dist-packages")
         }
       }
     }
@@ -48,7 +48,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
             notebookPage.executeCell("import fuzzywuzzy", cellNumberOpt = Some(1)) shouldBe None
             // user installed packages should be in directory where PD is mounted
-            notebookPage.executeCell("! pip show fuzzywuzzy").get should include(
+            val getFuzzyWuzzyLocation = "! pip3 show fuzzywuzzy"
+            notebookPage.executeCell(getFuzzyWuzzyLocation, cellNumberOpt = Some(1)).get should include(
               "/home/jupyter-user/notebooks/packages"
             )
           }
