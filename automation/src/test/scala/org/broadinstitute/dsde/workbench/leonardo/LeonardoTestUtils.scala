@@ -514,7 +514,7 @@ trait LeonardoTestUtils
 
       caught.message should include("\"statusCode\":422")
       caught.message should include(
-        s"""Runtime ${googleProject.value}/${clusterName.asString} is stopped. Start your runtime before proceeding."""
+        s"""Proxy host ${googleProject.value}/${clusterName.asString} is stopped. Start your runtime before proceeding."""
       )
     }
   }
@@ -544,7 +544,7 @@ trait LeonardoTestUtils
 
       caught.message should include("\"statusCode\":422")
       caught.message should include(
-        s"""Runtime ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
+        s"""Proxy host ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
       )
     }
   }
