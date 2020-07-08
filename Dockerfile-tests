@@ -1,4 +1,4 @@
-FROM bigtruedata/sbt
+FROM hseeberger/scala-sbt:graalvm-ce-20.0.0-java8_1.3.13_2.12.11
 
 # This is only to make `sbt` work because `Version.scala` depends on `git` if this environment is not set
 ENV GIT_HASH="0.0.1"
