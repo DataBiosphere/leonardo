@@ -114,6 +114,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""tidyverse" %in% installed.packages()""") shouldBe Some("TRUE")
+          notebookPage.executeCell("find.package('tidyverse')").get should include("/usr/local/lib/R/site-library")
         }
       }
     }
@@ -156,24 +157,6 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
         }
-      }
-    }
-  }
-
-  "should have new lib in .libPaths()" in { runtimeFixture =>
-    withWebDriver { implicit driver =>
-      withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
-        val output = notebookPage.executeCell(""".libPaths()[1]""")
-        output.get should include("/home/jupyter-user/notebooks/packages")
-      }
-    }
-  }
-
-  "should install image installed packages to appropriate directory" in { runtimeFixture =>
-    withWebDriver { implicit driver =>
-      withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
-        notebookPage.executeCell("library('devtools')")
-        notebookPage.executeCell("find.package('devtools')").get should include("/usr/local/lib/R/site-library")
       }
     }
   }
