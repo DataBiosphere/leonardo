@@ -107,7 +107,7 @@ final class LeonardoSuite
       new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
 //      new NotebookGCEClusterMonitoringSpec,
-      new NotebookGCECustomizationSpec,
+//      new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec
     )
     with TestSuite
