@@ -187,7 +187,6 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(params.userInfo.userEmail))
 
-
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <- if (canDelete) F.unit
       else
