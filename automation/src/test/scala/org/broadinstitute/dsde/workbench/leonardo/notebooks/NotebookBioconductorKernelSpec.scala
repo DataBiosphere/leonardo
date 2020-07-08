@@ -74,6 +74,8 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
           notebookPage.executeCell("""library("GenomicAlignments")""", callLibraryTimeout)
           notebookPage.executeCell("""library("GenomicFeatures")""", callLibraryTimeout)
 
+          // bioconductor libraries should install to appropriate directory
+          notebookPage.executeCell("find.package('ShortRead')").get should include("/usr/local/lib/R/site-library")
         }
       }
     }
@@ -246,7 +248,8 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('RGtk2')""", installTimeout)
           notebookPage.executeCell("library(RGtk2)")
-
+          // new packages should install to directory where PD is mounted
+          notebookPage.executeCell("find.package('RGtk2')").get should include("/home/jupyter-user/notebooks/packages")
         }
       }
     }
