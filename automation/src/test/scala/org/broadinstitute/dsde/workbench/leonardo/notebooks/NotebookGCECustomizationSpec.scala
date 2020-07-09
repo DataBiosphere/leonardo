@@ -91,7 +91,7 @@ final class NotebookGCECustomizationSpec
               withNewNotebook(runtime, Python3) { notebookPage =>
                 // Check the extensions were installed
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-//                  nbExt.get should include("jupyter-gmaps/extension  enabled")
+                nbExt.get should include("jupyter-gmaps/extension  enabled")
                 nbExt.get should include("pizzabutton/index  enabled")
                 nbExt.get should include("translate_nbextension/main  enabled")
                 // should be installed by default

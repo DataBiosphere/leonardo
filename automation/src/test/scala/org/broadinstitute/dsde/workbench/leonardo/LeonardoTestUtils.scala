@@ -646,9 +646,6 @@ trait LeonardoTestUtils
                    enableWelder = Some(enableWelder),
                    toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
 
-  def defaultRuntimeRequest: RuntimeRequest =
-    RuntimeRequest(Map("foo" -> makeRandomId()), toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
-
   def createNewCluster(googleProject: GoogleProject,
                        name: RuntimeName = randomClusterName,
                        request: ClusterRequest = defaultClusterRequest,
