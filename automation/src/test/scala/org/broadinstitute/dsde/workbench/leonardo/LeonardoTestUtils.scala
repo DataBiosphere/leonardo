@@ -326,33 +326,6 @@ trait LeonardoTestUtils
     }
 
     res.unsafeRunSync()
-
-//    val runtimeTimeResult = time(
-//      concurrentClusterCreationPermits
-//        .withPermit(IO(Leonardo.cluster.createRuntime(googleProject, runtimeName, runtimeRequest)))
-//        .unsafeRunSync()
-//    )
-//    logger.info(s"Time it took to get runtime create response with: ${runtimeTimeResult.duration}")
-
-    // verify with get()
-//    val creatingRuntime =
-//      eventually(Timeout(getAfterCreatePatience.timeout), Interval(getAfterCreatePatience.interval)) {
-//        verifyRuntime(
-//          Leonardo.cluster.getRuntime(googleProject, runtimeName),
-//          googleProject,
-//          runtimeName,
-//          List(ClusterStatus.Creating),
-//          runtimeRequest
-//        )
-//      }
-
-//    if (monitor) {
-//      val runningRuntime = monitorCreateRuntime(googleProject, runtimeName, runtimeRequest, creatingRuntime)
-//
-//      runningRuntime
-//    } else {
-//      creatingRuntime
-//    }
   }
 
   def monitorCreate(googleProject: GoogleProject,

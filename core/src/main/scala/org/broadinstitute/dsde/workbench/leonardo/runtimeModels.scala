@@ -369,7 +369,6 @@ sealed trait WelderAction extends EnumEntry
 object WelderAction extends Enum[WelderAction] {
   val values = findValues
 
-  case object DeployWelder extends WelderAction
   case object UpdateWelder extends WelderAction
   case object DisableDelocalization extends WelderAction
 }

@@ -22,12 +22,8 @@ import scala.util.Try
  * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
  * so lives in the notebooks sub-package.
  */
-//@DoNotDiscover
-class NotebookClusterMonitoringSpec
-    extends GPAllocFixtureSpec
-    with ParallelTestExecution
-    with NotebookTestUtils
-    with GPAllocBeforeAndAfterAll {
+@DoNotDiscover
+class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
   "NotebookClusterMonitoringSpec" - {
 
@@ -279,45 +275,6 @@ class NotebookClusterMonitoringSpec
                 "ClusterMonitoringSpec: Hail verification is disabled after pause/resuming a cluster. See https://github.com/DataBiosphere/leonardo/issues/459."
               )
             }
-          }
-        }
-      }
-    }
-
-    "should deploy welder on a cluster" taggedAs (Retryable) in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
-
-      // Create a cluster with welder disabled
-
-      withNewCluster(
-        billingProject,
-        request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"),
-                                             toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl),
-                                             enableWelder = Some(false))
-      ) { cluster =>
-        withWebDriver { implicit driver =>
-          // Verify welder is not running
-          Welder.getWelderStatus(cluster).attempt.unsafeRunSync().isRight shouldBe false
-
-          // Create a notebook and execute cells to create a local file
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
-            notebookPage.executeCell(s"""! echo "foo" > foo.txt""") shouldBe None
-            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
-            notebookPage.saveAndCheckpoint()
-          }
-          // Stop the cluster
-          stopAndMonitor(cluster.googleProject, cluster.clusterName)
-
-          // Start the cluster
-          startAndMonitor(cluster.googleProject, cluster.clusterName)
-
-          // Verify welder is now running
-          Welder.getWelderStatus(cluster).attempt.unsafeRunSync().isRight shouldBe true
-
-          // Make a new notebook and verify the file still exists
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
-            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
           }
         }
       }

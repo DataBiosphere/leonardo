@@ -54,7 +54,6 @@ export WELDER_SERVER_NAME=$(welderServerName)
 export NOTEBOOKS_DIR=$(notebooksDir)
 export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
-export DEPLOY_WELDER=$(deployWelder)
 export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export DISABLE_DELOCALIZATION=$(disableDelocalization)
@@ -65,22 +64,6 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 
 JUPYTER_HOME=/etc/jupyter
-
-# TODO: remove this block once data syncing is rolled out to Terra
-if [ "$DEPLOY_WELDER" == "true" ] ; then
-    echo "Deploying Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-
-    # Run welder-docker-compose
-    gcloud auth configure-docker
-    docker-compose -f /etc/welder-docker-compose.yaml up -d
-
-    # Move existing notebooks to new notebooks dir
-    docker exec -i $JUPYTER_SERVER_NAME bash -c "ls -I notebooks -I miniconda /home/jupyter-user | xargs -d '\n'  -I file mv file $NOTEBOOKS_DIR"
-
-    # Enable welder in /etc/jupyter/nbconfig/notebook.json (which powers the front-end extensions like edit.js and safe.js)
-    docker exec -u root -i $JUPYTER_SERVER_NAME bash -c \
-      "test -f /etc/jupyter/nbconfig/notebook.json && jq '.welderEnabled=\"true\"' /etc/jupyter/nbconfig/notebook.json > /etc/jupyter/nbconfig/notebook.json.tmp && mv /etc/jupyter/nbconfig/notebook.json.tmp /etc/jupyter/nbconfig/notebook.json || true"
-fi
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
