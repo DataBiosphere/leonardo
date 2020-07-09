@@ -23,12 +23,8 @@ import scala.concurrent.duration._
 /**
  * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
  */
-//@DoNotDiscover
-final class NotebookGCECustomizationSpec
-    extends GPAllocFixtureSpec
-    with ParallelTestExecution
-    with NotebookTestUtils
-    with GPAllocBeforeAndAfterAll {
+@DoNotDiscover
+final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(
     org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
