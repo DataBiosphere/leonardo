@@ -15,17 +15,22 @@ import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.http.CreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
+import org.http4s.AuthScheme
+import org.http4s.client.Client
+import org.http4s.headers.Authorization
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.Suite
 import org.scalatest.matchers.should.Matchers
+
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Success, Try}
 
@@ -129,7 +134,7 @@ trait LeonardoTestUtils
   }
 
   def getExpectedToolLabel(imageUrl: String): String =
-    if (imageUrl == LeonardoConfig.Leonardo.rstudioBaseImageUrl) "RStudio"
+    if (imageUrl == LeonardoConfig.Leonardo.rstudioBaseImageUrl.imageUrl) "RStudio"
     else "Jupyter"
 
   def labelCheck(seen: LabelMap,
@@ -153,7 +158,6 @@ trait LeonardoTestUtils
       googleProject,
       creator,
       Some(dummyClusterSa),
-      clusterRequest.jupyterExtensionUri,
       clusterRequest.jupyterUserScriptUri,
       clusterRequest.jupyterStartUserScriptUri,
       clusterRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter")
@@ -166,27 +170,30 @@ trait LeonardoTestUtils
                     runtimeName: RuntimeName,
                     googleProject: GoogleProject,
                     creator: WorkbenchEmail,
-                    runtimeRequest: RuntimeRequest): Unit = {
+                    labels: Map[String, String],
+                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                    jupyterUserScriptUri: Option[UserScriptPath],
+                    jupyterStartUserScriptUri: Option[UserScriptPath],
+                    toolDockerImage: Option[ContainerImage]): Unit = {
 
     // the SAs can vary here depending on which ServiceAccountProvider is used
     // set dummy values here and then remove them from the comparison
     // TODO: check for these values after tests are agnostic to ServiceAccountProvider ?
 
     val dummyClusterSa = WorkbenchEmail("dummy-cluster")
-    val jupyterExtensions = runtimeRequest.userJupyterExtensionConfig match {
+    val jupyterExtensions = userJupyterExtensionConfig match {
       case Some(x) => x.nbExtensions ++ x.combinedExtensions ++ x.serverExtensions ++ x.labExtensions
       case None    => Map()
     }
 
-    val expected = runtimeRequest.labels ++ DefaultLabelsCopy(
+    val expected = labels ++ DefaultLabelsCopy(
       runtimeName,
       googleProject,
       creator,
       Some(dummyClusterSa),
-      runtimeRequest.jupyterExtensionUri,
-      runtimeRequest.jupyterUserScriptUri,
-      runtimeRequest.jupyterStartUserScriptUri,
-      runtimeRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter")
+      jupyterUserScriptUri.map(_.asString),
+      jupyterStartUserScriptUri.map(_.asString),
+      toolDockerImage.map(c => getExpectedToolLabel(c.imageUrl)).getOrElse("Jupyter")
     ).toMap ++ jupyterExtensions
 
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
@@ -226,7 +233,11 @@ trait LeonardoTestUtils
                     expectedProject: GoogleProject,
                     expectedName: RuntimeName,
                     expectedStatuses: List[ClusterStatus],
-                    runtimeRequest: RuntimeRequest,
+                    labels: Map[String, String],
+                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                    jupyterUserScriptUri: Option[UserScriptPath],
+                    jupyterStartUserScriptUri: Option[UserScriptPath],
+                    toolDockerImage: Option[ContainerImage],
                     bucketCheck: Boolean = true): GetRuntimeResponseCopy = {
     // Always log cluster errors
 
@@ -242,7 +253,17 @@ trait LeonardoTestUtils
     runtime.googleProject shouldBe expectedProject
     runtime.runtimeName shouldBe expectedName
 
-    gceLabelCheck(runtime.labels, expectedName, expectedProject, runtime.auditInfo.creator, runtimeRequest)
+    gceLabelCheck(
+      runtime.labels,
+      expectedName,
+      expectedProject,
+      runtime.auditInfo.creator,
+      labels,
+      userJupyterExtensionConfig,
+      jupyterUserScriptUri,
+      jupyterStartUserScriptUri,
+      toolDockerImage
+    )
 
     if (bucketCheck) {
       implicit val patienceConfig: PatienceConfig = storagePatience
@@ -283,37 +304,55 @@ trait LeonardoTestUtils
 
   def createRuntime(googleProject: GoogleProject,
                     runtimeName: RuntimeName,
-                    runtimeRequest: RuntimeRequest,
-                    monitor: Boolean)(implicit token: AuthToken): GetRuntimeResponseCopy = {
+                    runtimeRequest: CreateRuntime2Request,
+                    monitor: Boolean)(implicit token: Authorization): GetRuntimeResponseCopy = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
-    val runtimeTimeResult = time(
-      concurrentClusterCreationPermits
-        .withPermit(IO(Leonardo.cluster.createRuntime(googleProject, runtimeName, runtimeRequest)))
-        .unsafeRunSync()
-    )
-    logger.info(s"Time it took to get runtime create response with: ${runtimeTimeResult.duration}")
+    val res = LeonardoApiClient.client.use { c =>
+      implicit val client: Client[IO] = c
+      for {
+        _ <- concurrentClusterCreationPermits.withPermit(
+          LeonardoApiClient.createRuntime(
+            googleProject,
+            runtimeName,
+            runtimeRequest
+          )
+        )
+        resp <- if (monitor)
+          LeonardoApiClient.waitForCreation(googleProject, runtimeName)
+        else LeonardoApiClient.getRuntime(googleProject, runtimeName)
+      } yield resp
+    }
+
+    res.unsafeRunSync()
+
+//    val runtimeTimeResult = time(
+//      concurrentClusterCreationPermits
+//        .withPermit(IO(Leonardo.cluster.createRuntime(googleProject, runtimeName, runtimeRequest)))
+//        .unsafeRunSync()
+//    )
+//    logger.info(s"Time it took to get runtime create response with: ${runtimeTimeResult.duration}")
 
     // verify with get()
-    val creatingRuntime =
-      eventually(Timeout(getAfterCreatePatience.timeout), Interval(getAfterCreatePatience.interval)) {
-        verifyRuntime(
-          Leonardo.cluster.getRuntime(googleProject, runtimeName),
-          googleProject,
-          runtimeName,
-          List(ClusterStatus.Creating),
-          runtimeRequest
-        )
-      }
+//    val creatingRuntime =
+//      eventually(Timeout(getAfterCreatePatience.timeout), Interval(getAfterCreatePatience.interval)) {
+//        verifyRuntime(
+//          Leonardo.cluster.getRuntime(googleProject, runtimeName),
+//          googleProject,
+//          runtimeName,
+//          List(ClusterStatus.Creating),
+//          runtimeRequest
+//        )
+//      }
 
-    if (monitor) {
-      val runningRuntime = monitorCreateRuntime(googleProject, runtimeName, runtimeRequest, creatingRuntime)
-
-      runningRuntime
-    } else {
-      creatingRuntime
-    }
+//    if (monitor) {
+//      val runningRuntime = monitorCreateRuntime(googleProject, runtimeName, runtimeRequest, creatingRuntime)
+//
+//      runningRuntime
+//    } else {
+//      creatingRuntime
+//    }
   }
 
   def monitorCreate(googleProject: GoogleProject,
@@ -354,15 +393,9 @@ trait LeonardoTestUtils
   def monitorCreateRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
-    runtimeRequest: RuntimeRequest,
-    creatingRuntime: GetRuntimeResponseCopy
+    runtimeRequest: CreateRuntime2Request
   )(implicit token: AuthToken): GetRuntimeResponseCopy = {
     // wait for "Running", "Stopped", or error (fail fast)
-    val stopAfterCreate = runtimeRequest.stopAfterCreation.getOrElse(false)
-
-    implicit val patienceConfig: PatienceConfig =
-      if (stopAfterCreate) clusterStopAfterCreatePatience else clusterPatience
-
     val expectedStatuses =
       List(ClusterStatus.Running, ClusterStatus.Error)
 
@@ -370,7 +403,18 @@ trait LeonardoTestUtils
       eventually {
         val runtime = Leonardo.cluster.getRuntime(googleProject, runtimeName)
 
-        verifyRuntime(runtime, googleProject, runtimeName, expectedStatuses, runtimeRequest, true)
+        verifyRuntime(
+          runtime,
+          googleProject,
+          runtimeName,
+          expectedStatuses,
+          runtimeRequest.labels,
+          runtimeRequest.userJupyterExtensionConfig,
+          runtimeRequest.jupyterUserScriptUri,
+          runtimeRequest.jupyterStartUserScriptUri,
+          runtimeRequest.toolDockerImage,
+          true
+        )
       }
     }
 
@@ -392,10 +436,16 @@ trait LeonardoTestUtils
   ): ClusterCopy =
     createCluster(googleProject, clusterName, clusterRequest, monitor = true)
 
-  def createAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, runtimeRequest: RuntimeRequest)(
+  def createAndMonitorRuntime(googleProject: GoogleProject,
+                              runtimeName: RuntimeName,
+                              runtimeRequest: CreateRuntime2Request)(
     implicit token: AuthToken
-  ): GetRuntimeResponseCopy =
+  ): GetRuntimeResponseCopy = {
+    implicit val auth: Authorization = Authorization(
+      org.http4s.Credentials.Token(AuthScheme.Bearer, token.value)
+    )
     createRuntime(googleProject, runtimeName, runtimeRequest, monitor = true)
+  }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
@@ -649,8 +699,8 @@ trait LeonardoTestUtils
 
   def createNewRuntime(googleProject: GoogleProject,
                        name: RuntimeName = randomClusterName,
-                       request: RuntimeRequest = defaultRuntimeRequest,
-                       monitor: Boolean = true)(implicit token: AuthToken): ClusterCopy = {
+                       request: CreateRuntime2Request = LeonardoApiClient.defaultCreateRuntime2Request,
+                       monitor: Boolean = true)(implicit token: Authorization): ClusterCopy = {
 
     val cluster = createRuntime(googleProject, name, request, monitor)
     if (monitor) {
@@ -714,11 +764,11 @@ trait LeonardoTestUtils
   def withNewRuntime[T](
     googleProject: GoogleProject,
     name: RuntimeName = randomClusterName,
-    request: RuntimeRequest = defaultRuntimeRequest,
+    request: CreateRuntime2Request = LeonardoApiClient.defaultCreateRuntime2Request,
     monitorCreate: Boolean = true,
     monitorDelete: Boolean = false,
     deleteRuntimeAfter: Boolean = true
-  )(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
+  )(testCode: ClusterCopy => T)(implicit token: Authorization, authToken: AuthToken): T = {
     val cluster = createNewRuntime(googleProject, name, request, monitorCreate)
     val testResult: Try[T] = Try {
       testCode(cluster)
@@ -729,11 +779,17 @@ trait LeonardoTestUtils
       implicit val patienceConfig: PatienceConfig = clusterPatience
 
       eventually {
-        verifyRuntime(Leonardo.cluster.getRuntime(googleProject, name),
-                      googleProject,
-                      name,
-                      deletableStatuses.toList,
-                      request)
+        verifyRuntime(
+          Leonardo.cluster.getRuntime(googleProject, name),
+          googleProject,
+          name,
+          deletableStatuses.toList,
+          request.labels,
+          request.userJupyterExtensionConfig,
+          request.jupyterUserScriptUri,
+          request.jupyterStartUserScriptUri,
+          request.toolDockerImage
+        )
       }
     }
 
@@ -784,9 +840,11 @@ trait LeonardoTestUtils
     withResourceFileInBucket(googleProject, hailUploadFile, "text/plain") { bucketPath =>
       val request =
         if (isUserStartupScript)
-          RuntimeRequest(jupyterStartUserScriptUri = Some(bucketPath.toUri))
+          LeonardoApiClient.defaultCreateRuntime2Request
+            .copy(jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(bucketPath)))
         else
-          RuntimeRequest(jupyterUserScriptUri = Some(bucketPath.toUri))
+          LeonardoApiClient.defaultCreateRuntime2Request
+            .copy(jupyterUserScriptUri = Some(UserScriptPath.Gcs(bucketPath)))
 
       val testResult: Try[T] = Try {
 

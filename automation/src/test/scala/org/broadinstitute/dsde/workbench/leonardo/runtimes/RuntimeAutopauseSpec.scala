@@ -1,18 +1,32 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, GPAllocFixtureSpec, Leonardo, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  ClusterStatus,
+  GPAllocFixtureSpec,
+  Leonardo,
+  LeonardoApiClient,
+  LeonardoTestUtils
+}
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+
+import scala.concurrent.duration._
 
 @DoNotDiscover
 class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
 
   implicit val ronToken: AuthToken = ronAuthToken
+  implicit val auth: Authorization = Authorization(
+    org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+  )
 
   "autopause should work" in { billingProject =>
     val runtimeName = randomClusterName
-    val runtimeRequest = defaultRuntimeRequest.copy(autopause = Some(true), autopauseThreshold = Some(1))
+    val runtimeRequest =
+      LeonardoApiClient.defaultCreateRuntime2Request.copy(autopause = Some(true), autopauseThreshold = Some(1 minute))
 
     withNewRuntime(billingProject, runtimeName, runtimeRequest) { runtime =>
       Leonardo.cluster

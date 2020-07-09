@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.util.UUID
 import java.util.concurrent.TimeoutException
 
 import cats.implicits._
@@ -57,7 +58,7 @@ object LeonardoApiClient {
   )
 
   val defaultCreateRuntime2Request = CreateRuntime2Request(
-    Map.empty,
+    Map("foo" -> UUID.randomUUID().toString),
     None,
     None,
     None,
@@ -101,7 +102,16 @@ object LeonardoApiClient {
   ): IO[GetRuntimeResponseCopy] =
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
-      ioa = getRuntime(googleProject, runtimeName)
+      res <- waitForCreation(googleProject, runtimeName)
+    } yield res
+
+  def waitForCreation(googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[GetRuntimeResponseCopy] = {
+    val ioa = getRuntime(googleProject, runtimeName)
+    for {
       res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 60, 10 seconds).compile.lastOrError
       _ <- res.status match {
         case ClusterStatus.Error =>
@@ -117,6 +127,7 @@ object LeonardoApiClient {
           )
       }
     } yield res
+  }
 
   def getRuntime(
     googleProject: GoogleProject,

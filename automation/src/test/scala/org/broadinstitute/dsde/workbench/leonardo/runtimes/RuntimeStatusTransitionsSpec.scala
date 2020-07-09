@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.service.RestException
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
@@ -18,12 +20,15 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
   "RuntimeStatusTransitionsSpec" - {
 
     implicit val ronToken: AuthToken = ronAuthToken
+    implicit val auth: Authorization = Authorization(
+      org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+    )
 
     "create, monitor, delete should transition correctly" in { billingProject =>
       logger.info("Starting RuntimeStatusTransitionsSpec: create, monitor, delete should transition correctly")
 
       val runtimeName = randomClusterName
-      val runtimeRequest = defaultRuntimeRequest
+      val runtimeRequest = LeonardoApiClient.defaultCreateRuntime2Request
 
       // create a runtime, but don't wait
       createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
@@ -41,7 +46,7 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       caught2.message should include(""""statusCode":409""")
 
       // wait for runtime to be running
-      monitorCreateRuntime(billingProject, runtimeName, runtimeRequest, creatingRuntime)
+      monitorCreateRuntime(billingProject, runtimeName, runtimeRequest)
       Leonardo.cluster.getRuntime(billingProject, runtimeName).status shouldBe ClusterStatus.Running
 
       // delete the runtime, but don't wait

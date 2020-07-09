@@ -22,8 +22,12 @@ import scala.util.Try
  * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
  * so lives in the notebooks sub-package.
  */
-@DoNotDiscover
-class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+//@DoNotDiscover
+class NotebookClusterMonitoringSpec
+    extends GPAllocFixtureSpec
+    with ParallelTestExecution
+    with NotebookTestUtils
+    with GPAllocBeforeAndAfterAll {
 
   "NotebookClusterMonitoringSpec" - {
 
@@ -328,7 +332,8 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       withNewCluster(
         billingProject,
         request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"),
-                                             welderDockerImage = Some(LeonardoConfig.Leonardo.oldGcrWelderDockerImage),
+                                             welderDockerImage =
+                                               Some(LeonardoConfig.Leonardo.oldGcrWelderDockerImage.imageUrl),
                                              enableWelder = Some(true))
       ) { cluster =>
         // Verify welder is running with old version
@@ -361,7 +366,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         billingProject,
         request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"),
                                              welderDockerImage =
-                                               Some(LeonardoConfig.Leonardo.oldDockerHubWelderDockerImage),
+                                               Some(LeonardoConfig.Leonardo.oldDockerHubWelderDockerImage.imageUrl),
                                              enableWelder = Some(true))
       ) { cluster =>
         // Verify welder is running with old version
@@ -411,7 +416,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       // Create a cluster
       withNewCluster(billingProject,
                      request = defaultClusterRequest.copy(toolDockerImage =
-                                                            Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl),
+                                                            Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl.imageUrl),
                                                           enableWelder = Some(true))) { cluster =>
         // Make sure RStudio is up
         // See this ticket for adding more comprehensive selenium tests for RStudio:

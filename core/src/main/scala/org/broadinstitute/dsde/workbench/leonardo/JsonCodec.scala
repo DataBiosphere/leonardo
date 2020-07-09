@@ -290,7 +290,19 @@ object JsonCodec {
   implicit val userScriptPathDecoder: Decoder[UserScriptPath] = Decoder.decodeString.emap { s =>
     UserScriptPath.stringToUserScriptPath(s).leftMap(_.getMessage)
   }
-  implicit val userJupyterExtensionConfigDecoder: Decoder[UserJupyterExtensionConfig] = Decoder.forProduct4(
+  implicit val userJupyterExtensionConfigDecoder: Decoder[UserJupyterExtensionConfig] = Decoder.instance { c =>
+    for {
+      ne <- c.downField("nbExtensions").as[Option[Map[String, String]]]
+      se <- c.downField("serverExtensions").as[Option[Map[String, String]]]
+      ce <- c.downField("combinedExtensions").as[Option[Map[String, String]]]
+      le <- c.downField("labExtensions").as[Option[Map[String, String]]]
+    } yield UserJupyterExtensionConfig(ne.getOrElse(Map.empty),
+                                       se.getOrElse(Map.empty),
+                                       ce.getOrElse(Map.empty),
+                                       le.getOrElse(Map.empty))
+  }
+
+  Decoder.forProduct4(
     "nbExtensions",
     "serverExtensions",
     "combinedExtensions",
