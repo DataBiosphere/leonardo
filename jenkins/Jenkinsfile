@@ -141,7 +141,9 @@ pipeline {
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
             description: "A custom image will be build for each of these dataproc versions")
         string(name: "IMAGE_HARDENING_LIB_VERSION", defaultValue: "100d620",
-            description: "The hash of the 'broadinstitute/dsp-appsec-base-image-hardening' repo branch that contains libraries for CIS-hardening GCE images")
+            description: "The branch or hash of the 'broadinstitute/dsp-appsec-base-image-hardening' repo that contains libraries for CIS-hardening GCE images")
+        string(name: "CRYPTOMINING_LIB_VERSION", defaultValue: "master",
+            description: "The branch or hash of the 'broadinstitute/terra-cryptomining-security-alerts' repo that contains libraries for detecting cryptomining processes")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")
         string(name: "terra_jupyter_base", defaultValue: "0.0.9")
@@ -345,9 +347,12 @@ pipeline {
     stage('Init git submodules') {
         when { expression { !shouldAbortBuild } }
         steps {
-            sh """               
-                git submodule update --init --recursive                
-            """
+            sshagent(['jenkins-ssh-github']) {
+                sh """
+                    git submodule sync
+                    git submodule update --init --recursive
+                """
+            }
         }
     }
 
@@ -359,6 +364,20 @@ pipeline {
                 stage('Run Dataproc image generation script') {
                     when { expression { GENERATE_DATAPROC_IMAGE == "true" } }
                         steps {
+                            sshagent(['jenkins-ssh-github']) {
+                                sh """
+                                    cd ${WORKSPACE}/jenkins/gce-custom-images/terra-cryptomining-security-alerts
+                                    git fetch && git checkout $CRYPTOMINING_LIB_VERSION
+
+                                    gsutil cp install_falco.sh $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/install_falco.sh
+                                    gsutil cp falco.yaml $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/falco.yaml
+                                    gsutil cp terra-cryptomining-rules.yaml $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/terra-cryptomining-rules.yaml
+                                    gsutil cp report.py $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/report.py
+
+                                    sed -i 's/bucket_name=.*/bucket_name="$DATAPROC_IMAGE_BUCKET"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                """
+                            }
+
                             script {
                                 for (String dp_version : DATAPROC_VERSIONS.trim().split(' ')) {
                                     def dp_version_formatted = dp_version.replace(".", "-")
@@ -391,41 +410,50 @@ pipeline {
                         steps {
                             script {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
-                                sh """
-                                    cd jenkins/gce-custom-images/cis-harden-images
-                                    git fetch && git checkout $IMAGE_HARDENING_LIB_VERSION 
+                                sshagent(['jenkins-ssh-github']) {
+                                    sh """
+                                        cd ${WORKSPACE}/jenkins/gce-custom-images/cis-harden-images
+                                        git fetch && git checkout $IMAGE_HARDENING_LIB_VERSION
 
-                                    # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
-                                    gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
+                                        cd ${WORKSPACE}/jenkins/gce-custom-images/terra-cryptomining-security-alerts
+                                        git fetch && git checkout $CRYPTOMINING_LIB_VERSION
 
-                                    docker pull $daisyImage
-                                    docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/gce-custom-images \
-                                        $daisyImage \
-                                        -project $GOOGLE_PROJECT \
-                                        -zone $ZONE \
-                                        -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
-                                        -gcs_path $GCE_IMAGE_BUCKET \
-                                        -default_timeout 45m \
-                                        -var:base_image $GCE_BASE_IMAGE \
-                                        -var:output_image "${customGceImageBaseName}-${imageID}" \
-                                        -var:gce_custom_images_dir /gce-custom-images \
-                                        -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
-                                        -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
-                                        -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \
-                                        -var:cis_hardening_playbook_requirements cis-harden-images/debian9/requirements.yml \
-                                        /gce-custom-images/leo_custom_gce_image.wf.json
-                                    docker stop daisy || true
-                                    docker rm -f daisy || true
+                                        # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
+                                        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
 
-                                    # Daisy doesn't clean it up all so we remove the bucket manually
-                                    gsutil rm -r $GCE_IMAGE_BUCKET
+                                        docker pull $daisyImage
+                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/gce-custom-images \
+                                            $daisyImage \
+                                            -project $GOOGLE_PROJECT \
+                                            -zone $ZONE \
+                                            -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
+                                            -gcs_path $GCE_IMAGE_BUCKET \
+                                            -default_timeout 45m \
+                                            -var:base_image $GCE_BASE_IMAGE \
+                                            -var:output_image "${customGceImageBaseName}-${imageID}" \
+                                            -var:gce_custom_images_dir /gce-custom-images \
+                                            -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
+                                            -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
+                                            -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \
+                                            -var:cis_hardening_playbook_requirements cis-harden-images/debian9/requirements.yml \
+                                            -var:falco_install_script terra-cryptomining-security-alerts/install_falco.sh \
+                                            -var:falco_config terra-cryptomining-security-alerts/falco.yaml \
+                                            -var:falco_cryptomining_rules terra-cryptomining-security-alerts/terra-cryptomining-rules.yaml \
+                                            -var:falco_report_script terra-cryptomining-security-alerts/report.py \
+                                            /gce-custom-images/leo_custom_gce_image.wf.json
+                                        docker stop daisy || true
+                                        docker rm -f daisy || true
 
-                                    # Make the image public
-                                    gcloud beta compute images add-iam-policy-binding \
-                                        projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \
-                                        --member='allAuthenticatedUsers' \
-                                        --role='roles/compute.imageUser'
-                                """
+                                        # Daisy doesn't clean it up all so we remove the bucket manually
+                                        gsutil rm -r $GCE_IMAGE_BUCKET
+
+                                        # Make the image public
+                                        gcloud beta compute images add-iam-policy-binding \
+                                            projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \
+                                            --member='allAuthenticatedUsers' \
+                                            --role='roles/compute.imageUser'
+                                    """
+                                }
                             }
                         }
                 }

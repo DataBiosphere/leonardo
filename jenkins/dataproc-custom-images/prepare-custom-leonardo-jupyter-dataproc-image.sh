@@ -39,6 +39,15 @@ docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_
 # The version of python to install
 python_version="3.7.4"
 
+bucket_name="gs://leo-dataproc-image"
+
+# Variables for downloading Falco cryptomining prevention scripts
+falco_dir="terra-cryptomining-security-alerts"
+falco_install_script="install_falco.sh"
+falco_config="falco.yaml"
+falco_cryptomining_rules="terra-cryptomining-rules.yaml"
+falco_report_script="report.py"
+
 #
 # Functions
 #
@@ -108,6 +117,21 @@ retry 5 apt-get install -y -q \
     gnupg2 \
     software-properties-common \
     libffi-dev
+
+log "Downloading and installing Falco cryptomining detection agent..."
+gsutil cp "${bucket_name}/${falco_dir}/${falco_install_script}" .
+gsutil cp "${bucket_name}/${falco_dir}/${falco_config}" .
+gsutil cp "${bucket_name}/${falco_dir}/${falco_cryptomining_rules}" .
+gsutil cp "${bucket_name}/${falco_dir}/${falco_report_script}" .
+
+# Install and configure Falco
+chmod u+x $falco_install_script
+chmod u+x $falco_report_script
+./$falco_install_script
+cp $falco_config /etc/falco
+cp $falco_cryptomining_rules /etc/falco/falco_rules.local.yaml
+cp $falco_report_script /etc/falco
+service falco restart
 
 log 'Adding Docker package sources...'
 
