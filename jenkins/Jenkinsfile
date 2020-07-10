@@ -373,8 +373,6 @@ pipeline {
                                     gsutil cp falco.yaml $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/falco.yaml
                                     gsutil cp terra-cryptomining-rules.yaml $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/terra-cryptomining-rules.yaml
                                     gsutil cp report.py $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/report.py
-
-                                    sed -i 's/bucket_name=.*/bucket_name="$DATAPROC_IMAGE_BUCKET"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                 """
                             }
 
