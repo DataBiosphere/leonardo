@@ -98,32 +98,32 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       }
     }
 
-    "should be able to install packages that depend on scikit-learn, hdf5, openbabel, gsl, magick++, database package" in {
-      runtimeFixture =>
-        withWebDriver { implicit driver =>
-          withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
-            val installTimeout = 20 minutes
-
-            notebookPage.executeCell("""BiocManager::install('BiocSklearn')""", installTimeout)
-            notebookPage.executeCell("library('BiocSklearn')")
-
-            notebookPage.executeCell("""BiocManager::install('rhdf5')""", installTimeout)
-            notebookPage.executeCell("library(rhdf5)")
-
-            notebookPage.executeCell("""BiocManager::install('ChemmineOB')""", installTimeout)
-            notebookPage.executeCell("library(ChemmineOB)")
-
-            notebookPage.executeCell("""BiocManager::install('EBImage')""", installTimeout)
-            notebookPage.executeCell("library(EBImage)")
-
-            notebookPage.executeCell("""BiocManager::install('RMySQL')""", installTimeout)
-            notebookPage.executeCell("library(RMySQL)")
-
-            notebookPage.executeCell("""BiocManager::install('DirichletMultinomial')""", installTimeout)
-            notebookPage.executeCell("library(DirichletMultinomial)")
-          }
-        }
-    }
+//    "should be able to install packages that depend on scikit-learn, hdf5, openbabel, gsl, magick++, database package" in {
+//      runtimeFixture =>
+//        withWebDriver { implicit driver =>
+//          withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
+//            val installTimeout = 20 minutes
+//
+//            notebookPage.executeCell("""BiocManager::install('BiocSklearn')""", installTimeout)
+//            notebookPage.executeCell("library('BiocSklearn')")
+//
+//            notebookPage.executeCell("""BiocManager::install('rhdf5')""", installTimeout)
+//            notebookPage.executeCell("library(rhdf5)")
+//
+//            notebookPage.executeCell("""BiocManager::install('ChemmineOB')""", installTimeout)
+//            notebookPage.executeCell("library(ChemmineOB)")
+//
+//            notebookPage.executeCell("""BiocManager::install('EBImage')""", installTimeout)
+//            notebookPage.executeCell("library(EBImage)")
+//
+//            notebookPage.executeCell("""BiocManager::install('RMySQL')""", installTimeout)
+//            notebookPage.executeCell("library(RMySQL)")
+//
+//            notebookPage.executeCell("""BiocManager::install('DirichletMultinomial')""", installTimeout)
+//            notebookPage.executeCell("library(DirichletMultinomial)")
+//          }
+//        }
+//    }
 
     "should be able to install packages that depend on jags, protobuf, Cairo and gtk" in { runtimeFixture =>
       withWebDriver { implicit driver =>

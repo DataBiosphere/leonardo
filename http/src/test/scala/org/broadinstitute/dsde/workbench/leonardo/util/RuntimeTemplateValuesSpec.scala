@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite, RuntimeOperation, WelderAction}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -30,7 +29,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.clusterName shouldBe CommonTestData.testCluster.runtimeName.asString
       result.customEnvVarsConfigUri shouldBe GcsPath(CommonTestData.initBucketName,
                                                      GcsObjectName("custom_env_vars.env")).toUri
-      result.deployWelder shouldBe "false"
       result.disableDelocalization shouldBe "false"
       result.googleClientId shouldBe "clientId"
       result.googleProject shouldBe CommonTestData.testCluster.googleProject.value

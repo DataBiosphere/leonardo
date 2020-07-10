@@ -93,23 +93,6 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           customClusterEnvironmentVariables: Map[String, String] = Map.empty,
                           allowStop: Boolean = false)
 
-case class RuntimeRequest(labels: LabelMap = Map(),
-                          jupyterExtensionUri: Option[String] = None,
-                          jupyterUserScriptUri: Option[String] = None,
-                          jupyterStartUserScriptUri: Option[String] = None,
-                          runtimeConfig: Option[RuntimeConfigRequestCopy] = None,
-                          properties: Map[String, String] = Map(),
-                          stopAfterCreation: Option[Boolean] = None,
-                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
-                          autopause: Option[Boolean] = None,
-                          autopauseThreshold: Option[Int] = None,
-                          defaultClientId: Option[String] = None,
-                          toolDockerImage: Option[String] = None,
-                          welderDockerImage: Option[String] = None,
-                          scopes: Set[String] = Set.empty,
-                          customEnvironmentVariables: Map[String, String] = Map.empty,
-                          allowStop: Boolean = false)
-
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
@@ -119,16 +102,12 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
                              googleProject: GoogleProject,
                              creator: WorkbenchEmail,
                              serviceAccount: Option[WorkbenchEmail],
-                             notebookExtension: Option[String],
                              notebookUserScript: Option[String],
                              notebookStartUserScript: Option[String],
                              tool: String) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
-    val ext: Map[String, String] = notebookExtension map { ext =>
-      Map("notebookExtension" -> ext)
-    } getOrElse Map.empty
     val userScr: Map[String, String] = notebookUserScript map { userScr =>
       Map("notebookUserScript" -> userScr)
     } getOrElse Map.empty
@@ -145,7 +124,7 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "tool" -> tool
-    ) ++ ext ++ userScr ++ startScr ++ clusterSa
+    ) ++ userScr ++ startScr ++ clusterSa
   }
 }
 

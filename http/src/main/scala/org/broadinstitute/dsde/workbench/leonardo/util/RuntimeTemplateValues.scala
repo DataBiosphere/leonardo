@@ -4,7 +4,7 @@ import java.time.{Instant, ZoneId}
 import java.time.format.{DateTimeFormatter, FormatStyle}
 
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.WelderAction.{DeployWelder, DisableDelocalization, UpdateWelder}
+import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
@@ -48,7 +48,6 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           memLimit: String,
                                           welderMemLimit: String,
                                           runtimeOperation: String,
-                                          deployWelder: String,
                                           updateWelder: String,
                                           disableDelocalization: String,
                                           rstudioLicenseFile: String,
@@ -229,7 +228,6 @@ object RuntimeTemplateValues {
       config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse(""),
       config.welderConfig.welderReservedMemory.map(_.toString).getOrElse(""),
       config.runtimeOperation.asString,
-      (config.welderAction == Some(DeployWelder)).toString,
       (config.welderAction == Some(UpdateWelder)).toString,
       (config.welderAction == Some(DisableDelocalization)).toString,
       config.initBucketName

@@ -74,7 +74,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       // Check if welder should be deployed or updated
       updatedRuntime <- welderAction
         .traverse {
-          case DeployWelder | UpdateWelder => updateWelder(params.runtime, params.now)
+          case UpdateWelder => updateWelder(params.runtime, params.now)
           case DisableDelocalization =>
             labelQuery
               .save(params.runtime.id, LabelResourceType.Runtime, "welderInstallFailed", "true")
@@ -108,7 +108,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       val labelFound = config.welderConfig.deployWelderLabel.exists(runtime.labels.contains)
       if (labelFound) {
         if (isClusterBeforeCutoffDate(runtime)) Some(DisableDelocalization)
-        else Some(DeployWelder)
+        else None
       } else None
     }
 

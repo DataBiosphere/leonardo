@@ -453,7 +453,6 @@ END
 # TODO (RT): I'm pretty sure this block is never used because we have a dedicated startup.sh script
 # used for starting runtimes. We could confirm this and remove this block.
 elif [[ "$RUNTIME_OPERATION" == 'restarting' ]]; then
-  export DEPLOY_WELDER=$(deployWelder)
   export UPDATE_WELDER=$(updateWelder)
   export DISABLE_DELOCALIZATION=$(disableDelocalization)
 

@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.util.UUID
 import java.util.concurrent.TimeoutException
 
 import cats.implicits._
@@ -17,7 +18,6 @@ import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.middleware.Logger
 import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
-import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
@@ -28,6 +28,8 @@ import org.http4s._
 
 import scala.concurrent.ExecutionContext.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+
+import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
@@ -57,7 +59,7 @@ object LeonardoApiClient {
   )
 
   val defaultCreateRuntime2Request = CreateRuntime2Request(
-    Map.empty,
+    Map("foo" -> UUID.randomUUID().toString),
     None,
     None,
     None,
@@ -78,19 +80,18 @@ object LeonardoApiClient {
     createRuntime2Request: CreateRuntime2Request = defaultCreateRuntime2Request
   )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
     client
-      .successful(
+      .expectOr[String](
         Request[IO](
           method = Method.POST,
           headers = Headers.of(authHeader, defaultMediaType),
           uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
           body = createRuntime2Request
         )
+      )(resp =>
+        resp.bodyText.compile.string
+          .flatMap(body => IO.raiseError(RestError(resp.status, body)))
       )
-      .flatMap { success =>
-        if (success)
-          IO.unit
-        else IO.raiseError(new Exception(s"Fail to create runtime ${googleProject.value}/${runtimeName.asString}"))
-      }
+      .void
 
   def createRuntimeWithWait(googleProject: GoogleProject,
                             runtimeName: RuntimeName,
@@ -101,13 +102,25 @@ object LeonardoApiClient {
   ): IO[GetRuntimeResponseCopy] =
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
-      ioa = getRuntime(googleProject, runtimeName)
+      res <- waitForCreation(googleProject, runtimeName)
+    } yield res
+
+  import org.http4s.circe.CirceEntityDecoder._
+  def waitForCreation(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[GetRuntimeResponseCopy] = {
+    val ioa = getRuntime(googleProject, runtimeName)
+    for {
       res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 60, 10 seconds).compile.lastOrError
       _ <- res.status match {
         case ClusterStatus.Error =>
-          IO.raiseError(
-            new RuntimeException(s"${googleProject.value}/${runtimeName.asString} errored due to ${res.errors}")
-          )
+          if (shouldError)
+            IO.raiseError(
+              new RuntimeException(s"${googleProject.value}/${runtimeName.asString} errored due to ${res.errors}")
+            )
+          else IO.pure(res)
         case ClusterStatus.Running => IO.unit
         case other =>
           IO.raiseError(
@@ -117,6 +130,7 @@ object LeonardoApiClient {
           )
       }
     } yield res
+  }
 
   def getRuntime(
     googleProject: GoogleProject,
@@ -258,3 +272,5 @@ object LeonardoApiClient {
       body <- response.bodyAsText(Charset.`UTF-8`).compile.foldMonoid
     } yield new Exception(body)
 }
+
+final case class RestError(statusCode: Status, message: String) extends NoStackTrace

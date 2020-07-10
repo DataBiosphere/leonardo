@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.service.RestException
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
@@ -18,12 +20,15 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
   "RuntimeStatusTransitionsSpec" - {
 
     implicit val ronToken: AuthToken = ronAuthToken
+    implicit val auth: Authorization = Authorization(
+      org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+    )
 
     "create, monitor, delete should transition correctly" in { billingProject =>
       logger.info("Starting RuntimeStatusTransitionsSpec: create, monitor, delete should transition correctly")
 
       val runtimeName = randomClusterName
-      val runtimeRequest = defaultRuntimeRequest
+      val runtimeRequest = LeonardoApiClient.defaultCreateRuntime2Request
 
       // create a runtime, but don't wait
       createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
@@ -33,15 +38,15 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       creatingRuntime.status shouldBe ClusterStatus.Creating
 
       // can't create another runtime with the same name
-      val caught = the[RestException] thrownBy createNewRuntime(billingProject, runtimeName, monitor = false)
-      caught.message should include(""""statusCode":409""")
+      val caught = the[RestError] thrownBy createNewRuntime(billingProject, runtimeName, monitor = false)
+      caught.statusCode shouldBe (org.http4s.Status.Conflict)
 
       // can't stop a Creating runtime
       val caught2 = the[RestException] thrownBy stopRuntime(billingProject, runtimeName, monitor = false)
       caught2.message should include(""""statusCode":409""")
 
       // wait for runtime to be running
-      monitorCreateRuntime(billingProject, runtimeName, runtimeRequest, creatingRuntime)
+      monitorCreateRuntime(billingProject, runtimeName, runtimeRequest)
       Leonardo.cluster.getRuntime(billingProject, runtimeName).status shouldBe ClusterStatus.Running
 
       // delete the runtime, but don't wait
@@ -56,8 +61,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
 
       // Can't recreate while runtime is deleting
       val caught3 =
-        the[RestException] thrownBy createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
-      caught3.message should include(""""statusCode":409""")
+        the[RestError] thrownBy createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
+      caught.statusCode shouldBe (org.http4s.Status.Conflict)
 
       // Wait for the runtime to be deleted
       monitorDeleteRuntime(billingProject, runtimeName)
@@ -80,8 +85,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
 
         // can't recreate an Error'd runtime
         val caught2 =
-          the[RestException] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
-        caught2.message should include(""""statusCode":409""")
+          the[RestError] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
+        caught2.statusCode shouldBe (org.http4s.Status.Conflict)
 
         // can delete an Error'd runtime
       }
@@ -98,8 +103,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
 
         // can't recreate an Error'd runtime
         val caught2 =
-          the[RestException] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
-        caught2.message should include(""""statusCode":409""")
+          the[RestError] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
+        caught2.statusCode shouldBe (org.http4s.Status.Conflict)
       }
     }
     // Note: omitting stop/start and patch/update tests here because those are covered in more depth in NotebookClusterMonitoringSpec

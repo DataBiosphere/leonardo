@@ -99,17 +99,6 @@ object Leonardo extends RestClient with LazyLogging {
 
     }
 
-    def createRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, runtimeRequest: RuntimeRequest)(
-      implicit token: AuthToken
-    ): Unit = {
-
-      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
-      logger.info(s"Create runtime: POST /$path....${runtimeRequest}")
-
-      postRequest(url + path, runtimeRequest)
-
-    }
-
     def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): ClusterCopy = {
       val path = clusterPath(googleProject, clusterName)
 

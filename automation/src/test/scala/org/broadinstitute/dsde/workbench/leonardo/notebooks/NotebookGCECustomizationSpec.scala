@@ -5,12 +5,17 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.{
   CloudService,
+  GPAllocBeforeAndAfterAll,
   GPAllocFixtureSpec,
+  LeonardoApiClient,
   LeonardoConfig,
-  RuntimeConfigRequestCopy
+  RuntimeConfigRequestCopy,
+  UserScriptPath
 }
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -20,12 +25,14 @@ import scala.concurrent.duration._
  */
 @DoNotDiscover
 final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+  implicit val ronToken: AuthToken = ronAuthToken
+  implicit val auth: Authorization = Authorization(
+    org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+  )
 
   "NotebookGCECustomizationSpec" - {
 
     "should run a user script" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       // Create a new bucket
       withNewGoogleBucket(billingProject) { bucketName =>
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
@@ -36,7 +43,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
         // Add the user script to the bucket
         val userScriptString = "#!/usr/bin/env bash\n\npip3 install mock"
         val userScriptObjectName = GcsObjectName("user-script.sh")
-        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
+        val userScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, userScriptObjectName))
 
         withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
           googleStorageDAO.setObjectAccessControl(bucketName,
@@ -45,7 +52,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
                                                   GcsRoles.Owner)
 
           // Create a new cluster using the URI of the user script
-          val clusterRequestWithUserScript = defaultRuntimeRequest.copy(Map(), None, Option(userScriptUri))
+          val clusterRequestWithUserScript =
+            LeonardoApiClient.defaultCreateRuntime2Request.copy(jupyterUserScriptUri = Some(userScriptUri))
           withNewRuntime(billingProject, request = clusterRequestWithUserScript) { cluster =>
             Thread.sleep(10000)
             withWebDriver { implicit driver =>
@@ -55,7 +63,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
                 notebookPage.executeCell("""import mock""") shouldBe None
               }
             }
-          }(ronAuthToken)
+          }
         }
       }
     }
@@ -63,8 +71,6 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
     "should install user specified notebook extensions" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
@@ -72,39 +78,39 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
             nbExtensions =
               multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
           )
-          withNewRuntime(billingProject,
-                         request = defaultRuntimeRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {
-            runtime =>
-              withWebDriver { implicit driver =>
-                withNewNotebook(runtime, Python3) { notebookPage =>
-                  // Check the extensions were installed
-                  val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-                  nbExt.get should include("jupyter-gmaps/extension  enabled")
-                  nbExt.get should include("pizzabutton/index  enabled")
-                  nbExt.get should include("translate_nbextension/main  enabled")
-                  // should be installed by default
-                  nbExt.get should include("toc2/main  enabled")
+          withNewRuntime(
+            billingProject,
+            request =
+              LeonardoApiClient.defaultCreateRuntime2Request.copy(userJupyterExtensionConfig = Some(extensionConfig))
+          ) { runtime =>
+            withWebDriver { implicit driver =>
+              withNewNotebook(runtime, Python3) { notebookPage =>
+                // Check the extensions were installed
+                val nbExt = notebookPage.executeCell("! jupyter nbextension list")
+                nbExt.get should include("jupyter-gmaps/extension  enabled")
+                nbExt.get should include("pizzabutton/index  enabled")
+                nbExt.get should include("translate_nbextension/main  enabled")
+                // should be installed by default
+                nbExt.get should include("toc2/main  enabled")
 
-                  val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-                  serverExt.get should include("pizzabutton  enabled")
-                  serverExt.get should include("jupyterlab  enabled")
-                  // should be installed by default
-                  serverExt.get should include("jupyter_nbextensions_configurator  enabled")
+                val serverExt = notebookPage.executeCell("! jupyter serverextension list")
+                serverExt.get should include("pizzabutton  enabled")
+                serverExt.get should include("jupyterlab  enabled")
+                // should be installed by default
+                serverExt.get should include("jupyter_nbextensions_configurator  enabled")
 
-                  // Exercise the translate extension
-                  notebookPage.translateMarkup("Yes") should include("Oui")
-                }
+                // Exercise the translate extensionfailure_screenshots/NotebookGCECustomizationSpec_18-34-37-017.png
+                notebookPage.translateMarkup("Yes") should include("Oui")
               }
+            }
           }
       }
     }
 
     "should give cluster user-specified scopes" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       withNewRuntime(
         billingProject,
-        request = defaultRuntimeRequest.copy(
+        request = LeonardoApiClient.defaultCreateRuntime2Request.copy(
           scopes = Set(
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/userinfo.profile",
@@ -134,7 +140,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Note: the R image includes R and python 3 kernels
-      val runtimeRequest = defaultRuntimeRequest.copy(customEnvironmentVariables = Map("KEY" -> "value"))
+      val runtimeRequest =
+        LeonardoApiClient.defaultCreateRuntime2Request.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 
       withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
         withWebDriver { implicit driver =>
@@ -163,7 +170,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
           "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
           "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt"
         val startScriptObjectName = GcsObjectName("start-script.sh")
-        val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
+        val startScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, startScriptObjectName))
 
         withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
           googleStorageDAO.setObjectAccessControl(bucketName,
@@ -171,24 +178,26 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
                                                   EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
                                                   GcsRoles.Owner)
 
-          withNewRuntime(billingProject,
-                         request = defaultRuntimeRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
-            runtime =>
-              withWebDriver { implicit driver =>
-                withNewNotebook(runtime, Python3) { notebookPage =>
-                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
-                }
-
-                // Stop the cluster
-                stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-
-                // Start the cluster
-                startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-
-                withNewNotebook(runtime, Python3) { notebookPage =>
-                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
-                }
+          withNewRuntime(
+            billingProject,
+            request =
+              LeonardoApiClient.defaultCreateRuntime2Request.copy(jupyterStartUserScriptUri = Some(startScriptUri))
+          ) { runtime =>
+            withWebDriver { implicit driver =>
+              withNewNotebook(runtime, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
               }
+
+              // Stop the cluster
+              stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+
+              // Start the cluster
+              startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+
+              withNewNotebook(runtime, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
+              }
+            }
           }
 
         }

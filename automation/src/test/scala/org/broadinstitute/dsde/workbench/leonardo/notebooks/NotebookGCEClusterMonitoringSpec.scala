@@ -5,6 +5,8 @@ import java.io.File
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudio
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -18,12 +20,14 @@ import scala.util.Try
  */
 @DoNotDiscover
 class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+  implicit val ronToken: AuthToken = ronAuthToken
+  implicit val auth: Authorization = Authorization(
+    org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+  )
 
   "NotebookGCEClusterMonitoringSpec" - {
 
     "should pause and resume a cluster" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       // Create a cluster
       withNewRuntime(billingProject) { runtime =>
         val printStr = "Pause/resume test"
@@ -63,8 +67,10 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
 
       withNewRuntime(
         billingProject,
-        request = defaultRuntimeRequest.copy(labels = Map(deployWelderLabel -> "true"),
-                                             welderDockerImage = Some(LeonardoConfig.Leonardo.oldGcrWelderDockerImage))
+        request =
+          LeonardoApiClient.defaultCreateRuntime2Request.copy(labels = Map(deployWelderLabel -> "true"),
+                                                              welderDockerImage =
+                                                                Some(LeonardoConfig.Leonardo.oldGcrWelderDockerImage))
       ) { runtime =>
         // Verify welder is running with old version
         val statusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
@@ -94,9 +100,10 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
 
       withNewRuntime(
         billingProject,
-        request = defaultRuntimeRequest.copy(labels = Map(deployWelderLabel -> "true"),
-                                             welderDockerImage =
-                                               Some(LeonardoConfig.Leonardo.oldDockerHubWelderDockerImage))
+        request = LeonardoApiClient.defaultCreateRuntime2Request.copy(
+          labels = Map(deployWelderLabel -> "true"),
+          welderDockerImage = Some(LeonardoConfig.Leonardo.oldDockerHubWelderDockerImage)
+        )
       ) { runtime =>
         // Verify welder is running with old version
         val statusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
@@ -124,8 +131,8 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       // Create a cluster
       withNewRuntime(
         billingProject,
-        request = defaultRuntimeRequest.copy(
-          toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl) /* enableWelder = Some(true)*/
+        request = LeonardoApiClient.defaultCreateRuntime2Request.copy(
+          toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBaseImage)
         )
       ) { runtime =>
         // Make sure RStudio is up
