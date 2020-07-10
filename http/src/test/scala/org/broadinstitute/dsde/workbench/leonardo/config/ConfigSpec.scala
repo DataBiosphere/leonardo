@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.config
+package org.broadinstitute.dsde.workbench.leonardo
+package config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, ZoneName}
@@ -7,25 +8,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   PersistentDiskMonitor,
   PersistentDiskMonitorConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AutoscalingConfig,
-  AutoscalingMax,
-  AutoscalingMin,
-  BlockSize,
-  DiskSize,
-  DiskType,
-  KubernetesServiceKindName,
-  NumNodes,
-  ReleaseName,
-  RemoteUserName,
-  RemoteUserSecret,
-  ServiceConfig
-}
-import org.scalatest.{FlatSpec, Matchers}
-
-import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
+import scala.concurrent.duration._
 
 class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read PersistentDiskConfig properly" in {
