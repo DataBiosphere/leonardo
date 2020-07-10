@@ -166,7 +166,7 @@ class ProxyService(
       _ <- if (!hasViewPermission) {
         IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName, s"${notebookAction} permission is required"))
       } else if (!hasRequiredPermission) {
-        IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
+        IO.raiseError(AuthorizationError(userInfo.userEmail))
       } else IO.unit
     } yield ()
 
