@@ -347,17 +347,12 @@ pipeline {
     stage('Init git submodules') {
         when { expression { !shouldAbortBuild } }
         steps {
-            sh """
-                git submodule sync
-                git submodule update --init --recursive
-            """
-        }
-    }
-
-    stage('Pull terra-cryptomining-alerts repo') {
-        when { expression { !shouldAbortBuild } }
-        steps {
-            git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:broadinstitute/terra-cryptomining-security-alerts.git', branch: 'master'
+            sshagent(['jenkins-ssh-github']) {
+                sh """
+                    git submodule sync
+                    git submodule update --init --recursive
+                """
+            }
         }
     }
 
@@ -370,7 +365,7 @@ pipeline {
                     when { expression { GENERATE_DATAPROC_IMAGE == "true" } }
                         steps {
                             sh """
-                                cd ${WORKSPACE}/terra-cryptomining-security-alerts
+                                cd ${WORKSPACE}/jenkins/gce-custom-images/terra-cryptomining-security-alerts
                                 git fetch && git checkout $CRYPTOMINING_LIB_VERSION
 
                                 gsutil cp install_falco.sh $DATAPROC_IMAGE_BUCKET/falco/install_falco.sh
@@ -414,13 +409,10 @@ pipeline {
                             script {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
                                 sh """
-                                    ls
                                     cd ${WORKSPACE}/jenkins/gce-custom-images/cis-harden-images
                                     git fetch && git checkout $IMAGE_HARDENING_LIB_VERSION
 
-                                    ls
-                                    ls ${WORKSPACE}
-                                    cd ${WORKSPACE}/terra-cryptomining-security-alerts
+                                    cd ${WORKSPACE}/jenkins/gce-custom-images/terra-cryptomining-security-alerts
                                     git fetch && git checkout $CRYPTOMINING_LIB_VERSION
 
                                     # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
@@ -443,7 +435,6 @@ pipeline {
                                         -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
                                         -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \
                                         -var:cis_hardening_playbook_requirements cis-harden-images/debian9/requirements.yml \
-                                        -var:terra-cryptomining-security-alerts_dir /terra-cryptomining-security-alerts \
                                         -var:falco_install_script install_falco.sh \
                                         -var:falco_config falco.yaml \
                                         -var:falco_cryptomining_rules terra-cryptomining-rules.yaml \
