@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AuditInfo,
   DiskId,
   KubernetesCluster,
+  KubernetesError,
   KubernetesService,
   LabelMap,
   Namespace,
@@ -80,10 +81,11 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
 
 object appQuery extends TableQuery(new AppTable(_)) {
   def unmarshalApp(app: AppRecord,
-                   sevices: List[KubernetesService],
+                   services: List[KubernetesService],
                    labels: LabelMap,
                    namespace: Namespace,
-                   disk: Option[PersistentDisk]): App =
+                   disk: Option[PersistentDisk],
+                   errors: List[KubernetesError]): App =
     App(
       app.id,
       app.nodepoolId,
@@ -101,9 +103,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
       AppResources(
         namespace,
         disk,
-        sevices
+        services
       ),
-      List()
+      errors
     )
 
   def save(saveApp: SaveApp)(implicit ec: ExecutionContext): DBIO[App] = {
@@ -179,6 +181,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
     appQuery.filter(x => x.diskId.isDefined && x.diskId === diskId).length.result.map(_ > 0)
+
+  def detachDisk(id: AppId): DBIO[Int] =
+    getByIdQuery(id)
+      .map(_.diskId)
+      .update(None)
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)

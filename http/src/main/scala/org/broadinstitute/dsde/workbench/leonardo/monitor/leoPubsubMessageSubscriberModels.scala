@@ -200,6 +200,7 @@ object LeoPubsubMessage {
 
   final case class CreateAppMessage(cluster: Option[CreateCluster],
                                     appId: AppId,
+                                    appName: AppName,
                                     nodepoolId: NodepoolLeoId,
                                     project: GoogleProject,
                                     createDisk: Boolean,
@@ -209,9 +210,10 @@ object LeoPubsubMessage {
   }
 
   final case class DeleteAppMessage(appId: AppId,
+                                    appName: AppName,
                                     nodepoolId: NodepoolLeoId,
                                     project: GoogleProject,
-                                    deleteDisk: Boolean,
+                                    diskId: Option[DiskId],
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
@@ -292,11 +294,13 @@ object LeoPubsubCodec {
     Decoder.forProduct2("diskId", "traceId")(DeleteDiskMessage.apply)
 
   implicit val appIdDecoder: Decoder[AppId] = Decoder.decodeLong.map(AppId)
-  implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct6("cluster", "appId", "nodepoolId", "project", "createDisk", "traceId")(CreateAppMessage.apply)
+  implicit val createAppMessageDecoder: Decoder[CreateAppMessage] =
+    Decoder.forProduct7("cluster", "appId", "appName", "nodepoolId", "project", "createDisk", "traceId")(
+      CreateAppMessage.apply
+    )
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
-    Decoder.forProduct5("appId", "nodepoolId", "project", "deleteDisk", "traceId")(DeleteAppMessage.apply)
+    Decoder.forProduct6("appId", "appName", "nodepoolId", "project", "diskId", "traceId")(DeleteAppMessage.apply)
 
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
@@ -527,12 +531,12 @@ object LeoPubsubCodec {
 
   implicit val appIdEncoder: Encoder[AppId] = Encoder.encodeLong.contramap(_.id)
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct5("cluster", "appId", "project", "createDisk", "traceId")(x =>
-      (x.cluster, x.appId, x.project, x.createDisk, x.traceId)
+    Encoder.forProduct8("messageType", "cluster", "appId", "appName", "nodepoolId", "project", "createDisk", "traceId")(
+      x => (x.messageType, x.cluster, x.appId, x.appName, x.nodepoolId, x.project, x.createDisk, x.traceId)
     )
   implicit val deleteAppMessageEncoder: Encoder[DeleteAppMessage] =
-    Encoder.forProduct5("appId", "nodepoolId", "project", "deleteDisk", "traceId")(x =>
-      (x.appId, x.nodepoolId, x.project, x.deleteDisk, x.traceId)
+    Encoder.forProduct7("messageType", "appId", "appName", "nodepoolId", "project", "diskId", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.nodepoolId, x.project, x.diskId, x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>

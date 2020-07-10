@@ -99,7 +99,7 @@ object CommonTestData {
   val vpcConfig = Config.vpcConfig
   val imageConfig = Config.imageConfig
   val welderConfig = Config.welderConfig
-  val clusterFilesConfig = Config.clusterFilesConfig
+  val clusterFilesConfig = Config.securityFilesConfig
   val clusterResourcesConfig = Config.clusterResourcesConfig
   val proxyConfig = Config.proxyConfig
   val swaggerConfig = Config.swaggerConfig

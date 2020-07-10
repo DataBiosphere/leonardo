@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
@@ -16,6 +16,7 @@ object KubernetesTestData {
 
   val appSamId = AppSamResource("067e2867-5d4a-47f3-a53c-fd711529b289")
   val location = Location("us-central1-a")
+  val region = RegionName("us-central1")
 
   val externalIp = IP("0.0.0.0")
   val namespace0 = NamespaceName("namespace00")
@@ -73,7 +74,6 @@ object KubernetesTestData {
       false,
       None,
       List(),
-      List(),
       isDefault
     )
   }
@@ -86,13 +86,13 @@ object KubernetesTestData {
       uniqueProject,
       name,
       location,
+      region,
       KubernetesClusterStatus.Unspecified,
       serviceAccountEmail,
       auditInfo,
       None,
       List(),
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", true)),
-      List()
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", true))
     )
   }
 

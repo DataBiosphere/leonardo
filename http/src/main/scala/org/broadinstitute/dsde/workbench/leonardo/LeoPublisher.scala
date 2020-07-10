@@ -67,7 +67,7 @@ final class LeoPublisher[F[_]: Logger: Timer](
         case m: LeoPubsubMessage.DeleteRuntimeMessage =>
           clusterQuery.markPendingDeletion(m.runtimeId, now).transaction
         case m: LeoPubsubMessage.DeleteAppMessage =>
-          KubernetesServiceDbQueries.markPendingDeletion(m.nodepoolId, m.appId).transaction
+          KubernetesServiceDbQueries.markPendingDeletion(m.nodepoolId, m.appId, m.diskId, now).transaction
         case m: LeoPubsubMessage.CreateAppMessage =>
           KubernetesServiceDbQueries.markPendingCreating(m.nodepoolId, m.appId, m.cluster).transaction
         case _ => F.unit

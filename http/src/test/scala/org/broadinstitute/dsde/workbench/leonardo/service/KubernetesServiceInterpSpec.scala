@@ -232,7 +232,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     deleteAppMessage.appId shouldBe app.id
     deleteAppMessage.nodepoolId shouldBe nodepool.id
     deleteAppMessage.project shouldBe project
-    deleteAppMessage.deleteDisk shouldBe false
+    deleteAppMessage.diskId shouldBe None
   }
 
   it should "error on delete if app is in a status that cannot be deleted" in isolatedDbTest {

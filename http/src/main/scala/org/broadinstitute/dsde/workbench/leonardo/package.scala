@@ -32,6 +32,12 @@ package object http {
       .compile
       .lastOrError
 
+  def readFileToBytes[F[_]: Sync: ContextShift](path: Path, blocker: Blocker): F[List[Byte]] =
+    io.file
+      .readAll(path, blocker, 4096)
+      .compile
+      .fold(List.empty[Byte]) { case (acc, byte) => byte :: acc }
+
   val userScriptStartupOutputUriMetadataKey = "user-startup-script-output-url"
   implicit def cloudServiceSyntax[F[_], A](
     a: A

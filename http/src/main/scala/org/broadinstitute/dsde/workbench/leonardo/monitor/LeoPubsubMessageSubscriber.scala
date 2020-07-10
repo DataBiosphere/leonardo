@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.concurrent.TimeoutException
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
@@ -12,6 +13,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   Event,
@@ -20,7 +22,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   OperationName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -28,6 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -38,9 +40,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   asyncTasks: InspectableQueue[F, Task[F]],
   googleDiskService: GoogleDiskService[F],
-  computePollOperation: ComputePollOperation[F]
+  computePollOperation: ComputePollOperation[F],
+  gkeInterp: GKEInterpreter[F]
 )(implicit executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
+  parallel: Parallel[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F],
@@ -528,9 +532,105 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       )
     } yield ()
 
-  def handleCreateAppMessage(msg: CreateAppMessage): F[Unit] = F.unit
+  def handleCreateAppMessage(msg: CreateAppMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    val createClusterAndNodepool =
+      for {
+        _ <- msg.cluster.fold(F.unit)(createClusterMessage => gkeInterp.createCluster(createClusterMessage, msg.appId))
+        _ <- gkeInterp.createNodepool(msg.nodepoolId, msg.appId)
+      } yield ()
 
-  def handleDeleteAppMessage(msg: DeleteAppMessage): F[Unit] = F.unit
+    val diskCreation = createDiskForApp(msg)
+    val parPreAppCreationSetup = List(createClusterAndNodepool, diskCreation).parSequence.flatMap(_ => F.unit)
+
+    val task = for {
+      _ <- parPreAppCreationSetup
+      _ <- gkeInterp.createApp(msg)
+    } yield ()
+
+    for {
+      ctx <- ev.ask
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.appId}", "creating app")), ctx.now)
+      )
+    } yield ()
+  }
+
+  private def deleteDiskForApp(diskId: DiskId, appId: AppId)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    val delete = for {
+      ctx <- ev.ask
+      _ <- handleDeleteDiskMessage(DeleteDiskMessage(diskId, Some(ctx.traceId)))
+    } yield ()
+
+    delete.onError {
+      case e =>
+        for {
+          now <- nowInstant
+          _ <- logger.error(e)(s"Failed to delete disk for app ${appId}")
+          _ <- appErrorQuery
+            .save(appId, KubernetesError(e.getMessage(), now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None))
+            .transaction
+        } yield ()
+    }
+  }
+
+  private def createDiskForApp(msg: CreateAppMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    val create = msg.createDisk match {
+      case true =>
+        for {
+          _ <- logger.info(s"Beginning disk creation for app ${msg.appId}")
+          ctx <- ev.ask
+          getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
+          getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
+          disk <- F.fromOption(
+            getApp.app.appResources.disk,
+            AppCreationException(
+              s"create disk was true for create app message, but app ${getApp.app.id} does not have a disk id saved"
+            )
+          )
+          _ <- handleCreateDiskMessage(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)))
+        } yield ()
+      case false => F.unit
+    }
+    create.onError {
+      case e =>
+        for {
+          now <- nowInstant
+          _ <- logger.error(e)(s"Failed to create disk for app ${msg.appId}")
+          _ <- appErrorQuery
+            .save(msg.appId, KubernetesError(e.getMessage(), now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None))
+            .transaction
+        } yield ()
+    }
+  }
+
+  def handleDeleteAppMessage(msg: DeleteAppMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    val task = for {
+      ctx <- ev.ask
+      _ <- logger.info(s"beginning delete app for app ${msg.project}/${msg.appName}")
+      getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
+      getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
+      _ <- gkeInterp.deleteNodepool(getApp)
+      _ <- gkeInterp.deleteApp(getApp)
+      _ <- msg.diskId.fold(F.unit)(diskId => deleteDiskForApp(diskId, getApp.app.id))
+      _ <- logger.info(s"completed delete app for app ${msg.project}/${msg.appName}")
+    } yield ()
+
+    for {
+      ctx <- ev.ask
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.appId}", "Deleting App")), ctx.now)
+      )
+      getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
+    } yield ()
+  }
 
   private def logError(projectAndName: String, action: String): Throwable => F[Unit] =
     t => logger.error(t)(s"Fail to monitor ${projectAndName} for ${action}")
@@ -583,10 +683,12 @@ object PubsubHandleMessageError {
   }
 }
 
-final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
-final case class PersistentDiskMonitorConfig(create: PersistentDiskMonitor,
-                                             delete: PersistentDiskMonitor,
-                                             update: PersistentDiskMonitor)
+final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration)
+
+final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
+                                             delete: PollMonitorConfig,
+                                             update: PollMonitorConfig)
+
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig)

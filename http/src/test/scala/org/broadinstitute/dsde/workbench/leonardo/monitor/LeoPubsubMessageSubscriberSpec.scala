@@ -3,7 +3,6 @@ package monitor
 
 import java.time.Instant
 
-import cats.implicits._
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
@@ -15,9 +14,13 @@ import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
+import com.google.container.v1
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{SecretKey, SecretName}
 import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
+  GKEModels,
+  KubernetesModels,
   MachineTypeName,
   MockGoogleDiskService,
   OperationName,
@@ -25,6 +28,12 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
+  makeApp,
+  makeKubeCluster,
+  makeNodepool,
+  makeService
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
@@ -32,7 +41,9 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeSe
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterErrorQuery,
   clusterQuery,
+  kubernetesClusterQuery,
   persistentDiskQuery,
+  KubernetesServiceDbQueries,
   RuntimeConfigQueries,
   TestComponent
 }
@@ -43,6 +54,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   ClusterInvalidState,
   DiskInvalidState
 }
+import org.broadinstitute.dsde.workbench.leonardo.service.{MockGKEService, MockKubernetesService}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -88,6 +100,9 @@ class LeoPubsubMessageSubscriberSpec
                            MockGoogleComputeService,
                            new MockComputePollOperation)
 
+  val gkeInterp =
+    new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, MockGKEService, MockKubernetesService, blocker)
+
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
@@ -106,6 +121,7 @@ class LeoPubsubMessageSubscriberSpec
                                          MockGoogleDiskService,
                                          mockWelderDAO,
                                          blocker)
+
   implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val runningCluster = makeCluster(1).copy(
@@ -496,10 +512,601 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
+  it should "handle create app message with a create cluster" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val disk = makePersistentDisk(DiskId(1)).save().unsafeRunSync()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+
+    val assertions = for {
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
+      getCluster = clusterOpt.get
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+      getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
+      getDisk = getDiskOpt.get
+    } yield {
+      getCluster.status shouldBe KubernetesClusterStatus.Running
+      getCluster.nodepools.size shouldBe 2
+      getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
+      getApp.app.errors shouldBe List()
+      getApp.app.status shouldBe AppStatus.Running
+      getApp.cluster.status shouldBe KubernetesClusterStatus.Running
+      getApp.nodepool.status shouldBe NodepoolStatus.Running
+      getApp.cluster.asyncFields shouldBe Some(
+        KubernetesClusterAsyncFields(IP(MockGKEService.testEndpoint),
+                                     NetworkFields(Config.vpcConfig.networkName,
+                                                   Config.vpcConfig.subnetworkName,
+                                                   Config.vpcConfig.subnetworkIpRange))
+      )
+      getDisk.status shouldBe DiskStatus.Ready
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+      msg = CreateAppMessage(Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+                             savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             true,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "create an app with no disk" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors shouldBe List()
+      getApp.cluster.asyncFields shouldBe Some(
+        KubernetesClusterAsyncFields(IP(MockGKEService.testEndpoint),
+                                     NetworkFields(Config.vpcConfig.networkName,
+                                                   Config.vpcConfig.subnetworkName,
+                                                   Config.vpcConfig.subnetworkIpRange))
+      )
+      getApp.app.appResources.disk shouldBe None
+      getApp.app.status shouldBe AppStatus.Running
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+      msg = CreateAppMessage(Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+                             savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             false,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "be able to create an multiple apps in a cluster" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
+
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+    val savedApp2 = makeApp(2, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt1 <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getAppOpt2 <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp2.appName)
+        .transaction
+      getApp1 = getAppOpt1.get
+      getApp2 = getAppOpt2.get
+    } yield {
+      getApp1.cluster.status shouldBe KubernetesClusterStatus.Running
+      getApp2.cluster.status shouldBe KubernetesClusterStatus.Running
+      getApp1.nodepool.status shouldBe NodepoolStatus.Running
+      getApp2.nodepool.status shouldBe NodepoolStatus.Running
+      getApp1.app.errors shouldBe List()
+      getApp1.app.status shouldBe AppStatus.Running
+      getApp1.cluster.asyncFields shouldBe Some(
+        KubernetesClusterAsyncFields(IP(MockGKEService.testEndpoint),
+                                     NetworkFields(Config.vpcConfig.networkName,
+                                                   Config.vpcConfig.subnetworkName,
+                                                   Config.vpcConfig.subnetworkIpRange))
+      )
+      getApp2.app.errors shouldBe List()
+      getApp2.app.status shouldBe AppStatus.Running
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+      msg1 = CreateAppMessage(Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+                              savedApp1.id,
+                              savedApp1.appName,
+                              savedNodepool1.id,
+                              savedCluster1.googleProject,
+                              false,
+                              Some(tr))
+      msg2 = CreateAppMessage(None,
+                              savedApp2.id,
+                              savedApp2.appName,
+                              savedNodepool2.id,
+                              savedCluster1.googleProject,
+                              false,
+                              Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg1)
+      _ <- leoSubscriber.handleCreateAppMessage(msg2)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "create a nodepool with autoscaling" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val minNodes = 0
+    val maxNodes = 2
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id)
+      .copy(autoscalingEnabled = true,
+            autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
+      .save()
+
+    val googleNodepool = gkeInterp.getGoogleNodepool(savedNodepool1)
+    googleNodepool.getAutoscaling.getEnabled shouldBe true
+    googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
+    googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
+  }
+
+  it should "create secrets properly" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val secrets = gkeInterp.getSecrets(savedApp1.appResources.namespace.name).unsafeRunSync()
+
+    //we don't check the byte arrays here for the files
+    secrets.size shouldBe 2
+    secrets.map(_.secrets.keys.size).sum shouldBe 3
+    secrets.flatMap(_.secrets.keys).sortBy(_.value) shouldBe List(SecretKey("ca-crt"),
+                                                                  SecretKey("tls-crt"),
+                                                                  SecretKey("tls-key")).sortBy(_.value)
+    val emptyFileSecrets = secrets.map(s => (s.name, s.namespaceName))
+    emptyFileSecrets should contain((SecretName("ca-secret"), savedApp1.appResources.namespace.name))
+    emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))
+    secrets.flatMap(_.secrets.values).map(s => s.isEmpty shouldBe false)
+  }
+
+  //handle an error in createCluster
+  it should "error on create if cluster doesn't exist" in isolatedDbTest {
+
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = CreateAppMessage(Some(CreateCluster(KubernetesClusterLeoId(-1), NodepoolLeoId(-1))),
+                             savedApp1.id,
+                             savedApp1.appName,
+                             NodepoolLeoId(-1),
+                             project,
+                             false,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  //handle an error in createNodepool
+  //update error table and status
+  it should "error on create if nodepool doesn't exist" in isolatedDbTest {
+
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Nodepool)
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = CreateAppMessage(Some(CreateCluster(savedCluster1.id, NodepoolLeoId(-1))),
+                             savedApp1.id,
+                             savedApp1.appName,
+                             NodepoolLeoId(-2),
+                             savedCluster1.googleProject,
+                             false,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "error on create if app doesn't exist" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.status shouldBe AppStatus.Error
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.App)
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = CreateAppMessage(None,
+                             savedApp1.id,
+                             AppName("fakeapp"),
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             false,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle error in createApp if createDisk is specified with no disk" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = CreateAppMessage(None,
+                             savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             true,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "delete app without disk" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 0
+      getApp.app.status shouldBe AppStatus.Deleted
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             None,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  //delete app and not delete disk when specified
+  //update app status and disk id
+  it should "delete app and not delete disk when specified" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val disk = makePersistentDisk(DiskId(1)).save().unsafeRunSync()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+      getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
+      getDisk = getDiskOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 0
+      getApp.app.status shouldBe AppStatus.Deleted
+      getApp.app.appResources.disk shouldBe None
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getDisk.status shouldBe DiskStatus.Ready
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             None,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "delete app and delete disk when specified" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val disk = makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Deleting).save().unsafeRunSync()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+      getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
+      getDisk = getDiskOpt.get
+    } yield {
+      getApp.app.errors shouldBe List()
+      getApp.app.status shouldBe AppStatus.Deleted
+      getApp.app.appResources.disk shouldBe None
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getDisk.status shouldBe DiskStatus.Deleted
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             Some(disk.id),
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle an error in delete app" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val mockKubernetesService = new MockKubernetesService {
+      override def deleteNamespace(
+        clusterId: GKEModels.KubernetesClusterId,
+        namespace: KubernetesModels.KubernetesNamespace
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
+    }
+    val gkeInterp =
+      new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, MockGKEService, mockKubernetesService, blocker)
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.status shouldBe AppStatus.Error
+      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.App)
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             None,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterp = gkeInterp)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle an error in delete nodepool" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val mockGKEService = new MockGKEService {
+      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[v1.Operation] = IO.raiseError(new Exception("test exception"))
+    }
+    val gkeInterp =
+      new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, mockGKEService, MockKubernetesService, blocker)
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Nodepool)
+      getApp.nodepool.status shouldBe NodepoolStatus.Error
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             None,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterp = gkeInterp)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  //error on delete disk if disk doesn't exist
+  it should "handle an error in delete app if delete disk = true and no disk exists" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.app.status shouldBe AppStatus.Deleted
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             Some(DiskId(-1)),
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
   def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
                           InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
-                        computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation) = {
+                        computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
+                        gkeInterp: GKEInterpreter[IO] = gkeInterp) = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
@@ -511,7 +1118,8 @@ class LeoPubsubMessageSubscriberSpec
       googleSubscriber,
       asyncTaskQueue,
       MockGoogleDiskService,
-      computePollOperation
+      computePollOperation,
+      gkeInterp
     )
   }
 }

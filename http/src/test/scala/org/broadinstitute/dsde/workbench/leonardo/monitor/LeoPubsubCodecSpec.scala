@@ -1,11 +1,23 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
+import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.{AuditInfo, DiskId, DiskSize, RuntimeName, RuntimeProjectAndName}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppId,
+  AppName,
+  AuditInfo,
+  CreateCluster,
+  DiskId,
+  DiskSize,
+  KubernetesClusterLeoId,
+  NodepoolLeoId,
+  RuntimeName,
+  RuntimeProjectAndName
+}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateRuntimeMessage}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.matchers.should.Matchers
 import _root_.io.circe.syntax._
@@ -67,6 +79,23 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     )
 
     val res = decode[CreateRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
+
+    res shouldBe Right(originalMessage)
+  }
+
+  it should "encode/decode CreateAppMessage properly" in {
+    val traceId = TraceId(UUID.randomUUID().toString)
+    val originalMessage = CreateAppMessage(
+      Some(CreateCluster(KubernetesClusterLeoId(1), NodepoolLeoId(1))),
+      AppId(1),
+      AppName("app1"),
+      NodepoolLeoId(2),
+      GoogleProject("project1"),
+      true,
+      Some(traceId)
+    )
+
+    val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))
 
     res shouldBe Right(originalMessage)
   }
