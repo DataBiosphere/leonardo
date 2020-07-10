@@ -169,6 +169,7 @@ gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_report_script}" .
 
 # Install and configure Falco
 chmod u+x $falco_install_script
+chmod u+x $falco_report_script
 ./$falco_install_script
 cp $falco_config /etc/falco
 cp $falco_cryptomining_rules /etc/falco/falco_rules.local.yaml
