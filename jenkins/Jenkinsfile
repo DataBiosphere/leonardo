@@ -369,10 +369,10 @@ pipeline {
                                     cd ${WORKSPACE}/jenkins/gce-custom-images/terra-cryptomining-security-alerts
                                     git fetch && git checkout $CRYPTOMINING_LIB_VERSION
 
-                                    gsutil cp install_falco.sh $DATAPROC_IMAGE_BUCKET/falco/install_falco.sh
-                                    gsutil cp falco.yaml $DATAPROC_IMAGE_BUCKET/falco/falco.yaml
-                                    gsutil cp terra-cryptomining-rules.yaml $DATAPROC_IMAGE_BUCKET/falco/terra-cryptomining-rules.yaml
-                                    gsutil cp report.py $DATAPROC_IMAGE_BUCKET/falco/report.py
+                                    gsutil cp install_falco.sh $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/install_falco.sh
+                                    gsutil cp falco.yaml $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/falco.yaml
+                                    gsutil cp terra-cryptomining-rules.yaml $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/terra-cryptomining-rules.yaml
+                                    gsutil cp report.py $DATAPROC_IMAGE_BUCKET/terra-cryptomining-security-alerts/report.py
 
                                     sed -i 's/bucket_name=.*/bucket_name="$DATAPROC_IMAGE_BUCKET"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                 """
