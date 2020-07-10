@@ -422,9 +422,7 @@ pipeline {
                                         gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
 
                                         docker pull $daisyImage
-                                        docker run -i --rm \
-                                            -v ${WORKSPACE}/jenkins/gce-custom-images:/gce-custom-images \
-                                            -v ${WORKSPACE}/terra-cryptomining-security-alerts:/terra-cryptomining-security-alerts \
+                                        docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/gce-custom-images \
                                             $daisyImage \
                                             -project $GOOGLE_PROJECT \
                                             -zone $ZONE \
