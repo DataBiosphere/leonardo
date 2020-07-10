@@ -414,9 +414,12 @@ pipeline {
                             script {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
                                 sh """
+                                    ls
                                     cd ${WORKSPACE}/jenkins/gce-custom-images/cis-harden-images
                                     git fetch && git checkout $IMAGE_HARDENING_LIB_VERSION
 
+                                    ls
+                                    ls ${WORKSPACE}
                                     cd ${WORKSPACE}/terra-cryptomining-security-alerts
                                     git fetch && git checkout $CRYPTOMINING_LIB_VERSION
 
