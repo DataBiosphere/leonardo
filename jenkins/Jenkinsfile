@@ -441,7 +441,7 @@ pipeline {
                                             -var:falco_install_script install_falco.sh \
                                             -var:falco_config falco.yaml \
                                             -var:falco_cryptomining_rules terra-cryptomining-rules.yaml \
-                                            -var:falco_alert_script report.py \
+                                            -var:falco_report_script report.py \
                                             /gce-custom-images/leo_custom_gce_image.wf.json
                                         docker stop daisy || true
                                         docker rm -f daisy || true
