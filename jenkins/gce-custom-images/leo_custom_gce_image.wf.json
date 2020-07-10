@@ -29,6 +29,10 @@
             "Required": true,
             "Description": "The script that installs the Ansible playbook for image hardening"
         },
+        "terra-cryptomining-security-alerts_dir": {
+            "Required": true,
+            "Description": "The directory that contains the crytomining alerts"
+        },
         "falco_install_script": {
             "Required": true,
             "Description": "Script to install falco"
@@ -51,10 +55,10 @@
         "${cis_hardening_playbook_config}": "${gce_custom_images_dir}/${cis_hardening_playbook_config}",
         "${cis_hardening_playbook_requirements}": "${gce_custom_images_dir}/${cis_hardening_playbook_requirements}",
         "${image_hardening_script}": "${gce_custom_images_dir}/${image_hardening_script}",
-        "${falco_install_script}": "${gce_custom_images_dir}/${falco_install_script}",
-        "${falco_config}": "${gce_custom_images_dir}/${falco_config}",
-        "${falco_cryptomining_rules}": "${gce_custom_images_dir}/${falco_cryptomining_rules}",
-        "${falco_report_script}": "${gce_custom_images_dir}/${falco_report_script}"
+        "${falco_install_script}": "${terra-cryptomining-security-alerts_dir}/${falco_install_script}",
+        "${falco_config}": "${terra-cryptomining-security-alerts_dir}/${falco_config}",
+        "${falco_cryptomining_rules}": "${terra-cryptomining-security-alerts_dir}/${falco_cryptomining_rules}",
+        "${falco_report_script}": "${terra-cryptomining-security-alerts_dir}/${falco_report_script}"
     },
     "Steps": {
         "create-disks": {
