@@ -48,10 +48,10 @@ vm_metadata_google_header="Metadata-Flavor: Google"
 
 # Variables for downloading Falco cryptomining prevention scripts
 falco_dir="terra-cryptomining-security-alerts"
-falco_install_script="${falco_dir}/install_falco.sh"
-falco_config="${falco_dir}/falco.yaml"
-falco_cryptomining_rules="${falco_dir}/terra-cryptomining-rules.yaml"
-falco_report_script="${falco_dir}/report.py"
+falco_install_script="install_falco.sh"
+falco_config="falco.yaml"
+falco_cryptomining_rules="terra-cryptomining-rules.yaml"
+falco_report_script="report.py"
 
 #
 # Functions
@@ -162,10 +162,10 @@ chmod u+x $image_hardening_script_file_name
 ./$image_hardening_script_file_name
 
 log "Downloading and installing Falco cryptomining detection agent..."
-gsutil cp "${daisy_sources_path}/${falco_install_script}" .
-gsutil cp "${daisy_sources_path}/${falco_config}" .
-gsutil cp "${daisy_sources_path}/${falco_cryptomining_rules}" .
-gsutil cp "${daisy_sources_path}/${falco_report_script}" .
+gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_install_script}" .
+gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_config}" .
+gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_cryptomining_rules}" .
+gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_report_script}" .
 
 # Install and configure Falco
 chmod u+x $falco_install_script
