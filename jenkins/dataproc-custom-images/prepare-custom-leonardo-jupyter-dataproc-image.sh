@@ -118,20 +118,22 @@ retry 5 apt-get install -y -q \
     software-properties-common \
     libffi-dev
 
-log "Downloading and installing Falco cryptomining detection agent..."
-gsutil cp "${bucket_name}/${falco_dir}/${falco_install_script}" .
-gsutil cp "${bucket_name}/${falco_dir}/${falco_config}" .
-gsutil cp "${bucket_name}/${falco_dir}/${falco_cryptomining_rules}" .
-gsutil cp "${bucket_name}/${falco_dir}/${falco_report_script}" .
+# TODO: falco install is failing on Dataproc. Example logs:
+# gs://leo-dataproc-image/custom-image-custom-leo-image-dataproc-1-2-79-debian9-2020-07-10-20200710-163559/logs/startup-script.log
+#log "Downloading and installing Falco cryptomining detection agent..."
+#gsutil cp "${bucket_name}/${falco_dir}/${falco_install_script}" .
+#gsutil cp "${bucket_name}/${falco_dir}/${falco_config}" .
+#gsutil cp "${bucket_name}/${falco_dir}/${falco_cryptomining_rules}" .
+#gsutil cp "${bucket_name}/${falco_dir}/${falco_report_script}" .
 
 # Install and configure Falco
-chmod u+x $falco_install_script
-chmod u+x $falco_report_script
-./$falco_install_script
-cp $falco_config /etc/falco
-cp $falco_cryptomining_rules /etc/falco/falco_rules.local.yaml
-cp $falco_report_script /etc/falco
-service falco restart
+#chmod u+x $falco_install_script
+#chmod u+x $falco_report_script
+#./$falco_install_script
+#cp $falco_config /etc/falco
+#cp $falco_cryptomining_rules /etc/falco/falco_rules.local.yaml
+#cp $falco_report_script /etc/falco
+#service falco restart
 
 log 'Adding Docker package sources...'
 
