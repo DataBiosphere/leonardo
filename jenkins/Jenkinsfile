@@ -347,7 +347,8 @@ pipeline {
     stage('Init git submodules') {
         when { expression { !shouldAbortBuild } }
         steps {
-            sh """               
+            sh """
+                git submodule sync
                 git submodule update --init --recursive                
             """
         }
