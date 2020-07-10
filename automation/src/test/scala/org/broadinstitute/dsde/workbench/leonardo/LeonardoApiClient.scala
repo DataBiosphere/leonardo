@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.middleware.Logger
 import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
-import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
@@ -29,6 +28,8 @@ import org.http4s._
 
 import scala.concurrent.ExecutionContext.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+
+import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
@@ -79,19 +80,18 @@ object LeonardoApiClient {
     createRuntime2Request: CreateRuntime2Request = defaultCreateRuntime2Request
   )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
     client
-      .successful(
+      .expectOr[String](
         Request[IO](
           method = Method.POST,
           headers = Headers.of(authHeader, defaultMediaType),
           uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
           body = createRuntime2Request
         )
+      )(resp =>
+        resp.bodyText.compile.string
+          .flatMap(body => IO.raiseError(RestError(resp.status, body)))
       )
-      .flatMap { success =>
-        if (success)
-          IO.unit
-        else IO.raiseError(new Exception(s"Fail to create runtime ${googleProject.value}/${runtimeName.asString}"))
-      }
+      .void
 
   def createRuntimeWithWait(googleProject: GoogleProject,
                             runtimeName: RuntimeName,
@@ -105,6 +105,7 @@ object LeonardoApiClient {
       res <- waitForCreation(googleProject, runtimeName)
     } yield res
 
+  import org.http4s.circe.CirceEntityDecoder._
   def waitForCreation(googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit timer: Timer[IO],
     client: Client[IO],
@@ -269,3 +270,5 @@ object LeonardoApiClient {
       body <- response.bodyAsText(Charset.`UTF-8`).compile.foldMonoid
     } yield new Exception(body)
 }
+
+final case class RestError(statusCode: Status, message: String) extends NoStackTrace

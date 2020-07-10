@@ -372,6 +372,8 @@ trait LeonardoTestUtils
     val expectedStatuses =
       List(ClusterStatus.Running, ClusterStatus.Error)
 
+    implicit val patienceConfig: PatienceConfig = clusterPatience
+
     val runningOrErroredRuntime = Try {
       eventually {
         val runtime = Leonardo.cluster.getRuntime(googleProject, runtimeName)

@@ -13,8 +13,12 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
  * Note these tests can take a long time so we don't test all edge cases, but these cases
  * should exercise the most commonly used paths through the system.
  */
-@DoNotDiscover
-class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+//@DoNotDiscover
+class RuntimeStatusTransitionsSpec
+    extends GPAllocFixtureSpec
+    with ParallelTestExecution
+    with LeonardoTestUtils
+    with GPAllocBeforeAndAfterAll {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "RuntimeStatusTransitionsSpec" - {
@@ -38,8 +42,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       creatingRuntime.status shouldBe ClusterStatus.Creating
 
       // can't create another runtime with the same name
-      val caught = the[RestException] thrownBy createNewRuntime(billingProject, runtimeName, monitor = false)
-      caught.message should include(""""statusCode":409""")
+      val caught = the[RestError] thrownBy createNewRuntime(billingProject, runtimeName, monitor = false)
+      caught.statusCode shouldBe (org.http4s.Status.Conflict)
 
       // can't stop a Creating runtime
       val caught2 = the[RestException] thrownBy stopRuntime(billingProject, runtimeName, monitor = false)
@@ -61,8 +65,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
 
       // Can't recreate while runtime is deleting
       val caught3 =
-        the[RestException] thrownBy createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
-      caught3.message should include(""""statusCode":409""")
+        the[RestError] thrownBy createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
+      caught.statusCode shouldBe (org.http4s.Status.Conflict)
 
       // Wait for the runtime to be deleted
       monitorDeleteRuntime(billingProject, runtimeName)
@@ -85,8 +89,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
 
         // can't recreate an Error'd runtime
         val caught2 =
-          the[RestException] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
-        caught2.message should include(""""statusCode":409""")
+          the[RestError] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
+        caught2.statusCode shouldBe (org.http4s.Status.Conflict)
 
         // can delete an Error'd runtime
       }
@@ -103,8 +107,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
 
         // can't recreate an Error'd runtime
         val caught2 =
-          the[RestException] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
-        caught2.message should include(""""statusCode":409""")
+          the[RestError] thrownBy createNewRuntime(runtime.googleProject, runtime.runtimeName, monitor = false)
+        caught2.statusCode shouldBe (org.http4s.Status.Conflict)
       }
     }
     // Note: omitting stop/start and patch/update tests here because those are covered in more depth in NotebookClusterMonitoringSpec
