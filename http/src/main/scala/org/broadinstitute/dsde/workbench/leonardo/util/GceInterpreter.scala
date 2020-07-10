@@ -278,7 +278,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
       resourceConstraints <- getResourceConstraints(runtime.googleProject,
                                                     config.gceConfig.zoneName,
                                                     runtimeConfig.machineType)
-      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker, resourceConstraints)
+      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker, resourceConstraints, true)
       // remove the startup-script-url metadata entry if present which is only used at creation time
       _ <- googleComputeService.modifyInstanceMetadata(
         runtime.googleProject,
