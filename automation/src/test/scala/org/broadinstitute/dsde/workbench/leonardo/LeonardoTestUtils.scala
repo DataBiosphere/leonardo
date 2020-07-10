@@ -305,7 +305,8 @@ trait LeonardoTestUtils
   def createRuntime(googleProject: GoogleProject,
                     runtimeName: RuntimeName,
                     runtimeRequest: CreateRuntime2Request,
-                    monitor: Boolean)(implicit token: Authorization): GetRuntimeResponseCopy = {
+                    monitor: Boolean,
+                    shouldError: Boolean = true)(implicit token: Authorization): GetRuntimeResponseCopy = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
@@ -320,7 +321,7 @@ trait LeonardoTestUtils
           )
         )
         resp <- if (monitor)
-          LeonardoApiClient.waitForCreation(googleProject, runtimeName)
+          LeonardoApiClient.waitForCreation(googleProject, runtimeName, shouldError)
         else LeonardoApiClient.getRuntime(googleProject, runtimeName)
       } yield resp
     }
@@ -410,17 +411,6 @@ trait LeonardoTestUtils
     implicit token: AuthToken
   ): ClusterCopy =
     createCluster(googleProject, clusterName, clusterRequest, monitor = true)
-
-  def createAndMonitorRuntime(googleProject: GoogleProject,
-                              runtimeName: RuntimeName,
-                              runtimeRequest: CreateRuntime2Request)(
-    implicit token: AuthToken
-  ): GetRuntimeResponseCopy = {
-    implicit val auth: Authorization = Authorization(
-      org.http4s.Credentials.Token(AuthScheme.Bearer, token.value)
-    )
-    createRuntime(googleProject, runtimeName, runtimeRequest, monitor = true)
-  }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
@@ -804,7 +794,7 @@ trait LeonardoTestUtils
   def withNewErroredRuntime[T](
     googleProject: GoogleProject,
     isUserStartupScript: Boolean
-  )(testCode: GetRuntimeResponseCopy => T)(implicit token: AuthToken): T = {
+  )(testCode: GetRuntimeResponseCopy => T)(implicit token: AuthToken, authorization: Authorization): T = {
     val name = RuntimeName(s"automation-test-a${makeRandomId()}z")
     // Fail a cluster by providing a user script which returns exit status 1
     val hailUploadFile = ResourceFile("bucket-tests/invalid_user_script.sh")
@@ -819,8 +809,7 @@ trait LeonardoTestUtils
             .copy(jupyterUserScriptUri = Some(UserScriptPath.Gcs(bucketPath)))
 
       val testResult: Try[T] = Try {
-
-        val runtime = createAndMonitorRuntime(googleProject, name, request)
+        val runtime = createRuntime(googleProject, name, request, monitor = true, false)
 
         runtime.status shouldBe ClusterStatus.Error
         runtime.errors should have size 1

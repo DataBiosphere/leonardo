@@ -106,7 +106,7 @@ object LeonardoApiClient {
     } yield res
 
   import org.http4s.circe.CirceEntityDecoder._
-  def waitForCreation(googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def waitForCreation(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
@@ -116,9 +116,11 @@ object LeonardoApiClient {
       res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 60, 10 seconds).compile.lastOrError
       _ <- res.status match {
         case ClusterStatus.Error =>
-          IO.raiseError(
-            new RuntimeException(s"${googleProject.value}/${runtimeName.asString} errored due to ${res.errors}")
-          )
+          if (shouldError)
+            IO.raiseError(
+              new RuntimeException(s"${googleProject.value}/${runtimeName.asString} errored due to ${res.errors}")
+            )
+          else IO.pure(res)
         case ClusterStatus.Running => IO.unit
         case other =>
           IO.raiseError(
