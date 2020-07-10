@@ -141,7 +141,9 @@ pipeline {
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
             description: "A custom image will be build for each of these dataproc versions")
         string(name: "IMAGE_HARDENING_LIB_VERSION", defaultValue: "100d620",
-            description: "The hash of the 'broadinstitute/dsp-appsec-base-image-hardening' repo branch that contains libraries for CIS-hardening GCE images")
+            description: "The branch or hash of the 'broadinstitute/dsp-appsec-base-image-hardening' repo that contains libraries for CIS-hardening GCE images")
+        string(name: "CRYPTOMINING_LIB_VERSION", defaultValue: "master",
+            description: "The branch or hash of the 'broadinstitute/terra-cryptomining-security-alerts' repo that contains libraries for detecting cryptomining processes")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")
         string(name: "terra_jupyter_base", defaultValue: "0.0.9")
@@ -392,8 +394,11 @@ pipeline {
                             script {
                                 String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
                                 sh """
-                                    cd jenkins/gce-custom-images/cis-harden-images
-                                    git fetch && git checkout $IMAGE_HARDENING_LIB_VERSION 
+                                    cd ${WORKSPACE}/jenkins/gce-custom-images/cis-harden-images
+                                    git fetch && git checkout $IMAGE_HARDENING_LIB_VERSION
+
+                                    cd ${WORKSPACE}/jenkins/gce-custom-images/terra-cryptomining-security-alerts
+                                    git fetch && git checkout $CRYPTOMINING_LIB_VERSION
 
                                     # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
                                     gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
@@ -413,6 +418,10 @@ pipeline {
                                         -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
                                         -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \
                                         -var:cis_hardening_playbook_requirements cis-harden-images/debian9/requirements.yml \
+                                        -var:falco_install_script terra-cryptomining-security-alerts/install_falco.sh \
+                                        -var:falco_config terra-cryptomining-security-alerts/falco.yaml \
+                                        -var:falco_cryptomining_rules terra-cryptomining-security-alerts/terra-cryptomining-rules.yaml \
+                                        -var:falco_alert_script terra-cryptomining-security-alerts/report.py \
                                         /gce-custom-images/leo_custom_gce_image.wf.json
                                     docker stop daisy || true
                                     docker rm -f daisy || true

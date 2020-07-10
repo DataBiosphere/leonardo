@@ -154,6 +154,20 @@ gsutil cp "${daisy_sources_path}/${image_hardening_script_file}" .
 chmod u+x $image_hardening_script_file_name
 ./$image_hardening_script_file_name
 
+log "Downloading and installing Falco cryptomining detection agent..."
+gsutil cp "${daisy_sources_path}/${falco_install_script}" .
+gsutil cp "${daisy_sources_path}/${falco_config}" .
+gsutil cp "${daisy_sources_path}/${falco_cryptomining_rules}" .
+gsutil cp "${daisy_sources_path}/${falco_report_script}" .
+
+# Install and configure Falco
+chmod u+x $falco_install_script
+./$falco_install_script
+cp $falco_config /etc/falco
+cp $falco_cryptomining_rules /etc/falco/falco_rules.local.yaml
+cp $falco_report_script /etc/falco
+service falco restart
+
 log 'Installing Docker...'
 
 retry 5 apt-get update
