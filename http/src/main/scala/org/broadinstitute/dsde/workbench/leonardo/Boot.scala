@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   credentialResource,
   ComputePollOperation,
   Event,
+  GKEService,
   GoogleComputeService,
   GoogleDataprocService,
   GoogleDiskService,
@@ -75,7 +76,7 @@ object Boot extends IOApp {
         imageConfig,
         welderConfig,
         proxyConfig,
-        clusterFilesConfig,
+        securityFilesConfig,
         clusterResourcesConfig
       )
       val bucketHelper = new BucketHelper(bucketHelperConfig,
@@ -233,13 +234,20 @@ object Boot extends IOApp {
           // only needed for backleo
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
+          val gkeInterp = new GKEInterpreter[IO](gkeInterpConfig,
+                                                 vpcInterp,
+                                                 googleDependencies.gkeService,
+                                                 googleDependencies.kubeService,
+                                                 appDependencies.blocker)
+
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
                                                appDependencies.subscriber,
                                                appDependencies.asyncTasksQueue,
                                                googleDiskService,
                                                googleDependencies.computePollOperation,
-                                               appDependencies.authProvider)
+                                               appDependencies.authProvider,
+                                               gkeInterp)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -339,6 +347,10 @@ object Boot extends IOApp {
         InspectableQueue.bounded[F, UpdateDateAccessMessage](dateAccessUpdaterConfig.queueSize)
       )
 
+      gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
+      kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
+        .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
+
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
@@ -367,7 +379,9 @@ object Boot extends IOApp {
         googleIamDAO,
         gdDAO,
         dataprocService,
-        kubernetesDnsCache
+        kubernetesDnsCache,
+        gkeService,
+        kubeService
       )
     } yield AppDependencies(
       storage,
@@ -404,7 +418,9 @@ final case class GoogleDependencies[F[_]](
   googleIamDAO: HttpGoogleIamDAO,
   googleDataprocDAO: HttpGoogleDataprocDAO,
   googleDataproc: GoogleDataprocService[F],
-  kubernetesDnsCache: KubernetesDnsCache[F]
+  kubernetesDnsCache: KubernetesDnsCache[F],
+  gkeService: GKEService[F],
+  kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F]
 )
 
 final case class AppDependencies[F[_]](

@@ -3,7 +3,6 @@ package db
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.lifted.Tag
 import LeoProfile.api._
@@ -65,10 +64,11 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
 
 object appQuery extends TableQuery(new AppTable(_)) {
   def unmarshalApp(app: AppRecord,
-                   sevices: List[KubernetesService],
+                   services: List[KubernetesService],
                    labels: LabelMap,
                    namespace: Namespace,
-                   disk: Option[PersistentDisk]): App =
+                   disk: Option[PersistentDisk],
+                   errors: List[AppError]): App =
     App(
       app.id,
       app.nodepoolId,
@@ -86,9 +86,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
       AppResources(
         namespace,
         disk,
-        sevices
+        services
       ),
-      List(),
+      errors,
       app.customEnvironmentVariables.getOrElse(Map.empty)
     )
 
@@ -166,6 +166,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
     appQuery.filter(x => x.diskId.isDefined && x.diskId === diskId).length.result.map(_ > 0)
+
+  def detachDisk(id: AppId): DBIO[Int] =
+    getByIdQuery(id)
+      .map(_.diskId)
+      .update(None)
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)

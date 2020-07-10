@@ -130,7 +130,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     pendingDeletionFromQuery(findByNodepoolIdQuery(id))
 
   // will not return any apps associated with the nodepool
-  private[db] def getMinimalById(id: NodepoolLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+  def getMinimalById(id: NodepoolLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
     for {
       nodepools <- findByNodepoolIdQuery(id).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
@@ -159,7 +159,6 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
         case (Some(autoscalingMin), Some(autoscalingMax)) => Some(AutoscalingConfig(autoscalingMin, autoscalingMax))
         case _                                            => None
       },
-      List(),
       apps,
       rec.isDefault
     )

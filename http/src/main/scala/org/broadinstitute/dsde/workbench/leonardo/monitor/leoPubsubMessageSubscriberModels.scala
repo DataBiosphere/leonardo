@@ -202,6 +202,7 @@ object LeoPubsubMessage {
 
   final case class CreateAppMessage(cluster: Option[CreateCluster],
                                     appId: AppId,
+                                    appName: AppName,
                                     nodepoolId: NodepoolLeoId,
                                     project: GoogleProject,
                                     createDisk: Boolean,
@@ -212,9 +213,10 @@ object LeoPubsubMessage {
   }
 
   final case class DeleteAppMessage(appId: AppId,
+                                    appName: AppName,
                                     nodepoolId: NodepoolLeoId,
                                     project: GoogleProject,
-                                    deleteDisk: Boolean,
+                                    diskId: Option[DiskId],
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
@@ -327,8 +329,9 @@ object LeoPubsubCodec {
 
   implicit val appIdDecoder: Decoder[AppId] = Decoder.decodeLong.map(AppId)
   implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct7("cluster",
+    Decoder.forProduct8("cluster",
                         "appId",
+                        "appName",
                         "nodepoolId",
                         "project",
                         "createDisk",
@@ -336,7 +339,7 @@ object LeoPubsubCodec {
                         "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
-    Decoder.forProduct5("appId", "nodepoolId", "project", "deleteDisk", "traceId")(DeleteAppMessage.apply)
+    Decoder.forProduct6("appId", "appName", "nodepoolId", "project", "diskId", "traceId")(DeleteAppMessage.apply)
 
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
@@ -582,12 +585,28 @@ object LeoPubsubCodec {
 
   implicit val appIdEncoder: Encoder[AppId] = Encoder.encodeLong.contramap(_.id)
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct5("cluster", "appId", "project", "createDisk", "traceId")(x =>
-      (x.cluster, x.appId, x.project, x.createDisk, x.traceId)
+    Encoder.forProduct9("messageType",
+                        "cluster",
+                        "appId",
+                        "appName",
+                        "nodepoolId",
+                        "project",
+                        "createDisk",
+                        "customEnvironmentVariables",
+                        "traceId")(x =>
+      (x.messageType,
+       x.cluster,
+       x.appId,
+       x.appName,
+       x.nodepoolId,
+       x.project,
+       x.createDisk,
+       x.customEnvironmentVariables,
+       x.traceId)
     )
   implicit val deleteAppMessageEncoder: Encoder[DeleteAppMessage] =
-    Encoder.forProduct5("appId", "nodepoolId", "project", "deleteDisk", "traceId")(x =>
-      (x.appId, x.nodepoolId, x.project, x.deleteDisk, x.traceId)
+    Encoder.forProduct7("messageType", "appId", "appName", "nodepoolId", "project", "diskId", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.nodepoolId, x.project, x.diskId, x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
@@ -610,6 +629,16 @@ sealed trait PubsubHandleMessageError extends NoStackTrace {
   def isRetryable: Boolean
 }
 object PubsubHandleMessageError {
+  final case class PubsubKubernetesError(dbError: AppError,
+                                         appId: AppId,
+                                         isRetryable: Boolean,
+                                         nodepoolId: Option[NodepoolLeoId],
+                                         clusterId: Option[KubernetesClusterLeoId])
+    extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
+  }
+
   final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
@@ -636,27 +665,44 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class DiskNotFound(diskId: DiskId, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+  final case class DiskNotFound(diskId: DiskId) extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"Unable to process message ${message} for disk ${diskId.value} because it was not found in the database"
+      s"Unable to process message for disk ${diskId.value} because it was not found in the database"
     val isRetryable: Boolean = false
   }
 
-  final case class DiskInvalidState(diskId: DiskId,
-                                    projectName: String,
-                                    disk: PersistentDisk,
-                                    message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
+  final case class DiskInvalidState(diskId: DiskId, projectName: String, disk: PersistentDisk)
+    extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"${diskId}, ${projectName}, ${message} | Unable to process disk because not in correct state. Disk details: ${disk}"
+      s"${diskId}, ${projectName} | Unable to process disk because not in correct state. Disk details: ${disk}"
     val isRetryable: Boolean = false
   }
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
-final case class PersistentDiskMonitorConfig(create: PersistentDiskMonitor,
-                                             delete: PersistentDiskMonitor,
-                                             update: PersistentDiskMonitor)
+
+final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration)
+
+final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
+                                             delete: PollMonitorConfig,
+                                             update: PollMonitorConfig)
+
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig)
+
+final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+  override def getMessage: String =
+    s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
+  val isRetryable: Boolean = false
+}
+
+final case class PubsubKubernetesError(dbError: AppError,
+                                       appId: AppId,
+                                       isRetryable: Boolean,
+                                       nodepoolId: Option[NodepoolLeoId],
+                                       clusterId: Option[KubernetesClusterLeoId])
+  extends PubsubHandleMessageError {
+  override def getMessage: String =
+    s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
+}

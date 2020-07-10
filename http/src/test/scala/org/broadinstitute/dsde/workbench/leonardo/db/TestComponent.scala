@@ -131,6 +131,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.googleProject,
             c.clusterName,
             c.location,
+            c.region,
             c.status,
             c.serviceAccount,
             c.auditInfo,

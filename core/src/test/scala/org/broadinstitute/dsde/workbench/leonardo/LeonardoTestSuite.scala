@@ -25,9 +25,9 @@ trait LeonardoTestSuite extends Matchers {
   val blocker = Blocker.liftExecutionContext(global)
   val semaphore = Semaphore[IO](10).unsafeRunSync()
 
-  def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion]): IO[Assertion] = {
+  def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 30): IO[Assertion] = {
     val process = Stream.eval(Deferred[IO, Assertion]).flatMap { signalToStop =>
-      val accumulator = Accumulator(30, None)
+      val accumulator = Accumulator(maxRetry, None)
       val signal = Stream.unfoldEval(accumulator) { acc =>
         if (acc.maxRetry < 0)
           signalToStop

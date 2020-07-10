@@ -7,7 +7,12 @@ import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  SecretKey,
+  SecretName,
+  ServiceName
+}
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   FirewallRuleName,
@@ -38,15 +43,15 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderCo
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DateAccessedUpdaterConfig,
   LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitor,
-  PersistentDiskMonitorConfig
+  PersistentDiskMonitorConfig,
+  PollMonitorConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.VPCInterpreterConfig
+import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -210,8 +215,8 @@ object Config {
       )
   }
 
-  implicit private val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
-    ClusterFilesConfig(
+  implicit private val clusterFilesConfigReader: ValueReader[SecurityFilesConfig] = ValueReader.relative { config =>
+    SecurityFilesConfig(
       config.as[Path]("proxyServerCrt"),
       config.as[Path]("proxyServerKey"),
       config.as[Path]("proxyRootCaPem"),
@@ -293,20 +298,19 @@ object Config {
     )
   }
 
-  implicit private val persistentDiskMonitorReader: ValueReader[PersistentDiskMonitor] = ValueReader.relative {
-    config =>
-      PersistentDiskMonitor(
-        config.as[Int]("max-attempts"),
-        config.as[FiniteDuration]("interval")
-      )
+  implicit private val persistentDiskMonitorReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
+    PollMonitorConfig(
+      config.as[Int]("max-attempts"),
+      config.as[FiniteDuration]("interval")
+    )
   }
 
   implicit private val persistentDiskMonitorConfigReader: ValueReader[PersistentDiskMonitorConfig] =
     ValueReader.relative { config =>
       PersistentDiskMonitorConfig(
-        config.as[PersistentDiskMonitor]("create"),
-        config.as[PersistentDiskMonitor]("delete"),
-        config.as[PersistentDiskMonitor]("update")
+        config.as[PollMonitorConfig]("create"),
+        config.as[PollMonitorConfig]("delete"),
+        config.as[PollMonitorConfig]("update")
       )
     }
 
@@ -434,7 +438,7 @@ object Config {
   val imageConfig = config.as[ImageConfig]("image")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
-  val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
+  val securityFilesConfig = config.as[SecurityFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
@@ -512,8 +516,12 @@ object Config {
   val welderConfig = config.as[WelderConfig]("welder")
   val dbConcurrency = config.as[Long]("mysql.concurrency")
 
+  implicit val cidrIPReader: ValueReader[CidrIP] = stringValueReader.map(CidrIP)
+
   implicit val kubeClusterConfigReader: ValueReader[KubernetesClusterConfig] = ValueReader.relative { config =>
-    KubernetesClusterConfig(config.as[Location]("location"))
+    KubernetesClusterConfig(config.as[Location]("location"),
+                            config.as[RegionName]("region"),
+                            config.as[List[CidrIP]]("authorizedNetworks"))
   }
 
   implicit val defaultNodepoolConfigReader: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
@@ -605,7 +613,7 @@ object Config {
     proxyConfig,
     vpcConfig,
     clusterResourcesConfig,
-    clusterFilesConfig,
+    securityFilesConfig,
     dataprocMonitorConfig.monitorStatusTimeouts
       .get(RuntimeStatus.Creating)
       .getOrElse(throw new Exception("Missing dataproc.monitor.statusTimeouts.creating"))
@@ -618,7 +626,7 @@ object Config {
     proxyConfig,
     vpcConfig,
     clusterResourcesConfig,
-    clusterFilesConfig,
+    securityFilesConfig,
     gceMonitorConfig.monitorStatusTimeouts
       .get(RuntimeStatus.Creating)
       .getOrElse(throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
@@ -627,4 +635,50 @@ object Config {
 
   val leoPubsubMessageSubscriberConfig = config.as[LeoPubsubMessageSubscriberConfig]("pubsub.subscriber")
   val asyncTaskProcessorConfig = config.as[AsyncTaskProcessor.Config]("async-task-processor")
+
+  implicit private val secretKeyReader: ValueReader[SecretKey] =
+    stringValueReader.map(s =>
+      KubernetesName
+        .withValidation(s, SecretKey)
+        .right
+        .getOrElse(throw new RuntimeException(s"Unable to parse the secret key $s into a valid kubernetes name"))
+    )
+  implicit private val secretFileReader: ValueReader[SecretFile] = ValueReader.relative { config =>
+    SecretFile(
+      config.as[SecretKey]("name"),
+      config.as[Path]("path")
+    )
+  }
+
+  implicit private val secretNameReader: ValueReader[SecretName] =
+    stringValueReader.map(s =>
+      KubernetesName
+        .withValidation(s, SecretName)
+        .right
+        .getOrElse(throw new RuntimeException(s"Unable to parse the secret name $s into a valid kubernetes name"))
+    )
+  implicit val secretConfigReader: ValueReader[SecretConfig] = ValueReader.relative { config =>
+    SecretConfig(config.as[SecretName]("name"), config.as[List[SecretFile]]("secretFiles"))
+  }
+
+  implicit private val ingressHelmConfigReader: ValueReader[IngressHelmConfig] = ValueReader.relative { config =>
+    IngressHelmConfig(
+      config.as[List[SecretConfig]]("secrets")
+    )
+  }
+
+  val ingressHelmConfig = config.as[IngressHelmConfig]("helmConfig.ingress")
+
+  implicit private val appMonitorConfigReader: ValueReader[AppMonitorConfig] = ValueReader.relative { config =>
+    AppMonitorConfig(
+      config.as[PollMonitorConfig]("createNodepool"),
+      config.as[PollMonitorConfig]("deleteNodepool"),
+      config.as[PollMonitorConfig]("createCluster"),
+      config.as[PollMonitorConfig]("deleteCluster")
+    )
+  }
+
+  val gkeMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
+
+  val gkeInterpConfig = GKEInterpreterConfig(securityFilesConfig, ingressHelmConfig, gkeMonitorConfig, gkeClusterConfig)
 }

@@ -2,12 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
+import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitor,
-  PersistentDiskMonitorConfig
+  PersistentDiskMonitorConfig,
+  PollMonitorConfig
 }
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -31,9 +31,9 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
       100,
       295 seconds,
       PersistentDiskMonitorConfig(
-        PersistentDiskMonitor(5, 3 seconds),
-        PersistentDiskMonitor(5, 3 seconds),
-        PersistentDiskMonitor(5, 3 seconds)
+        PollMonitorConfig(5, 3 seconds),
+        PollMonitorConfig(5, 3 seconds),
+        PollMonitorConfig(5, 3 seconds)
       )
     )
 
@@ -60,12 +60,31 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
   }
 
   "GKE config" should "read ClusterConfig properly" in {
-    val expectedResult = KubernetesClusterConfig(Location("us-central1-a"))
+    val expectedResult = KubernetesClusterConfig(
+      Location("us-central1-a"),
+      RegionName("us-central1"),
+      List(
+        "69.173.127.0/25",
+        "69.173.124.0/23",
+        "69.173.126.0/24",
+        "69.173.127.230/31",
+        "69.173.64.0/19",
+        "69.173.127.224/30",
+        "69.173.127.192/27",
+        "69.173.120.0/22",
+        "69.173.127.228/32",
+        "69.173.127.232/29",
+        "69.173.127.128/26",
+        "69.173.96.0/20",
+        "69.173.127.240/28",
+        "69.173.112.0/21"
+      ).map(CidrIP)
+    )
     Config.gkeClusterConfig shouldBe expectedResult
   }
 
   it should "read DefaultNodepoolConfig properly" in {
-    val expectedResult = DefaultNodepoolConfig(MachineTypeName("g1-small"), NumNodes(1), false)
+    val expectedResult = DefaultNodepoolConfig(MachineTypeName("n1-standard-1"), NumNodes(1), false)
     Config.gkeDefaultNodepoolConfig shouldBe expectedResult
   }
 

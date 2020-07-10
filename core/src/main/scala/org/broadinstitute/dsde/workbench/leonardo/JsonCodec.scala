@@ -149,8 +149,11 @@ object JsonCodec {
   )(x => RuntimeError.unapply(x).get)
 
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
-  implicit val kubernetesErrorEncoder: Encoder[KubernetesError] =
-    Encoder.forProduct4("errorMessage", "errorCode", "timestamp", "errorSource")(x => KubernetesError.unapply(x).get)
+  implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
+  implicit val kubernetesErrorEncoder: Encoder[AppError] =
+    Encoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(x =>
+      AppError.unapply(x).get
+    )
   implicit val nodepoolIdEncoder: Encoder[NodepoolLeoId] = Encoder.encodeLong.contramap(_.id)
   implicit val nodepoolNameEncoder: Encoder[NodepoolName] = Encoder.encodeString.contramap(_.value)
   implicit val nodepoolStatusEncoder: Encoder[NodepoolStatus] = Encoder.encodeString.contramap(status =>
@@ -351,8 +354,11 @@ object JsonCodec {
 
   implicit val errorSourceDecoder: Decoder[ErrorSource] =
     Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
-  implicit val kubernetesErrorDecoder: Decoder[KubernetesError] =
-    Decoder.forProduct4("errorMessage", "errorCode", "timestamp", "errorSource")(KubernetesError.apply)
+  implicit val errorActionDecoder: Decoder[ErrorAction] =
+    Decoder.decodeString.emap(s => ErrorAction.stringToObject.get(s).toRight(s"Invalid error action ${s}"))
+  implicit val kubernetesErrorDecoder: Decoder[AppError] =
+    Decoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(AppError.apply)
+
   implicit val nodepoolIdDecoder: Decoder[NodepoolLeoId] = Decoder.decodeLong.map(NodepoolLeoId)
   implicit val nodepoolNameDecoder: Decoder[NodepoolName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NodepoolName).leftMap(_.getMessage))
