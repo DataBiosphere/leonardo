@@ -39,6 +39,8 @@ docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_
 # The version of python to install
 python_version="3.7.4"
 
+bucket_name="gs://leo-dataproc-image"
+
 #
 # Functions
 #
@@ -108,6 +110,20 @@ retry 5 apt-get install -y -q \
     gnupg2 \
     software-properties-common \
     libffi-dev
+
+log "Downloading and installing Falco cryptomining detection agent..."
+gsutil cp "${bucket_name}/falco/install_falco.sh" .
+gsutil cp "${bucket_name}/falco/falco.yaml" .
+gsutil cp "${bucket_name}/falco/terra-cryptomining-rules.yaml" .
+gsutil cp "${bucket_name}/falco/report.py" .
+
+# Install and configure Falco
+chmod u+x $falco_install_script
+./install_falco.sh
+cp falco.yaml /etc/falco
+cp terra-cryptomining-rules.yaml /etc/falco/falco_rules.local.yaml
+cp report.py /etc/falco
+service falco restart
 
 log 'Adding Docker package sources...'
 
