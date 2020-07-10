@@ -132,7 +132,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       withNewRuntime(
         billingProject,
         request = LeonardoApiClient.defaultCreateRuntime2Request.copy(
-          toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl)
+          toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBaseImage)
         )
       ) { runtime =>
         // Make sure RStudio is up

@@ -302,12 +302,6 @@ object JsonCodec {
                                        le.getOrElse(Map.empty))
   }
 
-  Decoder.forProduct4(
-    "nbExtensions",
-    "serverExtensions",
-    "combinedExtensions",
-    "labExtensions"
-  )(UserJupyterExtensionConfig.apply)
   implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =
     Decoder.forProduct2("googleProject", "clusterName")(RuntimeProjectAndName.apply)
 

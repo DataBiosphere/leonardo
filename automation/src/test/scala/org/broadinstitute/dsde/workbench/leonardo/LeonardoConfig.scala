@@ -27,7 +27,7 @@ object LeonardoConfig extends CommonConfig {
     val curGcrWelderDockerImage: String = leonardo.getString("gcrWelderUri") + ":" + curWelderHash
     val curDockerHubWelderDockerImage: String = leonardo.getString("dockerHubWelderUri") + ":" + curWelderHash
     val bioconductorImageUrl: String = leonardo.getString("bioconductorImageUrl")
-    val rstudioBaseImageUrl = ContainerImage(leonardo.getString("rstudioBaseImageUrl"), ContainerRegistry.GCR)
+    val rstudioBaseImage = ContainerImage(leonardo.getString("rstudioBaseImageUrl"), ContainerRegistry.GCR)
 
     private val topic = ProjectTopicName.of(gcs.getString("serviceProject"), leonardo.getString("topicName"))
 

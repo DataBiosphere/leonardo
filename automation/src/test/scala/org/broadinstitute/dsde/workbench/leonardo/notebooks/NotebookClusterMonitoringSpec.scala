@@ -373,7 +373,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       // Create a cluster
       withNewCluster(billingProject,
                      request = defaultClusterRequest.copy(toolDockerImage =
-                                                            Some(LeonardoConfig.Leonardo.rstudioBaseImageUrl.imageUrl),
+                                                            Some(LeonardoConfig.Leonardo.rstudioBaseImage.imageUrl),
                                                           enableWelder = Some(true))) { cluster =>
         // Make sure RStudio is up
         // See this ticket for adding more comprehensive selenium tests for RStudio:
