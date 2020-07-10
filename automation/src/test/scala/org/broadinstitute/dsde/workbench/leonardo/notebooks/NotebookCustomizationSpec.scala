@@ -158,7 +158,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         // tracking the number of times it has been invoked.
         val startScriptString = "#!/usr/bin/env bash\n\n" +
           "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
-          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt"
+          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt\n" +
+          "pip install mock"
         val startScriptObjectName = GcsObjectName("start-script.sh")
         val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
 
@@ -174,6 +175,9 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
               withWebDriver { implicit driver =>
                 withNewNotebook(cluster, Python3) { notebookPage =>
                   notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
+                  notebookPage.executeCell("! pip show mock").get should include(
+                    "/usr/local/lib/python3.7/dist-packages"
+                  )
                 }
 
                 // Stop the cluster
@@ -186,6 +190,10 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                 // We cache cluster's IP, so we might get old IP after restart
                 withNewNotebook(cluster, Python3) { notebookPage =>
                   notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
+                  notebookPage.executeCell("! pip show mock").get should include(
+                    "/usr/local/lib/python3.7/dist-packages"
+                  )
+                  notebookPage.executeCell("""import mock""") shouldBe None
                 }
               }
           }
