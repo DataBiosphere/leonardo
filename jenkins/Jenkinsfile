@@ -347,10 +347,12 @@ pipeline {
     stage('Init git submodules') {
         when { expression { !shouldAbortBuild } }
         steps {
-            sh """
-                git submodule sync
-                git submodule update --init --recursive                
-            """
+            sshagent(['jenkins-ssh-github']) {
+                sh """
+                    git submodule sync
+                    git submodule update --init --recursive
+                """
+            }
         }
     }
 
