@@ -205,15 +205,13 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
     await enabled cells
     val cell = lastCell
     val cellNumber = cellNumberOpt.getOrElse(numCellsOnPage)
-//    await condition (cellIsRendered(cellNumber), timeout.toSeconds)
+    val action = new Actions(webDriver)
+    action.moveToElement(cell)
     click on cell
-//
-//    cell.
-//    cell.click()
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     clickRunCell(timeout)
-    await condition (cellIsRendered(cellNumber), timeout.toSeconds)
+    await.condition(cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell).map(_.renderResult)
   }
 
