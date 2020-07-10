@@ -46,6 +46,13 @@ image_hardening_script_file="${cis_hardening_dir}/${image_hardening_script_file_
 daisy_sources_metadata_url="http://metadata.google.internal/computeMetadata/v1/instance/attributes/daisy-sources-path"
 vm_metadata_google_header="Metadata-Flavor: Google"
 
+# Variables for downloading Falco cryptomining prevention scripts
+falco_dir="terra-cryptomining-security-alerts"
+falco_install_script="${falco_dir}/install_falco.sh"
+falco_config="${falco_dir}/falco.yaml"
+falco_cryptomining_rules="${falco_dir}/terra-cryptomining-rules.yaml"
+falco_report_script="${falco_dir}/report.py"
+
 #
 # Functions
 #
