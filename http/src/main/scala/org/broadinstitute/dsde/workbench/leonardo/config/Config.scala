@@ -541,8 +541,7 @@ object Config {
       config.as[ReleaseName]("releaseName"),
       config.as[NamespaceName]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
-      config.as[RemoteUserName]("remoteUserName"),
-      config.as[RemoteUserSecret]("remoteUserSecret")
+      config.as[RemoteUserName]("remoteUserName")
     )
   }
 
@@ -569,8 +568,6 @@ object Config {
     stringValueReader.map(KubernetesServiceKindName)
   implicit val remoteUserNameValueReader: ValueReader[RemoteUserName] =
     stringValueReader.map(RemoteUserName)
-  implicit val remoteUserSecretValueReader: ValueReader[RemoteUserSecret] =
-    stringValueReader.map(RemoteUserSecret)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")

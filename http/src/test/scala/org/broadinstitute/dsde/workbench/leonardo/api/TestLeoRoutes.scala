@@ -141,12 +141,7 @@ trait TestLeoRoutes {
   val kubernetesDnsCache = new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, blocker)
 
   val proxyService =
-    new MockProxyService(proxyConfig,
-                         Config.gkeGalaxyAppConfig,
-                         mockGoogleDataprocDAO,
-                         whitelistAuthProvider,
-                         runtimeDnsCache,
-                         kubernetesDnsCache)
+    new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, runtimeDnsCache, kubernetesDnsCache)
   val statusService =
     new StatusService(mockGoogleDataprocDAO, mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)

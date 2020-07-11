@@ -62,8 +62,7 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
       ReleaseName("release1"),
       NamespaceName("namespace"),
       List(ServiceConfig(ServiceName("galaxy-web"), KubernetesServiceKindName("ClusterIP"))),
-      RemoteUserName("galaxy-user"),
-      RemoteUserSecret("galaxy-secret")
+      RemoteUserName("galaxy-user")
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }

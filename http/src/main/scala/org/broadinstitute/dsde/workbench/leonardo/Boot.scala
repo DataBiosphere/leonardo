@@ -125,7 +125,6 @@ object Boot extends IOApp {
       val dateAccessedUpdater =
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(proxyConfig,
-                                          gkeGalaxyAppConfig,
                                           appDependencies.googleDataprocDAO,
                                           appDependencies.runtimeDnsCache,
                                           appDependencies.kubernetesDnsCache,

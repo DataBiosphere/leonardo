@@ -9,7 +9,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{`Content-Disposition`, RawHeader}
+import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
@@ -21,7 +21,7 @@ import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
-import org.broadinstitute.dsde.workbench.leonardo.config.{GalaxyAppConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, Proxy}
@@ -64,7 +64,6 @@ final case object AccessTokenExpiredException
 
 class ProxyService(
   proxyConfig: ProxyConfig,
-  galaxyAppConfig: GalaxyAppConfig,
   gdDAO: GoogleDataprocDAO,
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
@@ -187,7 +186,7 @@ class ProxyService(
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
-      r <- proxyInternal(hostContext, request, List.empty)
+      r <- proxyInternal(hostContext, request)
     } yield r
 
   def proxyAppRequest(userInfo: UserInfo,
@@ -201,9 +200,7 @@ class ProxyService(
       _ <- IO(logger.info(s"authorizing ${userInfo.userEmail}")) // TODO placeholder for auth check
       hostStatus <- getAppTargetHost(googleProject, appName)
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
-      extraHeaders = List(RawHeader("HTTP_REMOTE_USER", galaxyAppConfig.remoteUserName.value),
-                          RawHeader("HTTP_GX_SECRET", galaxyAppConfig.remoteUserSecret.value))
-      r <- proxyInternal(hostContext, request, extraHeaders)
+      r <- proxyInternal(hostContext, request)
     } yield r
 
   private[service] def getRuntimeTargetHost(googleProject: GoogleProject, runtimeName: RuntimeName): IO[HostStatus] =
@@ -212,7 +209,7 @@ class ProxyService(
   private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
     Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
 
-  private def proxyInternal(hostContext: HostContext, request: HttpRequest, extraHeaders: List[HttpHeader])(
+  private def proxyInternal(hostContext: HostContext, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[HttpResponse] =
     for {
@@ -232,7 +229,7 @@ class ProxyService(
               case Some(upgrade) =>
                 IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
               case None =>
-                IO.fromFuture(IO(handleHttpRequest(targetHost, request, extraHeaders)))
+                IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
             }
             r <- if (response.status.isFailure())
               IO(
@@ -265,9 +262,7 @@ class ProxyService(
       }
     } yield res
 
-  private def handleHttpRequest(targetHost: Host,
-                                request: HttpRequest,
-                                extraHeaders: List[HttpHeader]): Future[HttpResponse] = {
+  private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
 
     // A note on akka-http philosophy:
@@ -287,7 +282,7 @@ class ProxyService(
     val rewrittenPath = rewriteJupyterPath(request.uri.path)
 
     // 1. filter out headers not needed for the backend server
-    val newHeaders = filterHeaders(request.headers) ++ extraHeaders
+    val newHeaders = filterHeaders(request.headers)
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.queryString())
     // 3. build a new HttpRequest

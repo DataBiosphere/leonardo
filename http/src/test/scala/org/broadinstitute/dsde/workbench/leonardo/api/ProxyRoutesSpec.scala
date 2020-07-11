@@ -13,7 +13,7 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockProxyService, TestProxy}
@@ -134,7 +134,6 @@ class ProxyRoutesSpec
     val queue = InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync
     val proxyService =
       new MockProxyService(proxyConfig,
-                           Config.gkeGalaxyAppConfig,
                            mockGoogleDataprocDAO,
                            whitelistAuthProvider,
                            runtimeDnsCache,
@@ -315,14 +314,6 @@ class ProxyRoutesSpec
       .addHeader(RawHeader("foo", "bar"))
       .addHeader(RawHeader("baz", "biz")) ~> httpRoutes.route ~> check {
       responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
-    }
-  }
-
-  it should "add Galaxy remote user headers" in {
-    Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
-      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
-      responseAs[Data].headers.toList should contain allElementsOf Map("HTTP_REMOTE_USER" -> "galaxy-user",
-                                                                       "HTTP_GX_SECRET" -> "galaxy-secret").toList
     }
   }
 

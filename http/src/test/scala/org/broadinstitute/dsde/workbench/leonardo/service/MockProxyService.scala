@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.leonardo.config.{GalaxyAppConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
@@ -20,7 +20,6 @@ import scala.concurrent.ExecutionContext
 
 class MockProxyService(
   proxyConfig: ProxyConfig,
-  galaxyAppConfig: GalaxyAppConfig,
   gdDAO: GoogleDataprocDAO,
   authProvider: LeoAuthProvider[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
@@ -32,7 +31,6 @@ class MockProxyService(
   cs: ContextShift[IO],
   dbRef: DbReference[IO])
     extends ProxyService(proxyConfig,
-                         galaxyAppConfig,
                          gdDAO,
                          runtimeDnsCache,
                          kubernetesDnsCache,
