@@ -512,7 +512,7 @@ object Config {
     KubernetesClusterConfig(config.as[Location]("location"))
   }
 
-  implicit val defaultNodepoolConfig: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
+  implicit val defaultNodepoolConfigReader: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
     DefaultNodepoolConfig(
       config.as[MachineTypeName]("machineType"),
       config.as[NumNodes]("numNodes"),
@@ -520,7 +520,7 @@ object Config {
     )
   }
 
-  implicit val galaxyNodepoolConfig: ValueReader[GalaxyNodepoolConfig] = ValueReader.relative { config =>
+  implicit val galaxyNodepoolConfigReader: ValueReader[GalaxyNodepoolConfig] = ValueReader.relative { config =>
     GalaxyNodepoolConfig(
       config.as[MachineTypeName]("machineType"),
       config.as[NumNodes]("numNodes"),
@@ -529,7 +529,7 @@ object Config {
     )
   }
 
-  implicit val autoscalingConfig: ValueReader[AutoscalingConfig] = ValueReader.relative { config =>
+  implicit val autoscalingConfigReader: ValueReader[AutoscalingConfig] = ValueReader.relative { config =>
     AutoscalingConfig(
       config.as[AutoscalingMin]("autoscalingMin"),
       config.as[AutoscalingMax]("autoscalingMax")
@@ -540,7 +540,8 @@ object Config {
     GalaxyAppConfig(
       config.as[ReleaseName]("releaseName"),
       config.as[NamespaceName]("namespaceNameSuffix"),
-      config.as[List[ServiceConfig]]("services")
+      config.as[List[ServiceConfig]]("services"),
+      config.as[RemoteUserName]("remoteUserName")
     )
   }
 
@@ -565,16 +566,18 @@ object Config {
   )
   implicit val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
     stringValueReader.map(KubernetesServiceKindName)
+  implicit val remoteUserNameValueReader: ValueReader[RemoteUserName] =
+    stringValueReader.map(RemoteUserName)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
-  val gkeAppConfig = config.as[GalaxyAppConfig]("gke.app")
+  val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
                                                 gkeClusterConfig,
                                                 gkeNodepoolConfig,
-                                                gkeAppConfig,
+                                                gkeGalaxyAppConfig,
                                                 persistentDiskConfig)
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")

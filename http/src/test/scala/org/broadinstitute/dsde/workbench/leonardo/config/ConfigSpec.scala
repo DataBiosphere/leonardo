@@ -1,16 +1,17 @@
-package org.broadinstitute.dsde.workbench.leonardo.config
+package org.broadinstitute.dsde.workbench.leonardo
+package config
 
-import org.broadinstitute.dsde.workbench.google2.ZoneName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitor,
   PersistentDiskMonitorConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.{BlockSize, DiskSize, DiskType}
-
-import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
+import scala.concurrent.duration._
 
 class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read PersistentDiskConfig properly" in {
@@ -36,5 +37,33 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
     )
 
     Config.leoPubsubMessageSubscriberConfig shouldBe expectedResult
+  }
+
+  "GKE config" should "read ClusterConfig properly" in {
+    val expectedResult = KubernetesClusterConfig(Location("us-central1-a"))
+    Config.gkeClusterConfig shouldBe expectedResult
+  }
+
+  it should "read DefaultNodepoolConfig properly" in {
+    val expectedResult = DefaultNodepoolConfig(MachineTypeName("g1-small"), NumNodes(1), false)
+    Config.gkeDefaultNodepoolConfig shouldBe expectedResult
+  }
+
+  it should "read GalaxyNodepoolConfig properly" in {
+    val expectedResult = GalaxyNodepoolConfig(MachineTypeName("n2-standard-8"),
+                                              NumNodes(1),
+                                              true,
+                                              AutoscalingConfig(AutoscalingMin(0), AutoscalingMax(1)))
+    Config.gkeGalaxyNodepoolConfig shouldBe expectedResult
+  }
+
+  it should "read GalaxyAppConfig properly" in {
+    val expectedResult = GalaxyAppConfig(
+      ReleaseName("release1"),
+      NamespaceName("namespace"),
+      List(ServiceConfig(ServiceName("galaxy-web"), KubernetesServiceKindName("ClusterIP"))),
+      RemoteUserName("galaxy-user")
+    )
+    Config.gkeGalaxyAppConfig shouldBe expectedResult
   }
 }

@@ -209,8 +209,9 @@ class ProxyService(
   private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
     Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
 
-  private def proxyInternal(hostContext: HostContext,
-                            request: HttpRequest)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[HttpResponse] =
+  private def proxyInternal(hostContext: HostContext, request: HttpRequest)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[HttpResponse] =
     for {
       ctx <- ev.ask
       _ <- IO(

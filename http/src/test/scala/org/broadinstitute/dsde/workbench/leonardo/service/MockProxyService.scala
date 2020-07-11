@@ -30,8 +30,8 @@ class MockProxyService(
   timer: Timer[IO],
   cs: ContextShift[IO],
   dbRef: DbReference[IO])
-    extends ProxyService(proxyConfig: ProxyConfig,
-                         gdDAO: GoogleDataprocDAO,
+    extends ProxyService(proxyConfig,
+                         gdDAO,
                          runtimeDnsCache,
                          kubernetesDnsCache,
                          authProvider,

@@ -257,6 +257,7 @@ object AppType {
 }
 
 final case class ReleaseName(value: String) extends AnyVal
+final case class RemoteUserName(value: String) extends AnyVal
 
 final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal
