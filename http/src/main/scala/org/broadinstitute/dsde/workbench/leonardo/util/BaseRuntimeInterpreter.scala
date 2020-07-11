@@ -164,7 +164,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
                                  welderAction: Option[WelderAction],
                                  now: Instant,
                                  blocker: Blocker,
-                                 runtimeResourceConstraints: RuntimeResourceConstraints)(
+                                 runtimeResourceConstraints: RuntimeResourceConstraints,
+                                 useGceStartupScript: Boolean)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
@@ -180,7 +181,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.clusterResourcesConfig,
       Some(runtimeResourceConstraints),
       RuntimeOperation.Restarting,
-      welderAction
+      welderAction,
+      useGceStartupScript
     )
 
     for {
@@ -215,7 +217,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.clusterResourcesConfig,
       None,
       RuntimeOperation.Stopping,
-      None
+      None,
+      false
     )
     val replacements = RuntimeTemplateValues(templateConfig, None).toMap
 

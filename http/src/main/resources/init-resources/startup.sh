@@ -3,7 +3,7 @@
 set -e -x
 
 ##
-# This is a startup script designed to run on Leo-created Dataproc clusters.
+# This is a startup script designed to run on Leo-created Dataproc clusters and GCE VMs.
 #
 # It starts up Jupyter and Welder processes. It also optionally deploys welder on a
 # cluster if not already installed.
@@ -11,7 +11,7 @@ set -e -x
 
 #
 # Functions
-# (copied from init-actions.sh, see documentation there)
+# (copied from init-actions.sh and gce-init.sh, see documentation there)
 #
 
 function retry {
@@ -62,6 +62,7 @@ export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
 export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
+export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 
 JUPYTER_HOME=/etc/jupyter
 
@@ -85,7 +86,11 @@ if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
   JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
   log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
   EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+  if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
+    docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+  else
+    docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+  fi
   if [ $EXIT_CODE -ne 0 ]; then
     echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
     retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}

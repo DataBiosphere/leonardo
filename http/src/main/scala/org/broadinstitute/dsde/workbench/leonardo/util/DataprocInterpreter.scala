@@ -269,7 +269,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
         runtimeConfig.machineType
       )
-      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker, resourceConstraints)
+      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker, resourceConstraints, false)
 
       // Add back the preemptible instances, if any
       _ <- runtimeConfig match {

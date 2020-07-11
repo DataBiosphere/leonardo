@@ -18,7 +18,8 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       CommonTestData.clusterResourcesConfig,
       Some(CommonTestData.clusterResourceConstraints),
       RuntimeOperation.Restarting,
-      Some(WelderAction.UpdateWelder)
+      Some(WelderAction.UpdateWelder),
+      false
     )
 
     val test = for {
