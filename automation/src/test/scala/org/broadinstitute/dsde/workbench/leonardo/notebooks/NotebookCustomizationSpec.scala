@@ -145,62 +145,62 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       }
     }
 
-    "should execute user-specified start script" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      withNewGoogleBucket(billingProject) { bucketName =>
-        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
-        googleStorageDAO.setBucketAccessControl(bucketName,
-                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                GcsRoles.Owner)
-
-        // Add the user script to the bucket. This script increments and writes a count to file,
-        // tracking the number of times it has been invoked.
-        val startScriptString = "#!/usr/bin/env bash\n\n" +
-          "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
-          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt\n" +
-          "pip install mock"
-        val startScriptObjectName = GcsObjectName("start-script.sh")
-        val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
-
-        withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
-          googleStorageDAO.setObjectAccessControl(bucketName,
-                                                  objectName,
-                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                  GcsRoles.Owner)
-
-          withNewCluster(billingProject,
-                         request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
-            cluster =>
-              withWebDriver { implicit driver =>
-                withNewNotebook(cluster, Python3) { notebookPage =>
-                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
-                  notebookPage.executeCell("! pip show mock").get should include(
-                    "/usr/local/lib/python3.7/dist-packages"
-                  )
-                }
-
-                // Stop the cluster
-                stopAndMonitor(cluster.googleProject, cluster.clusterName)
-
-                // Start the cluster
-                startAndMonitor(cluster.googleProject, cluster.clusterName)
-
-                // To remediate errors like https://fc-jenkins.dsp-techops.broadinstitute.org/job/leonardo-fiab-test-runner/25553/artifact/failure_screenshots/NotebookCustomizationSpec_21-00-50-419.png
-                // We cache cluster's IP, so we might get old IP after restart
-                withNewNotebook(cluster, Python3) { notebookPage =>
-                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
-                  notebookPage.executeCell("! pip show mock").get should include(
-                    "/usr/local/lib/python3.7/dist-packages"
-                  )
-                  notebookPage.executeCell("""import mock""") shouldBe None
-                }
-              }
-          }
-
-        }
-      }
-    }
+//    "should execute user-specified start script" in { billingProject =>
+//      implicit val ronToken: AuthToken = ronAuthToken
+//
+//      withNewGoogleBucket(billingProject) { bucketName =>
+//        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
+//        googleStorageDAO.setBucketAccessControl(bucketName,
+//                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+//                                                GcsRoles.Owner)
+//
+//        // Add the user script to the bucket. This script increments and writes a count to file,
+//        // tracking the number of times it has been invoked.
+//        val startScriptString = "#!/usr/bin/env bash\n\n" +
+//          "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
+//          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt\n" +
+//          "pip install mock"
+//        val startScriptObjectName = GcsObjectName("start-script.sh")
+//        val startScriptUri = s"gs://${bucketName.value}/${startScriptObjectName.value}"
+//
+//        withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
+//          googleStorageDAO.setObjectAccessControl(bucketName,
+//                                                  objectName,
+//                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+//                                                  GcsRoles.Owner)
+//
+//          withNewCluster(billingProject,
+//                         request = defaultClusterRequest.copy(jupyterStartUserScriptUri = Some(startScriptUri))) {
+//            cluster =>
+//              withWebDriver { implicit driver =>
+//                withNewNotebook(cluster, Python3) { notebookPage =>
+//                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
+//                  notebookPage.executeCell("! pip show mock").get should include(
+//                    "/usr/local/lib/python3.7/dist-packages"
+//                  )
+//                }
+//
+//                // Stop the cluster
+//                stopAndMonitor(cluster.googleProject, cluster.clusterName)
+//
+//                // Start the cluster
+//                startAndMonitor(cluster.googleProject, cluster.clusterName)
+//
+//                // To remediate errors like https://fc-jenkins.dsp-techops.broadinstitute.org/job/leonardo-fiab-test-runner/25553/artifact/failure_screenshots/NotebookCustomizationSpec_21-00-50-419.png
+//                // We cache cluster's IP, so we might get old IP after restart
+//                withNewNotebook(cluster, Python3) { notebookPage =>
+//                  notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
+//                  notebookPage.executeCell("! pip show mock").get should include(
+//                    "/usr/local/lib/python3.7/dist-packages"
+//                  )
+//                  notebookPage.executeCell("""import mock""") shouldBe None
+//                }
+//              }
+//          }
+//
+//        }
+//      }
+//    }
 
     // TODO: This test has flaky selenium logic, ignoring for now. More details in:
     // https://broadworkbench.atlassian.net/browse/QA-1027
