@@ -155,58 +155,61 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
-//    "should execute user-specified start script" in { billingProject =>
-//      implicit val ronToken: AuthToken = ronAuthToken
-//
-//      withNewGoogleBucket(billingProject) { bucketName =>
-//        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
-//        googleStorageDAO.setBucketAccessControl(bucketName,
-//                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-//                                                GcsRoles.Owner)
-//
-//        // Add the user script to the bucket. This script increments and writes a count to file,
-//        // tracking the number of times it has been invoked.
-//        val startScriptString = "#!/usr/bin/env bash\n\n" +
-//          "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
-//          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt\n" +
-//          "pip install mock"
-//        val startScriptObjectName = GcsObjectName("start-script.sh")
-//        val startScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, startScriptObjectName))
-//
-//        withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
-//          googleStorageDAO.setObjectAccessControl(bucketName,
-//                                                  objectName,
-//                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-//                                                  GcsRoles.Owner)
-//
-//          withNewRuntime(
-//            billingProject,
-//            request =
-//              LeonardoApiClient.defaultCreateRuntime2Request.copy(jupyterStartUserScriptUri = Some(startScriptUri))
-//          ) { runtime =>
-//            withWebDriver { implicit driver =>
-//              withNewNotebook(runtime, Python3) { notebookPage =>
-//                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
-//                notebookPage.executeCell("! pip show mock").get should include("/usr/local/lib/python3.7/dist-packages")
-//              }
-//
-//              // Stop the cluster
-//              stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-//
-//              // Start the cluster
-//              startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-//
-//              withNewNotebook(runtime, Python3) { notebookPage =>
-//                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
-//                notebookPage.executeCell("! pip show mock").get should include("/usr/local/lib/python3.7/dist-packages")
-//                notebookPage.executeCell("""import mock""") shouldBe None
-//              }
-//            }
-//          }
-//
-//        }
-//      }
-//    }
+    // TODO: This test has flaky selenium logic, ignoring for now. More details in:
+    // https://broadworkbench.atlassian.net/browse/QA-1199
+    // https://broadworkbench.atlassian.net/browse/IA-2050
+    "should execute user-specified start script" ignore { billingProject =>
+      implicit val ronToken: AuthToken = ronAuthToken
+
+      withNewGoogleBucket(billingProject) { bucketName =>
+        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
+        googleStorageDAO.setBucketAccessControl(bucketName,
+                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                GcsRoles.Owner)
+
+        // Add the user script to the bucket. This script increments and writes a count to file,
+        // tracking the number of times it has been invoked.
+        val startScriptString = "#!/usr/bin/env bash\n\n" +
+          "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
+          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt\n" +
+          "pip install mock"
+        val startScriptObjectName = GcsObjectName("start-script.sh")
+        val startScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, startScriptObjectName))
+
+        withNewBucketObject(bucketName, startScriptObjectName, startScriptString, "text/plain") { objectName =>
+          googleStorageDAO.setObjectAccessControl(bucketName,
+                                                  objectName,
+                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                  GcsRoles.Owner)
+
+          withNewRuntime(
+            billingProject,
+            request =
+              LeonardoApiClient.defaultCreateRuntime2Request.copy(jupyterStartUserScriptUri = Some(startScriptUri))
+          ) { runtime =>
+            withWebDriver { implicit driver =>
+              withNewNotebook(runtime, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
+                notebookPage.executeCell("! pip show mock").get should include("/usr/local/lib/python3.7/dist-packages")
+              }
+
+              // Stop the cluster
+              stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+
+              // Start the cluster
+              startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+
+              withNewNotebook(runtime, Python3) { notebookPage =>
+                notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
+                notebookPage.executeCell("! pip show mock").get should include("/usr/local/lib/python3.7/dist-packages")
+                notebookPage.executeCell("""import mock""") shouldBe None
+              }
+            }
+          }
+
+        }
+      }
+    }
 
     // TODO: This test has flaky selenium logic, ignoring for now. More details in:
     // https://broadworkbench.atlassian.net/browse/QA-1027
