@@ -155,7 +155,10 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
-    "should execute user-specified start script" in { billingProject =>
+    // TODO: This test has flaky selenium logic, ignoring for now. More details in:
+    // https://broadworkbench.atlassian.net/browse/QA-1199
+    // https://broadworkbench.atlassian.net/browse/IA-2050
+    "should execute user-specified start script" ignore { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       withNewGoogleBucket(billingProject) { bucketName =>
