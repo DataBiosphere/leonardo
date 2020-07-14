@@ -580,7 +580,7 @@ trait LeonardoTestUtils
 
     waitForRunning.unsafeRunSync()
 
-    logger.info(s"Checking if runtime is proxyable yet")
+    logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
     val getResult = Try(Notebook.getApi(googleProject, runtimeName))
     getResult.isSuccess shouldBe true
     getResult.get should not include "ProxyException"
