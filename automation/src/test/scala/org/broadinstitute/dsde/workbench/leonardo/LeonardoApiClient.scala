@@ -102,11 +102,37 @@ object LeonardoApiClient {
   ): IO[GetRuntimeResponseCopy] =
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
-      res <- waitForCreation(googleProject, runtimeName)
+      res <- waitUntilRunning(googleProject, runtimeName)
+    } yield res
+
+  def startRuntime(
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    client
+      .expectOr[String](
+        Request[IO](
+          method = Method.POST,
+          headers = Headers.of(authHeader),
+          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}/start")
+        )
+      )(resp =>
+        resp.bodyText.compile.string
+          .flatMap(body => IO.raiseError(RestError(resp.status, body)))
+      )
+      .void
+
+  def startRuntimeWithWait(
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authHeader: Authorization, timer: Timer[IO]): IO[GetRuntimeResponseCopy] =
+    for {
+      _ <- startRuntime(googleProject, runtimeName)
+      res <- waitUntilRunning(googleProject, runtimeName)
     } yield res
 
   import org.http4s.circe.CirceEntityDecoder._
-  def waitForCreation(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
+  def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization

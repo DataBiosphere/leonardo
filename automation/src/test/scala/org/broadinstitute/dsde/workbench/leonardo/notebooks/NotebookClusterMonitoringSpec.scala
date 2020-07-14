@@ -10,7 +10,8 @@ import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, EmailGcsEntity, GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.service.Sam
-
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -24,12 +25,14 @@ import scala.util.Try
  */
 @DoNotDiscover
 class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+  implicit val ronToken: AuthToken = ronAuthToken
+  implicit val auth: Authorization = Authorization(
+    org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+  )
 
   "NotebookClusterMonitoringSpec" - {
 
     "should pause and resume a cluster" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       // Create a cluster
       withNewCluster(billingProject) { cluster =>
         val printStr = "Pause/resume test"
@@ -44,7 +47,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
           // Start the cluster
-          startAndMonitor(cluster.googleProject, cluster.clusterName)
+          startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
           // TODO make tests rename notebooks?
           val notebookPath = new File("Untitled.ipynb")
@@ -216,8 +219,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 //    }
 
     "should pause and resume a cluster with preemptible instances" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       withNewGoogleBucket(billingProject) { bucket =>
         implicit val patienceConfig: PatienceConfig = storagePatience
 
@@ -259,7 +260,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
             stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
             // Start the cluster
-            startAndMonitor(cluster.googleProject, cluster.clusterName)
+            startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
             // Verify the Hail import again in a new notebook
             // Use a longer timeout than default because opening notebooks after resume can be slow
@@ -281,7 +282,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
     }
 
     "should update GCR welder on a cluster" taggedAs Retryable in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
       // Create a cluster with welder enabled
@@ -303,7 +303,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
         // Start the cluster
-        startAndMonitor(cluster.googleProject, cluster.clusterName)
+        startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
         // Verify welder is updated and running
         val curWelderHash = LeonardoConfig.Leonardo.curWelderHash
@@ -314,7 +314,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
     }
 
     "should update DockerHub welder on a cluster" taggedAs Retryable in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
       // Create a cluster with welder enabled
@@ -336,7 +335,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
         // Start the cluster
-        startAndMonitor(cluster.googleProject, cluster.clusterName)
+        startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
         // Verify welder is updated and running
         val curWelderHash = LeonardoConfig.Leonardo.curWelderHash
@@ -348,8 +347,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
     // TODO: remove this test once we stop supporting the legacy image
     "should set environment variables for old image" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       withNewCluster(billingProject,
                      request = defaultClusterRequest.copy(toolDockerImage = None, enableWelder = Some(true))) {
         cluster =>
@@ -368,8 +365,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
     }
 
     "should pause and resume an RStudio cluster" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       // Create a cluster
       withNewCluster(billingProject,
                      request = defaultClusterRequest.copy(toolDockerImage =
@@ -387,7 +382,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
         // Start the cluster
-        startAndMonitor(cluster.googleProject, cluster.clusterName)
+        startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
         // RStudio should still be up
         // TODO: also check that the session is preserved after IA-697 is done
