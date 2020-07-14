@@ -320,7 +320,7 @@ trait LeonardoTestUtils
           )
         )
         resp <- if (monitor)
-          LeonardoApiClient.waitForCreation(googleProject, runtimeName, shouldError)
+          LeonardoApiClient.waitUntilRunning(googleProject, runtimeName, shouldError)
         else LeonardoApiClient.getRuntime(googleProject, runtimeName)
       } yield resp
     }
@@ -569,66 +569,25 @@ trait LeonardoTestUtils
   def stopAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
     stopRuntime(googleProject, runtimeName, monitor = true)(token)
 
-  def startCluster(googleProject: GoogleProject, clusterName: RuntimeName, monitor: Boolean)(
-    implicit token: AuthToken
+  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit token: AuthToken,
+    authorization: Authorization
   ): Unit = {
-    Leonardo.cluster.start(googleProject, clusterName)(token) shouldBe
-      "The request has been accepted for processing, but the processing has not been completed."
-
     // verify with get()
-    val startingCluster = Leonardo.cluster.get(googleProject, clusterName)
-    startingCluster.status shouldBe ClusterStatus.Starting
-
-    if (monitor) {
-      // wait until in Running state
-      implicit val patienceConfig: PatienceConfig = clusterPatience
-      eventually {
-        val status = Leonardo.cluster.get(googleProject, clusterName).status
-        status shouldBe ClusterStatus.Running
-      }
-
-      logger.info(s"Checking if cluster is proxyable yet")
-      val getResult = Try(Notebook.getApi(googleProject, clusterName))
-      getResult.isSuccess shouldBe true
-      getResult.get should not include "ProxyException"
-
-      // Grab the jupyter.log and welder.log files for debugging.
-      saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "start")
+    val waitForRunning = LeonardoApiClient.client.use { implicit c =>
+      LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
     }
+
+    waitForRunning.unsafeRunSync()
+
+    logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
+    val getResult = Try(Notebook.getApi(googleProject, runtimeName))
+    getResult.isSuccess shouldBe true
+    getResult.get should not include "ProxyException"
+
+    // Grab the jupyter.log and welder.log files for debugging.
+    saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")
   }
-
-  def startRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
-    implicit token: AuthToken
-  ): Unit = {
-    Leonardo.cluster.startRuntime(googleProject, runtimeName)(token) shouldBe
-      "The request has been accepted for processing, but the processing has not been completed."
-
-    // verify with get()
-    val startingCluster = Leonardo.cluster.getRuntime(googleProject, runtimeName)
-    startingCluster.status shouldBe ClusterStatus.Starting
-    if (monitor) {
-      // wait until in Running state
-      implicit val patienceConfig: PatienceConfig = clusterPatience
-      eventually {
-        val status = Leonardo.cluster.getRuntime(googleProject, runtimeName).status
-        status shouldBe ClusterStatus.Running
-      }
-
-      logger.info(s"Checking if runtime is proxyable yet")
-      val getResult = Try(Notebook.getApi(googleProject, runtimeName))
-      getResult.isSuccess shouldBe true
-      getResult.get should not include "ProxyException"
-
-      // Grab the jupyter.log and welder.log files for debugging.
-      saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")
-    }
-  }
-
-  def startAndMonitor(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): Unit =
-    startCluster(googleProject, clusterName, monitor = true)(token)
-
-  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
-    startRuntime(googleProject, runtimeName, monitor = true)(token)
 
   def randomClusterName: RuntimeName = RuntimeName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
@@ -828,17 +787,6 @@ trait LeonardoTestUtils
       deleteRuntime(googleProject, name, false)
       testResult.get
     }
-  }
-
-  def withRestartCluster[T](cluster: ClusterCopy)(testCode: ClusterCopy => T)(implicit token: AuthToken): T = {
-    stopAndMonitor(cluster.googleProject, cluster.clusterName)
-    val resolvedCluster = Leonardo.cluster.get(cluster.googleProject, cluster.clusterName)
-    resolvedCluster.status shouldBe ClusterStatus.Stopped
-    val testResult = Try {
-      testCode(resolvedCluster)
-    }
-    startAndMonitor(cluster.googleProject, cluster.clusterName)
-    testResult.get
   }
 
   def withNewGoogleBucket[T](

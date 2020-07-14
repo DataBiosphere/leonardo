@@ -161,7 +161,7 @@ class RuntimeCreationDiskSpec
         // disk remains mounted after restarting
         _ <- IO(stopRuntime(googleProject, runtimeName, true))
         stoppedRuntime <- getRuntime(googleProject, runtimeName)
-        _ <- IO(startRuntime(googleProject, runtimeName, true))
+        _ <- LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val res = notebookPage.executeCell("! df -H").get

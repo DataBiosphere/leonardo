@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -20,12 +22,14 @@ import scala.concurrent.duration._
  */
 @DoNotDiscover
 final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+  implicit val ronToken: AuthToken = ronAuthToken
+  implicit val auth: Authorization = Authorization(
+    org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+  )
 
   "NotebookCustomizationSpec" - {
 
     "should run a user script" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       // Create a new bucket
       withNewGoogleBucket(billingProject) { bucketName =>
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
@@ -63,8 +67,6 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
     "should install user specified notebook extensions" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
@@ -100,8 +102,6 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
     }
 
     "should give cluster user-specified scopes" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       withNewCluster(
         billingProject,
         request = defaultClusterRequest.copy(
@@ -129,8 +129,6 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
     }
 
     "should populate user-specified environment variables" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       // Note: the R image includes R and python 3 kernels
       val clusterRequest = defaultClusterRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))
 
@@ -149,8 +147,6 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
     // https://broadworkbench.atlassian.net/browse/QA-1199
     // https://broadworkbench.atlassian.net/browse/IA-2050
     "should execute user-specified start script" ignore { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       withNewGoogleBucket(billingProject) { bucketName =>
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
@@ -187,7 +183,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
                 stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
                 // Start the cluster
-                startAndMonitor(cluster.googleProject, cluster.clusterName)
+                startAndMonitorRuntime(cluster.googleProject, cluster.clusterName)
 
                 // To remediate errors like https://fc-jenkins.dsp-techops.broadinstitute.org/job/leonardo-fiab-test-runner/25553/artifact/failure_screenshots/NotebookCustomizationSpec_21-00-50-419.png
                 // We cache cluster's IP, so we might get old IP after restart
@@ -208,8 +204,6 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
     // TODO: This test has flaky selenium logic, ignoring for now. More details in:
     // https://broadworkbench.atlassian.net/browse/QA-1027
     "should recover from out-of-memory errors" ignore { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
       // Create a cluster with smaller memory size
       withNewCluster(
         billingProject,
