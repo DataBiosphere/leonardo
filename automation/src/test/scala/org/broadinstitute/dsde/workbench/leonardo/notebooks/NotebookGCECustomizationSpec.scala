@@ -5,7 +5,6 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.{
   CloudService,
-  GPAllocBeforeAndAfterAll,
   GPAllocFixtureSpec,
   LeonardoApiClient,
   LeonardoConfig,

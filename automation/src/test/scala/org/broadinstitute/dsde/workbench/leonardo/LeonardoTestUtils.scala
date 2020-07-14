@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
-import org.http4s.AuthScheme
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
