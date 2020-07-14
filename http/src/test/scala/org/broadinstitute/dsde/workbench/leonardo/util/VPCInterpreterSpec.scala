@@ -7,9 +7,9 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
+import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -27,7 +27,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                     Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
                                         vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                   ),
-                                  MockGoogleComputeService)
+                                  MockGoogleComputeService,
+                                  new MockComputePollOperation)
 
     test
       .setUpProjectNetwork(SetUpProjectNetworkParams(project))
@@ -39,7 +40,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   stubProjectDAO(
                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_network")
                                   ),
-                                  MockGoogleComputeService)
+                                  MockGoogleComputeService,
+                                  new MockComputePollOperation)
 
     test.setUpProjectNetwork(SetUpProjectNetworkParams(project)).attempt.unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -49,7 +51,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                    stubProjectDAO(
                                      Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                    ),
-                                   MockGoogleComputeService)
+                                   MockGoogleComputeService,
+                                   new MockComputePollOperation)
 
     test2.setUpProjectNetwork(SetUpProjectNetworkParams(project)).attempt.unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -57,7 +60,10 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
   }
 
   it should "create a new subnet if there are no project labels" in {
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubProjectDAO(Map.empty), MockGoogleComputeService)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
+                                  stubProjectDAO(Map.empty),
+                                  MockGoogleComputeService,
+                                  new MockComputePollOperation)
 
     test
       .setUpProjectNetwork(SetUpProjectNetworkParams(project))
@@ -66,7 +72,10 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   it should "create firewall rules in the project network" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubProjectDAO(Map.empty), computeService)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
+                                  stubProjectDAO(Map.empty),
+                                  computeService,
+                                  new MockComputePollOperation)
 
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
     computeService.firewallMap.size shouldBe 3
@@ -87,7 +96,10 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     vpcConfig.firewallsToRemove.foreach { fw =>
       computeService.firewallMap.putIfAbsent(fw, Firewall.newBuilder().setName(fw.value).build)
     }
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubProjectDAO(Map.empty), computeService)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
+                                  stubProjectDAO(Map.empty),
+                                  computeService,
+                                  new MockComputePollOperation)
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
   }
@@ -103,8 +115,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
       implicit ev: ApplicativeAsk[IO, TraceId]
     ): IO[Operation] =
-      IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall)) >> super.addFirewallRule(project,
-                                                                                                         firewall)(ev)
+      IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall)) >> super
+        .addFirewallRule(project, firewall)(ev)
 
     override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
       implicit ev: ApplicativeAsk[IO, TraceId]

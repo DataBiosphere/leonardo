@@ -8,12 +8,13 @@ import cats.effect.{Blocker, ContextShift, Resource, Sync}
 import cats.mtl.ApplicativeAsk
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeConfigInCreateRuntimeMessage, RuntimeMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
 import slick.dbio.DBIO
+import shapeless._
 
 package object http {
   implicit val errorReportSource = ErrorReportSource("leonardo")
@@ -41,6 +42,19 @@ package object http {
     Resource.make[F, Unit](Sync[F].delay(span.putAttribute("api", AttributeValue.stringAttributeValue(apiName))))(_ =>
       Sync[F].delay(span.end())
     )
+
+  val genericDataprocRuntimeConfig = Generic[RuntimeConfig.DataprocConfig]
+  val genericDataprocRuntimeConfigInCreateRuntimeMessage = Generic[RuntimeConfigInCreateRuntimeMessage.DataprocConfig]
+
+  def dataprocRuntimeToDataprocInCreateRuntimeMsg(
+    from: RuntimeConfig.DataprocConfig
+  ): RuntimeConfigInCreateRuntimeMessage.DataprocConfig =
+    genericDataprocRuntimeConfigInCreateRuntimeMessage.from(genericDataprocRuntimeConfig.to(from))
+
+  def dataprocInCreateRuntimeMsgToDataprocRuntime(
+    from: RuntimeConfigInCreateRuntimeMessage.DataprocConfig
+  ): RuntimeConfig.DataprocConfig =
+    genericDataprocRuntimeConfig.from(genericDataprocRuntimeConfigInCreateRuntimeMessage.to(from))
 }
 
 final case class CloudServiceMonitorOps[F[_], A](a: A)(

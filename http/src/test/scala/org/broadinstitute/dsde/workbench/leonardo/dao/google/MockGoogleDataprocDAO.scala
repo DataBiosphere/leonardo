@@ -5,7 +5,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, OperationName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO}
@@ -137,23 +137,21 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
                                                SecondaryWorker -> existingSecondaryInstances.getOrElse(Set.empty)))
     }
 
-    if (numPreemptibles.isDefined) {
-      val secondaryWorkerInstances = numPreemptibles
-        .map(num =>
-          List
-            .tabulate(num) { i =>
-              DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
-            }
-            .toSet
-        )
-        .getOrElse(Set.empty)
-      val existingWorkerInstances = instances.get(clusterName).flatMap(_.get(Worker))
-      val existingMasterInstance = instances.get(clusterName).flatMap(_.get(Master))
+    val secondaryWorkerInstances = numPreemptibles
+      .map(num =>
+        List
+          .tabulate(num) { i =>
+            DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
+          }
+          .toSet
+      )
+      .getOrElse(Set.empty)
+    val existingWorkerInstances = instances.get(clusterName).flatMap(_.get(Worker))
+    val existingMasterInstance = instances.get(clusterName).flatMap(_.get(Master))
 
-      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance.getOrElse(Set.empty),
-                                               Worker -> existingWorkerInstances.getOrElse(Set.empty),
-                                               SecondaryWorker -> secondaryWorkerInstances))
-    }
+    instances += (clusterName -> mutable.Map(Master -> existingMasterInstance.getOrElse(Set.empty),
+                                             Worker -> existingWorkerInstances.getOrElse(Set.empty),
+                                             SecondaryWorker -> secondaryWorkerInstances))
 
     Future.successful(())
   }

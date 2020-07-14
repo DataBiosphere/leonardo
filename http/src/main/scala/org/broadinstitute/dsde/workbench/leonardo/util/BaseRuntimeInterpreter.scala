@@ -33,7 +33,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 )(implicit dbRef: DbReference[F], metrics: OpenTelemetryMetrics[F], executionContext: ExecutionContext)
     extends RuntimeAlgebra[F] {
 
-  protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig)(
+  protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[Operation]]
 
@@ -51,21 +51,20 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     for {
       ctx <- ev.ask
       // Flush the welder cache to disk
-      _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
+      _ <- if (params.runtime.welderEnabled) {
         welderDao
-          .flushCache(params.runtimeAndRuntimeConfig.runtime.googleProject,
-                      params.runtimeAndRuntimeConfig.runtime.runtimeName)
+          .flushCache(params.runtime.googleProject, params.runtime.runtimeName)
           .handleErrorWith(e =>
             Logger[F].error(e)(
-              s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
+              s"Failed to flush welder cache for ${params.runtime.projectNameString}"
             )
           )
       } else Async[F].unit
 
-      _ <- clusterQuery.updateClusterHostIp(params.runtimeAndRuntimeConfig.runtime.id, None, ctx.now).transaction
+      _ <- clusterQuery.updateClusterHostIp(params.runtime.id, None, ctx.now).transaction
 
       // Stop the cluster in Google
-      r <- stopGoogleRuntime(params.runtimeAndRuntimeConfig.runtime, params.runtimeAndRuntimeConfig.runtimeConfig)
+      r <- stopGoogleRuntime(params.runtime, params.dataprocConfig)
     } yield r
 
   final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {

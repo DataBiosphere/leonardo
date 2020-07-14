@@ -6,7 +6,7 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
-import org.broadinstitute.dsde.workbench.google2.SubnetworkName
+import org.broadinstitute.dsde.workbench.google2.{OperationName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google._

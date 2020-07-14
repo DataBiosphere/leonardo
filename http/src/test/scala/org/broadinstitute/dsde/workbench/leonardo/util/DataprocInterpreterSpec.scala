@@ -11,7 +11,14 @@ import com.google.api.client.googleapis.testing.json.GoogleJsonResponseException
 import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
+import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
+  MachineTypeName,
+  MockGoogleDiskService,
+  OperationName,
+  SubnetworkName
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -20,15 +27,15 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfi
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.concurrent.ScalaFutures
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.scalatest.BeforeAndAfterAll
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import org.scalatest.flatspec.AnyFlatSpecLike
-import org.scalatest.matchers.should.Matchers
 
 class DataprocInterpreterSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -51,7 +58,10 @@ class DataprocInterpreterSpec
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
-  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleProjectDAO, MockGoogleComputeService)
+  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
+                                         mockGoogleProjectDAO,
+                                         MockGoogleComputeService,
+                                         new MockComputePollOperation)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -80,7 +90,11 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
+            .fromCreateRuntimeMessage(
+              CreateRuntimeMessage.fromRuntime(testCluster,
+                                               LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
+                                               None)
+            )
         )
         .unsafeToFuture()
         .futureValue
@@ -110,6 +124,47 @@ class DataprocInterpreterSpec
     clusterCreationRes.serviceAccountKey shouldBe None
   }
 
+  it should "resize cluster when stopping cluster" in isolatedDbTest {
+    val dataprocConfig = defaultDataprocRuntimeConfig.copy(numberOfPreemptibleWorkers = Some(10))
+    val res = for {
+      now <- nowInstant
+      runtime <- IO(
+        testCluster
+          .copy(asyncRuntimeFields =
+            Some(AsyncRuntimeFields(GoogleId("id"), OperationName("operation"), GcsBucketName("bucket"), None))
+          )
+          .saveWithRuntimeConfig(runtimeConfig = dataprocConfig)
+      )
+      _ <- IO.fromFuture(
+        IO(
+          mockGoogleDataprocDAO.createCluster(
+            runtime.googleProject,
+            runtime.runtimeName,
+            CreateClusterConfig(
+              dataprocConfig,
+              List.empty,
+              runtime.auditInfo.creator,
+              "",
+              runtime.asyncRuntimeFields.map(_.stagingBucket).get,
+              Set.empty,
+              SubnetworkName(""),
+              CustomImage.DataprocCustomImage(""),
+              5 seconds
+            )
+          )
+        )
+      )
+      _ = mockGoogleDataprocDAO.instances.get(runtime.runtimeName).get(DataprocRole.SecondaryWorker).size shouldBe 10
+      _ <- dataprocInterp.stopRuntime(
+        StopRuntimeParams(runtime, Some(dataprocConfig), now)
+      )
+    } yield {
+      mockGoogleDataprocDAO.instances.get(runtime.runtimeName).get(DataprocRole.SecondaryWorker).size shouldBe 0
+    }
+
+    res.unsafeRunSync()
+  }
+
   it should "be able to determine appropriate custom dataproc image" in isolatedDbTest {
     val cluster = LeoLenses.runtimeToRuntimeImages
       .modify(_ =>
@@ -118,11 +173,12 @@ class DataprocInterpreterSpec
         )
       )(testCluster)
 
+    val dataprocConfig = LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get
     val res =
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, defaultDataprocRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, dataprocConfig, None))
         )
         .unsafeToFuture()
         .futureValue
@@ -140,7 +196,9 @@ class DataprocInterpreterSpec
       dataprocInterp
         .createRuntime(
           CreateRuntimeParams.fromCreateRuntimeMessage(
-            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage, defaultDataprocRuntimeConfig, None)
+            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage,
+                                             LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
+                                             None)
           )
         )
         .unsafeToFuture()
@@ -163,11 +221,13 @@ class DataprocInterpreterSpec
                                                             MockWelderDAO,
                                                             blocker)
 
+    val dataprocConfig = LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get
+
     val exception =
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
+            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, dataprocConfig, None))
         )
         .unsafeToFuture()
         .failed
@@ -202,7 +262,11 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
+            .fromCreateRuntimeMessage(
+              CreateRuntimeMessage.fromRuntime(testCluster,
+                                               LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
+                                               None)
+            )
         )
         .unsafeToFuture()
         .failed
@@ -231,7 +295,11 @@ class DataprocInterpreterSpec
       erroredDataprocInterp
         .createRuntime(
           CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, defaultDataprocRuntimeConfig, None))
+            .fromCreateRuntimeMessage(
+              CreateRuntimeMessage.fromRuntime(testCluster,
+                                               LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
+                                               None)
+            )
         )
         .unsafeToFuture()
         .failed

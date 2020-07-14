@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   InstanceName,
   MachineTypeName,
   NetworkName,
+  OperationName,
   SubnetworkName,
   ZoneName
 }

@@ -2,24 +2,25 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+import java.util.concurrent.TimeoutException
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
+import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.{
-  streamFUntilDone,
-  DiskName,
+  ComputePollOperation,
   Event,
   GoogleDiskService,
   GoogleSubscriber,
-  MachineTypeName
+  MachineTypeName,
+  OperationName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -27,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
-import org.broadinstitute.dsde.workbench.DoneCheckableInstances.computeDoneCheckable
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -37,7 +37,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   config: LeoPubsubMessageSubscriberConfig,
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   asyncTasks: InspectableQueue[F, Task[F]],
-  googleDiskService: GoogleDiskService[F]
+  googleDiskService: GoogleDiskService[F],
+  computePollOperation: ComputePollOperation[F]
 )(implicit executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
   logger: StructuredLogger[F],
@@ -140,15 +141,19 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               .transaction
             runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
             runtime <- F.fromEither(runtimeOpt.toRight(new Exception(s"can't find ${msg.runtimeId} in DB")))
-            runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, msg.runtimeConfig)
+            dataprocConfig = msg.runtimeConfig match {
+              case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
+                Some(dataprocInCreateRuntimeMsgToDataprocRuntime(x))
+              case _ => none[RuntimeConfig.DataprocConfig]
+            }
             _ <- msg.runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(runtimeAndRuntimeConfig, ctx.now))
+              .stopRuntime(StopRuntimeParams(runtime, dataprocConfig, ctx.now))
             _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Stopping).compile.drain
           } yield ()
         } else F.unit
       } yield ()
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, taskToRun, Some(logError(msg.runtimeProjectAndName.toString)), ctx.now)
+        Task(ctx.traceId, taskToRun, Some(logError(msg.runtimeProjectAndName.toString, "creating runtime")), ctx.now)
       )
     } yield ()
 
@@ -189,20 +194,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      diskToAutoDelete <- if (msg.deleteDisk) {
-        runtimeConfig match {
-          case x: RuntimeConfig.GceWithPdConfig =>
-            x.persistentDiskId
-              .flatTraverse(id => persistentDiskQuery.getPersistentDiskRecord(id).transaction)
-              .map(_.map(_.name))
-          case _ => F.pure(none[DiskName])
-        }
-      } else F.pure(none[DiskName])
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(runtime.googleProject,
-                            runtime.runtimeName,
-                            runtime.asyncRuntimeFields.isDefined,
-                            diskToAutoDelete)
+        DeleteRuntimeParams(runtime.googleProject, runtime.runtimeName, runtime.asyncRuntimeFields.isDefined)
       )
       poll = op match {
         case Some(o) =>
@@ -219,12 +212,40 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             for {
               _ <- poll
               now <- nowInstant
-              _ <- rc.persistentDiskId.traverse(id => persistentDiskQuery.delete(id, now).transaction)
+              _ <- rc.persistentDiskId.traverse { id =>
+                val deleteDisk = for {
+                  diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
+                  disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
+
+                  deleteDiskOp <- googleDiskService.deleteDisk(runtime.googleProject, disk.zone, disk.name)
+                  _ <- computePollOperation.pollZoneOperation(runtime.googleProject,
+                                                              disk.zone,
+                                                              OperationName(deleteDiskOp.getName),
+                                                              2 seconds,
+                                                              10,
+                                                              None)(
+                    persistentDiskQuery.delete(id, now).transaction.void,
+                    F.raiseError(
+                      new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
+                    ),
+                    F.unit
+                  )
+                } yield ()
+
+                deleteDisk.handleErrorWith(e =>
+                  clusterErrorQuery
+                    .save(runtime.id, RuntimeError(e.getMessage, -1, now))
+                    .transaction
+                    .void
+                )
+              }
             } yield ()
           case _ => poll
         }
       else poll
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, fa, Some(logError(runtime.projectNameString)), ctx.now))
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId, fa, Some(logError(runtime.projectNameString, "deleting runtime")), ctx.now)
+      )
     } yield ()
 
   private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(
@@ -243,7 +264,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
+        StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now)
       )
       poll = op match {
         case Some(o) =>
@@ -254,7 +275,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
       }
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, poll, Some(logError(runtime.projectNameString)), ctx.now))
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId, poll, Some(logError(runtime.projectNameString, "stopping runtime")), ctx.now)
+      )
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(
@@ -274,10 +297,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, ctx.now))
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId,
-             runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
-             Some(logError(runtime.projectNameString)),
-             ctx.now)
+        Task(
+          ctx.traceId,
+          runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
+          Some(logError(runtime.projectNameString, "starting runtime")),
+          ctx.now
+        )
       )
     } yield ()
 
@@ -327,7 +352,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             )
             _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
             operation <- runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now))(ctxStopping)
+              .stopRuntime(StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now))(
+                ctxStopping
+              )
             task = for {
               _ <- operation match {
                 case Some(op) =>
@@ -345,7 +372,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               _ <- updateRuntimeAfterStopAndStarting(runtime, m)(ctxStarting)
               _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction
             } yield ()
-            _ <- asyncTasks.enqueue1(Task(ctx.traceId, task, Some(logError(runtime.projectNameString)), ctx.now))
+            _ <- asyncTasks.enqueue1(
+              Task(ctx.traceId, task, Some(logError(runtime.projectNameString, "updating runtime")), ctx.now)
+            )
           } yield ()
         } else {
           runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
@@ -393,17 +422,28 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           .build()
       )
       _ <- persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(operation.getTargetId), ctx.now).transaction[F]
-      task = for {
-        _ <- streamFUntilDone(F.pure(operation),
-                              config.persistentDiskMonitorConfig.create.maxAttempts,
-                              config.persistentDiskMonitorConfig.create.interval).compile.drain
-        _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F]
-      } yield ()
+      task = computePollOperation
+        .pollZoneOperation(
+          msg.googleProject,
+          msg.zone,
+          OperationName(operation.getName),
+          config.persistentDiskMonitorConfig.create.interval,
+          config.persistentDiskMonitorConfig.create.maxAttempts,
+          None
+        )(
+          persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void,
+          F.raiseError(
+            new TimeoutException(s"Fail to create disk ${msg.name.value} in a timely manner")
+          ), //Should save disk creation error if we have error column in DB
+          F.unit
+        )
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId,
-             task,
-             Some(logError(s"${ctx.traceId.asString} | ${msg.googleProject.value}/${msg.diskId.value}")),
-             ctx.now)
+        Task(
+          ctx.traceId,
+          task,
+          Some(logError(s"${ctx.traceId.asString} | ${msg.googleProject.value}/${msg.diskId.value}", "creating disk")),
+          ctx.now
+        )
       )
     } yield ()
     createDisk.handleErrorWith {
@@ -431,15 +471,27 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       operation <- googleDiskService.deleteDisk(disk.googleProject, disk.zone, disk.name)
-      task = for {
-        _ <- streamFUntilDone(F.pure(operation),
-                              config.persistentDiskMonitorConfig.delete.maxAttempts,
-                              config.persistentDiskMonitorConfig.delete.interval).compile.drain
-        now <- nowInstant
-        _ <- persistentDiskQuery.delete(msg.diskId, now).transaction[F]
-      } yield ()
+      task = computePollOperation
+        .pollZoneOperation(
+          disk.googleProject,
+          disk.zone,
+          OperationName(operation.getName),
+          config.persistentDiskMonitorConfig.create.interval,
+          config.persistentDiskMonitorConfig.create.maxAttempts,
+          None
+        )(
+          nowInstant.flatMap(now => persistentDiskQuery.delete(msg.diskId, now).transaction[F]).void,
+          F.raiseError(
+            new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
+          ), //Should save disk creation error if we have error column in DB
+          F.unit
+        )
+
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}")), ctx.now)
+        Task(ctx.traceId,
+             task,
+             Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Deleting Disk")),
+             ctx.now)
       )
     } yield ()
 
@@ -453,15 +505,26 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId, msg))
       )(F.pure)
       operation <- googleDiskService.resizeDisk(disk.googleProject, disk.zone, disk.name, msg.newSize.gb)
-      task = for {
-        _ <- streamFUntilDone(F.pure(operation),
-                              config.persistentDiskMonitorConfig.update.maxAttempts,
-                              config.persistentDiskMonitorConfig.update.interval).compile.drain
-        now <- nowInstant
-        _ <- persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]
-      } yield ()
+      task = computePollOperation
+        .pollZoneOperation(
+          disk.googleProject,
+          disk.zone,
+          OperationName(operation.getName),
+          config.persistentDiskMonitorConfig.create.interval,
+          config.persistentDiskMonitorConfig.create.maxAttempts,
+          None
+        )(
+          nowInstant.flatMap(now => persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]).void,
+          F.raiseError(
+            new TimeoutException(s"Fail to update disk ${disk.name.value} in a timely manner")
+          ), //Should save disk creation error if we have error column in DB
+          F.unit
+        )
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, task, Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}")), ctx.now)
+        Task(ctx.traceId,
+             task,
+             Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Updating Disk")),
+             ctx.now)
       )
     } yield ()
 
@@ -469,8 +532,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
 
   def handleDeleteAppMessage(msg: DeleteAppMessage): F[Unit] = F.unit
 
-  private def logError(projectAndName: String): Throwable => F[Unit] =
-    t => logger.error(t)(s"Fail to monitor ${projectAndName}")
+  private def logError(projectAndName: String, action: String): Throwable => F[Unit] =
+    t => logger.error(t)(s"Fail to monitor ${projectAndName} for ${action}")
 }
 
 sealed trait PubsubHandleMessageError extends NoStackTrace {

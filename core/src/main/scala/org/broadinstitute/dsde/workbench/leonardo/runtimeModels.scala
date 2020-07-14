@@ -5,7 +5,7 @@ import java.time.Instant
 
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
@@ -184,15 +184,6 @@ object CustomImage {
     val cloudService = CloudService.GCE
   }
 }
-
-final case class PersistentDiskInRuntimeConfig(
-  id: DiskId,
-  zone: ZoneName,
-  name: DiskName,
-  status: DiskStatus,
-  size: DiskSize,
-  diskType: DiskType
-)
 
 /** Configuration of the runtime such as machine types, disk size, etc */
 final case class RuntimeConfigId(id: Long) extends AnyVal
@@ -407,7 +398,6 @@ final case class RuntimeAndRuntimeConfig(runtime: Runtime, runtimeConfig: Runtim
 final case class IP(value: String) extends ValueObject
 final case class IpRange(value: String) extends AnyVal
 final case class NetworkTag(value: String) extends ValueObject
-final case class OperationName(value: String) extends ValueObject
 final case class GoogleOperation(name: OperationName, id: GoogleId)
 final case class GoogleId(value: String) extends AnyVal
 

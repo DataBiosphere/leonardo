@@ -1,12 +1,21 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GoogleComputeService, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  GoogleComputeService,
+  InstanceName,
+  OperationName,
+  ZoneName
+}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
@@ -14,16 +23,15 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, cluster
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.{model, DoneCheckable}
+import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.EitherValues
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 class GceRuntimeMonitorSpec
     extends AnyFlatSpec
@@ -555,6 +563,35 @@ class GceRuntimeMonitorSpec
     res.unsafeRunSync()
   }
 
+  it should "set runtime to PreDeleting if Stopping is interrupted by Deleting" in isolatedDbTest {
+    val op = Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("PENDING").build()
+    val res = for {
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopping).saveWithRuntimeConfig(gceRuntimeConfig))
+      pollOperation = new MockComputePollOperation {
+        // In the first operation call, we set runtime status to Deleting, this should cause the original `Stopping` process to cancel and we'll
+        // enqueue a delete message instead
+        override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
+          implicit ev: ApplicativeAsk[IO, TraceId]
+        ): IO[Operation] =
+          clusterQuery
+            .updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now())
+            .transaction
+            .as(op)
+      }
+      monitor = gceRuntimeMonitor(computePollOperation = pollOperation)
+
+      _ <- monitor.pollCheck(runtime.googleProject,
+                             RuntimeAndRuntimeConfig(runtime, gceRuntimeConfig),
+                             op,
+                             RuntimeStatus.Stopping)
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+    } yield {
+      status shouldBe (Some(RuntimeStatus.PreDeleting))
+    }
+
+    res.unsafeRunSync()
+  }
+
   it should "monitor Deleting successfully" in {
     val runtime = makeCluster(2).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
@@ -564,27 +601,25 @@ class GceRuntimeMonitorSpec
 
     val initialOp = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
 
-    def computeService(start: Long): GoogleComputeService[IO] = new MockGoogleComputeService {
-      override def pollOperation(project: GoogleProject, operation: Operation, delay: FiniteDuration, maxAttempts: Int)(
-        implicit ev: ApplicativeAsk[IO, TraceId],
-        doneEv: DoneCheckable[Operation]
-      ): fs2.Stream[IO, Operation] = {
+    def computePollOperation(start: Long): ComputePollOperation[IO] = new MockComputePollOperation {
+      override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Operation] = {
+        val pendingOp = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
         val afterOperation = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("DONE").build()
 
-        val res = for {
+        for {
           now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
           res <- if (now - start < 4000)
-            IO.pure(operation)
+            IO.pure(pendingOp)
           else IO.pure(afterOperation)
         } yield res
-
-        streamFUntilDone(res, maxAttempts, delay)
       }
     }
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
+      monitor = gceRuntimeMonitor(computePollOperation = computePollOperation(start.toEpochMilli))
       savedRuntime <- IO(runtime.save())
       _ <- monitor.pollCheck(
         savedRuntime.googleProject,
@@ -610,19 +645,17 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Deleting
     )
 
-    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
-      override def pollOperation(project: GoogleProject, operation: Operation, delay: FiniteDuration, maxAttempts: Int)(
-        implicit ev: ApplicativeAsk[IO, TraceId],
-        doneEv: DoneCheckable[Operation]
-      ): fs2.Stream[IO, Operation] =
-        streamFUntilDone(IO(operation), maxAttempts, delay)
-    }
-
     val op = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
+
+    val pollOperation: ComputePollOperation[IO] = new MockComputePollOperation {
+      override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Operation] = IO.pure(op)
+    }
 
     val res = for {
       start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(googleComputeService = computeService)
+      monitor = gceRuntimeMonitor(computePollOperation = pollOperation)
       savedRuntime <- IO(runtime.save())
       _ <- monitor.pollCheck(
         runtime.googleProject,
@@ -645,15 +678,19 @@ class GceRuntimeMonitorSpec
   implicit val toolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = _ => MockToolDAO(true)
 
   def gceRuntimeMonitor(
-    googleComputeService: GoogleComputeService[IO] = MockGoogleComputeService
+    googleComputeService: GoogleComputeService[IO] = MockGoogleComputeService,
+    computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
+    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
   ): GceRuntimeMonitor[IO] = {
     val config =
       Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollingInterval = 1 seconds, pollCheckMaxAttempts = 5)
     new GceRuntimeMonitor[IO](
       config,
       googleComputeService,
+      computePollOperation,
       MockAuthProvider,
       FakeGoogleStorageService,
+      publisherQueue,
       GceInterp
     )
   }

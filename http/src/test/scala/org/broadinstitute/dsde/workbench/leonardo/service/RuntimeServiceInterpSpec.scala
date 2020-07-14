@@ -10,15 +10,16 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleStorageInterpreter, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.PersistentDiskRequestResult
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
@@ -46,6 +47,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
+      MockGoogleComputeService,
+      new MockComputePollOperation,
       publisherQueue
     )
   val runtimeService = makeRuntimeService(publisherQueue)
@@ -107,13 +110,15 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = clusterOpt.get
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       message <- publisherQueue.dequeue1
+      gceRuntimeConfig = runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig]
+      gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
     } yield {
       r shouldBe Right(())
       runtimeConfig shouldBe (Config.gceConfig.runtimeConfigDefaults)
       cluster.googleProject shouldBe (googleProject)
       cluster.runtimeName shouldBe (runtimeName)
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, runtimeConfig, Some(context.traceId))
+        .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
@@ -159,6 +164,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       cluster = clusterOpt.get
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+      runtimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(runtimeConfig).get
       message <- publisherQueue.dequeue1
     } yield {
       // Default worker is 0, hence all worker configs are None
@@ -170,7 +176,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       runtimeConfig shouldBe expectedRuntimeConfig
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, runtimeConfig, Some(context.traceId))
+        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
@@ -216,11 +222,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       clusterOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
       cluster = clusterOpt.get
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
+      runtimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(runtimeConfig).get
       message <- publisherQueue.dequeue1
     } yield {
       runtimeConfig shouldBe Config.dataprocConfig.runtimeConfigDefaults.copy(numberOfWorkers = 2)
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, runtimeConfig, Some(context.traceId))
+        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
@@ -329,6 +336,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       diskOpt <- persistentDiskQuery.getActiveByName(project, diskName).transaction
       disk = diskOpt.get
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      runtimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(runtimeConfig).get
       message <- publisherQueue.dequeue1
     } yield {
       r shouldBe Right(())
@@ -344,7 +352,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         bootDiskSize = DiskSize(50)
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(runtime, runtimeConfig, Some(context.traceId))
+        .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
@@ -352,8 +360,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes,
-          runtimeConfig =
-            RuntimeConfig.GceWithPdConfig(runtimeConfig.machineType, Some(disk.id), bootDiskSize = DiskSize(50))
+          runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
+                                                                              disk.id,
+                                                                              bootDiskSize = DiskSize(50))
         )
       message shouldBe expectedMessage
     }

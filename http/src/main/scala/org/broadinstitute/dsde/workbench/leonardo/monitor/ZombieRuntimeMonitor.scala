@@ -226,8 +226,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
           DeleteRuntimeParams(
             zombie.googleProject,
             zombie.runtimeName,
-            zombie.asyncRuntimeFields.isDefined,
-            None
+            zombie.asyncRuntimeFields.isDefined
           ) //TODO: think about this a bit more. We may want to delete disks in certain cases
         )
         .void

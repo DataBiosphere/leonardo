@@ -1,9 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
+import java.util.concurrent.TimeoutException
+import cats.implicits._
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
-import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GoogleDiskService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
@@ -12,6 +14,8 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 
 @DoNotDiscover
 class RuntimeCreationDiskSpec
@@ -85,12 +89,21 @@ class RuntimeCreationDiskSpec
       )
     )
 
+    import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.eitherDoneCheckable
+
     // validate disk still exists after runtime is deleted
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
       for {
         _ <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
+        _ <- LeonardoApiClient.deleteRuntime(googleProject, runtimeName)
+        getRuntimeResponse <- getRuntime(googleProject, runtimeName)
+        // Validate disk is detached
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+        ioa = getRuntime(googleProject, runtimeName).attempt
+        res <- testTimer.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
+        _ <- if (res.isDone) IO.unit
+        else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
         disk <- LeonardoApiClient.getDisk(googleProject, diskName)
         _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
         listofDisks <- LeonardoApiClient.listDisk(googleProject, true)

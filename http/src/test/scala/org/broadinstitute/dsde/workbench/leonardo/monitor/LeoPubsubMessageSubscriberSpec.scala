@@ -3,17 +3,26 @@ package monitor
 
 import java.time.Instant
 
+import cats.implicits._
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
 import cats.effect.concurrent.Deferred
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  MachineTypeName,
+  MockGoogleDiskService,
+  OperationName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
@@ -21,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterErrorQuery,
   clusterQuery,
   persistentDiskQuery,
   RuntimeConfigQueries,
@@ -72,7 +82,11 @@ class LeoPubsubMessageSubscriberSpec
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
 
-  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig, projectDAO, MockGoogleComputeService)
+  val vpcInterp =
+    new VPCInterpreter[IO](Config.vpcInterpreterConfig,
+                           projectDAO,
+                           MockGoogleComputeService,
+                           new MockComputePollOperation)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -117,7 +131,8 @@ class LeoPubsubMessageSubscriberSpec
           .save()
       )
       tr <- traceId.ask
-      _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfig, Some(tr)))
+      gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
+      _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
       updatedRuntime shouldBe 'defined
@@ -189,6 +204,41 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
+  it should "persist delete disk error when if fail to delete disk" in isolatedDbTest {
+    val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
+    val pollOperation = new MockComputePollOperation {
+      override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Operation] = IO.pure(
+        Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("PENDING").build()
+      )
+    }
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, computePollOperation = pollOperation)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+
+    val res = for {
+      disk <- makePersistentDisk(DiskId(1), Some(FormattedBy.GCE)).save()
+      runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                                                    bootDiskSize = DiskSize(50),
+                                                    persistentDiskId = Some(disk.id))
+
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
+      tr <- traceId.ask
+      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, true, Some(tr)))
+      _ <- withInfiniteStream(
+        asyncTaskProcessor.process,
+        clusterErrorQuery.get(runtime.id).transaction.map { error =>
+          val dummyNow = Instant.now()
+          error.head.copy(timestamp = dummyNow) shouldBe RuntimeError(s"Fail to delete ${disk.name} in a timely manner",
+                                                                      -1,
+                                                                      dummyNow)
+        }
+      )
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
   it should "not handle DeleteRuntimeMessage when cluster is not in Deleting status" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
 
@@ -208,7 +258,6 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      now <- IO(Instant.now)
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopping).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
 
@@ -226,7 +275,6 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      now <- IO(Instant.now)
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
       message = StopRuntimeMessage(runtime.id, Some(tr))
@@ -450,17 +498,20 @@ class LeoPubsubMessageSubscriberSpec
 
   def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
-                          InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync) = {
+                          InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
+                        computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation) = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
+
     new LeoPubsubMessageSubscriber[IO](
       LeoPubsubMessageSubscriberConfig(1,
                                        30 seconds,
                                        Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig),
       googleSubscriber,
       asyncTaskQueue,
-      MockGoogleDiskService
+      MockGoogleDiskService,
+      computePollOperation
     )
   }
 }
