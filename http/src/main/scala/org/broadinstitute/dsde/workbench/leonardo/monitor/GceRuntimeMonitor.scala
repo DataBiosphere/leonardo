@@ -217,7 +217,13 @@ class GceRuntimeMonitor[F[_]: Parallel](
                 case UserScriptsValidationResult.CheckAgain(msg) =>
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
                 case UserScriptsValidationResult.Error(msg) =>
-                  failedRuntime(monitorContext, runtimeAndRuntimeConfig, Some(RuntimeErrorDetails(msg)), Set.empty)
+                  logger
+                    .info(s"${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}") >> failedRuntime(
+                    monitorContext,
+                    runtimeAndRuntimeConfig,
+                    Some(RuntimeErrorDetails(msg)),
+                    Set.empty
+                  )
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
@@ -233,7 +239,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
               }
             } yield r
           case ss =>
-            logger.info(s"Going to delete runtime due to unexpected status ${ss}") >> failedRuntime(
+            logger.info(
+              s"Going to delete runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} due to unexpected status ${ss}"
+            ) >> failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
               Some(RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance")),
