@@ -233,7 +233,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
               }
             } yield r
           case ss =>
-            failedRuntime(
+            logger.info(s"Going to delete runtime due to unexpected status ${ss}") >> failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
               Some(RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance")),
