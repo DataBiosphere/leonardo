@@ -84,6 +84,15 @@ openssl x509 -req -in $CONFIGROOT/jupyter-server.csr \
         -CAkey $CONFIGROOT/rootCA.key \
         -CAcreateserial -out $CONFIGROOT/jupyter-server.crt -days 1500
 
+openssl genrsa -out $CONFIGROOT/LEGACY_jupyter-server.key 2048
+openssl req -new -key $CONFIGROOT/LEGACY_jupyter-server.key \
+        -subj "/C=US/CN=*.${SERVER_HOST}" \
+        -out $CONFIGROOT/LEGACY_jupyter-server.csr -sha256
+openssl x509 -req -in $CONFIGROOT/LEGACY_jupyter-server.csr \
+        -CA $CONFIGROOT/LEGACY_rootCA.pem \
+        -CAkey $CONFIGROOT/LEGACY_rootCA.key \
+        -CAcreateserial -out $CONFIGROOT/LEGACY_jupyter-server.crt -days 1500
+
 # Generate leo client certificate. Common name must be different
 # than the leo server cert.
 openssl genrsa -out $CONFIGROOT/leo-client.key 2048

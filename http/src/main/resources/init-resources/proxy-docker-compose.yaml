@@ -7,6 +7,8 @@ services:
     volumes:
     - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
     - /certs/jupyter-server.key:/etc/ssl/private/server.key:ro
+    - /certs/LEGACY_jupyter-server.crt:/etc/ssl/certs/LEGACY_server.crt:ro
+    - /certs/LEGACY_jupyter-server.key:/etc/ssl/private/LEGACY_server.key:ro
     - /certs/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
     - /etc/cluster-site.conf:/etc/apache2/sites-enabled/site.conf
     restart: always

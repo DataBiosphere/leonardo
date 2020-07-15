@@ -7,6 +7,8 @@ services:
     volumes:
       - /home/ubuntu/app/jupyter-server.crt:/etc/jupyter-server.crt
       - /home/ubuntu/app/jupyter-server.key:/etc/jupyter-server.key
+      - /home/ubuntu/app/LEGACY_jupyter-server.crt:/etc/LEGACY_jupyter-server.crt
+      - /home/ubuntu/app/LEGACY_jupyter-server.key:/etc/LEGACY_jupyter-server.key
       - /home/ubuntu/app/leonardo.conf:/etc/leonardo.conf
       - /home/ubuntu/app/leonardo-account.pem:/etc/leonardo-account.pem:ro
       - /home/ubuntu/app/leo-client.p12:/etc/leo-client.p12
