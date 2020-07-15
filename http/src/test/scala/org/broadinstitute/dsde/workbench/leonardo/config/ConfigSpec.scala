@@ -3,6 +3,7 @@ package config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitor,
@@ -37,6 +38,25 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
     )
 
     Config.leoPubsubMessageSubscriberConfig shouldBe expectedResult
+  }
+
+  it should "read gce.monitor properly" in {
+    val expected = GceMonitorConfig(
+      20 seconds,
+      15 seconds,
+      120,
+      8 seconds,
+      Config.clusterBucketConfig,
+      Map(
+        RuntimeStatus.Creating -> 30.minutes,
+        RuntimeStatus.Starting -> 20.minutes,
+        RuntimeStatus.Deleting -> 30.minutes
+      ),
+      ZoneName("us-central1-a"),
+      Config.imageConfig
+    )
+
+    Config.gceMonitorConfig shouldBe (expected)
   }
 
   "GKE config" should "read ClusterConfig properly" in {
