@@ -3,7 +3,8 @@ info:
   title: Leonardo
   description: |
     Workbench notebooks service.
-  version: "0.1"
+  # Follow semantic versioning https://semver.org/
+  version: "0.0.1"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
