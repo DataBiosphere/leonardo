@@ -191,6 +191,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Can't retrieve instance yet"))
     case Some(i) =>
       for {
+        context <- ev.ask
         gceStatus <- F.fromEither(
           GceInstanceStatus
             .withNameInsensitiveOption(i.getStatus)
@@ -218,7 +219,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
                 case UserScriptsValidationResult.Error(msg) =>
                   logger
-                    .info(s"${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}") >> failedRuntime(
+                    .info(
+                      s"${context.traceId.asString} | ${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}"
+                    ) >> failedRuntime(
                     monitorContext,
                     runtimeAndRuntimeConfig,
                     Some(RuntimeErrorDetails(msg)),
@@ -240,7 +243,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
             } yield r
           case ss =>
             logger.info(
-              s"Going to delete runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} due to unexpected status ${ss}"
+              s"${context.traceId.asString} | Going to delete runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} due to unexpected status ${ss}"
             ) >> failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
