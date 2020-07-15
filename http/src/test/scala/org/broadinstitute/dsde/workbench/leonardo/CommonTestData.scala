@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.{userScriptStartupOutputUriMetadataKey, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.model.google.{
@@ -198,6 +199,8 @@ object CommonTestData {
                                         Map.empty[String, String])
   val gceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500), bootDiskSize = Some(DiskSize(50)))
+  val gceWithPdRuntimeConfig =
+    RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(DiskId(1234)), DiskSize(50))
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
@@ -231,7 +234,7 @@ object CommonTestData {
     )
   }
 
-  val testCluster = new Runtime(
+  val testCluster = Runtime(
     id = -1,
     runtimeName = name1,
     samResource = runtimeSamResource,
@@ -264,6 +267,31 @@ object CommonTestData {
     patchInProgress = false
   )
 
+  val testClusterRecord = ClusterRecord(
+    id = -1,
+    runtimeName = name1,
+    internalId = runtimeSamResource.resourceId,
+    googleProject = project,
+    googleId = testCluster.asyncRuntimeFields.map(_.googleId),
+    operationName = testCluster.asyncRuntimeFields.map(_.operationName.value),
+    status = testCluster.status,
+    auditInfo = testCluster.auditInfo,
+    kernelFoundBusyDate = None,
+    hostIp = None,
+    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
+    jupyterStartUserScriptUri =
+      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
+    autopauseThreshold = if (autopause) autopauseThreshold else 0,
+    defaultClientId = Some("clientId"),
+    stopAfterCreation = false,
+    initBucket = Some(initBucketName.value),
+    serviceAccountInfo = serviceAccount,
+    stagingBucket = Some(stagingBucketName.value),
+    welderEnabled = true,
+    customClusterEnvironmentVariables = Map.empty,
+    runtimeConfigId = RuntimeConfigId(-1)
+  )
+
   val readyInstance = Instance
     .newBuilder()
     .setStatus("Running")
@@ -286,22 +314,23 @@ object CommonTestData {
     )
     .build()
 
-  def makePersistentDisk(id: DiskId, formattedBy: Option[FormattedBy] = None): PersistentDisk = PersistentDisk(
-    id,
-    project,
-    zone,
-    DiskName(diskName.value + id.value),
-    Some(googleId),
-    serviceAccount,
-    diskSamResource,
-    DiskStatus.Ready,
-    auditInfo,
-    diskSize,
-    diskType,
-    blockSize,
-    formattedBy,
-    Map.empty
-  )
+  def makePersistentDisk(diskName: Option[DiskName] = None, formattedBy: Option[FormattedBy] = None): PersistentDisk =
+    PersistentDisk(
+      DiskId(-1),
+      project,
+      zone,
+      diskName.getOrElse(DiskName("disk")),
+      Some(googleId),
+      serviceAccount,
+      diskSamResource,
+      DiskStatus.Ready,
+      auditInfo,
+      diskSize,
+      diskType,
+      blockSize,
+      formattedBy,
+      Map.empty
+    )
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

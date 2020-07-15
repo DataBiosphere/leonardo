@@ -10,7 +10,9 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterNam
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
   DiskName,
+  InstanceName,
   KubernetesName,
   Location,
   MachineTypeName,
@@ -192,8 +194,17 @@ object JsonCodec {
 
   implicit val createClusterEncoder: Encoder[CreateCluster] =
     Encoder.forProduct2("clusterId", "nodepoolId")(x => (x.clusterId, x.nodepoolId))
+  implicit val instanceNameEncoder: Encoder[InstanceName] = Encoder.encodeString.contramap(_.value)
+  implicit val dataprocRoleEncoder: Encoder[DataprocRole] =
+    Encoder.encodeString.contramap(_.toString) // We've been using `.toString` in db
+  implicit val gceInstanceStatusEncoder: Encoder[GceInstanceStatus] =
+    Encoder.encodeString.contramap(_.toString) // We've been using `.toString` in db
 
-  // Decoders
+  implicit val instanceNameDecoder: Decoder[InstanceName] = Decoder.decodeString.map(InstanceName)
+  implicit val dataprocRoleDecoder: Decoder[DataprocRole] =
+    Decoder.decodeString.emap(s => DataprocRole.stringToDataprocRole.get(s).toRight(s"invalid dataproc role ${s}"))
+  implicit val gceInstanceStatusDecoder: Decoder[GceInstanceStatus] =
+    Decoder.decodeString.emap(s => GceInstanceStatus.withNameInsensitiveOption(s).toRight(s"invalid gce status ${s}"))
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
   implicit val googleIdDecoder: Decoder[GoogleId] = Decoder.decodeString.map(GoogleId)
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
@@ -385,4 +396,36 @@ object JsonCodec {
 
   implicit val createClusterDecoder: Decoder[CreateCluster] =
     Decoder.forProduct2("clusterId", "nodepoolId")(CreateCluster.apply)
+
+  implicit val dataprocInstanceKeyDecoder: Decoder[DataprocInstanceKey] = Decoder.forProduct3(
+    "project",
+    "zone",
+    "name"
+  )(DataprocInstanceKey.apply)
+
+  implicit val dataprocInstanceKeyEncoder: Encoder[DataprocInstanceKey] = Encoder.forProduct3(
+    "project",
+    "zone",
+    "name"
+  )(x => DataprocInstanceKey.unapply(x).get)
+
+  implicit val dataprocInstanceDecoder: Decoder[DataprocInstance] =
+    Decoder.forProduct6(
+      "key",
+      "googleId",
+      "status",
+      "ip",
+      "dataprocRole",
+      "createdDate"
+    )(DataprocInstance.apply)
+
+  implicit val dataprocInstanceEncoder: Encoder[DataprocInstance] =
+    Encoder.forProduct6(
+      "key",
+      "googleId",
+      "status",
+      "ip",
+      "dataprocRole",
+      "createdDate"
+    )(x => DataprocInstance.unapply(x).get)
 }

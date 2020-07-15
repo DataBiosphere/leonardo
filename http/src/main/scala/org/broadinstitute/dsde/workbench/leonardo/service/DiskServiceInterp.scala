@@ -276,6 +276,9 @@ case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskNam
     extends LeoException(s"${traceId} | Persistent disk ${googleProject.value}/${diskName.value} not found",
                          StatusCodes.NotFound)
 
+case class DiskNotFoundByIdException(diskId: DiskId, traceId: TraceId)
+    extends LeoException(s"${traceId} | Persistent disk ${diskId.value} not found", StatusCodes.NotFound)
+
 case class DiskCannotBeUpdatedException(projectNameString: String,
                                         status: DiskStatus,
                                         userHint: String = "",

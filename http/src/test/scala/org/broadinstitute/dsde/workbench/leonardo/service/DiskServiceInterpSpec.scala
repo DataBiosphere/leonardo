@@ -94,7 +94,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
     val res = for {
       samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResource = samResource).save()
+      disk <- makePersistentDisk(None).copy(samResource = samResource).save()
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label1", "value1").transaction
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label2", "value2").transaction
       labelResp <- labelQuery.getAllForResource(disk.id.value, LabelResourceType.PersistentDisk).transaction
@@ -110,8 +110,8 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      disk1 <- makePersistentDisk(DiskId(1)).save()
-      disk2 <- makePersistentDisk(DiskId(2)).save()
+      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
     } yield {
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
@@ -124,9 +124,9 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      disk1 <- makePersistentDisk(DiskId(1)).save()
-      disk2 <- makePersistentDisk(DiskId(2)).save()
-      _ <- makePersistentDisk(DiskId(3)).copy(googleProject = project2).save()
+      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
+      _ <- makePersistentDisk(None).copy(googleProject = project2).save()
       listResponse <- diskService.listDisks(userInfo, Some(project), Map.empty)
     } yield {
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
@@ -139,8 +139,8 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      disk1 <- makePersistentDisk(DiskId(1)).save()
-      _ <- makePersistentDisk(DiskId(2)).save()
+      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      _ <- makePersistentDisk(Some(DiskName("d2"))).save()
       _ <- labelQuery.save(disk1.id.value, LabelResourceType.PersistentDisk, "foo", "bar").transaction
       listResponse <- diskService.listDisks(userInfo, None, Map("foo" -> "bar"))
     } yield {
@@ -156,7 +156,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val res = for {
       context <- ctx.ask
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
+      disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
 
       _ <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name)
       dbDiskOpt <- persistentDiskQuery
@@ -179,7 +179,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val res = for {
       t <- ctx.ask
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
+      disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(disk.id), bootDiskSize = DiskSize(50))
@@ -200,7 +200,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         val res = for {
           t <- ctx.ask
           diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
-          disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource, status = status).save()
+          disk <- makePersistentDisk(None).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, DiskSize(600))
           fail <- diskService
             .updateDisk(userInfo, disk.googleProject, disk.name, req)
@@ -218,7 +218,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val res = for {
       context <- ctx.ask
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
+      disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, DiskSize(600))
       _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)
       message <- publisherQueue.dequeue1

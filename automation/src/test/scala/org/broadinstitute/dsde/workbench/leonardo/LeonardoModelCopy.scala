@@ -8,7 +8,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
-import scala.concurrent.duration.FiniteDuration
 import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
@@ -175,26 +174,3 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          status: ClusterStatus,
                                          labels: LabelMap,
                                          patchInProgress: Boolean)
-
-final case class UpdateRuntimeRequestCopy(runtimeConfig: Option[UpdateRuntimeConfigRequestCopy],
-                                          allowStop: Boolean,
-                                          autopauseEnabled: Option[Boolean],
-                                          autopauseThreshold: Option[FiniteDuration])
-
-sealed trait UpdateRuntimeConfigRequestCopy extends Product with Serializable {
-  def cloudService: String
-}
-object UpdateRuntimeConfigRequestCopy {
-  final case class GceConfig(machineType: Option[String], diskSize: Option[Int])
-      extends UpdateRuntimeConfigRequestCopy {
-    val cloudService: String = CloudService.GCE.asString
-  }
-
-  final case class DataprocConfig(masterMachineType: Option[String],
-                                  masterDiskSize: Option[Int],
-                                  numberOfWorkers: Option[Int],
-                                  numberOfPreemptibleWorkers: Option[Int])
-      extends UpdateRuntimeConfigRequestCopy {
-    val cloudService: String = CloudService.Dataproc.asString
-  }
-}

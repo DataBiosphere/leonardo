@@ -182,7 +182,7 @@ class LeoPubsubMessageSubscriberSpec
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
     val res = for {
-      disk <- makePersistentDisk(DiskId(1), Some(FormattedBy.GCE)).save()
+      disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
                                                     persistentDiskId = Some(disk.id))
@@ -214,7 +214,7 @@ class LeoPubsubMessageSubscriberSpec
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
     val res = for {
-      disk <- makePersistentDisk(DiskId(1), Some(FormattedBy.GCE)).save()
+      disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
                                                     persistentDiskId = Some(disk.id))
@@ -350,7 +350,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
-  it should "handle UpdateRuntimeMessage and go through a stop-start transition" in isolatedDbTest {
+  it should "handle UpdateRuntimeMessage and go through a stop-start transition for machine type" in isolatedDbTest {
     val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -392,7 +392,53 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
-  it should "handle UpdateRuntimeMessage without going through a stop-start transition" in isolatedDbTest {
+  it should "handle UpdateRuntimeMessage and restart runtime for persistent disk size update" in isolatedDbTest {
+
+    val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+
+    val res = for {
+      disk <- makePersistentDisk(None).copy(size = DiskSize(100)).save()
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Running)
+          .saveWithRuntimeConfig(gceWithPdRuntimeConfig.copy(persistentDiskId = Some(disk.id)))
+      )
+      tr <- traceId.ask
+
+      _ <- leoSubscriber.messageResponder(
+        UpdateRuntimeMessage(runtime.id,
+                             None,
+                             true,
+                             Some(DiskUpdate.PdSizeUpdate(disk.id, disk.name, DiskSize(200))),
+                             None,
+                             None,
+                             Some(tr))
+      )
+
+      assert = for {
+        updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+        updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
+      } yield {
+        // runtime should be Starting after having gone through a stop -> start
+        updatedRuntime shouldBe 'defined
+        updatedRuntime.get.status shouldBe RuntimeStatus.Starting
+        // machine type should be updated
+        updatedDisk shouldBe 'defined
+        updatedDisk.get.size shouldBe DiskSize(200)
+      }
+
+      _ <- withInfiniteStream(
+        asyncTaskProcessor.process,
+        assert
+      )
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "update diskSize should trigger a stop-start transition" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
@@ -403,7 +449,7 @@ class LeoPubsubMessageSubscriberSpec
         UpdateRuntimeMessage(runtime.id,
                              Some(MachineTypeName("n1-highmem-64")),
                              false,
-                             Some(DiskSize(1024)),
+                             Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
                              None,
                              None,
                              Some(tr))
@@ -429,7 +475,7 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Creating).save()
+      disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
       tr <- traceId.ask
       now <- IO(Instant.now)
       _ <- leoSubscriber.messageResponder(CreateDiskMessage.fromDisk(disk, Some(tr)))
@@ -446,7 +492,7 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Deleting).save()
+      disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
       tr <- traceId.ask
 
       _ <- leoSubscriber.messageResponder(DeleteDiskMessage(disk.id, Some(tr)))
@@ -463,7 +509,7 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Ready).save()
+      disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
       tr <- traceId.ask
       message = DeleteDiskMessage(disk.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
@@ -479,7 +525,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       now <- IO(Instant.now)
-      disk <- makePersistentDisk(DiskId(1)).copy(status = DiskStatus.Ready).save()
+      disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
       tr <- traceId.ask
 
       _ <- leoSubscriber.messageResponder(UpdateDiskMessage(disk.id, DiskSize(550), Some(tr)))

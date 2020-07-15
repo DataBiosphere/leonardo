@@ -5,7 +5,8 @@ import java.time.Instant
 
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Operation
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import monocle.Prism
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
@@ -78,7 +79,24 @@ final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig], now: Instant)
 final case class StartRuntimeParams(runtime: Runtime, initBucket: GcsBucketName)
 final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName, now: Instant)
-final case class UpdateDiskSizeParams(runtime: Runtime, diskSize: DiskSize)
+
+sealed trait UpdateDiskSizeParams extends Product with Serializable
+object UpdateDiskSizeParams {
+  final case class Dataproc(diskSize: DiskSize, masterDataprocInstance: DataprocInstance) extends UpdateDiskSizeParams
+  final case class Gce(googleProject: GoogleProject, diskName: DiskName, diskSize: DiskSize)
+      extends UpdateDiskSizeParams
+
+  val dataprocPrism = Prism[UpdateDiskSizeParams, Dataproc] {
+    case x: Dataproc => Some(x)
+    case _           => None
+  }(identity)
+
+  val gcePrism = Prism[UpdateDiskSizeParams, Gce] {
+    case x: Gce => Some(x)
+    case _      => None
+  }(identity)
+}
+
 final case class ResizeClusterParams(runtime: Runtime, numWorkers: Option[Int], numPreemptibles: Option[Int])
 
 // Configurations

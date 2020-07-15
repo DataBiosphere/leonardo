@@ -29,11 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Pro
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  ListRuntimeResponse2,
-  UpdateRuntimeConfigRequest,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{ListRuntimeResponse2}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
@@ -44,12 +40,13 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   RuntimeConfigInCreateRuntimeMessage,
   RuntimePatchDetails
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            diskConfig: PersistentDiskConfig,
@@ -554,23 +551,65 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
    * and potentially sends a PubSub message (or throws an error). The PubSub receiver does not
    * do validation; it is assumed all validation happens here.
    */
-  private[service] def processUpdateRuntimeConfigRequest(request: UpdateRuntimeConfigRequest,
-                                                         allowStop: Boolean,
-                                                         runtime: Runtime,
-                                                         runtimeConfig: RuntimeConfig,
-                                                         traceId: TraceId): F[Unit] =
+  private[service] def processUpdateRuntimeConfigRequest(
+    request: UpdateRuntimeConfigRequest,
+    allowStop: Boolean,
+    runtime: ClusterRecord,
+    runtimeConfig: RuntimeConfig
+  )(implicit ctx: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
-
+      context <- ctx.ask
       msg <- (runtimeConfig, request) match {
-        case (gceConfig @ RuntimeConfig.GceConfig(_, _, _), req @ UpdateRuntimeConfigRequest.GceConfig(_, _)) =>
-          processUpdateGceConfigRequest(req, allowStop, runtime, gceConfig, traceId)
+        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _),
+              UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
+          for {
+            targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
+              if (d.gb < existngDiskSize.gb)
+                Async[F]
+                  .raiseError[DiskUpdate.NoPdSizeUpdate](
+                    RuntimeDiskSizeCannotBeDecreasedException(runtime.projectNameString)
+                  )
+              else
+                Async[F].pure(DiskUpdate.NoPdSizeUpdate(d))
+            }
+            r <- processUpdateGceConfigRequest(newMachineType,
+                                               allowStop,
+                                               runtime,
+                                               machineType,
+                                               targetDiskSize,
+                                               context.traceId)
+          } yield r
+        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _),
+              UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
+          for {
+            // should disk size be updated?
+            diskId <- F.fromEither(
+              diskIdOpt.toRight(RuntimeDiskNotFound(runtime.googleProject, runtime.runtimeName, context.traceId))
+            )
+            diskOpt <- persistentDiskQuery.getById(diskId).transaction
+            disk <- F.fromEither(diskOpt.toRight(DiskNotFoundByIdException(diskId, context.traceId)))
+            diskUpdate <- traverseIfChanged(diskSizeInRequest, disk.size) { d =>
+              if (d.gb < disk.size.gb)
+                Async[F].raiseError[DiskUpdate](RuntimeDiskSizeCannotBeDecreasedException(runtime.projectNameString))
+              else if (!allowStop)
+                Async[F].raiseError[DiskUpdate](RuntimeDiskSizeCannotBeChangedException(runtime.projectNameString))
+              else
+                Async[F].pure(DiskUpdate.PdSizeUpdate(disk.id, disk.name, d): DiskUpdate)
+            }
+            r <- processUpdateGceConfigRequest(newMachineType,
+                                               allowStop,
+                                               runtime,
+                                               machineType,
+                                               diskUpdate,
+                                               context.traceId)
+          } yield r
         case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _),
               req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>
-          processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig, traceId)
+          processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig)
 
         case _ =>
           Async[F].raiseError[Option[UpdateRuntimeMessage]](
-            WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService, traceId)
+            WrongCloudServiceException(runtimeConfig.cloudService, request.cloudService, context.traceId)
           )
       }
       _ <- msg.traverse_ { m =>
@@ -583,46 +622,43 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
     } yield ()
 
-  private[service] def processUpdateGceConfigRequest(req: UpdateRuntimeConfigRequest.GceConfig,
+  private[service] def processUpdateGceConfigRequest(newMachineType: Option[MachineTypeName],
                                                      allowStop: Boolean,
-                                                     runtime: Runtime,
-                                                     gceConfig: RuntimeConfig.GceConfig,
+                                                     runtime: ClusterRecord,
+                                                     existingMachineType: MachineTypeName,
+                                                     targetDiskSize: Option[DiskUpdate],
                                                      traceId: TraceId): F[Option[UpdateRuntimeMessage]] =
     for {
       // should machine type be updated?
-      targetMachineType <- traverseIfChanged(req.updatedMachineType, gceConfig.machineType) { mt =>
-        if (runtime.status == RuntimeStatus.Stopped)
-          Async[F].pure((mt, false))
-        else if (!allowStop)
-          Async[F].raiseError[(MachineTypeName, Boolean)](RuntimeMachineTypeCannotBeChangedException(runtime))
-        else Async[F].pure((mt, true))
-      }
-      // should disk size be updated?
-      targetDiskSize <- traverseIfChanged(req.updatedDiskSize, gceConfig.diskSize) { d =>
-        if (d.gb < gceConfig.diskSize.gb)
-          Async[F].raiseError[DiskSize](RuntimeDiskSizeCannotBeDecreasedException(runtime))
-        else
-          Async[F].pure(d)
-      }
+      targetMachineType <- getTargetMachineType(existingMachineType,
+                                                newMachineType,
+                                                runtime.projectNameString,
+                                                runtime.status,
+                                                allowStop)
       // if either of the above is defined, send a PubSub message
       msg <- (targetMachineType orElse targetDiskSize).traverse { _ =>
+        val requiresRestart = targetMachineType.exists(x => x._2) || targetDiskSize.isDefined
+
         val message = UpdateRuntimeMessage(runtime.id,
                                            targetMachineType.map(_._1),
-                                           targetMachineType.map(_._2).getOrElse(false),
+                                           requiresRestart,
                                            targetDiskSize,
                                            None,
                                            None,
                                            Some(traceId))
         publisherQueue.enqueue1(message).as(message)
       }
+      // we only need to return the message that might cause a start/stop transition
     } yield msg
 
-  private[service] def processUpdateDataprocConfigRequest(req: UpdateRuntimeConfigRequest.DataprocConfig,
-                                                          allowStop: Boolean,
-                                                          runtime: Runtime,
-                                                          dataprocConfig: RuntimeConfig.DataprocConfig,
-                                                          traceId: TraceId): F[Option[UpdateRuntimeMessage]] =
+  private[service] def processUpdateDataprocConfigRequest(
+    req: UpdateRuntimeConfigRequest.DataprocConfig,
+    allowStop: Boolean,
+    runtime: ClusterRecord,
+    dataprocConfig: RuntimeConfig.DataprocConfig
+  )(implicit ctx: ApplicativeAsk[F, AppContext]): F[Option[UpdateRuntimeMessage]] =
     for {
+      context <- ctx.ask
       // should num workers be updated?
       targetNumWorkers <- traverseIfChanged(req.updatedNumberOfWorkers, dataprocConfig.numberOfWorkers)(Async[F].pure)
       // should num preemptibles be updated?
@@ -642,31 +678,54 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           else if (runtime.status == RuntimeStatus.Stopped)
             Async[F].pure((mt, false))
           else if (!allowStop)
-            Async[F].raiseError[(MachineTypeName, Boolean)](RuntimeMachineTypeCannotBeChangedException(runtime))
+            Async[F].raiseError[(MachineTypeName, Boolean)](
+              RuntimeMachineTypeCannotBeChangedException(runtime.projectNameString, runtime.status)
+            )
           else Async[F].pure((mt, true))
       }
+      masterInstance <- instanceQuery.getMasterForCluster(runtime.id).transaction
       // should master disk size be updated?
       targetMasterDiskSize <- traverseIfChanged(req.updatedMasterDiskSize, dataprocConfig.masterDiskSize) { d =>
         if (d.gb < dataprocConfig.masterDiskSize.gb)
-          Async[F].raiseError[DiskSize](RuntimeDiskSizeCannotBeDecreasedException(runtime))
+          Async[F].raiseError[DiskUpdate](RuntimeDiskSizeCannotBeDecreasedException(runtime.projectNameString))
         else
-          Async[F].pure(d)
+          Async[F].pure(
+            DiskUpdate.Dataproc(d, masterInstance): DiskUpdate
+          )
       }
       // if any of the above is defined, send a PubSub message
       msg <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
         .traverse { _ =>
+          val requiresRestart = targetMasterMachineType.exists(x => x._2) || targetMasterDiskSize.isDefined
           val message = UpdateRuntimeMessage(
             runtime.id,
             targetMasterMachineType.map(_._1),
-            targetMasterMachineType.map(_._2).getOrElse(false),
+            requiresRestart,
             targetMasterDiskSize,
             targetNumWorkers,
             targetNumPreemptibles,
-            Some(traceId)
+            Some(context.traceId)
           )
           publisherQueue.enqueue1(message).as(message)
         }
     } yield msg
+
+  private[service] def getTargetMachineType(curMachineType: MachineTypeName,
+                                            reqMachineType: Option[MachineTypeName],
+                                            projectNameString: String,
+                                            status: RuntimeStatus,
+                                            allowStop: Boolean) =
+    for {
+      targetMachineType <- traverseIfChanged(reqMachineType, curMachineType) { mt =>
+        if (status == RuntimeStatus.Stopped)
+          Async[F].pure((mt, false))
+        else if (!allowStop)
+          Async[F].raiseError[(MachineTypeName, Boolean)](
+            RuntimeMachineTypeCannotBeChangedException(projectNameString, status)
+          )
+        else Async[F].pure((mt, true))
+      }
+    } yield targetMachineType
 }
 
 object RuntimeServiceInterp {
@@ -849,6 +908,13 @@ final case class WrongCloudServiceException(runtimeCloudService: CloudService,
     extends LeoException(
       s"${traceId} | Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
       StatusCodes.Conflict
+    )
+
+// thrown when a runtime has a GceWithPdConfig but has no PD attached, which should only happen for deleted runtimes
+final case class RuntimeDiskNotFound(googleProject: GoogleProject, runtimeName: RuntimeName, traceId: TraceId)
+    extends LeoException(
+      s"${traceId} | Persistent disk not found for runtime ${googleProject.value}/${runtimeName.asString}",
+      StatusCodes.NotFound
     )
 
 final case class DiskNotSupportedException(traceId: TraceId)

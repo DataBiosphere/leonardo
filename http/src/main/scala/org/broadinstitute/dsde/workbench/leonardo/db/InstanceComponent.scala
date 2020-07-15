@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.sql.Timestamp
+import java.sql.{SQLDataException, Timestamp}
 
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import LeoProfile.api._
@@ -79,6 +79,16 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
 
   def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[DataprocInstance]] =
     instanceQuery.filter(_.clusterId === clusterId).result map { recs => recs.map(unmarshalInstance) }
+
+  def getMasterForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[DataprocInstance] =
+    instanceQuery
+      .filter(_.clusterId === clusterId)
+      .filter(_.dataprocRole === Option(DataprocRole.Master.toString))
+      .result map { recs =>
+      recs.headOption
+        .map(unmarshalInstance)
+        .getOrElse(throw new SQLDataException(s"no master instance found for ${clusterId}"))
+    }
 
   def instanceByKeyQuery(instanceKey: DataprocInstanceKey) =
     instanceQuery

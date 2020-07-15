@@ -37,7 +37,7 @@ object RuntimeServiceDbQueries {
       .map(_.status)
       .result
 
-    res.map(recs => recs.headOption.flatMap(x => RuntimeStatus.withNameInsensitiveOption(x)))
+    res.map(recs => recs.headOption)
   }
 
   def getRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
@@ -69,7 +69,7 @@ object RuntimeServiceDbQueries {
     implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByDeletion =
-      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === "Deleted")
+      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
     val clusterQueryFilteredByProject = googleProjectOpt.fold(runtimeQueryFilteredByDeletion)(p =>
       runtimeQueryFilteredByDeletion.filter(_.googleProject === p)
     )
@@ -118,16 +118,16 @@ object RuntimeServiceDbQueries {
           ListRuntimeResponse2(
             runtimeRec.id,
             RuntimeSamResourceId(runtimeRec.internalId),
-            runtimeRec.clusterName,
+            runtimeRec.runtimeName,
             runtimeRec.googleProject,
             runtimeRec.auditInfo,
             runtimeConfig,
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
                                 runtimeRec.googleProject,
-                                runtimeRec.clusterName,
+                                runtimeRec.runtimeName,
                                 Set.empty,
                                 lmp),
-            RuntimeStatus.withName(runtimeRec.status),
+            runtimeRec.status,
             lmp,
             patchInProgress
           )

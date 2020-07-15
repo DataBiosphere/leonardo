@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.{AuditInfo, DiskId, DiskSize, RuntimeName, RuntimeProjectAndName}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -69,5 +69,19 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val res = decode[CreateRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
 
     res shouldBe Right(originalMessage)
+  }
+
+  it should "encode/decode DiskUpdate.PdSizeUpdate properly" in {
+    val diskUpdate = DiskUpdate.PdSizeUpdate(DiskId(1), DiskName("name"), DiskSize(10))
+    val res = decode[DiskUpdate](diskUpdate.asJson.printWith(Printer.noSpaces))
+
+    res shouldBe Right(diskUpdate)
+  }
+
+  it should "encode/decode DiskUpdate.NoPdSizeUpdate properly" in {
+    val diskUpdate = DiskUpdate.NoPdSizeUpdate(DiskSize(10))
+    val res = decode[DiskUpdate](diskUpdate.asJson.printWith(Printer.noSpaces))
+
+    res shouldBe Right(diskUpdate)
   }
 }

@@ -4,7 +4,7 @@ import java.sql.SQLIntegrityConstraintViolationException
 
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, DiskId, NodepoolLeoId}
+import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -39,7 +39,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
-    val disk = makePersistentDisk(DiskId(1)).save().unsafeRunSync()
+    val disk = makePersistentDisk(None).save().unsafeRunSync()
     val basicApp = makeApp(1, savedNodepool1.id)
     val complexApp = basicApp.copy(appResources =
       basicApp.appResources.copy(

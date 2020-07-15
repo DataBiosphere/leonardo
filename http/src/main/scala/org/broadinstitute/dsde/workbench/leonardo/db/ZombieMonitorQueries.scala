@@ -16,8 +16,10 @@ import scala.concurrent.ExecutionContext
 
 object ZombieMonitorQueries {
 
-  def listActiveZombieQuery(implicit ec: ExecutionContext): DBIO[Map[GoogleProject, Chain[ZombieCandidate]]] = {
-    val runtimes = clusterQuery.filter(_.status inSetBind RuntimeStatus.activeStatuses.map(_.toString))
+  def listActiveZombieQuery(
+    implicit ec: ExecutionContext
+  ): DBIO[Map[GoogleProject, Chain[ZombieCandidate]]] = {
+    val runtimes = clusterQuery.filter(_.status inSetBind RuntimeStatus.activeStatuses)
     val joinedQuery = runtimes.join(RuntimeConfigQueries.runtimeConfigs).on(_.runtimeConfigId === _.id)
     joinedQuery.result.map { rs =>
       rs.toList.foldMap { r =>
@@ -30,8 +32,8 @@ object ZombieMonitorQueries {
             ZombieCandidate(
               r._1.id,
               r._1.googleProject,
-              r._1.clusterName,
-              RuntimeStatus.withName(r._1.status),
+              r._1.runtimeName,
+              r._1.status,
               r._1.auditInfo.createdDate,
               asyncRuntimeFields,
               r._2.runtimeConfig.cloudService
@@ -49,7 +51,7 @@ object ZombieMonitorQueries {
       .filter(_.value === "false")
 
   def listInactiveZombieQuery(implicit ec: ExecutionContext): DBIO[List[ZombieCandidate]] = {
-    val runtimes = clusterQuery.filter(_.status === RuntimeStatus.Deleted.toString)
+    val runtimes = clusterQuery.filter(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
     val unconfirmedRuntimeQuery = runtimes.join(unconfirmedRuntimeLabels).on(_.id === _.resourceId)
     val joinedQuery =
       unconfirmedRuntimeQuery.join(RuntimeConfigQueries.runtimeConfigs).on(_._1.runtimeConfigId === _.id)
@@ -67,8 +69,8 @@ object ZombieMonitorQueries {
         ZombieCandidate(
           runtimeRec.id,
           runtimeRec.googleProject,
-          runtimeRec.clusterName,
-          RuntimeStatus.withName(runtimeRec.status),
+          runtimeRec.runtimeName,
+          runtimeRec.status,
           runtimeRec.auditInfo.createdDate,
           asyncRuntimeFields,
           cloudService

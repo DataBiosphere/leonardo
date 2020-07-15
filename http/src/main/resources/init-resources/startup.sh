@@ -154,3 +154,7 @@ if [ "$WELDER_ENABLED" == "true" ] ; then
     echo "Starting Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
     docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
 fi
+
+# Resize persistent disk if needed.
+echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+resize2fs /dev/sdb

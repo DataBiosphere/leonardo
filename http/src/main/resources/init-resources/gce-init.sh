@@ -223,7 +223,7 @@ END
     service google-fluentd restart
 
     echo "" > /etc/google_application_credentials.env
-    
+
     # Install env var config
     if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
       log 'Copy custom env vars config...'
@@ -454,7 +454,7 @@ END
     # Do this asynchronously so it doesn't hold up cluster creation
     log 'Pruning docker images...'
     docker image prune -a -f &
-    
+
 # TODO (RT): I'm pretty sure this block is never used because we have a dedicated startup.sh script
 # used for starting runtimes. We could confirm this and remove this block.
 elif [[ "$RUNTIME_OPERATION" == 'restarting' ]]; then

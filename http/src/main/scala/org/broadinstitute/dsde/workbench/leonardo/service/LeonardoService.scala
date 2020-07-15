@@ -53,6 +53,9 @@ case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: R
     extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found. Details: ${msg}",
                          StatusCodes.NotFound)
 
+case class RuntimeNotFoundByIdException(id: Long, msg: String)
+    extends LeoException(s"Runtime with id ${id} not found. Details: ${msg}", StatusCodes.NotFound)
+
 case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
       s"Runtime ${googleProject.value}/${runtimeName.asString} already exists in ${status.toString} status",
@@ -91,14 +94,20 @@ case class RuntimeCannotBeUpdatedException(projectNameString: String, status: Ru
     extends LeoException(s"Runtime ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict)
 
-case class RuntimeMachineTypeCannotBeChangedException(runtime: Runtime)
+case class RuntimeMachineTypeCannotBeChangedException(projectNameString: String, status: RuntimeStatus)
     extends LeoException(
-      s"Runtime ${runtime.projectNameString} in ${runtime.status} status must be stopped in order to change machine type. Some updates require stopping the runtime, or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
+      s"Runtime ${projectNameString} in ${status} status must be stopped in order to change machine type. Some updates require stopping the runtime, or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
       StatusCodes.Conflict
     )
 
-case class RuntimeDiskSizeCannotBeDecreasedException(runtime: Runtime)
-    extends LeoException(s"Runtime ${runtime.projectNameString}: decreasing master disk size is not allowed",
+case class RuntimeDiskSizeCannotBeChangedException(projectNameString: String)
+    extends LeoException(
+      s"Persistent disk size cannot be updated without restarting the attached runtime ${projectNameString}. Some updates require stopping the runtime, or a re-create. If you wish Leonardo to handle this for you, investigate the allowStop and allowDelete flags for this API.",
+      StatusCodes.Conflict
+    )
+
+case class RuntimeDiskSizeCannotBeDecreasedException(projectNameString: String)
+    extends LeoException(s"Runtime ${projectNameString}: decreasing master disk size is not allowed",
                          StatusCodes.PreconditionFailed)
 
 case class BucketObjectException(gcsUri: String)
@@ -391,7 +400,10 @@ class LeonardoService(
                 s"detected stop and update transition specified in request of maybeChangeMasterMachineType, ${transition}"
               )
               IO.pure(UpdateResult(false, Some(transition)))
-            } else IO.raiseError(RuntimeMachineTypeCannotBeChangedException(existingCluster))
+            } else
+              IO.raiseError(
+                RuntimeMachineTypeCannotBeChangedException(existingCluster.projectNameString, existingCluster.status)
+              )
           case _ => IO.raiseError(new NotImplementedError("GCE is not implemented"))
         }
 

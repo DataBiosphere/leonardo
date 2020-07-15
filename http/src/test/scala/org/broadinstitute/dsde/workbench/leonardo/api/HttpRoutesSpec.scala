@@ -451,48 +451,6 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
-  implicit val updateGceConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
-    "cloudService",
-    "machineType",
-    "diskSize"
-  )(x => (x.cloudService, x.updatedMachineType, x.updatedDiskSize))
-
-  implicit val updateDataprocConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest.DataprocConfig] =
-    Encoder.forProduct5(
-      "cloudService",
-      "masterMachineType",
-      "masterDiskSize",
-      "numberOfWorkers",
-      "numberOfPreemptibleWorkers"
-    )(x =>
-      (x.cloudService,
-       x.updatedMasterMachineType,
-       x.updatedMasterDiskSize,
-       x.updatedNumberOfWorkers,
-       x.updatedNumberOfPreemptibleWorkers)
-    )
-
-  implicit val updateRuntimeConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest] = Encoder.instance { x =>
-    x match {
-      case x: UpdateRuntimeConfigRequest.DataprocConfig => x.asJson
-      case x: UpdateRuntimeConfigRequest.GceConfig      => x.asJson
-    }
-  }
-
-  implicit val updateRuntimeRequestEncoder: Encoder[UpdateRuntimeRequest] = Encoder.forProduct4(
-    "runtimeConfig",
-    "allowStop",
-    "autopause",
-    "autopauseThreshold"
-  )(x =>
-    (
-      x.updatedRuntimeConfig,
-      x.allowStop,
-      x.updateAutopauseEnabled,
-      x.updateAutopauseThreshold.map(_.toMinutes)
-    )
-  )
-
   implicit val updateDiskRequestEncoder: Encoder[UpdateDiskRequest] = Encoder.forProduct2(
     "labels",
     "size"

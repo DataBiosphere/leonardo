@@ -11,7 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateDiskRequest,
   CreateRuntime2Request,
   GetPersistentDiskResponse,
-  ListPersistentDiskResponse
+  ListPersistentDiskResponse,
+  UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -130,6 +131,25 @@ object LeonardoApiClient {
       _ <- startRuntime(googleProject, runtimeName)
       res <- waitUntilRunning(googleProject, runtimeName)
     } yield res
+
+  def updateRuntime(
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName,
+    req: UpdateRuntimeRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    client
+      .expectOr[String](
+        Request[IO](
+          method = Method.PATCH,
+          headers = Headers.of(authHeader, defaultMediaType),
+          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
+          body = req
+        )
+      )(resp =>
+        resp.bodyText.compile.string
+          .flatMap(body => IO.raiseError(RestError(resp.status, body)))
+      )
+      .void
 
   import org.http4s.circe.CirceEntityDecoder._
   def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(

@@ -31,7 +31,7 @@ object LeonardoServiceDbQueries {
     implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse]] = {
     val clusterQueryFilteredByDeletion =
-      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === "Deleted")
+      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
     val clusterQueryFilteredByProject = googleProjectOpt.fold(clusterQueryFilteredByDeletion)(p =>
       clusterQueryFilteredByDeletion.filter(_.googleProject === p)
     )
@@ -85,7 +85,7 @@ object LeonardoServiceDbQueries {
           ListRuntimeResponse(
             clusterRec.id,
             RuntimeSamResourceId(clusterRec.internalId),
-            clusterRec.clusterName,
+            clusterRec.runtimeName,
             clusterRec.googleProject,
             clusterRec.serviceAccountInfo,
             dataprocInfo,
@@ -94,10 +94,10 @@ object LeonardoServiceDbQueries {
             runTimeConfigRecOpt,
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
                                 clusterRec.googleProject,
-                                clusterRec.clusterName,
+                                clusterRec.runtimeName,
                                 Set.empty,
                                 lmp), //TODO: remove clusterImages field
-            RuntimeStatus.withName(clusterRec.status),
+            clusterRec.status,
             lmp,
             clusterRec.jupyterUserScriptUri,
             Set.empty, //TODO: remove instances from ListResponse

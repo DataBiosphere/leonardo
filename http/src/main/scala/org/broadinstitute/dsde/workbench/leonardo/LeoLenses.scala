@@ -6,7 +6,7 @@ import monocle.{Lens, Optional, Prism}
 import monocle.macros.GenLens
 import org.broadinstitute.dsde.workbench.leonardo.db.GetClusterKey
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeResponse, ListRuntimeResponse}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocRuntimeToDataprocInCreateRuntimeMsg
 
@@ -137,5 +137,10 @@ object LeoLenses {
   val dataprocPrism = Prism[RuntimeConfig, RuntimeConfig.DataprocConfig] {
     case x: RuntimeConfig.DataprocConfig => Some(x)
     case _                               => None
+  }(identity)
+
+  val pdSizeUpdatePrism = Prism[DiskUpdate, DiskUpdate.PdSizeUpdate] {
+    case x: DiskUpdate.PdSizeUpdate => Some(x)
+    case _                          => None
   }(identity)
 }

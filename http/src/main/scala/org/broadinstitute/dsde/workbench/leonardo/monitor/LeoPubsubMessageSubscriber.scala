@@ -14,6 +14,7 @@ import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
+  DiskName,
   Event,
   GoogleDiskService,
   GoogleSubscriber,
@@ -31,7 +32,6 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchE
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.util.control.NoStackTrace
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   config: LeoPubsubMessageSubscriberConfig,
@@ -334,64 +334,83 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       } else F.unit
 
       // Update the disk size
-      _ <- msg.newDiskSize.traverse_ { d =>
-        for {
-          _ <- runtimeConfig.cloudService.interpreter.updateDiskSize(UpdateDiskSizeParams(runtime, d))
-          _ <- RuntimeConfigQueries.updateDiskSize(runtime.runtimeConfigId, d, ctx.now).transaction
-        } yield ()
-      }
-      // Update the machine type
-      // If it's a stop-update transition, transition the runtime to Stopping
-      _ <- msg.newMachineType.traverse_ { m =>
-        if (msg.stopToUpdateMachineType) {
+      _ <- msg.diskUpdate
+        .traverse { d =>
+          val updateDiskSize = d match {
+            case DiskUpdate.PdSizeUpdate(_, diskName, targetSize) =>
+              UpdateDiskSizeParams.Gce(runtime.googleProject, diskName, targetSize)
+            case DiskUpdate.NoPdSizeUpdate(targetSize) =>
+              UpdateDiskSizeParams.Gce(
+                runtime.googleProject,
+                DiskName(
+                  s"${runtime.runtimeName.asString}-1"
+                ), // user disk's diskname is always postfixed with -1 for non-pd runtimes
+                targetSize
+              )
+            case DiskUpdate.Dataproc(size, masterInstance) =>
+              UpdateDiskSizeParams.Dataproc(size, masterInstance)
+          }
           for {
-            timeToStop <- nowInstant
-            ctxStopping = ApplicativeAsk.const[F, AppContext](
-              AppContext(ctx.traceId, timeToStop)
-            )
-            _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
-            operation <- runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now))(
-                ctxStopping
-              )
-            task = for {
-              _ <- operation match {
-                case Some(op) =>
-                  runtimeConfig.cloudService.pollCheck(runtime.googleProject,
-                                                       RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-                                                       op,
-                                                       RuntimeStatus.Stopping)
-                case None =>
-                  runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
-              }
-              now <- nowInstant
-              ctxStarting = ApplicativeAsk.const[F, AppContext](
-                AppContext(ctx.traceId, now)
-              )
-              _ <- updateRuntimeAfterStopAndStarting(runtime, m)(ctxStarting)
-              _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction
-            } yield ()
-            _ <- asyncTasks.enqueue1(
-              Task(ctx.traceId, task, Some(logError(runtime.projectNameString, "updating runtime")), ctx.now)
-            )
+            _ <- runtimeConfig.cloudService.interpreter.updateDiskSize(updateDiskSize)
+            _ <- LeoLenses.pdSizeUpdatePrism
+              .getOption(d)
+              .fold(
+                RuntimeConfigQueries.updateDiskSize(runtime.runtimeConfigId, d.newDiskSize, ctx.now).transaction
+              )(dd => persistentDiskQuery.updateSize(dd.diskId, dd.newDiskSize, ctx.now).transaction)
           } yield ()
-        } else {
-          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
         }
-      }
+
+      _ <- if (msg.stopToUpdateMachineType) {
+        for {
+          timeToStop <- nowInstant
+          ctxStopping = ApplicativeAsk.const[F, AppContext](
+            AppContext(ctx.traceId, timeToStop)
+          )
+          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
+          operation <- runtimeConfig.cloudService.interpreter
+            .stopRuntime(StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now))(
+              ctxStopping
+            )
+          task = for {
+            _ <- operation match {
+              case Some(op) =>
+                runtimeConfig.cloudService.pollCheck(runtime.googleProject,
+                                                     RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                                                     op,
+                                                     RuntimeStatus.Stopping)
+              case None =>
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+            }
+            now <- nowInstant
+            ctxStarting = ApplicativeAsk.const[F, AppContext](
+              AppContext(ctx.traceId, now)
+            )
+            _ <- startAndUpdateRuntime(runtime, msg.newMachineType)(ctxStarting)
+            _ <- if (msg.newMachineType.isDefined) patchQuery.updatePatchAsComplete(runtime.id).transaction.void
+            else F.unit
+          } yield ()
+          _ <- asyncTasks.enqueue1(
+            Task(ctx.traceId, task, Some(logError(runtime.projectNameString, "updating runtime")), ctx.now)
+          )
+        } yield ()
+      } else
+        msg.newMachineType.traverse_(m =>
+          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+        )
     } yield ()
 
-  private def updateRuntimeAfterStopAndStarting(
+  private def startAndUpdateRuntime(
     runtime: Runtime,
-    targetMachineType: MachineTypeName
+    targetMachineType: Option[MachineTypeName]
   )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      _ <- runtimeConfig.cloudService.interpreter
-        .updateMachineType(UpdateMachineTypeParams(runtime, targetMachineType, ctx.now))
-
+      _ <- targetMachineType.traverse(m =>
+        runtimeConfig.cloudService.interpreter
+          .updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+      )
       initBucket <- clusterQuery.getInitBucket(runtime.id).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
                                  new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
@@ -520,7 +539,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           config.persistentDiskMonitorConfig.create.maxAttempts,
           None
         )(
-          nowInstant.flatMap(now => persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]).void,
+          for {
+            now <- nowInstant
+            _ <- persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]
+          } yield (),
           F.raiseError(
             new TimeoutException(s"Fail to update disk ${disk.name.value} in a timely manner")
           ), //Should save disk creation error if we have error column in DB
@@ -541,58 +563,3 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   private def logError(projectAndName: String, action: String): Throwable => F[Unit] =
     t => logger.error(t)(s"Fail to monitor ${projectAndName} for ${action}")
 }
-
-sealed trait PubsubHandleMessageError extends NoStackTrace {
-  def isRetryable: Boolean
-}
-object PubsubHandleMessageError {
-  final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
-    val isRetryable: Boolean = false
-  }
-
-  final case class ClusterNotStopped(clusterId: Long,
-                                     projectName: String,
-                                     clusterStatus: RuntimeStatus,
-                                     message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
-    val isRetryable: Boolean = false
-  }
-
-  final case class ClusterInvalidState(clusterId: Long,
-                                       projectName: String,
-                                       cluster: Runtime,
-                                       message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
-    val isRetryable: Boolean = false
-  }
-
-  final case class DiskNotFound(diskId: DiskId, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process message ${message} for disk ${diskId.value} because it was not found in the database"
-    val isRetryable: Boolean = false
-  }
-
-  final case class DiskInvalidState(diskId: DiskId,
-                                    projectName: String,
-                                    disk: PersistentDisk,
-                                    message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"${diskId}, ${projectName}, ${message} | Unable to process disk because not in correct state. Disk details: ${disk}"
-    val isRetryable: Boolean = false
-  }
-}
-
-final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
-final case class PersistentDiskMonitorConfig(create: PersistentDiskMonitor,
-                                             delete: PersistentDiskMonitor,
-                                             update: PersistentDiskMonitor)
-final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
-                                                  timeout: FiniteDuration,
-                                                  persistentDiskMonitorConfig: PersistentDiskMonitorConfig)

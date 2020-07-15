@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppStatus,
   AppType,
   CreateCluster,
-  DiskId,
   KubernetesClusterStatus,
   LabelMap,
   LeonardoTestSuite,
@@ -126,7 +125,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
   }
 
   it should "create an app with an existing disk" in isolatedDbTest {
-    val disk = makePersistentDisk(DiskId(1)).copy(googleProject = project).save().unsafeRunSync()
+    val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
 
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
@@ -158,8 +157,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
   }
 
   it should "error on creation if a disk is attached to another app" in isolatedDbTest {
-    val id = DiskId(1)
-    val disk = makePersistentDisk(id).copy(googleProject = project).save().unsafeRunSync()
+    val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
     val appName1 = AppName("app1")
     val appName2 = AppName("app2")
 

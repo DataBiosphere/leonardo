@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makePersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.{DiskId, DiskSize, LeonardoTestSuite, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, LeonardoTestSuite, RuntimeConfig}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -59,10 +59,9 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
   }
 
   it should "save gceWithPdConfig properly" in isolatedDbTest {
-    val persistentDiskId = DiskId(1)
     val res = for {
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-      savedDisk <- makePersistentDisk(persistentDiskId).save()
+      savedDisk <- makePersistentDisk(None).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(savedDisk.id),
