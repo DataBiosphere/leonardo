@@ -138,9 +138,8 @@ class DataprocInterpreterSpec
       _ <- IO.fromFuture(
         IO(
           mockGoogleDataprocDAO.createCluster(
-            runtime.googleProject,
-            runtime.runtimeName,
             CreateClusterConfig(
+              RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
               dataprocConfig,
               List.empty,
               runtime.auditInfo.creator,
@@ -328,9 +327,7 @@ class DataprocInterpreterSpec
 
   private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
     var invocationCount = 0
-    override def createCluster(googleProject: GoogleProject,
-                               clusterName: RuntimeName,
-                               config: CreateClusterConfig): Future[GoogleOperation] = {
+    override def createCluster(config: CreateClusterConfig): Future[GoogleOperation] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException =

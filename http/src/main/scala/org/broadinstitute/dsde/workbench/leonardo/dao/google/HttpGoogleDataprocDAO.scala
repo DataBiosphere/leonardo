@@ -62,14 +62,16 @@ class HttpGoogleDataprocDAO(
       .setApplicationName(appName)
       .build()
 
-  override def createCluster(googleProject: GoogleProject,
-                             clusterName: RuntimeName,
-                             createClusterConfig: CreateClusterConfig): Future[GoogleOperation] = {
+  override def createCluster(createClusterConfig: CreateClusterConfig): Future[GoogleOperation] = {
     val cluster = new DataprocCluster()
-      .setClusterName(clusterName.asString)
+      .setClusterName(createClusterConfig.projectAndName.runtimeName.asString)
       .setConfig(getClusterConfig(createClusterConfig))
 
-    val request = dataproc.projects().regions().clusters().create(googleProject.value, regionName.value, cluster)
+    val request = dataproc
+      .projects()
+      .regions()
+      .clusters()
+      .create(createClusterConfig.projectAndName.googleProject.value, regionName.value, cluster)
 
     retryWithRecover(retryPredicates: _*)(() => executeGoogleRequest(request)) {
       case e: GoogleJsonResponseException
@@ -77,7 +79,8 @@ class HttpGoogleDataprocDAO(
             (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") =>
         throw DataprocDisabledException(e.getMessage)
     }.map(op => GoogleOperation(OperationName(op.getName), getGoogleId(op)))
-      .handleGoogleException(googleProject, Some(clusterName.asString))
+      .handleGoogleException(createClusterConfig.projectAndName.googleProject,
+                             Some(createClusterConfig.projectAndName.runtimeName.asString))
 
   }
 
@@ -300,9 +303,18 @@ class HttpGoogleDataprocDAO(
 
     val stackdriverProps = Map("dataproc:dataproc.monitoring.stackdriver.enable" -> "true")
 
+    // Enable requester pays "auto" mode so Hail users can access reference data in public RP buckets.
+    // Since all Leo clusters are in US regions this shouldn't incur extra charges since Hail buckets
+    // are also US-based (and replicated in other regions as well).
+    // See https://broadworkbench.atlassian.net/browse/IA-2056
+    val requsterPaysProps = Map(
+      "spark:spark.hadoop.fs.gs.requester.pays.mode" -> "AUTO",
+      "spark:spark.hadoop.fs.gs.requester.pays.project.id" -> createClusterConfig.projectAndName.googleProject.value
+    )
+
     new SoftwareConfig()
       .setProperties(
-        (dataprocProps ++ yarnProps ++ stackdriverProps ++ createClusterConfig.machineConfig.properties).asJava
+        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requsterPaysProps ++ createClusterConfig.machineConfig.properties).asJava
       )
   }
 

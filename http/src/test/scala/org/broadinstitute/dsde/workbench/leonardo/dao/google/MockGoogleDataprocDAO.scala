@@ -28,34 +28,38 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   private def googleID = UUID.randomUUID()
 
-  override def createCluster(googleProject: GoogleProject,
-                             clusterName: RuntimeName,
-                             config: CreateClusterConfig): Future[GoogleOperation] =
-    if (clusterName == badClusterName) {
+  override def createCluster(config: CreateClusterConfig): Future[GoogleOperation] =
+    if (config.projectAndName.runtimeName == badClusterName) {
       Future.failed(new Exception("bad cluster!"))
     } else {
       val operation = GoogleOperation(OperationName("op-name"), GoogleId(UUID.randomUUID().toString))
-      clusters += clusterName -> operation
+      clusters += config.projectAndName.runtimeName -> operation
 
-      val masterInstance = Set(DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName("master-instance")))
+      val masterInstance = Set(
+        DataprocInstanceKey(config.projectAndName.googleProject, ZoneName("my-zone"), InstanceName("master-instance"))
+      )
       val workerInstances =
         List
           .tabulate(config.machineConfig.numberOfWorkers) { i =>
-            DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"worker-instance-$i"))
+            DataprocInstanceKey(config.projectAndName.googleProject,
+                                ZoneName("my-zone"),
+                                InstanceName(s"worker-instance-$i"))
           }
           .toSet
       val secondaryWorkerInstances = config.machineConfig.numberOfPreemptibleWorkers
         .map(num =>
           List
             .tabulate(num) { i =>
-              DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName(s"secondary-worker-instance-$i"))
+              DataprocInstanceKey(config.projectAndName.googleProject,
+                                  ZoneName("my-zone"),
+                                  InstanceName(s"secondary-worker-instance-$i"))
             }
             .toSet
         )
         .getOrElse(Set.empty)
-      instances += clusterName -> mutable.Map(Master -> masterInstance,
-                                              Worker -> workerInstances,
-                                              SecondaryWorker -> secondaryWorkerInstances)
+      instances += config.projectAndName.runtimeName -> mutable.Map(Master -> masterInstance,
+                                                                    Worker -> workerInstances,
+                                                                    SecondaryWorker -> secondaryWorkerInstances)
       Future.successful(operation)
     }
 

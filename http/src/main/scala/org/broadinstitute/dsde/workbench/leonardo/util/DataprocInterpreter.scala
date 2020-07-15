@@ -155,6 +155,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
           Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
         case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
           val createClusterConfig = CreateClusterConfig(
+            params.runtimeProjectAndName,
             dataprocInCreateRuntimeMsgToDataprocRuntime(x),
             initScripts,
             params.serviceAccountInfo,
@@ -170,9 +171,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
             Async[F].liftIO(
               IO.fromFuture(
                 IO(
-                  gdDAO.createCluster(params.runtimeProjectAndName.googleProject,
-                                      params.runtimeProjectAndName.runtimeName,
-                                      createClusterConfig)
+                  gdDAO.createCluster(createClusterConfig)
                 )
               )
             )
