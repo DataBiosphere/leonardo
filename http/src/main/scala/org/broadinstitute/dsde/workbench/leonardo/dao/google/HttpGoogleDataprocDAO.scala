@@ -307,14 +307,14 @@ class HttpGoogleDataprocDAO(
     // Since all Leo clusters are in US regions this shouldn't incur extra charges since Hail buckets
     // are also US-based (and replicated in other regions as well).
     // See https://broadworkbench.atlassian.net/browse/IA-2056
-    val requsterPaysProps = Map(
+    val requesterPaysProps = Map(
       "spark:spark.hadoop.fs.gs.requester.pays.mode" -> "AUTO",
       "spark:spark.hadoop.fs.gs.requester.pays.project.id" -> createClusterConfig.projectAndName.googleProject.value
     )
 
     new SoftwareConfig()
       .setProperties(
-        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requsterPaysProps ++ createClusterConfig.machineConfig.properties).asJava
+        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ createClusterConfig.machineConfig.properties).asJava
       )
   }
 
