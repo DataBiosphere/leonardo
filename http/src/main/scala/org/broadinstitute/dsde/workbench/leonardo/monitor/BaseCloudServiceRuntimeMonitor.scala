@@ -298,11 +298,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                                         dataprocInstances: Set[DataprocInstance]) // only applies to dataproc
   (
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CheckResult] =
+  ): F[CheckResult] = {
     // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
     // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
     // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
-    for {
+    val res = for {
       ctx <- ev.ask
       imageTypes <- dbRef
         .inTransaction { //If toolsToCheck is not defined, then we haven't check any tools yet. Hence retrieve all tools from database
@@ -321,7 +321,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
       // wait for 10 minutes for tools to start up before time out.
       availableTools <- streamFUntilDone(checkTools, 120, 5 seconds).compile.lastOrError
-      res <- availableTools match {
+      r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
         case a =>
@@ -335,7 +335,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             dataprocInstances
           )
       }
-    } yield res
+    } yield r
+
+    openTelemetry.time(
+      "tools_start_up_time",
+      List(5 seconds, 20 seconds, 30 seconds, 1 minutes, 2 minutes),
+      Map("cloud_service" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString)
+    )(res)
+  }
 
   protected def saveClusterError(runtimeId: Long, errorMessage: String, errorCode: Int, now: Instant): F[Unit] =
     dbRef
