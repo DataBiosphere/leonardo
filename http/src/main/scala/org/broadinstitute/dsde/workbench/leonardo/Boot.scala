@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.Parallel
 import cats.effect.concurrent.Semaphore
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Sync, Timer}
 import cats.implicits._
 import com.google.api.services.compute.ComputeScopes
 import fs2.Stream
@@ -297,7 +297,7 @@ object Boot extends IOApp {
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
-      sslContext = getSSLContext()
+      sslContext <- Resource.liftF(getSSLContext())
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
@@ -398,7 +398,7 @@ object Boot extends IOApp {
       asyncTasksQueue
     )
 
-  private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
+  private def getSSLContext[F[_]: Sync]()(implicit as: ActorSystem): F[SSLContext] = Sync[F].delay {
     val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")
     val defaults = as.settings.config.getConfig("ssl-config")
 
