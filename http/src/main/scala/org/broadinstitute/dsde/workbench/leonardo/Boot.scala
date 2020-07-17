@@ -7,21 +7,13 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.Parallel
 import cats.effect.concurrent.Semaphore
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
+import cats.effect._
 import cats.implicits._
 import com.google.api.services.compute.ComputeScopes
 import fs2.Stream
-import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
-import com.typesafe.sslconfig.ssl.{
-  ConfigSSLContextBuilder,
-  DefaultKeyManagerFactoryWrapper,
-  DefaultTrustManagerFactoryWrapper,
-  SSLConfigFactory
-}
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
 import org.broadinstitute.dsde.workbench.google2.{
   credentialResource,
@@ -297,7 +289,7 @@ object Boot extends IOApp {
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
-      sslContext = getSSLContext()
+      sslContext <- Resource.liftF(SslContextReader.getSSLContext())
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
@@ -397,20 +389,6 @@ object Boot extends IOApp {
       subscriber,
       asyncTasksQueue
     )
-
-  private def getSSLContext()(implicit as: ActorSystem): SSLContext = {
-    val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")
-    val defaults = as.settings.config.getConfig("ssl-config")
-
-    val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults))
-    val keyManagerAlgorithm = new DefaultKeyManagerFactoryWrapper(sslConfigSettings.keyManagerConfig.algorithm)
-    val trustManagerAlgorithm = new DefaultTrustManagerFactoryWrapper(sslConfigSettings.trustManagerConfig.algorithm)
-
-    new ConfigSSLContextBuilder(new AkkaLoggerFactory(as),
-                                sslConfigSettings,
-                                keyManagerAlgorithm,
-                                trustManagerAlgorithm).build()
-  }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }

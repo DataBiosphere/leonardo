@@ -40,26 +40,16 @@
 <!--        </encoder>-->
     </appender>
 
-    <!-- Configure the Sentry appender, overriding the logging threshold to the WARN level -->
-    <appender name="Sentry" class="com.getsentry.raven.logback.SentryAppender">
-        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>WARN</level>
-        </filter>
-    </appender>
-
-
     <logger name="org.broadinstitute.dsde" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
-        <appender-ref ref="Sentry" />
     </logger>
 
     <logger name="akka" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
-        <appender-ref ref="Sentry" />
     </logger>
 
     <!-- see https://github.com/slick/slick/blob/master/common-test-resources/logback.xml for more Slick logging -->
@@ -78,7 +68,6 @@
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
-        <appender-ref ref="Sentry" />
     </root>
 
 </configuration>
