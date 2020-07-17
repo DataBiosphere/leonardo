@@ -627,5 +627,4 @@ object Config {
 
   val leoPubsubMessageSubscriberConfig = config.as[LeoPubsubMessageSubscriberConfig]("pubsub.subscriber")
   val asyncTaskProcessorConfig = config.as[AsyncTaskProcessor.Config]("async-task-processor")
-
 }
