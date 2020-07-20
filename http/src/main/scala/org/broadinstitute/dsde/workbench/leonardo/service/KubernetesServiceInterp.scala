@@ -322,7 +322,8 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
               leoKubernetesConfig.galaxyAppConfig.services.map(config => KubernetesService(ServiceId(-1), config))
           }
         ),
-        List.empty
+        List.empty,
+        req.customEnvironmentVariables
       )
     )
   }

@@ -177,7 +177,8 @@ object KubernetesRoutes {
         a <- x.downField("appType").as[Option[AppType]]
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
-      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty))
+        cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
+      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
     }
 
   implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
@@ -192,7 +193,7 @@ object KubernetesRoutes {
                                                                               "diskName")(ListAppResponse.apply)
 
   implicit val createAppEncoder: Encoder[CreateAppRequest] =
-    Encoder.forProduct4("kubernetesRuntimeConfig", "appType", "diskConfig", "labels")(x =>
+    Encoder.forProduct5("kubernetesRuntimeConfig", "appType", "diskConfig", "labels", "customEnvironmentVariables")(x =>
       CreateAppRequest.unapply(x).get
     )
 
