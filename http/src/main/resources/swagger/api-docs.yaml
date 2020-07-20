@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "0.0.2"
+  version: "0.1.1"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
