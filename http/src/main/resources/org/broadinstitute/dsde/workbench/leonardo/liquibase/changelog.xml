@@ -58,4 +58,5 @@
     <include file="changesets/20200622_add_num_of_disks_to_runtime_config.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200701_kubernetes_drop_port_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200701_kubernetes_default_nodepool.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200719_add_app_Custom_env_vars.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

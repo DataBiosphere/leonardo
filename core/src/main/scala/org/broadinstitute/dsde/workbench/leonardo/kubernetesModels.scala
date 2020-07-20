@@ -275,7 +275,7 @@ final case class App(id: AppId,
                      //this is populated async to app creation
                      appResources: AppResources,
                      errors: List[KubernetesError],
-                     customEnvironmentVariables: Option[Map[String, String]])
+                     customEnvironmentVariables: Map[String, String])
 
 sealed abstract class AppStatus
 object AppStatus {

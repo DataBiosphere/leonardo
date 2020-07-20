@@ -45,7 +45,7 @@ final case class AppRecord(id: AppId,
                            dateAccessed: Instant,
                            namespaceId: NamespaceId,
                            diskId: Option[DiskId],
-                           customEnvironmentVariables: Option[Map[String, String]])
+                           customEnvironmentVariables: Map[String, String])
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   //unique (appName, destroyedDate)
@@ -61,7 +61,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def namespaceId = column[NamespaceId]("namespaceId", O.Length(254))
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
-  def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
+  def customEnvironmentVariables = column[Map[String, String]]("customEnvironmentVariables")
 
   def * =
     (
