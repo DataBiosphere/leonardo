@@ -89,7 +89,8 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
 
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
@@ -121,6 +122,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
         defaultNodepool.id
       )
     )
+    createAppMessage.customEnvironmentVariables shouldBe customEnvVars
   }
 
   it should "create an app with an existing disk" in isolatedDbTest {
