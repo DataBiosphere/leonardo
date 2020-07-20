@@ -341,7 +341,6 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     val now = Instant.now()
     val error1 = KubernetesError("error1", now, ErrorAction.CreateGalaxyApp, ErrorSource.App, Some(1))
     val error2 = KubernetesError("error2", now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, Some(2))
-    println(f"now: $now")
     appErrorQuery.save(savedApp1.id, error1).transaction.unsafeRunSync()
     appErrorQuery.save(savedApp1.id, error2).transaction.unsafeRunSync()
 

@@ -43,7 +43,7 @@ final case class KubernetesClusterAsyncFields(externalIp: IP, networkInfo: Netwo
 final case class NetworkFields(networkName: NetworkName, subNetworkName: SubnetworkName, subNetworkIpRange: IpRange)
 
 //should be in the format 0.0.0.0/0
-final case class CidrIP(value: String)
+final case class CidrIP(value: String) extends AnyVal
 
 /** Google Container Cluster statuses
  *  see: https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters#Cluster.Status
