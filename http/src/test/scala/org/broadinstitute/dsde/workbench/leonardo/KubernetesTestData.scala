@@ -41,6 +41,7 @@ object KubernetesTestData {
     Some(kubernetesRuntimeConfig),
     AppType.Galaxy,
     None,
+    Map.empty,
     Map.empty
   )
 
@@ -117,7 +118,8 @@ object KubernetesTestData {
           None,
           List.empty
         ),
-        List.empty)
+        List.empty,
+        Map.empty)
   }
 
   def makeService(index: Int): KubernetesService = {

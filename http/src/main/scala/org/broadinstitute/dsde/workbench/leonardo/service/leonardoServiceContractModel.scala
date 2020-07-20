@@ -239,7 +239,8 @@ object GetRuntimeResponse {
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
                                   diskConfig: Option[PersistentDiskRequest],
-                                  labels: LabelMap = Map.empty)
+                                  labels: LabelMap = Map.empty,
+                                  customEnvironmentVariables: Map[String, String])
 
 final case class DeleteAppParams(userInfo: UserInfo,
                                  googleProject: GoogleProject,

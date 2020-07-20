@@ -54,7 +54,8 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
   it should "create an app and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
 
@@ -76,6 +77,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
     app.appName shouldEqual appName
     app.auditInfo.creator shouldEqual userInfo.userEmail
+    app.customEnvironmentVariables shouldEqual customEnvVars
 
     val savedDisk = dbFutureValue {
       persistentDiskQuery.getById(app.appResources.disk.get.id)
@@ -87,7 +89,8 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
 
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
@@ -119,6 +122,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
         defaultNodepool.id
       )
     )
+    createAppMessage.customEnvironmentVariables shouldBe customEnvVars
   }
 
   it should "create an app with an existing disk" in isolatedDbTest {
