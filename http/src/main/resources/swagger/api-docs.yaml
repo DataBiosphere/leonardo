@@ -2845,7 +2845,7 @@ components:
         - type: object
           properties:
             persistentDisk:
-              $ref: "#/components/schemas/PersistentDiskConfig"
+              $ref: "#/components/schemas/PersitentDiskRequest"
             bootDiskSize:
               type: integer
               description: size for boot disk
@@ -3011,31 +3011,6 @@ components:
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
-
-    PersistentDiskConfig:
-      description: The configuration of a persistent disk, returned in runtime responses
-      type: object
-      required:
-        - name
-        - size
-        - diskType
-        - blockSize
-      properties:
-        name:
-          type: string
-          description: Name of the persistent disk
-        size:
-          type: integer
-          description: Size of persistent disk in GB
-        diskType:
-          type: string
-          description: Type of persistent disk
-        blockSize:
-          type: integer
-          description: Block size of persistent disk in bytes
-        labels:
-          type: object
-          description: The labels to be placed on the disk
 
     CreateAppRequest:
       description: the configuration of an app, used to create an app
