@@ -1922,6 +1922,11 @@ components:
         - DELETING
         - DELETED
         - PROVISIONING
+    DiskType:
+      type: string
+      enum:
+        - pd-standard
+        - pd-ssd
     ClusterStatus:
       type: string
       enum:
@@ -2330,8 +2335,7 @@ components:
           type: integer
           description: Size of persistent disk in GB
         diskType:
-          type: string
-          description: Type of persistent disk
+          $ref: "#/components/schemas/DiskType"
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
@@ -2378,8 +2382,7 @@ components:
           type: integer
           description: Size of persistent disk in GB
         diskType:
-          type: string
-          description: Type of persistent disk
+          $ref: "#/components/schemas/DiskType"
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
@@ -2711,10 +2714,7 @@ components:
           type: integer
           description: The size of the persistent disk to be created in GB.
         diskType:
-          type: string
-          enum:
-            - pd-standard
-            - pd-ssd
+          $ref: "#/components/schemas/DiskType"
           description: The type of the persistent disk to be created. Can be "Standard" or "SSD".
         blockSize:
           type: integer
@@ -2730,8 +2730,7 @@ components:
           type: integer
           description: The size in GB that the persistent disk is to be updated to.
         diskType:
-          type: string
-          description: The disk type that the persistent disk is to be updated to. Can be "Standard" or "SSD".
+          $ref: "#/components/schemas/DiskType"
         blockSize:
           type: integer
           description: The block size in bytes that the persistent disk is to be updated to.
@@ -2845,7 +2844,7 @@ components:
         - type: object
           properties:
             persistentDisk:
-              $ref: "#/components/schemas/PersitentDiskRequest"
+              $ref: "#/components/schemas/PersistentDiskRequest"
             bootDiskSize:
               type: integer
               description: size for boot disk
@@ -3006,8 +3005,7 @@ components:
           type: integer
           description: Size of persistent disk in GB
         diskType:
-          type: string
-          description: Type of persistent disk
+          $ref: "#/components/schemas/DiskType"
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
@@ -3111,8 +3109,7 @@ components:
           type: integer
           description: the size of the disk, if this is a creation request. Has an intelligent default otherwise
         diskType:
-          type: string
-          description: Type of persistent disk
+          $ref: "#/components/schemas/DiskType"
         labels:
           type: object
           description: The labels to be placed on the cluster. Of type Map[String,String]
