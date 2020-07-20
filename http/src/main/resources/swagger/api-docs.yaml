@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "0.0.1"
+  version: "0.0.2"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -1127,7 +1127,7 @@ paths:
     get:
       tags:
         - app
-      summary: List kubernetes app
+      summary: Experimental. List kubernetes app
       description: List kubernetes apps the caller has access to, without specifying a project
       operationId: listApp
       parameters:
@@ -1178,7 +1178,7 @@ paths:
             - profile
   "/api/google/v1/app/{googleProject}":
     get:
-      summary: List kubernetes app
+      summary: Experimental. List kubernetes app
       description: List kubernetes apps the caller has access to, without specifying a project
       operationId: listApp
       tags:
@@ -1237,7 +1237,7 @@ paths:
             - profile
   "/api/google/v1/app/{googleProject}/{appName}":
     post:
-      summary: Creates a new app in the given project with the given name
+      summary: Experimental. Creates a new app in the given project with the given name
       description: Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
       operationId: createApp
       tags:
@@ -1286,7 +1286,7 @@ paths:
             - email
             - profile
     get:
-      summary: Get details of an App
+      summary: Experimental. Get details of an App
       description: Returns information about an existing App managed by Leo.
         Poll this to find out when your app has finished starting up.
       operationId: getApp
@@ -1332,7 +1332,7 @@ paths:
             - email
             - profile
     delete:
-      summary: Deletes an existing App in the given project
+      summary: Experimental. Deletes an existing App in the given project
       description: deletes an App
       operationId: deleteApp
       tags:
