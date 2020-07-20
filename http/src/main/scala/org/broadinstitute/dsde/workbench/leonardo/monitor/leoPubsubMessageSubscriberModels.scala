@@ -203,6 +203,7 @@ object LeoPubsubMessage {
                                     nodepoolId: NodepoolLeoId,
                                     project: GoogleProject,
                                     createDisk: Boolean,
+                                    customEnvironmentVariables: Map[String, String],
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
@@ -293,7 +294,13 @@ object LeoPubsubCodec {
 
   implicit val appIdDecoder: Decoder[AppId] = Decoder.decodeLong.map(AppId)
   implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct6("cluster", "appId", "nodepoolId", "project", "createDisk", "traceId")(CreateAppMessage.apply)
+    Decoder.forProduct7("cluster",
+                        "appId",
+                        "nodepoolId",
+                        "project",
+                        "createDisk",
+                        "customEnvironmentVariables",
+                        "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
     Decoder.forProduct5("appId", "nodepoolId", "project", "deleteDisk", "traceId")(DeleteAppMessage.apply)

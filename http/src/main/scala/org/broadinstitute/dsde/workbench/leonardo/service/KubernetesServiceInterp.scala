@@ -119,6 +119,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         nodepool.id,
         saveClusterResult.minimalCluster.googleProject,
         diskResultOpt.map(_.creationNeeded).getOrElse(false),
+        req.customEnvironmentVariables,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.enqueue1(createAppMessage)
