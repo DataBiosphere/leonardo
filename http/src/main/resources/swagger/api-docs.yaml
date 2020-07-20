@@ -1122,6 +1122,252 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  ## Kubernetes App API ##
+  "/api/google/v1/app":
+    get:
+      tags:
+        - app
+      summary: List kubernetes app
+      description: List kubernetes apps the caller has access to, without specifying a project
+      operationId: listApp
+      parameters:
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all apps that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/google/v1/app?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any apps with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListAppResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+  "/api/google/v1/app/{googleProject}":
+    get:
+      summary: List kubernetes app
+      description: List kubernetes apps the caller has access to, without specifying a project
+      operationId: listApp
+      tags:
+        - app
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all apps that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/google/v1/app?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any apps with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListAppResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+  "/api/google/v1/app/{googleProject}/{appName}":
+    post:
+      summary: Creates a new app in the given project with the given name
+      description: Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
+      operationId: createApp
+      tags:
+        - app
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/CreateAppRequest"
+      responses:
+        "200":
+          description: App creation successful
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "403":
+          description: User does not have permission to perform action on App
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+    get:
+      summary: Get details of an App
+      description: Returns information about an existing App managed by Leo.
+        Poll this to find out when your app has finished starting up.
+      operationId: getApp
+      tags:
+        - app
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App found, here are the details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAppResponse"
+        "403":
+          description: User does not have permission to perform action on App
+        "404":
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+    delete:
+      summary: Deletes an existing App in the given project
+      description: deletes an App
+      operationId: deleteApp
+      tags:
+        - app
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: App deletion request accepted
+        "403":
+          description: User does not have permission to perform action on App
+        "404":
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Deprecated Notebook API ##
 
   "/notebooks/{googleProject}/{clusterName}":
@@ -1640,6 +1886,14 @@ components:
             $ref: "#/components/schemas/UpdateDiskRequest"
           example:
             size: 600
+    CreateAppRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateAppRequest"
+          example:
+            diskConfig:
+              name: "disk1"
     # legacy
     ClusterRequest:
       content:
@@ -1659,6 +1913,15 @@ components:
             email: email authorization
             profile: profile authorization
   schemas:
+    AppStatus:
+      type: string
+      enum:
+        - STATUS_UNSPECIFIED
+        - RUNNING
+        - ERROR
+        - DELETING
+        - DELETED
+        - PROVISIONING
     ClusterStatus:
       type: string
       enum:
@@ -2773,3 +3036,130 @@ components:
         labels:
           type: object
           description: The labels to be placed on the disk
+
+    CreateAppRequest:
+      description: the configuration of an app, used to create an app
+      type: object
+      properties:
+        diskConfig:
+          type: object
+          $ref: '#/components/schemas/PersistentDiskRequest'
+        appType:
+          type: string
+          description: currently only "GALAXY" is supported
+        kubernetesRuntimeConfig:
+          type: object
+          $ref: '#/components/schemas/KubernetesRuntimeConfig'
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+
+    GetAppResponse:
+      description: the configuration of an app
+      type: object
+      properties:
+        kubernetesRuntimeConfig:
+          type: object
+          $ref: '#/components/schemas/KubernetesRuntimeConfig'
+        errors:
+          type: array
+          description: The list of errors that the app has encountered.
+          items:
+            $ref: "#/components/schemas/KubernetesError"
+        status:
+          type: string
+          $ref: "#/components/schemas/AppStatus"
+        proxyUrls:
+          type: object
+          description: map of service name to proxyUrl
+        diskName:
+          type: string
+          description: the name of the disk associated with this app
+
+    ListAppResponse:
+      description: the configuration of an app
+      type: object
+      properties:
+        googleProject:
+          type: string
+          description: the project this app is associated with
+        kubernetesRuntimeConfig:
+          type: object
+          $ref: '#/components/schemas/KubernetesRuntimeConfig'
+        errors:
+          type: array
+          description: The list of errors that the app has encountered.
+          items:
+            $ref: "#/components/schemas/KubernetesError"
+        status:
+          type: string
+          $ref: "#/components/schemas/AppStatus"
+        proxyUrls:
+          type: object
+          description: map of service name to proxyUrl
+        diskName:
+          type: string
+          description: the name of the disk associated with this app
+        appName:
+          type: string
+          description: the name of the app
+
+    KubernetesRuntimeConfig:
+      description: configuration for a kubernetes app runtime
+      type: object
+      required:
+        - numNodes
+        - machineType
+        - autoscalingEnabled
+      properties:
+        numNodes:
+          type: integer
+          description: number of nodes for the kubernetes app
+        machineType:
+          type: string
+          description: the machine type for the nodes the kubernetes app will run on
+          example: n1-standard-1
+        autoscalingEnabled:
+          type: boolean
+          description: whether or not the nodes autoscale up and down for this app
+
+    PersistentDiskRequest:
+      description: configuration to create a disk
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: The name of the disk. This can reference an existing disk.
+        size:
+          type: integer
+          description: the size of the disk, if this is a creation request. Has an intelligent default otherwise
+        diskType:
+          type: string
+          description: Type of persistent disk
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+
+    KubernetesError:
+      description: a kubernetes app error
+      type: object
+      properties:
+        errorMessage:
+          type: string
+          description: a helpful error message
+        timestamp:
+          type: string
+          description: timestamp for error in ISO 8601 format
+        action:
+          type: string
+          description: the api-level action associated with the error, e.g. createApp
+        source:
+          type: string
+          description: the internal source associated with the error
+        googleErrorCode:
+          type: integer
+          description: if the error is associated with an external API call, the error code will be propagated here
+
+
