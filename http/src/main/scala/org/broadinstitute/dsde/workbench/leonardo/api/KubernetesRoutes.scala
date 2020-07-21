@@ -32,7 +32,7 @@ class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirecti
   val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
     CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
 //      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-      pathPrefix("google" / "v1" / "app") {
+      pathPrefix("google" / "v1" / "apps") {
         pathEndOrSingleSlash {
           parameterMap { params =>
             get {

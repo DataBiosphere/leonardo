@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "0.1.1"
+  version: "0.1.0"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -22,6 +22,8 @@ tags:
     description: Notebooks API. Deprecated in favor of Proxy API.
   - name: service_info
     description: Service Info API
+  - name: apps
+    description: App API info
 security:
   - googleoauth:
       - openid
@@ -1123,10 +1125,10 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
 
   ## Kubernetes App API ##
-  "/api/google/v1/app":
+  "/api/google/v1/apps":
     get:
       tags:
-        - app
+        - apps
       summary: Experimental. List kubernetes app
       description: List kubernetes apps the caller has access to, without specifying a project
       operationId: listApp
@@ -1176,13 +1178,13 @@ paths:
             - openid
             - email
             - profile
-  "/api/google/v1/app/{googleProject}":
+  "/api/google/v1/apps/{googleProject}":
     get:
       summary: Experimental. List kubernetes app
       description: List kubernetes apps the caller has access to, without specifying a project
       operationId: listApp
       tags:
-        - app
+        - apps
       parameters:
         - in: path
           name: googleProject
@@ -1235,13 +1237,13 @@ paths:
             - openid
             - email
             - profile
-  "/api/google/v1/app/{googleProject}/{appName}":
+  "/api/google/v1/apps/{googleProject}/{appName}":
     post:
       summary: Experimental. Creates a new app in the given project with the given name
       description: Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
       operationId: createApp
       tags:
-        - app
+        - apps
       parameters:
         - in: path
           name: googleProject
@@ -1291,7 +1293,7 @@ paths:
         Poll this to find out when your app has finished starting up.
       operationId: getApp
       tags:
-        - app
+        - apps
       parameters:
         - in: path
           name: googleProject
@@ -1336,7 +1338,7 @@ paths:
       description: deletes an App
       operationId: deleteApp
       tags:
-        - app
+        - apps
       parameters:
         - in: path
           name: googleProject
