@@ -16,45 +16,20 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import com.google.container.v1
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{SecretKey, SecretName}
-import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
-import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
-  GKEModels,
-  KubernetesModels,
-  MachineTypeName,
-  MockGoogleDiskService,
-  OperationName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{MockComputePollOperation, MockGKEService, MockKubernetesService}
+import org.broadinstitute.dsde.workbench.google2.{ComputePollOperation, GKEModels, KubernetesModels, MachineTypeName, MockGoogleDiskService, OperationName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
-  makeApp,
-  makeKubeCluster,
-  makeNodepool,
-  makeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool, makeService}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterErrorQuery,
-  clusterQuery,
-  kubernetesClusterQuery,
-  persistentDiskQuery,
-  KubernetesServiceDbQueries,
-  RuntimeConfigQueries,
-  TestComponent
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, RuntimeConfigQueries, TestComponent, clusterErrorQuery, clusterQuery, kubernetesClusterQuery, persistentDiskQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  ClusterInvalidState,
-  DiskInvalidState
-}
-import org.broadinstitute.dsde.workbench.leonardo.service.{MockGKEService, MockKubernetesService}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{ClusterInvalidState, DiskInvalidState}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject

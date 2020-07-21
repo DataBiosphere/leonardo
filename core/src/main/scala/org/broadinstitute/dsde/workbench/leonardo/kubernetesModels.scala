@@ -229,7 +229,8 @@ final case class DefaultKubernetesLabels(googleProject: GoogleProject,
     )
 }
 
-final case class KubernetesErrorId(id: Long)
+final case class KubernetesErrorId(id: Long) extends AnyVal
+
 sealed abstract class ErrorAction
 object ErrorAction {
   case object CreateGalaxyApp extends ErrorAction {
