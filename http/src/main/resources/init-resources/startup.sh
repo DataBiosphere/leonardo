@@ -69,15 +69,11 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
-if openssl x509 -checkend 86400 -noout -in file.pem
-then
-  echo "Certificate is good for another day!"
-else
-  echo "Certificate has expired or will do so within 24 hours! Going to retrieve new certs"
-  gsutil cp ${SERVER_CRT} /certs
-  gsutil cp ${SERVER_KEY} /certs
-  gsutil cp ${ROOT_CA} /certs
-fi
+## This helps when we need to rotate certs.
+gsutil cp ${SERVER_CRT} /certs
+gsutil cp ${SERVER_KEY} /certs
+gsutil cp ${ROOT_CA} /certs
+docker-compose -f /etc/proxy-docker-compose.yaml restart
 
 JUPYTER_HOME=/etc/jupyter
 
