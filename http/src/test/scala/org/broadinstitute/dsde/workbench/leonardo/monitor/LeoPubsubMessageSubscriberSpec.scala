@@ -15,45 +15,20 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import com.google.container.v1
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{SecretKey, SecretName}
 import org.broadinstitute.dsde.workbench.google2.mock.{MockComputePollOperation, MockGKEService, MockKubernetesService}
-import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
-  GKEModels,
-  KubernetesModels,
-  MachineTypeName,
-  MockGoogleDiskService,
-  OperationName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{ComputePollOperation, GKEModels, KubernetesModels, MachineTypeName, MockGoogleDiskService, OperationName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
-  makeApp,
-  makeKubeCluster,
-  makeNodepool,
-  makeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool, makeService}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterErrorQuery,
-  clusterQuery,
-  kubernetesClusterQuery,
-  persistentDiskQuery,
-  KubernetesServiceDbQueries,
-  RuntimeConfigQueries,
-  TestComponent
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, RuntimeConfigQueries, TestComponent, clusterErrorQuery, clusterQuery, kubernetesClusterQuery, persistentDiskQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  ClusterInvalidState,
-  DiskInvalidState
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{ClusterInvalidState, DiskInvalidState}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -544,7 +519,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getApp.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP(MockGKEService.testEndpoint),
+        KubernetesClusterAsyncFields(IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
                                                    Config.vpcConfig.subnetworkIpRange))
@@ -586,7 +561,7 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors shouldBe List()
       getApp.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP(MockGKEService.testEndpoint),
+        KubernetesClusterAsyncFields(IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
                                                    Config.vpcConfig.subnetworkIpRange))
@@ -640,10 +615,10 @@ class LeoPubsubMessageSubscriberSpec
       getApp1.app.errors shouldBe List()
       getApp1.app.status shouldBe AppStatus.Running
       getApp1.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP(MockGKEService.testEndpoint),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+        KubernetesClusterAsyncFields(IP("0.0.0.0"),
+          NetworkFields(Config.vpcConfig.networkName,
+            Config.vpcConfig.subnetworkName,
+            Config.vpcConfig.subnetworkIpRange))
       )
       getApp2.app.errors shouldBe List()
       getApp2.app.status shouldBe AppStatus.Running
@@ -653,19 +628,19 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg1 = CreateAppMessage(Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
-                              savedApp1.id,
-                              savedApp1.appName,
-                              savedNodepool1.id,
-                              savedCluster1.googleProject,
-                              false,
-                              Some(tr))
+        savedApp1.id,
+        savedApp1.appName,
+        savedNodepool1.id,
+        savedCluster1.googleProject,
+        false,
+        Some(tr))
       msg2 = CreateAppMessage(None,
-                              savedApp2.id,
-                              savedApp2.appName,
-                              savedNodepool2.id,
-                              savedCluster1.googleProject,
-                              false,
-                              Some(tr))
+        savedApp2.id,
+        savedApp2.appName,
+        savedNodepool2.id,
+        savedCluster1.googleProject,
+        false,
+        Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -675,40 +650,6 @@ class LeoPubsubMessageSubscriberSpec
     } yield ()
 
     res.unsafeRunSync()
-  }
-
-  it should "create a nodepool with autoscaling" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val minNodes = 0
-    val maxNodes = 2
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id)
-      .copy(autoscalingEnabled = true,
-            autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
-      .save()
-
-    val googleNodepool = gkeInterp.getGoogleNodepool(savedNodepool1)
-    googleNodepool.getAutoscaling.getEnabled shouldBe true
-    googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
-    googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
-  }
-
-  it should "create secrets properly" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-
-    val secrets = gkeInterp.getSecrets(savedApp1.appResources.namespace.name).unsafeRunSync()
-
-    //we don't check the byte arrays here for the files
-    secrets.size shouldBe 2
-    secrets.map(_.secrets.keys.size).sum shouldBe 3
-    secrets.flatMap(_.secrets.keys).sortBy(_.value) shouldBe List(SecretKey("ca-crt"),
-                                                                  SecretKey("tls-crt"),
-                                                                  SecretKey("tls-key")).sortBy(_.value)
-    val emptyFileSecrets = secrets.map(s => (s.name, s.namespaceName))
-    emptyFileSecrets should contain((SecretName("ca-secret"), savedApp1.appResources.namespace.name))
-    emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))
-    secrets.flatMap(_.secrets.values).map(s => s.isEmpty shouldBe false)
   }
 
   //handle an error in createCluster

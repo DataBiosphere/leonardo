@@ -1,5 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
-package monitor
+package util
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
@@ -12,24 +12,13 @@ import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
 import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
-  KubernetesNamespace,
-  KubernetesSecret,
-  KubernetesSecretType
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesSecret, KubernetesSecretType}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  DbReference,
-  appErrorQuery,
-  kubernetesClusterQuery,
-  nodepoolQuery,
-  _
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, appErrorQuery, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateAppMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.{SetUpProjectNetworkParams, VPCAlgebra}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
@@ -86,7 +75,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
     }
   }
 
-  private[monitor] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
+  private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
     config.ingressConfig.secrets.traverse { secret =>
       for {
         secretFiles <- secret.secretFiles
@@ -104,7 +93,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
       )
     }
 
-  private[monitor] def getGoogleNodepool(nodepool: Nodepool): com.google.container.v1.NodePool = {
+  private[util] def getGoogleNodepool(nodepool: Nodepool): com.google.container.v1.NodePool = {
     val nodepoolBuilder = NodePool
       .newBuilder()
       .setConfig(
@@ -162,7 +151,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
         cidrBuilder = CidrBlock.newBuilder()
         _ <- F.delay(config.clusterConfig.authorizedNetworks.foreach(cidrIP => cidrBuilder.setCidrBlock(cidrIP.value)))
 
-        //TODO comb through with security reqs in mind
         createClusterReq = Cluster
           .newBuilder()
           .setName(dbCluster.clusterName.value)
@@ -213,17 +201,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
               s"Failed to poll cluster creation operation to completion for cluster ${dbCluster.id} and default nodepool ${defaultNodepool.id}"
             )
           )
-        getClusterOpt <- gkeService.getCluster(dbCluster.getGkeClusterId)
-        getCluster <- F.fromOption(
-          getClusterOpt,
-          ClusterCreationException(
-            s"Failed to get cluster to retrieve external IP after successful creation polling for ${dbCluster.id}"
-          )
-        )
+
         _ <- kubernetesClusterQuery
           .updateAsyncFields(dbCluster.id,
                              KubernetesClusterAsyncFields(
-                               IP(getCluster.getEndpoint()),
+                               IP("0.0.0.0"), //TODO: fill this out after ingress is installed
                                NetworkFields(
                                  network,
                                  subnetwork,
@@ -287,11 +269,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
     createNodepool.onError {
       case e =>
         for {
-          now <- nowInstant
+          ctx <- ev.ask
           _ <- logger.error(e)(s"Failed to create nodepool $nodepoolId")
           _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction
           _ <- appErrorQuery
-            .save(appId, KubernetesError(e.getMessage(), now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None))
+            .save(appId, KubernetesError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None))
             .transaction
         } yield ()
     }
