@@ -12,10 +12,20 @@ import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
 import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesSecret, KubernetesSecretType}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
+  KubernetesNamespace,
+  KubernetesSecret,
+  KubernetesSecretType
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, appErrorQuery, kubernetesClusterQuery, nodepoolQuery, _}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  DbReference,
+  appErrorQuery,
+  kubernetesClusterQuery,
+  nodepoolQuery,
+  _
+}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateAppMessage
@@ -203,15 +213,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
           )
 
         _ <- kubernetesClusterQuery
-          .updateAsyncFields(dbCluster.id,
-                             KubernetesClusterAsyncFields(
-                               IP("0.0.0.0"), //TODO: fill this out after ingress is installed
-                               NetworkFields(
-                                 network,
-                                 subnetwork,
-                                 Config.vpcConfig.subnetworkIpRange
-                               )
-                             ))
+          .updateAsyncFields(
+            dbCluster.id,
+            KubernetesClusterAsyncFields(
+              IP("0.0.0.0"), //TODO: fill this out after ingress is installed
+              NetworkFields(
+                network,
+                subnetwork,
+                Config.vpcConfig.subnetworkIpRange
+              )
+            )
+          )
           .transaction
         _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
         _ <- nodepoolQuery.updateStatus(defaultNodepool.id, NodepoolStatus.Running).transaction
@@ -273,7 +285,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
           _ <- logger.error(e)(s"Failed to create nodepool $nodepoolId")
           _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction
           _ <- appErrorQuery
-            .save(appId, KubernetesError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None))
+            .save(appId,
+                  KubernetesError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None))
             .transaction
         } yield ()
     }

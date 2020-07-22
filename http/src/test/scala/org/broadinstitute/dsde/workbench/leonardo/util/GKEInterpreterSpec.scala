@@ -19,9 +19,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-      projectDAO,
-      MockGoogleComputeService,
-      new MockComputePollOperation)
+                           projectDAO,
+                           MockGoogleComputeService,
+                           new MockComputePollOperation)
 
   val gkeInterp =
     new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, MockGKEService, MockKubernetesService, blocker)
@@ -32,7 +32,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val maxNodes = 2
     val savedNodepool1 = makeNodepool(1, savedCluster1.id)
       .copy(autoscalingEnabled = true,
-        autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
+            autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
       .save()
 
     val googleNodepool = gkeInterp.getGoogleNodepool(savedNodepool1)
@@ -52,8 +52,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     secrets.size shouldBe 2
     secrets.map(_.secrets.keys.size).sum shouldBe 3
     secrets.flatMap(_.secrets.keys).sortBy(_.value) shouldBe List(SecretKey("ca-crt"),
-      SecretKey("tls-crt"),
-      SecretKey("tls-key")).sortBy(_.value)
+                                                                  SecretKey("tls-crt"),
+                                                                  SecretKey("tls-key")).sortBy(_.value)
     val emptyFileSecrets = secrets.map(s => (s.name, s.namespaceName))
     emptyFileSecrets should contain((SecretName("ca-secret"), savedApp1.appResources.namespace.name))
     emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))
