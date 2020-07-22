@@ -295,7 +295,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, ctx.now))
+      initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
+      bucketName <- F.fromOption(initBucket.map(_.bucketName),
+                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
+      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
       _ <- asyncTasks.enqueue1(
         Task(
           ctx.traceId,
@@ -393,7 +396,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       _ <- runtimeConfig.cloudService.interpreter
         .updateMachineType(UpdateMachineTypeParams(runtime, targetMachineType, ctx.now))
 
-      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, ctx.now))
+      initBucket <- clusterQuery.getInitBucket(runtime.id).transaction
+      bucketName <- F.fromOption(initBucket.map(_.bucketName),
+                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
+      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
       _ <- dbRef.inTransaction {
         clusterQuery.updateClusterStatus(
           runtime.id,

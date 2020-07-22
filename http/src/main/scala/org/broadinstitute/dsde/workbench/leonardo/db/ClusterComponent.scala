@@ -431,6 +431,12 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       statusOpt flatMap RuntimeStatus.withNameInsensitiveOption
     }
 
+  def getInitBucket(id: Long)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
+    findByIdQuery(id)
+      .map(_.initBucket)
+      .result
+      .map(recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption))
+
   def getClustersReadyToAutoFreeze(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")

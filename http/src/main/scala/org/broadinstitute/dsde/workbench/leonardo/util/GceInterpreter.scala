@@ -275,28 +275,31 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
                                              InstanceName(runtime.runtimeName.asString))
     } yield Some(r)
 
-  override protected def startGoogleRuntime(runtime: Runtime,
-                                            welderAction: Option[WelderAction],
-                                            runtimeConfig: RuntimeConfig)(
+  override protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      resourceConstraints <- getResourceConstraints(runtime.googleProject,
+      resourceConstraints <- getResourceConstraints(params.runtime.googleProject,
                                                     config.gceConfig.zoneName,
-                                                    runtimeConfig.machineType)
-      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker, resourceConstraints, true)
+                                                    params.runtimeConfig.machineType)
+      metadata <- getStartupScript(params.runtime,
+                                   params.welderAction,
+                                   params.initBucket,
+                                   blocker,
+                                   resourceConstraints,
+                                   true)
       // remove the startup-script-url metadata entry if present which is only used at creation time
       _ <- googleComputeService.modifyInstanceMetadata(
-        runtime.googleProject,
+        params.runtime.googleProject,
         config.gceConfig.zoneName,
-        InstanceName(runtime.runtimeName.asString),
+        InstanceName(params.runtime.runtimeName.asString),
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
-      _ <- googleComputeService.startInstance(runtime.googleProject,
+      _ <- googleComputeService.startInstance(params.runtime.googleProject,
                                               config.gceConfig.zoneName,
-                                              InstanceName(runtime.runtimeName.asString))
+                                              InstanceName(params.runtime.runtimeName.asString))
     } yield ()
 
   override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
