@@ -18,8 +18,12 @@ import scala.util.Try
  * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
  * so lives in the notebooks sub-package.
  */
-@DoNotDiscover
-class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+//@DoNotDiscover
+class NotebookGCEClusterMonitoringSpec
+    extends GPAllocFixtureSpec
+    with ParallelTestExecution
+    with NotebookTestUtils
+    with GPAllocBeforeAndAfterAll {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(
     org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
@@ -27,7 +31,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
 
   "NotebookGCEClusterMonitoringSpec" - {
 
-    "should pause and resume a cluster" in { billingProject =>
+    "should pause and resume a cluster" ignore { billingProject =>
       // Create a cluster
       withNewRuntime(billingProject) { runtime =>
         val printStr = "Pause/resume test"
@@ -59,7 +63,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       }
     }
 
-    "should update GCR welder on a cluster" taggedAs Retryable in { billingProject =>
+    "should update GCR welder on a cluster" taggedAs Retryable ignore { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
@@ -125,7 +129,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       }
     }
 
-    "should pause and resume an RStudio cluster" in { billingProject =>
+    "should pause and resume an RStudio cluster" ignore { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a cluster
