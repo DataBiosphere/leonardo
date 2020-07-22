@@ -70,10 +70,14 @@ SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
 ## This helps when we need to rotate certs.
-gsutil cp ${SERVER_CRT} /certs
-gsutil cp ${SERVER_KEY} /certs
-gsutil cp ${ROOT_CA} /certs
-docker-compose -f /etc/proxy-docker-compose.yaml restart
+notAfter=`openssl x509 -enddate -noout -in jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+
+if [[ $notAfter = 'notAfter=Jul 22'* ]] ; then
+  gsutil cp ${SERVER_CRT} /certs
+  gsutil cp ${SERVER_KEY} /certs
+  gsutil cp ${ROOT_CA} /certs
+  docker-compose -f /etc/proxy-docker-compose.yaml restart
+fi
 
 JUPYTER_HOME=/etc/jupyter
 
