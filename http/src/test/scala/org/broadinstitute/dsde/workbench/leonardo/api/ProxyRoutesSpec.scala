@@ -241,9 +241,6 @@ class ProxyRoutesSpec
       status shouldEqual StatusCodes.OK
       validateCors()
     }
-    Get(s"/api/google/v1/apps/foo").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
-      handled shouldBe false
-    }
   }
 
   it should "404 for non-existent apps" in {
