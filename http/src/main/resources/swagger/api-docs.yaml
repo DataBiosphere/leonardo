@@ -13,7 +13,7 @@ tags:
   - name: runtimes
     description: Runtimes API. Support both Google Dataproc and Google Compute Engine.
   - name: disks
-    description: Experimental Persistent Disks API.
+    description: Persistent Disks API.
   - name: cluster
     description: Legacy Clusters API. Supports Google Dataproc only.
   - name: proxy
@@ -23,7 +23,7 @@ tags:
   - name: service_info
     description: Service Info API
   - name: apps
-    description: App API info
+    description: Experimental App API
 security:
   - googleoauth:
       - openid
@@ -1181,7 +1181,7 @@ paths:
   "/api/google/v1/apps/{googleProject}":
     get:
       summary: Experimental. List kubernetes app
-      description: List kubernetes apps the caller has access to, without specifying a project
+      description: List kubernetes apps the caller has access to with a project filter
       operationId: listApp
       tags:
         - apps
@@ -1260,7 +1260,7 @@ paths:
       requestBody:
         $ref: "#/components/requestBodies/CreateAppRequest"
       responses:
-        "200":
+        "202":
           description: App creation successful
         "400":
           description: Bad Request
@@ -1289,7 +1289,8 @@ paths:
             - profile
     get:
       summary: Experimental. Get details of an App
-      description: Returns information about an existing App managed by Leo.
+      description: >
+        Returns information about an existing App managed by Leo.
         Poll this to find out when your app has finished starting up.
       operationId: getApp
       tags:
@@ -1812,6 +1813,69 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
         "404":
           description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  /proxy/google/v1/apps/{project}/{appName}/{serviceName}:
+    get:
+      summary: Access an app if the app and service name exists
+      description: >
+        This URI supports all HTTP methods, not just GET as implied by this
+        Swagger.
+
+        Proxies all requests through to the app via an ingress controller
+      operationId: proxyApp
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: serviceName
+          description: serviceName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxy connection successful
+        "403":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: App or service not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "420":
+          description: App not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
+          description: App is stopped
           content:
             application/json:
               schema:

@@ -20,12 +20,12 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   GetAppResponse,
   ListAppResponse
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 
-class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
+class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit timer: Timer[IO]
 ) {
 
@@ -168,7 +168,7 @@ class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirecti
 
 }
 
-object KubernetesRoutes {
+object AppRoutes {
 
   implicit val createAppDecoder: Decoder[CreateAppRequest] =
     Decoder.instance { x =>
