@@ -64,6 +64,21 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 
+# Overwrite old cert on restart
+SERVER_CRT=$(proxyServerCrt)
+SERVER_KEY=$(proxyServerKey)
+ROOT_CA=$(rootCaPem)
+
+if openssl x509 -checkend 86400 -noout -in file.pem
+then
+  echo "Certificate is good for another day!"
+else
+  echo "Certificate has expired or will do so within 24 hours! Going to retrieve new certs"
+  gsutil cp ${SERVER_CRT} /certs
+  gsutil cp ${SERVER_KEY} /certs
+  gsutil cp ${ROOT_CA} /certs
+fi
+
 JUPYTER_HOME=/etc/jupyter
 
 # TODO: remove this block once data syncing is rolled out to Terra
