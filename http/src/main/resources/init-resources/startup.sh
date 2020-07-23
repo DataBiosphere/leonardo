@@ -70,7 +70,7 @@ SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
 ## This helps when we need to rotate certs.
-notAfter=`openssl x509 -enddate -noout -in jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+notAfter=`openssl x509 -enddate -noout -in /certs/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
 
 if [[ $notAfter = 'notAfter=Jul 22'* ]] ; then
   gsutil cp ${SERVER_CRT} /certs
