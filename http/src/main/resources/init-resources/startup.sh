@@ -83,7 +83,8 @@ ROOT_CA=$(rootCaPem)
 ## This helps when we need to rotate certs.
 notAfter=`openssl x509 -enddate -noout -in /certs/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
 
-if [[ $notAfter = 'notAfter=Jul 22'* ]] ; then
+## If cert is old, then pull latest certs. Update date if we need to rotate cert again
+if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
   gsutil cp ${SERVER_CRT} /certs
   gsutil cp ${SERVER_KEY} /certs
   gsutil cp ${ROOT_CA} /certs
@@ -121,7 +122,7 @@ if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
     docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
   fi
 
-  failScript
+  failScriptIfError
 fi
 
 # By default GCE restarts containers on exit so we're not explicitly starting them below
