@@ -76,7 +76,7 @@ final case class DeleteRuntimeParams(googleProject: GoogleProject,
                                      isAsyncRuntimeFields: Boolean)
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig], now: Instant)
-final case class StartRuntimeParams(runtime: Runtime, now: Instant)
+final case class StartRuntimeParams(runtime: Runtime, initBucket: GcsBucketName)
 final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName, now: Instant)
 final case class UpdateDiskSizeParams(runtime: Runtime, diskSize: DiskSize)
 final case class ResizeClusterParams(runtime: Runtime, numWorkers: Option[Int], numPreemptibles: Option[Int])

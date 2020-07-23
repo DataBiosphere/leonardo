@@ -13,6 +13,7 @@ set -e -x
 # Functions
 # (copied from init-actions.sh and gce-init.sh, see documentation there)
 #
+EXIT_CODE=0
 
 function retry {
   local retries=$1
@@ -64,6 +65,34 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 
+function failScriptIfError() {
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
+# Overwrite old cert on restart
+SERVER_CRT=$(proxyServerCrt)
+SERVER_KEY=$(proxyServerKey)
+ROOT_CA=$(rootCaPem)
+
+## This helps when we need to rotate certs.
+notAfter=`openssl x509 -enddate -noout -in /certs/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+
+## If cert is old, then pull latest certs. Update date if we need to rotate cert again
+if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
+  gsutil cp ${SERVER_CRT} /certs
+  gsutil cp ${SERVER_KEY} /certs
+  gsutil cp ${ROOT_CA} /certs
+  docker-compose -f /etc/proxy-docker-compose.yaml restart &> start_output.txt || EXIT_CODE=$?
+
+  failScriptIfError
+fi
+
 JUPYTER_HOME=/etc/jupyter
 
 # TODO: remove this block once data syncing is rolled out to Terra
@@ -77,7 +106,9 @@ if [ "$UPDATE_WELDER" == "true" ] ; then
     gcloud auth configure-docker
     docker-compose -f /etc/welder-docker-compose.yaml stop
     docker-compose -f /etc/welder-docker-compose.yaml rm -f
-    docker-compose -f /etc/welder-docker-compose.yaml up -d
+    docker-compose -f /etc/welder-docker-compose.yaml up -d &> start_output.txt || EXIT_CODE=$?
+
+    failScriptIfError
 fi
 
 # If a Jupyter start user script was specified, execute it now. It should already be in the docker container
@@ -85,19 +116,13 @@ fi
 if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
   JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
   log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
-  EXIT_CODE=0
   if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
     docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
   else
     docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
   fi
-  if [ $EXIT_CODE -ne 0 ]; then
-    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
-  fi
+
+  failScriptIfError
 fi
 
 # By default GCE restarts containers on exit so we're not explicitly starting them below

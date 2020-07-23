@@ -259,27 +259,30 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       }
     } yield None
 
-  override protected def startGoogleRuntime(runtime: Runtime,
-                                            welderAction: Option[WelderAction],
-                                            runtimeConfig: RuntimeConfig)(
+  override protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
       resourceConstraints <- getClusterResourceContraints(
-        RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-        runtimeConfig.machineType
+        RuntimeProjectAndName(params.runtime.googleProject, params.runtime.runtimeName),
+        params.runtimeConfig.machineType
       )
-      metadata <- getStartupScript(runtime, welderAction, ctx.now, blocker, resourceConstraints, false)
+      metadata <- getStartupScript(params.runtime,
+                                   params.welderAction,
+                                   params.initBucket,
+                                   blocker,
+                                   resourceConstraints,
+                                   false)
 
       // Add back the preemptible instances, if any
-      _ <- runtimeConfig match {
+      _ <- params.runtimeConfig match {
         case x: RuntimeConfig.DataprocConfig if (x.numberOfPreemptibleWorkers.exists(_ > 0)) =>
           Async[F].liftIO(
             IO.fromFuture(
               IO(
-                gdDAO.resizeCluster(runtime.googleProject,
-                                    runtime.runtimeName,
+                gdDAO.resizeCluster(params.runtime.googleProject,
+                                    params.runtime.runtimeName,
                                     numPreemptibles = x.numberOfPreemptibleWorkers)
               )
             )
@@ -288,7 +291,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       }
 
       // Start each instance individually
-      _ <- runtime.nonPreemptibleInstances.toList.parTraverse { instance =>
+      _ <- params.runtime.nonPreemptibleInstances.toList.parTraverse { instance =>
         // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
         instance.dataprocRole match {
           case Master =>

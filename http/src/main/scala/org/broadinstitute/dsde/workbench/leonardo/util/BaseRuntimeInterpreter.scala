@@ -13,15 +13,10 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  labelQuery,
-  DbReference,
-  LabelResourceType,
-  RuntimeConfigQueries
-}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
@@ -37,7 +32,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Option[Operation]]
 
-  protected def startGoogleRuntime(runtime: Runtime, welderAction: Option[WelderAction], runtimeConfig: RuntimeConfig)(
+  protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit]
 
@@ -70,10 +65,11 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
     val welderAction = getWelderAction(params.runtime)
     for {
+      ctx <- ev.ask
       // Check if welder should be deployed or updated
       updatedRuntime <- welderAction
         .traverse {
-          case UpdateWelder => updateWelder(params.runtime, params.now)
+          case UpdateWelder => updateWelder(params.runtime, ctx.now)
           case DisableDelocalization =>
             labelQuery
               .save(params.runtime.id, LabelResourceType.Runtime, "welderInstallFailed", "true")
@@ -85,8 +81,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       runtimeConfig <- dbRef.inTransaction(
         RuntimeConfigQueries.getRuntimeConfig(params.runtime.runtimeConfigId)
       )
+      startGoogleRuntimeReq = StartGoogleRuntime(updatedRuntime, params.initBucket, welderAction, runtimeConfig)
       // Start the cluster in Google
-      _ <- startGoogleRuntime(updatedRuntime, welderAction, runtimeConfig)
+      _ <- startGoogleRuntime(startGoogleRuntimeReq)
     } yield ()
   }
 
@@ -161,7 +158,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   // Startup script to run after the runtime is resumed
   protected def getStartupScript(runtime: Runtime,
                                  welderAction: Option[WelderAction],
-                                 now: Instant,
+                                 initBucket: GcsBucketName,
                                  blocker: Blocker,
                                  runtimeResourceConstraints: RuntimeResourceConstraints,
                                  useGceStartupScript: Boolean)(
@@ -171,7 +168,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
       runtime,
-      None,
+      Some(initBucket),
       None,
       config.imageConfig,
       config.welderConfig,
@@ -230,3 +227,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   }
 
 }
+
+final case class StartGoogleRuntime(runtime: Runtime,
+                                    initBucket: GcsBucketName,
+                                    welderAction: Option[WelderAction],
+                                    runtimeConfig: RuntimeConfig)
