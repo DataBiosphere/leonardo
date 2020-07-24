@@ -18,12 +18,11 @@ import scala.util.Try
  * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
  * so lives in the notebooks sub-package.
  */
-//@DoNotDiscover
+@DoNotDiscover
 class NotebookGCEClusterMonitoringSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
-    with NotebookTestUtils
-with GPAllocBeforeAndAfterAll {
+    with NotebookTestUtils {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(
     org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)

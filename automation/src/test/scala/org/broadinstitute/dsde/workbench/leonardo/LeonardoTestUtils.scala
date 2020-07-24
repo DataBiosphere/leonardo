@@ -712,7 +712,9 @@ trait LeonardoTestUtils
 
     //we don't delete if the test throws an exception
     val res = for {
-      t <- testResult
+      t <- testResult.onError {
+        case _: Throwable => IO(logger.info("The test failed. Will not delete the runtime."))
+      }
      _ <- if (deleteRuntimeAfter) {
        IO(logger.info(s"deleting runtime ${googleProject}/${cluster.clusterName}")) >>
          IO(deleteRuntime(googleProject, cluster.clusterName, monitorDelete))
