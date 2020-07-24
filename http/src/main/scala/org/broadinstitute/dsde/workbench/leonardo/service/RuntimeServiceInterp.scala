@@ -25,7 +25,11 @@ import org.broadinstitute.dsde.workbench.google2.{
   OperationName
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  PersistentDiskSamResource,
+  ProjectSamResource,
+  RuntimeSamResource
+}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -36,8 +40,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessage,
@@ -51,6 +53,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
+import org.broadinstitute.dsde.workbench.leonardo.model.AuthCheckable._
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            diskConfig: PersistentDiskConfig,
@@ -76,7 +79,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
-      hasPermission <- authProvider.hasProjectPermission(userInfo, CreateRuntime, googleProject)
+      hasPermission <- authProvider.hasPermission(ProjectSamResource(googleProject),
+                                                  ProjectAction.CreateRuntime,
+                                                  userInfo)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
@@ -201,7 +206,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(googleProject, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasRuntimePermission(resp.samResource, userInfo, GetRuntimeStatus, googleProject)
+      hasPermission <- authProvider.hasPermissionWithProjectFallback(resp.samResource,
+                                                                     RuntimeAction.GetRuntimeStatus,
+                                                                     ProjectAction.GetRuntimeStatus,
+                                                                     userInfo,
+                                                                     googleProject)
       _ <- if (hasPermission) F.unit
       else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName, "permission denied"))
     } yield resp
@@ -215,7 +224,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       samVisibleRuntimes <- authProvider
-        .filterUserVisibleRuntimes(userInfo, runtimes.map(r => (r.googleProject, r.samResource)))
+        .filterUserVisibleWithProjectFallback(
+          runtimes.map(r => (r.googleProject, r.samResource)),
+          userInfo
+        )
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create
@@ -241,9 +253,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(req.googleProject,
-                                                                             runtime.samResource,
-                                                                             req.userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource,
+                                                                      runtime.googleProject,
+                                                                      req.userInfo)
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
@@ -335,7 +347,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
@@ -377,7 +389,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
@@ -420,7 +432,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
 
       hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
 
@@ -780,17 +792,18 @@ object RuntimeServiceInterp {
             _ <- if (isAttached)
               F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
             else F.unit
-            hasPermission <- authProvider.hasPersistentDiskPermission(pd.samResource,
-                                                                      userInfo,
-                                                                      PersistentDiskAction.AttachPersistentDisk,
-                                                                      googleProject)
+            hasPermission <- authProvider.hasPermission(pd.samResource,
+                                                        PersistentDiskAction.AttachPersistentDisk,
+                                                        userInfo)
 
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
           } yield PersistentDiskRequestResult(pd, false)
 
         case None =>
           for {
-            hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
+            hasPermission <- authProvider.hasPermission(ProjectSamResource(googleProject),
+                                                        ProjectAction.CreatePersistentDisk,
+                                                        userInfo)
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
             samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
             diskBeforeSave <- F.fromEither(

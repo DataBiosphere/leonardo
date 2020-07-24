@@ -11,20 +11,15 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
+import io.circe.Decoder
+import org.http4s.circe.CirceEntityDecoder._
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.ProjectSamResource
+import org.broadinstitute.dsde.workbench.leonardo.SamResourcePolicy.SamProjectPolicy
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction.{CreatePersistentDisk, CreateRuntime}
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
-import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction._
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
-import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -41,253 +36,134 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
 
-  // Cache notebook auth results from Sam as this is called very often by the proxy and the "list runtimes" endpoint.
-  // Project-level auth is not cached because it's just called for "create runtime" which is not as frequent.
-  private[sam] val notebookAuthCache = CacheBuilder
+  // We cache some auth results from Sam which are requested very often by the project, such as
+  // "connect to runtime" and "connect to app".
+  private[sam] val authCache = CacheBuilder
     .newBuilder()
-    .expireAfterWrite(config.notebookAuthCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
-    .maximumSize(config.notebookAuthCacheMaxSize)
+    .expireAfterWrite(config.authCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(config.authCacheMaxSize)
     .build(
-      new CacheLoader[NotebookAuthCacheKey, java.lang.Boolean] {
-        override def load(key: NotebookAuthCacheKey): java.lang.Boolean = {
+      new CacheLoader[AuthCacheKey, java.lang.Boolean] {
+        override def load(key: AuthCacheKey): java.lang.Boolean = {
           implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-          checkRuntimePermissionWithProjectFallback(key.samResource, key.authorization, key.action, key.googleProject).toIO
+          checkPermission(key.samResource, key.action, key.authorization).toIO
             .unsafeRunSync()
         }
       }
     )
 
-  private def getProjectActionString(action: LeoAuthAction): Either[Throwable, String] =
-    projectActionMap
-      .get(action)
-      .toRight(
-        UnknownLeoAuthAction(
-          s"SamAuthProvider has no mapping for project authorization action ${action.toString}, and is therefore probably out of date."
-        )
-      )
-
-  private def getNotebookActionString(action: RuntimeAction): Either[Throwable, String] =
-    runtimeActionMap
-      .get(action)
-      .toRight(
-        UnknownLeoAuthAction(
-          s"SamAuthProvider has no mapping for notebook-cluster authorization action ${action.toString}, and is therefore probably out of date."
-        )
-      )
-
-  private def getPersistentDiskActionString(action: PersistentDiskAction): Either[Throwable, String] =
-    persistentDiskActionMap
-      .get(action)
-      .toRight(
-        UnknownLeoAuthAction(
-          s"SamAuthProvider has no mapping for persistent-disk authorization action ${action.toString}, and is therefore probably out of date."
-        )
-      )
-
-  private val projectActionMap: Map[LeoAuthAction, String] = Map(
-    GetRuntimeStatus -> "list_notebook_cluster",
-    CreateRuntime -> "launch_notebook_cluster",
-    SyncDataToRuntime -> "sync_notebook_cluster",
-    DeleteRuntime -> "delete_notebook_cluster",
-    StopStartRuntime -> "stop_start_notebook_cluster",
-    CreatePersistentDisk -> "create_persistent_disk",
-    DeletePersistentDisk -> "delete_persistent_disk"
-  )
-
-  private val runtimeActionMap: Map[RuntimeAction, String] = Map(
-    GetRuntimeStatus -> "status",
-    ConnectToRuntime -> "connect",
-    SyncDataToRuntime -> "sync",
-    DeleteRuntime -> "delete",
-    ModifyRuntime -> "modify",
-    StopStartRuntime -> "stop_start"
-  )
-
-  private val persistentDiskActionMap: Map[PersistentDiskAction, String] = Map(
-    ReadPersistentDisk -> "read",
-    AttachPersistentDisk -> "attach",
-    ModifyPersistentDisk -> "modify",
-    DeletePersistentDisk -> "delete"
-  )
-
-  override def hasProjectPermission(
-    userInfo: UserInfo,
-    action: ProjectAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
+  override def hasPermission[R <: SamResource](samResource: R, action: LeoAuthAction, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
+  ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    hasProjectPermissionInternal(googleProject, action, authHeader)
-  }
-
-  override def hasRuntimePermission(
-    samResource: RuntimeSamResource,
-    userInfo: UserInfo,
-    action: RuntimeAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
-    val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    // Consult the notebook auth cache if enabled
-    if (config.notebookAuthCacheEnabled) {
-      // tokenExpiresIn should not taken into account when comparing cache keys
+    if (config.authCacheEnabled && ev2.cacheableActions.contains(action)) {
       blocker.blockOn(
         Effect[F].delay(
-          notebookAuthCache
-            .get(NotebookAuthCacheKey(samResource, authorization, action, googleProject))
+          authCache
+            .get(AuthCacheKey(samResource, authHeader, action))
             .booleanValue()
         )
       )
     } else {
-      checkRuntimePermissionWithProjectFallback(samResource, authorization, action, googleProject)
+      checkPermission(samResource, action, authHeader)
     }
   }
 
-  override def hasPersistentDiskPermission(
-    samResource: PersistentDiskSamResource,
-    userInfo: UserInfo,
-    action: PersistentDiskAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
-    val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    // can add check to cache here if necessary
-    checkPersistentDiskPermissionWithProjectFallback(samResource, authorization, action, googleProject)
-  }
-
-  def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
-                                           samResource: RuntimeSamResource,
-                                           userInfo: UserInfo)(
+  private def checkPermission[R <: SamResource](samResource: R, action: LeoAuthAction, authHeader: Authorization)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[LeoAuthAction]] = {
-    val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+  ): F[Boolean] =
     for {
-      callerActions <- getRuntimeActions(samResource, userInfo)
-      projectPermissions <- samDao
-        .getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
-      projectActions = projectActionMap.collect { case (k, v) if projectPermissions.contains(v) => k }
-    } yield callerActions ++ projectActions
+      traceId <- ev.ask
+      res <- samDao.hasResourcePermission(samResource, action.asString, authHeader).recoverWith {
+        case e =>
+          Logger[F]
+            .info(e)(s"${traceId} | $action is not allowed for resource $samResource")
+            .as(false)
+      }
+    } yield res
+
+  override def hasPermissionWithProjectFallback[R <: SamResource](
+    samResource: R,
+    action: LeoAuthAction,
+    projectAction: ProjectAction,
+    userInfo: UserInfo,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[F, TraceId], ev2: AuthCheckable[R]): F[Boolean] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      // First check permission at the resource level
+      hasPermission <- hasPermission(samResource, action, userInfo)
+      // Fall back to the project-level check if necessary
+      res <- hasPermission match {
+        case true => Sync[F].pure(true)
+        case _    => checkPermission(ProjectSamResource(googleProject), projectAction, authHeader)
+      }
+    } yield res
   }
 
-  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
-    implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[RuntimeAction]] = {
+  override def getActions[R <: SamResource](
+    samResource: R,
+    userInfo: UserInfo
+  )(implicit ev: ApplicativeAsk[F, TraceId], ev2: AuthCheckable[R]): F[List[LeoAuthAction]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
         .getListOfResourcePermissions(samResource, authorization)
-      callerActions = runtimeActionMap.collect { case (k, v) if listOfPermissions.contains(v) => k }
+      callerActions = ev2.actions.collect { case a if listOfPermissions.contains(a.asString) => a }
     } yield callerActions.toList
   }
 
-  private def checkRuntimePermissionWithProjectFallback(
-    samResource: RuntimeSamResource,
-    authorization: Authorization,
-    action: RuntimeAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
+  def getActionsWithProjectFallback[R <: SamResource](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
+  ): F[List[LeoAuthAction]] = {
+    val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
-      traceId <- ev.ask
-      hasRuntimeAction <- hasRuntimePermissionInternal(samResource, action, authorization)
-      res <- if (RuntimeAction.projectFallbackIneligibleActions contains action) Sync[F].pure(hasRuntimeAction)
-      else {
-        if (hasRuntimeAction)
-          Sync[F].pure(true)
-        else
-          hasProjectPermissionInternal(googleProject, action, authorization).recoverWith {
-            case e =>
-              Logger[F]
-                .info(e)(s"${traceId} | $action is not allowed at notebook-cluster level, nor project level")
-                .as(false)
-          }
+      listOfPermissions <- samDao
+        .getListOfResourcePermissions(samResource, authorization)
+      callerActions = ev2.actions.collect { case a if listOfPermissions.contains(a.asString) => a }
+
+      listOfProjectPermissions <- samDao.getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
+      projectCallerActions = AuthCheckable.ProjectAuthCheckable.actions.collect {
+        case a if listOfProjectPermissions.contains(a.toString) => a
       }
-    } yield res
-
-  private def checkPersistentDiskPermissionWithProjectFallback(
-    samResource: PersistentDiskSamResource,
-    authorization: Authorization,
-    action: PersistentDiskAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
-    for {
-      traceId <- ev.ask
-      hasPersistentDiskAction <- hasPersistentDiskPermissionInternal(samResource, action, authorization)
-      res <- if (PersistentDiskAction.projectFallbackIneligibleActions contains action)
-        Sync[F].pure(hasPersistentDiskAction)
-      else {
-        if (hasPersistentDiskAction)
-          Sync[F].pure(true)
-        else
-          hasProjectPermissionInternal(googleProject, action, authorization).recoverWith {
-            case e =>
-              Logger[F]
-                .info(e)(s"${traceId} | $action is not allowed at persistent-disk level, nor project level")
-                .as(false)
-          }
-      }
-    } yield res
-
-  private def hasProjectPermissionInternal(
-    googleProject: GoogleProject,
-    action: LeoAuthAction, //for projectfallback
-    authHeader: Authorization
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
-    for {
-      actionString <- Effect[F].fromEither(getProjectActionString(action))
-      res <- samDao.hasResourcePermission(ProjectSamResource(googleProject), actionString, authHeader)
-    } yield res
-
-  private def hasRuntimePermissionInternal(
-    samResource: RuntimeSamResource,
-    action: RuntimeAction,
-    authHeader: Authorization
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
-    for {
-      actionString <- Effect[F].fromEither(getNotebookActionString(action))
-      res <- samDao.hasResourcePermission(samResource, actionString, authHeader)
-    } yield res
-
-  private def hasPersistentDiskPermissionInternal(
-    samResource: PersistentDiskSamResource,
-    action: PersistentDiskAction,
-    authHeader: Authorization
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean] =
-    for {
-      actionString <- Effect[F].fromEither(getPersistentDiskActionString(action))
-      res <- samDao.hasResourcePermission(samResource, actionString, authHeader)
-    } yield res
-
-  override def filterUserVisibleRuntimes(userInfo: UserInfo, runtimes: List[(GoogleProject, RuntimeSamResource)])(
-    implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, RuntimeSamResource)]] = {
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    for {
-      projectPolicies <- samDao.getResourcePolicies[SamProjectPolicy](authHeader, SamResourceType.Project)
-      owningProjects = projectPolicies.collect {
-        case x if (x.accessPolicyName == AccessPolicyName.Owner) => x.googleProject
-      }
-      runtimePolicies <- samDao
-        .getResourcePolicies[SamRuntimePolicy](authHeader, SamResourceType.Runtime)
-      createdPolicies = runtimePolicies.filter(_.accessPolicyName == AccessPolicyName.Creator)
-    } yield runtimes.filter {
-      case (project, samResource) =>
-        owningProjects.contains(project) || createdPolicies.exists(_.resource == samResource)
-    }
+    } yield callerActions ++ projectCallerActions
   }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
-                                                disks: List[(GoogleProject, PersistentDiskSamResource)])(
-    implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, PersistentDiskSamResource)]] = {
+  override def filterUserVisible[R <: SamResource](resources: List[R], userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
+  ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    implicit val decoder: Decoder[ev2.Policy] = ev2.policyDecoder
+    for {
+      resourcePolicies <- samDao
+        .getResourcePolicies[ev2.Policy](authHeader, ev2.resourceType)
+      res = resourcePolicies.filter(rp => ev2.policyNames.contains(rp.accessPolicyName))
+    } yield resources.filter(r => res.exists(_.resource == r))
+  }
+
+  def filterUserVisibleWithProjectFallback[R <: SamResource](
+    resources: List[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
+  ): F[List[(GoogleProject, R)]] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    implicit val decoder: Decoder[ev2.Policy] = ev2.policyDecoder
     for {
       projectPolicies <- samDao.getResourcePolicies[SamProjectPolicy](authHeader, SamResourceType.Project)
       owningProjects = projectPolicies.collect {
-        case x if (x.accessPolicyName == AccessPolicyName.Owner) => x.googleProject
+        case x if x.accessPolicyName == AccessPolicyName.Owner => x.resource.googleProject
       }
-      diskPolicies <- samDao
-        .getResourcePolicies[SamPersistentDiskPolicy](authHeader, SamResourceType.PersistentDisk)
-      createdPolicies = diskPolicies.filter(_.accessPolicyName == AccessPolicyName.Creator)
-    } yield disks.filter {
-      case (project, samResource) =>
-        owningProjects.contains(project) || createdPolicies.exists(_.resource == samResource)
+      resourcePolicies <- samDao
+        .getResourcePolicies[ev2.Policy](authHeader, ev2.resourceType)
+      res = resourcePolicies.filter(rp => ev2.policyNames.contains(rp.accessPolicyName))
+    } yield resources.filter {
+      case (project, r) =>
+        owningProjects.contains(project) || res.exists(_.resource == r)
     }
   }
 
@@ -304,10 +180,8 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
 }
 
-final case class SamAuthProviderConfig(notebookAuthCacheEnabled: Boolean,
-                                       notebookAuthCacheMaxSize: Int = 1000,
-                                       notebookAuthCacheExpiryTime: FiniteDuration = 15 minutes)
-private[sam] case class NotebookAuthCacheKey(samResource: RuntimeSamResource,
-                                             authorization: Authorization,
-                                             action: RuntimeAction,
-                                             googleProject: GoogleProject)
+final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
+                                       authCacheMaxSize: Int = 1000,
+                                       authCacheExpiryTime: FiniteDuration = 15 minutes)
+
+private[sam] case class AuthCacheKey(samResource: SamResource, authorization: Authorization, action: LeoAuthAction)

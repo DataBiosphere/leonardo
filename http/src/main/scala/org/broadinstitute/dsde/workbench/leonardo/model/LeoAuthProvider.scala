@@ -1,85 +1,119 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
-import ca.mrvisser.sealerate
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import io.circe.Decoder
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  AppSamResource,
+  PersistentDiskSamResource,
+  ProjectSamResource,
+  RuntimeSamResource
+}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourcePolicy.{
+  SamAppPolicy,
+  SamPersistentDiskPolicy,
+  SamProjectPolicy,
+  SamRuntimePolicy
+}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
-sealed trait LeoAuthAction extends Product with Serializable
-
-sealed trait ProjectAction extends LeoAuthAction
-object ProjectAction {
-  case object CreateRuntime extends ProjectAction
-  case object CreatePersistentDisk extends ProjectAction
-  val allActions = sealerate.values[ProjectAction]
+sealed trait AuthCheckable[R] {
+  def resourceType: SamResourceType
+  def actions: Set[LeoAuthAction]
+  def cacheableActions: Set[LeoAuthAction]
+  def policyNames: Set[AccessPolicyName]
+  type Policy <: SamResourcePolicy
+  def policyDecoder: Decoder[Policy]
 }
+object AuthCheckable {
 
-sealed trait RuntimeAction extends LeoAuthAction
-object RuntimeAction {
-  case object GetRuntimeStatus extends RuntimeAction
-  case object ConnectToRuntime extends RuntimeAction
-  case object SyncDataToRuntime extends RuntimeAction
-  case object DeleteRuntime extends RuntimeAction
-  case object ModifyRuntime extends RuntimeAction
-  case object StopStartRuntime extends RuntimeAction
-  val allActions = sealerate.values[RuntimeAction]
-  val projectFallbackIneligibleActions: Set[RuntimeAction] = Set(ConnectToRuntime)
-}
+  implicit final case object ProjectAuthCheckable extends AuthCheckable[ProjectSamResource] {
+    val resourceType = SamResourceType.Project
+    val policyNames = Set(AccessPolicyName.Owner)
+    val cacheableActions = Set.empty
+    val actions = ProjectAction.allActions.toSet
+    type Policy = SamProjectPolicy
+    def policyDecoder = implicitly[Decoder[Policy]]
+  }
 
-sealed trait PersistentDiskAction extends LeoAuthAction
-object PersistentDiskAction {
-  case object ReadPersistentDisk extends PersistentDiskAction
-  case object AttachPersistentDisk extends PersistentDiskAction
-  case object ModifyPersistentDisk extends PersistentDiskAction
-  case object DeletePersistentDisk extends PersistentDiskAction
-  val allActions = sealerate.values[PersistentDiskAction]
-  val projectFallbackIneligibleActions: Set[PersistentDiskAction] =
-    Set(ReadPersistentDisk, AttachPersistentDisk, ModifyPersistentDisk)
+  implicit final case object RuntimeAuthCheckable extends AuthCheckable[RuntimeSamResource] {
+    val resourceType = SamResourceType.Runtime
+    val policyNames = Set(AccessPolicyName.Creator)
+    val cacheableActions = Set(RuntimeAction.ConnectToRuntime)
+    val actions = RuntimeAction.allActions.toSet
+    type Policy = SamRuntimePolicy
+    def policyDecoder = implicitly[Decoder[Policy]]
+  }
+
+  implicit final case object PersistentDiskAuthCheckable extends AuthCheckable[PersistentDiskSamResource] {
+    val resourceType = SamResourceType.PersistentDisk
+    val policyNames = Set(AccessPolicyName.Creator)
+    val cacheableActions = Set.empty
+    val actions = PersistentDiskAction.allActions.toSet
+    type Policy = SamPersistentDiskPolicy
+    def policyDecoder = implicitly[Decoder[Policy]]
+  }
+
+  implicit final case object AppAuthCheckable extends AuthCheckable[AppSamResource] {
+    val resourceType = SamResourceType.App
+    val policyNames = Set(AccessPolicyName.Creator, AccessPolicyName.Manager)
+    val cacheableActions = Set(AppAction.ConnectToApp)
+    val actions = AppAction.allActions.toSet
+    type Policy = SamAppPolicy
+    def policyDecoder = implicitly[Decoder[Policy]]
+  }
+
 }
 
 trait LeoAuthProvider[F[_]] {
   def serviceAccountProvider: ServiceAccountProvider[F]
 
-  def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+  def hasPermission[R <: SamResource](samResource: R, action: LeoAuthAction, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
   ): F[Boolean]
 
-  def hasRuntimePermission(samResource: RuntimeSamResource,
-                           userInfo: UserInfo,
-                           action: RuntimeAction,
-                           googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
+  def hasPermissionWithProjectFallback[R <: SamResource](
+    samResource: R,
+    action: LeoAuthAction,
+    projectAction: ProjectAction,
+    userInfo: UserInfo,
+    googleProject: GoogleProject
+  )(implicit ev: ApplicativeAsk[F, TraceId], ev2: AuthCheckable[R]): F[Boolean]
 
-  def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
-                                           samResource: RuntimeSamResource,
-                                           userInfo: UserInfo)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+  def getActions[R <: SamResource](samResource: R, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
   ): F[List[LeoAuthAction]]
 
-  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
-    implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[RuntimeAction]]
+  def getActionsWithProjectFallback[R <: SamResource](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
+  ): F[List[LeoAuthAction]]
 
-  def hasPersistentDiskPermission(samResource: PersistentDiskSamResource,
-                                  userInfo: UserInfo,
-                                  action: PersistentDiskAction,
-                                  googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
+  def filterUserVisible[R <: SamResource](resources: List[R], userInfo: UserInfo)(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
+  ): F[List[R]]
 
-  def filterUserVisibleRuntimes(userInfo: UserInfo, runtimes: List[(GoogleProject, RuntimeSamResource)])(
-    implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, RuntimeSamResource)]]
+  def filterUserVisibleWithProjectFallback[R <: SamResource](
+    resources: List[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(
+    implicit ev: ApplicativeAsk[F, TraceId],
+    ev2: AuthCheckable[R]
+  ): F[List[(GoogleProject, R)]]
 
-  def filterUserVisiblePersistentDisks(userInfo: UserInfo, disks: List[(GoogleProject, PersistentDiskSamResource)])(
-    implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, PersistentDiskSamResource)]]
+  // TODO need other create method to attach multiple policies?
 
-  //Notifications that Leo has created/destroyed resources. Allows the auth provider to register things.
-
+  // Creates a resource in Sam
   def notifyResourceCreated(samResource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
+  // Deletes a resource in Sam
   def notifyResourceDeleted(samResource: SamResource,
                             userEmail: WorkbenchEmail,
                             creatorEmail: WorkbenchEmail,

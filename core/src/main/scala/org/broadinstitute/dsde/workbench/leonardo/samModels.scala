@@ -1,7 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import ca.mrvisser.sealerate
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  AppSamResource,
+  PersistentDiskSamResource,
+  ProjectSamResource,
+  RuntimeSamResource
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait SamResource extends Product with Serializable {
@@ -52,6 +57,9 @@ object AccessPolicyName {
   final case object Owner extends AccessPolicyName {
     override def toString = "owner"
   }
+  final case object Manager extends AccessPolicyName {
+    override def toString = "manager"
+  }
   final case class Other(asString: String) extends AccessPolicyName {
     override def toString = asString
   }
@@ -59,6 +67,107 @@ object AccessPolicyName {
     sealerate.collect[AccessPolicyName].map(p => (p.toString, p)).toMap
 }
 
-final case class SamRuntimePolicy(accessPolicyName: AccessPolicyName, resource: RuntimeSamResource)
-final case class SamPersistentDiskPolicy(accessPolicyName: AccessPolicyName, resource: PersistentDiskSamResource)
-final case class SamProjectPolicy(accessPolicyName: AccessPolicyName, googleProject: GoogleProject)
+sealed trait SamResourcePolicy extends Product with Serializable {
+  def accessPolicyName: AccessPolicyName
+  def resource: SamResource
+}
+object SamResourcePolicy {
+  final case class SamRuntimePolicy(accessPolicyName: AccessPolicyName, resource: RuntimeSamResource)
+      extends SamResourcePolicy
+  final case class SamPersistentDiskPolicy(accessPolicyName: AccessPolicyName, resource: PersistentDiskSamResource)
+      extends SamResourcePolicy
+  final case class SamProjectPolicy(accessPolicyName: AccessPolicyName, resource: ProjectSamResource)
+      extends SamResourcePolicy
+  final case class SamAppPolicy(accessPolicyName: AccessPolicyName, resource: AppSamResource) extends SamResourcePolicy
+}
+
+sealed trait LeoAuthAction extends Product with Serializable {
+  def asString: String
+}
+
+sealed trait ProjectAction extends LeoAuthAction
+object ProjectAction {
+  case object CreateRuntime extends ProjectAction {
+    val asString = "launch_notebook_cluster"
+  }
+  case object CreatePersistentDisk extends ProjectAction {
+    val asString = "create_persistent_disk"
+  }
+  case object CreateApp extends ProjectAction {
+    val asString = "create_kubernetes_app"
+  }
+
+  // TODO we'd like to remove these actions at the project level, and control this with
+  // policies at the resource level instead. App resources currently follow this model.
+  case object GetRuntimeStatus extends ProjectAction {
+    val asString = "list_notebook_cluster"
+  }
+  case object DeleteRuntime extends ProjectAction {
+    val asString = "delete_notebook_cluster"
+  }
+  case object StopStartRuntime extends ProjectAction {
+    val asString = "stop_start_notebook_cluster"
+  }
+  case object ReadPersistentDisk extends ProjectAction {
+    val asString = "list_persistent_disk"
+  }
+  case object DeletePersistentDisk extends ProjectAction {
+    val asString = "delete_persistent_disk"
+  }
+
+  val allActions = sealerate.values[ProjectAction]
+}
+
+sealed trait RuntimeAction extends LeoAuthAction
+object RuntimeAction {
+  case object GetRuntimeStatus extends RuntimeAction {
+    val asString = "status"
+  }
+  case object ConnectToRuntime extends RuntimeAction {
+    val asString = "connect"
+  }
+  case object DeleteRuntime extends RuntimeAction {
+    val asString = "delete"
+  }
+  case object ModifyRuntime extends RuntimeAction {
+    val asString = "modify"
+  }
+  case object StopStartRuntime extends RuntimeAction {
+    val asString = "stop_start"
+  }
+  val allActions = sealerate.values[RuntimeAction]
+}
+
+sealed trait PersistentDiskAction extends LeoAuthAction
+object PersistentDiskAction {
+  case object ReadPersistentDisk extends PersistentDiskAction {
+    val asString = "read"
+  }
+  case object AttachPersistentDisk extends PersistentDiskAction {
+    val asString = "attach"
+  }
+  case object ModifyPersistentDisk extends PersistentDiskAction {
+    val asString = "modify"
+  }
+  case object DeletePersistentDisk extends PersistentDiskAction {
+    val asString = "delete"
+  }
+  val allActions = sealerate.values[PersistentDiskAction]
+}
+
+sealed trait AppAction extends LeoAuthAction
+object AppAction {
+  case object GetAppStatus extends AppAction {
+    val asString = "status"
+  }
+  case object ConnectToApp extends AppAction {
+    val asString = "connect"
+  }
+  case object UpdateApp extends AppAction {
+    val asString = "update"
+  }
+  case object DeleteApp extends AppAction {
+    val asString = "delete"
+  }
+  val allActions = sealerate.values[AppAction]
+}

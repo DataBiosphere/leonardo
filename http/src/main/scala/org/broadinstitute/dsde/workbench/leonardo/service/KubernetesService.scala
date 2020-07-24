@@ -18,23 +18,19 @@ trait KubernetesService[F[_]] {
     googleProject: GoogleProject,
     appName: AppName,
     req: CreateAppRequest
-  )(
-    implicit as: ApplicativeAsk[F, AppContext]
-  ): F[Unit]
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit]
 
   def getApp(
     userInfo: UserInfo,
     googleProject: GoogleProject,
     appName: AppName
-  )(
-    implicit as: ApplicativeAsk[F, AppContext]
-  ): F[GetAppResponse]
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[GetAppResponse]
 
   def listApp(
     userInfo: UserInfo,
     googleProject: Option[GoogleProject],
     params: Map[String, String]
-  ): F[Vector[ListAppResponse]]
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[Vector[ListAppResponse]]
 
   def deleteApp(params: DeleteAppParams)(
     implicit as: ApplicativeAsk[F, AppContext]

@@ -2,14 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import java.io.ByteArrayInputStream
-import java.util.UUID
-import java.util.concurrent.TimeUnit
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 import _root_.io.circe.{Decoder, Json, KeyDecoder}
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.StatusCode._
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Resource}
 import cats.implicits._
@@ -21,7 +21,16 @@ import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  PersistentDiskSamResource,
+  ProjectSamResource,
+  RuntimeSamResource
+}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourcePolicy.{
+  SamPersistentDiskPolicy,
+  SamProjectPolicy,
+  SamRuntimePolicy
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -269,7 +278,7 @@ object HttpSamDAO {
   implicit val samProjectPolicyDecoder: Decoder[SamProjectPolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
-      googleProject <- c.downField("resourceId").as[GoogleProject]
+      googleProject <- c.downField("resourceId").as[ProjectSamResource]
     } yield SamProjectPolicy(policyName, googleProject)
   }
   // TODO: consolidate these 3 access policy decoders into one
