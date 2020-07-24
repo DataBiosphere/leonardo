@@ -438,7 +438,6 @@ trait LeonardoTestUtils
     //we cannot save the log if the cluster isn't running
 
     if (Leonardo.cluster.getRuntime(googleProject, runtimeName).status == ClusterStatus.Running) {
-
       saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "delete")
     }
     try {
@@ -690,9 +689,7 @@ trait LeonardoTestUtils
     deleteRuntimeAfter: Boolean = true
   )(testCode: ClusterCopy => T)(implicit token: Authorization, authToken: AuthToken): T = {
     val cluster = createNewRuntime(googleProject, name, request, monitorCreate)
-    val testResult: Try[T] = Try {
-      testCode(cluster)
-    }
+    val testResult: IO[T] = IO(testCode(cluster))
 
     // make sure cluster is deletable
     if (!monitorCreate) {
@@ -713,10 +710,16 @@ trait LeonardoTestUtils
       }
     }
 
-    // delete before checking testCode status, which may throw
-    if (deleteRuntimeAfter)
-      deleteRuntime(googleProject, cluster.clusterName, monitorDelete)
-    testResult.get
+    //we don't delete if the test throws an exception
+    val res = for {
+      t <- testResult
+     _ <- if (deleteRuntimeAfter) {
+       IO(logger.info(s"deleting runtime ${googleProject}/${cluster.clusterName}")) >>
+         IO(deleteRuntime(googleProject, cluster.clusterName, monitorDelete))
+     } else IO(logger.info(s"not going to delete runtime ${googleProject}/${cluster.clusterName}"))
+    } yield t
+
+    res.unsafeRunSync()
   }
 
   def withNewErroredCluster[T](

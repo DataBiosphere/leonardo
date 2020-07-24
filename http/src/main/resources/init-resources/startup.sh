@@ -74,8 +74,10 @@ fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then
     # Run welder-docker-compose
+    log 'Using debug update-welder code'
     gcloud auth configure-docker
     docker-compose -f /etc/welder-docker-compose.yaml stop
+    retry 5 docker-compose -f /etc/welder-docker-compose.yaml pull
     docker-compose -f /etc/welder-docker-compose.yaml rm -f
     docker-compose -f /etc/welder-docker-compose.yaml up -d
 fi

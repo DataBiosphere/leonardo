@@ -23,7 +23,7 @@ class NotebookGCEClusterMonitoringSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with NotebookTestUtils
-    with GPAllocBeforeAndAfterAll {
+with GPAllocBeforeAndAfterAll {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(
     org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
@@ -96,7 +96,7 @@ class NotebookGCEClusterMonitoringSpec
       }
     }
 
-    "should update DockerHub welder on a cluster" taggedAs Retryable in { billingProject =>
+    "should update DockerHub welder on a cluster" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
@@ -107,9 +107,10 @@ class NotebookGCEClusterMonitoringSpec
         request = LeonardoApiClient.defaultCreateRuntime2Request.copy(
           labels = Map(deployWelderLabel -> "true"),
           welderDockerImage = Some(LeonardoConfig.Leonardo.oldDockerHubWelderDockerImage)
-        )
+        ),
       ) { runtime =>
         // Verify welder is running with old version
+        throw new Exception("oops I failed")
         val statusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
         statusResponse.isRight shouldBe true
         val oldWelderHash = LeonardoConfig.Leonardo.oldWelderHash

@@ -323,7 +323,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         request = defaultClusterRequest.copy(labels = Map(deployWelderLabel -> "true"),
                                              welderDockerImage =
                                                Some(LeonardoConfig.Leonardo.oldDockerHubWelderDockerImage.imageUrl),
-                                             enableWelder = Some(true))
+                                             enableWelder = Some(true)),
       ) { cluster =>
         // Verify welder is running with old version
         val statusResponse = Welder.getWelderStatus(cluster).attempt.unsafeRunSync()
