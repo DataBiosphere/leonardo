@@ -1182,7 +1182,7 @@ paths:
     get:
       summary: Experimental. List kubernetes app
       description: List kubernetes apps the caller has access to with a project filter
-      operationId: listApp
+      operationId: listAppByProject
       tags:
         - apps
       parameters:
@@ -1823,7 +1823,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  /proxy/google/v1/apps/{project}/{appName}/{serviceName}:
+  /proxy/google/v1/apps/{googleProject}/{appName}/{serviceName}:
     get:
       summary: Access an app if the app and service name exists
       description: >
@@ -2780,8 +2780,9 @@ components:
           type: integer
           description: The size of the persistent disk to be created in GB.
         diskType:
-          $ref: "#/components/schemas/DiskType"
-          description: The type of the persistent disk to be created. Can be "Standard" or "SSD".
+          allOf:
+            - $ref: "#/components/schemas/DiskType"
+            - description: The type of the persistent disk to be created. Can be "Standard" or "SSD".
         blockSize:
           type: integer
           description: The block size of the persistent disk to be created in bytes.
@@ -3028,19 +3029,6 @@ components:
             'jlpm build', a JS file to be inserted into an JL extension template
             (see https://github.com/jupyterlab/extension-cookiecutter-js), or a
             URL to one of the last three options.
-    SubsystemStatus:
-      description: status of a subsystem Leonardo depends on
-      type: object
-      required:
-        - ok
-      properties:
-        ok:
-          type: boolean
-          description: whether this system is up or down from Leonardo's point of view
-        messages:
-          type: array
-          items:
-            type: string
     SystemStatus:
       description: status of each subsystem Leonardo depends on
       type: object
@@ -3081,13 +3069,11 @@ components:
       type: object
       properties:
         diskConfig:
-          type: object
           $ref: '#/components/schemas/PersistentDiskRequest'
         appType:
           type: string
           description: currently only "GALAXY" is supported
         kubernetesRuntimeConfig:
-          type: object
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:
           type: object
@@ -3098,7 +3084,6 @@ components:
       type: object
       properties:
         kubernetesRuntimeConfig:
-          type: object
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         errors:
           type: array
@@ -3106,7 +3091,6 @@ components:
           items:
             $ref: "#/components/schemas/KubernetesError"
         status:
-          type: string
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
           type: object
@@ -3123,7 +3107,6 @@ components:
           type: string
           description: the project this app is associated with
         kubernetesRuntimeConfig:
-          type: object
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         errors:
           type: array
@@ -3131,7 +3114,6 @@ components:
           items:
             $ref: "#/components/schemas/KubernetesError"
         status:
-          type: string
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
           type: object
@@ -3199,5 +3181,6 @@ components:
         googleErrorCode:
           type: integer
           description: if the error is associated with an external API call, the error code will be propagated here
+
 
 
