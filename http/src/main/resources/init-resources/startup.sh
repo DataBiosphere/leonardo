@@ -104,6 +104,7 @@ fi
 if [ "$UPDATE_WELDER" == "true" ] ; then
     # Run welder-docker-compose
     gcloud auth configure-docker
+    retry 5 docker-compose -f /etc/welder-docker-compose.yaml pull
     docker-compose -f /etc/welder-docker-compose.yaml stop
     docker-compose -f /etc/welder-docker-compose.yaml rm -f
     docker-compose -f /etc/welder-docker-compose.yaml up -d &> start_output.txt || EXIT_CODE=$?
