@@ -67,7 +67,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       samResourceId <- F.delay(AppSamResource(UUID.randomUUID().toString))
       _ <- authProvider
-        .notifyResourceCreated(samResourceId, userInfo.userEmail, googleProject, true)
+        .notifyResourceCreated(samResourceId, userInfo.userEmail, googleProject)
         .handleErrorWith { t =>
           log.error(t)(
             s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"

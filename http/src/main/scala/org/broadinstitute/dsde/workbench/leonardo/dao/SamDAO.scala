@@ -18,10 +18,13 @@ trait SamDAO[F[_]] {
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[List[SamResourcePolicy]]
 
-  def createResource(resource: SamResource,
-                     creatorEmail: WorkbenchEmail,
-                     googleProject: GoogleProject,
-                     createManagerPolicy: Boolean)(
+  def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit]
+
+  def createResourceWithManagerPolicy(resource: SamResource,
+                                      creatorEmail: WorkbenchEmail,
+                                      googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 

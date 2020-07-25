@@ -112,16 +112,18 @@ trait LeoAuthProvider[F[_]] {
   ): F[List[(GoogleProject, R)]]
 
   // Creates a resource in Sam
-  def notifyResourceCreated(samResource: SamResource,
-                            creatorEmail: WorkbenchEmail,
-                            googleProject: GoogleProject,
-                            createManagerPolicy: Boolean = false)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+  def notifyResourceCreated[R <: SamResource](samResource: R,
+                                              creatorEmail: WorkbenchEmail,
+                                              googleProject: GoogleProject)(
+    implicit pol: PolicyCheckable[R],
+    ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
   // Deletes a resource in Sam
-  def notifyResourceDeleted(samResource: SamResource,
-                            userEmail: WorkbenchEmail,
-                            creatorEmail: WorkbenchEmail,
-                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def notifyResourceDeleted[R <: SamResource](
+    samResource: R,
+    userEmail: WorkbenchEmail,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit]
 }

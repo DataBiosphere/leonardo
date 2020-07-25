@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import ca.mrvisser.sealerate
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait SamResource extends Product with Serializable {
@@ -62,6 +63,7 @@ object AccessPolicyName {
 }
 
 final case class SamResourcePolicy(samResource: SamResource, policyName: AccessPolicyName)
+final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
 
 sealed trait LeoAuthAction extends Product with Serializable {
   def asString: String

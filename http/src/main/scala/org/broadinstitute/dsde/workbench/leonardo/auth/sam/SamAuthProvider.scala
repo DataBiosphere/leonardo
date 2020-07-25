@@ -161,16 +161,22 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     }
   }
 
-  override def notifyResourceCreated(samResource: SamResource,
-                                     creatorEmail: WorkbenchEmail,
-                                     googleProject: GoogleProject,
-                                     createManagerPolicy: Boolean)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    samDao.createResource(samResource, creatorEmail, googleProject, createManagerPolicy)
+  override def notifyResourceCreated[R <: SamResource](
+    samResource: R,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    if (pol.policyNames == Set(AccessPolicyName.Creator))
+      samDao.createResource(samResource, creatorEmail, googleProject)
+    else
+      samDao.createResourceWithManagerPolicy(samResource, creatorEmail, googleProject)
 
-  override def notifyResourceDeleted(samResource: SamResource,
-                                     userEmail: WorkbenchEmail,
-                                     creatorEmail: WorkbenchEmail,
-                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def notifyResourceDeleted[R <: SamResource](
+    samResource: R,
+    userEmail: WorkbenchEmail,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, userEmail, creatorEmail, googleProject)
 
 }

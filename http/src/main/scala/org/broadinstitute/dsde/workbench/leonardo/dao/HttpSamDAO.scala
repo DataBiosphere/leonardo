@@ -107,10 +107,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
     )(onError)
 
-  def createResource(resource: SamResource,
-                     creatorEmail: WorkbenchEmail,
-                     googleProject: GoogleProject,
-                     createManagerPolicy: Boolean)(
+  def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
@@ -128,19 +125,48 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- logger.info(
         s"${traceId} | creating ${resource.resourceType.asString} resource in sam for ${googleProject}/${resource.resourceId}"
       )
-      creatorPolicy = Map(
-        AccessPolicyName.Creator -> PolicyData(memberEmails = List(creatorEmail),
-                                               actions = List.empty,
-                                               roles = List(SamRole.Creator))
-      )
-      managerPolicy = if (createManagerPolicy)
-        Map(
-          AccessPolicyName.Manager -> PolicyData(memberEmails = List(creatorEmail), // TODO fix
-                                                 actions = List.empty,
-                                                 roles = List(SamRole.Manager))
+      _ <- httpClient
+        .run(
+          Request[F](
+            method = Method.POST,
+            uri = config.samUri
+              .withPath(s"/api/resources/v1/${resource.resourceType.asString}/${resource.resourceId}"),
+            headers = Headers.of(authHeader)
+          )
         )
-      else Map.empty
-      createResourceRequest = CreateSamResourceRequest(resource, creatorPolicy ++ managerPolicy)
+        .use { resp =>
+          if (resp.status.isSuccess)
+            Effect[F].unit
+          else
+            onError(resp).flatMap(Effect[F].raiseError[Unit])
+        }
+    } yield ()
+
+  def createResourceWithManagerPolicy(resource: SamResource,
+                                      creatorEmail: WorkbenchEmail,
+                                      googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
+    for {
+      traceId <- ev.ask
+      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
+        _.fold(
+          Effect[F].raiseError[String](
+            AuthProviderException(traceId,
+                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
+                                  StatusCodes.Unauthorized)
+          )
+        )(s => Effect[F].pure(s))
+      )
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+      _ <- logger.info(
+        s"${traceId} | creating ${resource.resourceType.asString} resource in sam for ${googleProject}/${resource.resourceId}"
+      )
+      projectOwnerEmail <- getProjectOwnerPolicyEmail(authHeader, googleProject)
+      policies = Map(
+        AccessPolicyName.Creator -> PolicyData(List(creatorEmail), List(SamRole.Creator)),
+        AccessPolicyName.Manager -> PolicyData(List(projectOwnerEmail.email), List(SamRole.Manager))
+      )
       _ <- httpClient
         .run(
           Request[F](
@@ -148,7 +174,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
             uri = config.samUri
               .withPath(s"/api/resources/v1/${resource.resourceType.asString}"),
             headers = Headers.of(authHeader),
-            body = Stream.emits(createResourceRequest.asJson.noSpaces.getBytes())
+            body = Stream.emits(CreateSamResourceRequest(resource, policies).asJson.noSpaces.getBytes)
           )
         )
         .use { resp =>
@@ -269,6 +295,19 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       body <- response.bodyText.compile.foldMonoid
       _ <- logger.error(s"${traceId} | Sam call failed: $body")
     } yield AuthProviderException(traceId, body, response.status.code)
+
+  private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[SamPolicyEmail] =
+    httpClient.expectOr[SamPolicyEmail](
+      Request[F](
+        method = Method.GET,
+        uri = config.samUri.withPath(
+          s"/api/resources/v1/${SamResourceType.Project.asString}/${googleProject.value}/policies/${AccessPolicyName.Owner.toString}"
+        ),
+        headers = Headers.of(authorization)
+      )
+    )(onError)
 }
 
 object HttpSamDAO {
@@ -281,7 +320,7 @@ object HttpSamDAO {
   implicit val samResourceEncoder: Encoder[SamResource] = Encoder.encodeString.contramap(_.resourceId)
   implicit val leoAuthActionEncoder: Encoder[LeoAuthAction] = Encoder.encodeString.contramap(_.asString)
   implicit val policyDataEncoder: Encoder[PolicyData] =
-    Encoder.forProduct3("memberEmails", "actions", "roles")(x => (x.memberEmails, x.actions, x.roles))
+    Encoder.forProduct3("memberEmails", "actions", "roles")(x => (x.memberEmails, List.empty[String], x.roles))
   implicit val accessPolicyNameKeyEncoder: KeyEncoder[AccessPolicyName] = new KeyEncoder[AccessPolicyName] {
     override def apply(p: AccessPolicyName): String = p.toString
   }
@@ -295,6 +334,11 @@ object HttpSamDAO {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
       samResource <- c.downField("resourceId").as[RuntimeSamResource]
     } yield SamResourcePolicy(samResource, policyName)
+  }
+  implicit val samPolicyEmailDecoder: Decoder[SamPolicyEmail] = Decoder.instance { c =>
+    for {
+      email <- c.downField("email").as[WorkbenchEmail]
+    } yield SamPolicyEmail(email)
   }
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
     for {
@@ -323,7 +367,7 @@ object SamRole {
     val asString = "manager"
   }
 }
-final case class PolicyData(memberEmails: List[WorkbenchEmail], actions: List[LeoAuthAction], roles: List[SamRole])
+final case class PolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])
 final case class CreateSamResourceRequest(samResourceId: SamResource, policies: Map[AccessPolicyName, PolicyData])
 
 final case class HttpSamDaoConfig(samUri: Uri,
