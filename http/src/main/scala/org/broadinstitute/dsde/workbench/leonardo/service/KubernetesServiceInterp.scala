@@ -8,39 +8,30 @@ import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.effect.Async
-import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  nodepoolQuery,
-  ClusterDoesNotExist,
-  ClusterExists,
-  DbReference,
-  KubernetesServiceDbQueries,
-  SaveApp,
-  SaveKubernetesCluster
-}
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
+import io.chrisdavenport.log4cats.StructuredLogger
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, ProjectSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   GalaxyAppConfig,
   KubernetesClusterConfig,
   NodepoolConfig,
   PersistentDiskConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import LeonardoService.includeDeletedKey
-import io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.KubernetesName
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, ProjectSamResource}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.includeDeletedKey
+import org.broadinstitute.dsde.workbench.leonardo.model.PolicyCheckable._
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.concurrent.ExecutionContext
 

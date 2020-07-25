@@ -40,20 +40,21 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
+import org.broadinstitute.dsde.workbench.leonardo.model.ActionCheckable._
+import org.broadinstitute.dsde.workbench.leonardo.model.PolicyCheckable._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessage,
   RuntimeConfigInCreateRuntimeMessage,
   RuntimePatchDetails
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
-import org.broadinstitute.dsde.workbench.leonardo.model.AuthCheckable._
+import scala.concurrent.duration._
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            diskConfig: PersistentDiskConfig,
@@ -256,7 +257,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource,
                                                                       runtime.googleProject,
                                                                       req.userInfo)
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions.toSet.exists(
+        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
+      )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
@@ -268,7 +271,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       // throw 403 if no DeleteCluster permission
 
-      hasDeletePermission = listOfPermissions.toSet.contains(RuntimeAction.DeleteRuntime)
+      hasDeletePermission = listOfPermissions.toSet.exists(
+        Set(RuntimeAction.DeleteRuntime, ProjectAction.DeleteRuntime).contains
+      )
 
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(req.userInfo.userEmail))
       // throw 409 if the cluster is not deletable
@@ -347,9 +352,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions.toSet.exists(
+        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
+      )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
@@ -362,7 +369,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
       // throw 403 if no StopStartCluster permission
-      hasStopPermission = listOfPermissions.toSet.contains(RuntimeAction.StopStartRuntime)
+      hasStopPermission = listOfPermissions.toSet.exists(
+        Set(RuntimeAction.StopStartRuntime, ProjectAction.StopStartRuntime).contains
+      )
 
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the cluster is not stoppable
@@ -389,9 +398,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions.toSet.exists(
+        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
+      )
 
       _ <- if (hasStatusPermission) F.unit
       else
@@ -401,7 +412,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
-      hasStartPermission = listOfPermissions.contains(RuntimeAction.StopStartRuntime)
+      hasStartPermission = listOfPermissions.exists(
+        Set(RuntimeAction.StopStartRuntime, ProjectAction.StopStartRuntime).contains
+      )
       // throw 403 if no StopStartCluster permission
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
@@ -432,9 +445,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions.toSet.exists(
+        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
+      )
 
       _ <- if (hasStatusPermission) F.unit
       else

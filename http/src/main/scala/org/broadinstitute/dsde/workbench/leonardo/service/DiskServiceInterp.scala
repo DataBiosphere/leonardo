@@ -21,6 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.{
   includeDeletedKey,
   processListParameters
 }
+import org.broadinstitute.dsde.workbench.leonardo.model.ActionCheckable._
+import org.broadinstitute.dsde.workbench.leonardo.model.PolicyCheckable._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -146,12 +148,15 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
       // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
       listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
-      hasReadPermission = listOfPermissions.toSet.contains(PersistentDiskAction.ReadPersistentDisk)
-
+      hasReadPermission = listOfPermissions.toSet.exists(
+        Set(PersistentDiskAction.ReadPersistentDisk, ProjectAction.ReadPersistentDisk).contains
+      )
       _ <- if (hasReadPermission) F.unit
       else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
       // throw 403 if no DeleteDisk permission
-      hasDeletePermission = listOfPermissions.toSet.contains(PersistentDiskAction.DeletePersistentDisk)
+      hasDeletePermission = listOfPermissions.toSet.exists(
+        Set(PersistentDiskAction.DeletePersistentDisk, ProjectAction.DeletePersistentDisk).contains
+      )
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the disk is not deletable
       _ <- if (disk.status.isDeletable) F.unit
@@ -186,8 +191,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 404 if no ReadPersistentDisk permission
       // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
       // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
-      listOfPermissions <- authProvider.getActions(disk.samResource, userInfo)
-      hasReadPermission = listOfPermissions.contains(PersistentDiskAction.ReadPersistentDisk)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
+      hasReadPermission = listOfPermissions.exists(
+        Set(PersistentDiskAction.ReadPersistentDisk, ProjectAction.ReadPersistentDisk).contains
+      )
       _ <- if (hasReadPermission) F.unit
       else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
       // throw 403 if no ModifyPersistentDisk permission
