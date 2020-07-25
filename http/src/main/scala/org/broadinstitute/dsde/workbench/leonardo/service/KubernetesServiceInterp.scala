@@ -75,8 +75,13 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       )
 
       samResourceId <- F.delay(AppSamResource(UUID.randomUUID().toString))
-//   TODO: notify SAM
-//      _ <- authProvider.notifyKubernetesClusterCreated(samResourceId)
+      _ <- authProvider
+        .notifyResourceCreated(samResourceId, userInfo.userEmail, googleProject, true)
+        .handleErrorWith { t =>
+          log.error(t)(
+            s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
+          ) >> F.raiseError(t)
+        }
 
       saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetForApp(saveCluster).transaction

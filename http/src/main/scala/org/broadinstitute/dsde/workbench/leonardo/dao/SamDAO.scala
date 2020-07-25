@@ -5,7 +5,6 @@ import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
-import org.http4s.EntityDecoder
 import org.http4s.headers.Authorization
 
 trait SamDAO[F[_]] {
@@ -15,12 +14,14 @@ trait SamDAO[F[_]] {
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Boolean]
 
-  def getResourcePolicies[A](authHeader: Authorization, resourceType: SamResourceType)(
-    implicit decoder: EntityDecoder[F, List[A]],
-    ev: ApplicativeAsk[F, TraceId]
-  ): F[List[A]]
+  def getResourcePolicies(authHeader: Authorization, resourceType: SamResourceType)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[List[SamResourcePolicy]]
 
-  def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+  def createResource(resource: SamResource,
+                     creatorEmail: WorkbenchEmail,
+                     googleProject: GoogleProject,
+                     createManagerPolicy: Boolean)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 

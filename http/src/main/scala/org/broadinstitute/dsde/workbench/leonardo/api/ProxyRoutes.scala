@@ -18,7 +18,6 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction.ConnectToRuntime
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -52,19 +51,10 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
             path("setCookie") {
               extractUserInfo { userInfo =>
                 get {
-                  // Check the user for ConnectToCluster privileges and set a cookie in the response
-                  onSuccess {
-                    val authCheck = for {
-                      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO]()
-                      _ <- proxyService.authCheck(userInfo, googleProject, runtimeName, ConnectToRuntime)
-                    } yield ()
-                    authCheck.unsafeToFuture()
-                  } {
-                    CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
-                      complete {
-                        IO(logger.debug(s"Successfully set cookie for user $userInfo"))
-                          .as(StatusCodes.NoContent)
-                      }
+                  CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+                    complete {
+                      IO(logger.debug(s"Successfully set cookie for user $userInfo"))
+                        .as(StatusCodes.NoContent)
                     }
                   }
                 }

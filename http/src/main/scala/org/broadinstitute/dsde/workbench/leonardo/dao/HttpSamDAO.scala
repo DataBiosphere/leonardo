@@ -7,7 +7,10 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import _root_.io.circe.{Decoder, Json, KeyDecoder}
+import _root_.fs2._
+import _root_.io.chrisdavenport.log4cats.Logger
+import _root_.io.circe._
+import _root_.io.circe.syntax._
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.implicits._
@@ -18,19 +21,9 @@ import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
-import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourcePolicy.{
-  SamPersistentDiskPolicy,
-  SamProjectPolicy,
-  SamRuntimePolicy
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -102,11 +95,11 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
     )(onError)
 
-  def getResourcePolicies[A](
+  def getResourcePolicies(
     authHeader: Authorization,
     resourceType: SamResourceType
-  )(implicit decoder: EntityDecoder[F, List[A]], ev: ApplicativeAsk[F, TraceId]): F[List[A]] =
-    httpClient.expectOr[List[A]](
+  )(implicit ev: ApplicativeAsk[F, TraceId]): F[List[SamResourcePolicy]] =
+    httpClient.expectOr[List[SamResourcePolicy]](
       Request[F](
         method = Method.GET,
         uri = config.samUri.withPath(s"/api/resources/v1/${resourceType.asString}"),
@@ -114,7 +107,10 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
     )(onError)
 
-  def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+  def createResource(resource: SamResource,
+                     creatorEmail: WorkbenchEmail,
+                     googleProject: GoogleProject,
+                     createManagerPolicy: Boolean)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] =
     for {
@@ -132,13 +128,27 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- logger.info(
         s"${traceId} | creating ${resource.resourceType.asString} resource in sam for ${googleProject}/${resource.resourceId}"
       )
+      creatorPolicy = Map(
+        AccessPolicyName.Creator -> PolicyData(memberEmails = List(creatorEmail),
+                                               actions = List.empty,
+                                               roles = List(SamRole.Creator))
+      )
+      managerPolicy = if (createManagerPolicy)
+        Map(
+          AccessPolicyName.Manager -> PolicyData(memberEmails = List(creatorEmail), // TODO fix
+                                                 actions = List.empty,
+                                                 roles = List(SamRole.Manager))
+        )
+      else Map.empty
+      createResourceRequest = CreateSamResourceRequest(resource, creatorPolicy ++ managerPolicy)
       _ <- httpClient
         .run(
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${resource.resourceType.asString}/${resource.resourceId}"),
-            headers = Headers.of(authHeader)
+              .withPath(s"/api/resources/v1/${resource.resourceType.asString}"),
+            headers = Headers.of(authHeader),
+            body = Stream.emits(createResourceRequest.asJson.noSpaces.getBytes())
           )
         )
         .use { resp =>
@@ -267,26 +277,24 @@ object HttpSamDAO {
                           blocker: Blocker)(implicit logger: Logger[F], contextShift: ContextShift[F]): HttpSamDAO[F] =
     new HttpSamDAO[F](httpClient, config, blocker)
 
+  implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)
+  implicit val samResourceEncoder: Encoder[SamResource] = Encoder.encodeString.contramap(_.resourceId)
+  implicit val leoAuthActionEncoder: Encoder[LeoAuthAction] = Encoder.encodeString.contramap(_.asString)
+  implicit val policyDataEncoder: Encoder[PolicyData] =
+    Encoder.forProduct3("memberEmails", "actions", "roles")(x => (x.memberEmails, x.actions, x.roles))
+  implicit val accessPolicyNameKeyEncoder: KeyEncoder[AccessPolicyName] = new KeyEncoder[AccessPolicyName] {
+    override def apply(p: AccessPolicyName): String = p.toString
+  }
+  implicit val createSamResourceRequestEncoder: Encoder[CreateSamResourceRequest] =
+    Encoder.forProduct3("resourceId", "policies", "authDomain")(x => (x.samResourceId, x.policies, List.empty[String]))
+
   implicit val accessPolicyNameDecoder: Decoder[AccessPolicyName] =
     Decoder.decodeString.map(s => AccessPolicyName.stringToAccessPolicyName.getOrElse(s, AccessPolicyName.Other(s)))
-  implicit val samClusterPolicyDecoder: Decoder[SamRuntimePolicy] = Decoder.instance { c =>
+  implicit val samResourcePolicyDecoder: Decoder[SamResourcePolicy] = Decoder.instance { c =>
     for {
       policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
-      runtimeSamResource <- c.downField("resourceId").as[RuntimeSamResource]
-    } yield SamRuntimePolicy(policyName, runtimeSamResource)
-  }
-  implicit val samProjectPolicyDecoder: Decoder[SamProjectPolicy] = Decoder.instance { c =>
-    for {
-      policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
-      googleProject <- c.downField("resourceId").as[ProjectSamResource]
-    } yield SamProjectPolicy(policyName, googleProject)
-  }
-  // TODO: consolidate these 3 access policy decoders into one
-  implicit val samPersistentDiskPolicyDecoder: Decoder[SamPersistentDiskPolicy] = Decoder.instance { c =>
-    for {
-      policyName <- c.downField("accessPolicyName").as[AccessPolicyName]
-      diskInternalId <- c.downField("resourceId").as[PersistentDiskSamResource]
-    } yield SamPersistentDiskPolicy(policyName, diskInternalId)
+      samResource <- c.downField("resourceId").as[RuntimeSamResource]
+    } yield SamResourcePolicy(samResource, policyName)
   }
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
     for {
@@ -303,6 +311,20 @@ object HttpSamDAO {
     } yield StatusCheckResponse(ok, systems)
   }
 }
+
+trait SamRole extends Product with Serializable {
+  def asString: String
+}
+object SamRole {
+  final case object Creator extends SamRole {
+    val asString = "creator"
+  }
+  final case object Manager extends SamRole {
+    val asString = "manager"
+  }
+}
+final case class PolicyData(memberEmails: List[WorkbenchEmail], actions: List[LeoAuthAction], roles: List[SamRole])
+final case class CreateSamResourceRequest(samResourceId: SamResource, policies: Map[AccessPolicyName, PolicyData])
 
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,

@@ -1,12 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import ca.mrvisser.sealerate
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  AppSamResource,
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait SamResource extends Product with Serializable {
@@ -67,19 +61,7 @@ object AccessPolicyName {
     sealerate.collect[AccessPolicyName].map(p => (p.toString, p)).toMap
 }
 
-sealed trait SamResourcePolicy extends Product with Serializable {
-  def accessPolicyName: AccessPolicyName
-  def resource: SamResource
-}
-object SamResourcePolicy {
-  final case class SamRuntimePolicy(accessPolicyName: AccessPolicyName, resource: RuntimeSamResource)
-      extends SamResourcePolicy
-  final case class SamPersistentDiskPolicy(accessPolicyName: AccessPolicyName, resource: PersistentDiskSamResource)
-      extends SamResourcePolicy
-  final case class SamProjectPolicy(accessPolicyName: AccessPolicyName, resource: ProjectSamResource)
-      extends SamResourcePolicy
-  final case class SamAppPolicy(accessPolicyName: AccessPolicyName, resource: AppSamResource) extends SamResourcePolicy
-}
+final case class SamResourcePolicy(samResource: SamResource, policyName: AccessPolicyName)
 
 sealed trait LeoAuthAction extends Product with Serializable {
   def asString: String

@@ -1,18 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
+import akka.http.scaladsl.model.StatusCodes
+import cats.data.Chain
+import cats.implicits._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
+import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
-import cats.data.Chain
-import cats.implicits._
-import LeoProfile.mappedColumnImplicits._
-import akka.http.scaladsl.model.StatusCodes
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
-import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 
 object KubernetesServiceDbQueries {
   //the 'full' here means that all joins possible are done, meaning all fields in the cluster, nodepool, and app will be present

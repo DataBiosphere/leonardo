@@ -20,15 +20,15 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, Proxy}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -39,6 +39,16 @@ import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
 final case class HostContext(status: HostStatus, description: String)
+
+sealed trait SamResourceCacheKey[A] extends Product with Serializable {
+  def googleProject: GoogleProject
+  def name: A
+}
+object SamResourceCacheKey {
+  final case class RuntimeCacheKey(googleProject: GoogleProject, name: RuntimeName)
+      extends SamResourceCacheKey[RuntimeName]
+  final case class AppCacheKey(googleProject: GoogleProject, name: AppName) extends SamResourceCacheKey[AppName]
+}
 
 final case class ProxyHostNotReadyException(context: HostContext, traceId: TraceId)
     extends LeoException(
@@ -106,69 +116,78 @@ class ProxyService(
       }
     } yield res
 
-  /* Cache for the runtime sam resource from the database */
-  private[leonardo] val runtimeSamResourceCache = CacheBuilder
+  /* Cache for the sam resource from the database */
+  private[leonardo] val samResourceCache = CacheBuilder
     .newBuilder()
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
-      new CacheLoader[(GoogleProject, RuntimeName), Option[RuntimeSamResource]] {
-        def load(key: (GoogleProject, RuntimeName)): Option[RuntimeSamResource] = {
-          val (googleProject, runtimeName) = key
-          clusterQuery
-            .getActiveClusterInternalIdByName(googleProject, runtimeName)
-            .transaction
-            .unsafeRunSync()
+      new CacheLoader[SamResourceCacheKey[_], Option[SamResource]] {
+        def load(key: SamResourceCacheKey[_]): Option[SamResource] = {
+          val io = key match {
+            case RuntimeCacheKey(googleProject, name) =>
+              clusterQuery.getActiveClusterInternalIdByName(googleProject, name).transaction
+            case AppCacheKey(googleProject, name) =>
+              // TODO is there a simpler way to get an app's sam resource ID?
+              KubernetesServiceDbQueries
+                .getActiveFullAppByName(googleProject, name)
+                .map(_.map(_.app.samResourceId))
+                .transaction
+          }
+          io.unsafeRunSync()
         }
       }
     )
 
-  def getCachedRuntimeSamResource(googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
     implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[RuntimeSamResource] =
     for {
       ctx <- ev.ask
-      cache <- blocker.blockOn(IO(runtimeSamResourceCache.get((googleProject, runtimeName))))
-      res <- cache match {
-        case Some(runtimeSamResource) => IO.pure(runtimeSamResource)
+      cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
+      // We need to cast here because the guava cache erases the type of SamResource.
+      castedCacheResult <- IO.fromEither(Either.catchNonFatal(cacheResult.asInstanceOf[Option[RuntimeSamResource]]))
+      res <- castedCacheResult match {
+        case Some(samResource) => IO.pure(samResource)
         case None =>
           IO(
             logger.error(
-              s"${ctx.traceId} | Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
+              s"${ctx.traceId} | Unable to look up sam resource for ${key.toString}"
             )
-          ) >> IO.raiseError[RuntimeSamResource](
+          ) >> IO.raiseError(
             RuntimeNotFoundException(
-              googleProject,
-              runtimeName,
-              s"Unable to look up sam resource for runtime ${googleProject.value} / ${runtimeName.asString}"
+              key.googleProject,
+              key.name,
+              s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.googleProject.value} / ${key.name.asString}"
             )
           )
       }
     } yield res
 
-  /*
-   * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the runtime exists
-   */
-  // TODO implement for apps
-  private[leonardo] def authCheck(
-    userInfo: UserInfo,
-    googleProject: GoogleProject,
-    runtimeName: RuntimeName,
-    notebookAction: RuntimeAction
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] =
+  def getCachedAppSamResource(key: AppCacheKey)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[AppSamResource] =
     for {
-      samResource <- getCachedRuntimeSamResource(googleProject, runtimeName)
-      hasViewPermission <- authProvider
-        .hasRuntimePermission(samResource, userInfo, GetRuntimeStatus, googleProject)
-      //TODO: combine the sam calls into one
-      hasRequiredPermission <- authProvider
-        .hasRuntimePermission(samResource, userInfo, notebookAction, googleProject)
-      _ <- if (!hasViewPermission) {
-        IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName, s"${notebookAction} permission is required"))
-      } else if (!hasRequiredPermission) {
-        IO.raiseError(AuthorizationError(userInfo.userEmail))
-      } else IO.unit
-    } yield ()
+      ctx <- ev.ask
+      cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
+      // We need to cast here because the guava cache erases the type of SamResource.
+      castedCacheResult <- IO.fromEither(Either.catchNonFatal(cacheResult.asInstanceOf[Option[AppSamResource]]))
+      res <- castedCacheResult match {
+        case Some(samResource) => IO.pure(samResource)
+        case None =>
+          IO(
+            logger.error(
+              s"${ctx.traceId} | Unable to look up sam resource for ${key.toString}"
+            )
+          ) >> IO.raiseError(
+            AppNotFoundException(
+              key.googleProject,
+              key.name,
+              ctx.traceId
+            )
+          )
+      }
+    } yield res
 
   def invalidateAccessToken(token: String): IO[Unit] =
     blocker.blockOn(IO(googleTokenCache.invalidate(token)))
@@ -178,7 +197,16 @@ class ProxyService(
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask
-      _ <- authCheck(userInfo, googleProject, runtimeName, ConnectToRuntime)
+      samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(googleProject, runtimeName))
+      // Note both these Sam actions are cached so it should be okay to call it twice
+      hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
+      _ <- if (!hasViewPermission) {
+        IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName, ctx.traceId.asString))
+      } else IO.unit
+      hasConnectPermission <- authProvider.hasPermission(samResource, RuntimeAction.ConnectToRuntime, userInfo)
+      _ <- if (!hasConnectPermission) {
+        IO.raiseError(AuthorizationError(userInfo.userEmail))
+      } else IO.unit
       hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
         case HostReady(_) =>
@@ -197,7 +225,17 @@ class ProxyService(
     implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[HttpResponse] =
     for {
-      _ <- IO(logger.info(s"authorizing ${userInfo.userEmail}")) // TODO placeholder for auth check
+      ctx <- ev.ask
+      samResource <- getCachedAppSamResource(AppCacheKey(googleProject, appName))
+      // Note both these Sam actions are cached so it should be okay to call it twice
+      hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
+      _ <- if (!hasViewPermission) {
+        IO.raiseError(AppNotFoundException(googleProject, appName, ctx.traceId))
+      } else IO.unit
+      hasConnectPermission <- authProvider.hasPermission(samResource, AppAction.ConnectToApp, userInfo)
+      _ <- if (!hasConnectPermission) {
+        IO.raiseError(AuthorizationError(userInfo.userEmail))
+      } else IO.unit
       hostStatus <- getAppTargetHost(googleProject, appName)
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
