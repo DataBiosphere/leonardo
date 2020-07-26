@@ -64,6 +64,17 @@ object AccessPolicyName {
 
 final case class SamResourcePolicy(samResource: SamResource, policyName: AccessPolicyName)
 final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
+trait SamRole extends Product with Serializable {
+  def asString: String
+}
+object SamRole {
+  final case object Creator extends SamRole {
+    val asString = "creator"
+  }
+  final case object Manager extends SamRole {
+    val asString = "manager"
+  }
+}
 
 sealed trait LeoAuthAction extends Product with Serializable {
   def asString: String
@@ -81,8 +92,9 @@ object ProjectAction {
     val asString = "create_kubernetes_app"
   }
 
-  // TODO we'd like to remove these actions at the project level, and control this with
-  // policies at the resource level instead. App resources currently follow this model.
+  // TODO we'd like to remove the below actions at the project level, and control these
+  // actions with policies at the resource level instead. App resources currently follow
+  // this model. See IA-XYZ.
   case object GetRuntimeStatus extends ProjectAction {
     val asString = "list_notebook_cluster"
   }

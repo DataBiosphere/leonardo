@@ -12,32 +12,32 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 // Typeclass encapsulating which actions can be checked against which Sam resource types
-sealed trait ActionCheckable[R] {
+sealed trait ActionCheckable[R, A] {
   type ActionCategory <: LeoAuthAction
   def allActions: List[ActionCategory]
   def cacheableActions: List[ActionCategory]
 }
 object ActionCheckable {
-  implicit def projectActionCheckable[A <: ProjectAction] = new ActionCheckable[ProjectSamResource] {
+  implicit def projectActionCheckable[A <: ProjectAction] = new ActionCheckable[ProjectSamResource, A] {
     type ActionCategory = ProjectAction
     val allActions = ProjectAction.allActions.toList
     val cacheableActions = List(ProjectAction.GetRuntimeStatus, ProjectAction.ReadPersistentDisk)
   }
 
-  implicit def runtimeActionCheckable[A <: RuntimeAction] = new ActionCheckable[RuntimeSamResource] {
+  implicit def runtimeActionCheckable[A <: RuntimeAction] = new ActionCheckable[RuntimeSamResource, A] {
     type ActionCategory = RuntimeAction
     val allActions = RuntimeAction.allActions.toList
     val cacheableActions = List(RuntimeAction.GetRuntimeStatus, RuntimeAction.ConnectToRuntime)
   }
 
   implicit def persistentDiskActionCheckable[A <: PersistentDiskAction] =
-    new ActionCheckable[PersistentDiskSamResource] {
+    new ActionCheckable[PersistentDiskSamResource, A] {
       type ActionCategory = PersistentDiskAction
       val allActions = PersistentDiskAction.allActions.toList
       val cacheableActions = List(PersistentDiskAction.ReadPersistentDisk)
     }
 
-  implicit def appActionCheckable[A <: AppAction] = new ActionCheckable[AppSamResource] {
+  implicit def appActionCheckable[A <: AppAction] = new ActionCheckable[AppSamResource, A] {
     type ActionCategory = AppAction
     val allActions = AppAction.allActions.toList
     val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
@@ -68,13 +68,13 @@ object PolicyCheckable {
   }
 }
 
-// TODO: IA-XYZ will allow us to remove the *WithProjectFallback methods and therefore reduce the
-// number of Sam calls.
+// TODO: IA-XYZ will allow us to remove the *WithProjectFallback methods and
+// therefore reduce the number of Sam calls.
 trait LeoAuthProvider[F[_]] {
   def serviceAccountProvider: ServiceAccountProvider[F]
 
   def hasPermission[R <: SamResource, A <: LeoAuthAction](samResource: R, action: A, userInfo: UserInfo)(
-    implicit act: ActionCheckable[R],
+    implicit act: ActionCheckable[R, A],
     ev: ApplicativeAsk[F, TraceId]
   ): F[Boolean]
 
@@ -84,17 +84,17 @@ trait LeoAuthProvider[F[_]] {
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit act: ActionCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Boolean]
+  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
   def getActions[R <: SamResource, A <: LeoAuthAction](samResource: R, userInfo: UserInfo)(
-    implicit act: ActionCheckable[R],
+    implicit act: ActionCheckable[R, A],
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[act.ActionCategory]]
 
   def getActionsWithProjectFallback[R <: SamResource, A <: LeoAuthAction](samResource: R,
                                                                           googleProject: GoogleProject,
                                                                           userInfo: UserInfo)(
-    implicit act: ActionCheckable[R],
+    implicit act: ActionCheckable[R, A],
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[LeoAuthAction]]
 

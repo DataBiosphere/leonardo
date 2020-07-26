@@ -15,6 +15,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.RuntimeCacheKey
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockProxyService, TestProxy}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
@@ -63,8 +64,8 @@ class ProxyRoutesSpec
 
   before {
     proxyService.googleTokenCache.invalidateAll()
-    proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
-                                             Some(runtimeSamResource))
+    proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
+                                      Some(runtimeSamResource))
   }
 
   "runtime proxy routes" should "listen on /proxy/{project}/{name}" in {
@@ -93,8 +94,8 @@ class ProxyRoutesSpec
       status shouldEqual StatusCodes.NotFound
     }
     // should still 404 even if a cache entry is present
-    proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(newName)),
-                                             Some(runtimeSamResource))
+    proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(newName)),
+                                      Some(runtimeSamResource))
     Get(s"/proxy/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
@@ -139,8 +140,8 @@ class ProxyRoutesSpec
                            runtimeDnsCache,
                            kubernetesDnsCache,
                            Some(queue))
-    proxyService.runtimeSamResourceCache.put((GoogleProject(googleProject), RuntimeName(clusterName)),
-                                             Some(runtimeSamResource))
+    proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
+                                      Some(runtimeSamResource))
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
     Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.OK

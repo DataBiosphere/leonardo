@@ -29,7 +29,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
 
-  // We cache some auth results from Sam which are requested very often by the project, such as
+  // We cache some auth results from Sam which are requested very often by the proxy, such as
   // "connect to runtime" and "connect to app".
   private[sam] val authCache = CacheBuilder
     .newBuilder()
@@ -46,7 +46,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     )
 
   override def hasPermission[R <: SamResource, A <: LeoAuthAction](samResource: R, action: A, userInfo: UserInfo)(
-    implicit act: ActionCheckable[R],
+    implicit act: ActionCheckable[R, A],
     ev: ApplicativeAsk[F, TraceId]
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
@@ -82,7 +82,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit act: ActionCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
+  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       // First check permission at the resource level
@@ -98,7 +98,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
   override def getActions[R <: SamResource, A <: LeoAuthAction](
     samResource: R,
     userInfo: UserInfo
-  )(implicit act: ActionCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[List[act.ActionCategory]] = {
+  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[F, TraceId]): F[List[act.ActionCategory]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
@@ -110,7 +110,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
   def getActionsWithProjectFallback[R <: SamResource, A <: LeoAuthAction](samResource: R,
                                                                           googleProject: GoogleProject,
                                                                           userInfo: UserInfo)(
-    implicit act: ActionCheckable[R],
+    implicit act: ActionCheckable[R, A],
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[LeoAuthAction]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
@@ -120,10 +120,9 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
       callerActions = act.allActions.collect { case a if listOfPermissions.contains(a.asString) => a }
 
       listOfProjectPermissions <- samDao.getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
-      projectCallerActions = implicitly[ActionCheckable[ProjectSamResource]].allActions
-        .collect {
-          case a if listOfProjectPermissions.contains(a.toString) => a
-        }
+      projectCallerActions = ProjectAction.allActions.collect {
+        case a if listOfProjectPermissions.contains(a.toString) => a
+      }
     } yield callerActions ++ projectCallerActions
   }
 

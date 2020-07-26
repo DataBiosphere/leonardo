@@ -356,17 +356,6 @@ object HttpSamDAO {
   }
 }
 
-trait SamRole extends Product with Serializable {
-  def asString: String
-}
-object SamRole {
-  final case object Creator extends SamRole {
-    val asString = "creator"
-  }
-  final case object Manager extends SamRole {
-    val asString = "manager"
-  }
-}
 final case class PolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])
 final case class CreateSamResourceRequest(samResourceId: SamResource, policies: Map[AccessPolicyName, PolicyData])
 

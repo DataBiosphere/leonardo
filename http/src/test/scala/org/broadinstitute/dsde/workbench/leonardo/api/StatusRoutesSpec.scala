@@ -17,13 +17,12 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
-import org.http4s.EntityDecoder
 import org.http4s.headers.Authorization
 import org.scalatest.concurrent.Eventually.eventually
-
-import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
+import scala.concurrent.duration._
 
 /**
  * Created by rtitle on 10/26/17.
@@ -69,10 +68,10 @@ class StatusRoutesSpec
         authHeader: Authorization
       )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
 
-      override def getResourcePolicies[A](authHeader: Authorization, resourceType: SamResourceType)(
-        implicit decoder: EntityDecoder[IO, List[A]],
+      override def getResourcePolicies(authHeader: Authorization, resourceType: SamResourceType)(
+        implicit
         ev: ApplicativeAsk[IO, TraceId]
-      ): IO[List[A]] = ???
+      ): IO[List[SamResourcePolicy]] = ???
 
       override def createResource(resource: SamResource,
                                   creatorEmail: WorkbenchEmail,
@@ -100,6 +99,12 @@ class StatusRoutesSpec
       override def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[List[String]] = ???
+
+      override def createResourceWithManagerPolicy(
+        resource: SamResource,
+        creatorEmail: WorkbenchEmail,
+        googleProject: GoogleProject
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =

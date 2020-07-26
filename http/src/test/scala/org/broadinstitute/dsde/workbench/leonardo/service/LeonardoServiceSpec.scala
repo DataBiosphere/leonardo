@@ -598,7 +598,7 @@ class LeonardoServiceSpec
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project)
-    )(any[ApplicativeAsk[IO, TraceId]])
+    )(any[PolicyCheckable[RuntimeSamResource]], any[ApplicativeAsk[IO, TraceId]])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
@@ -665,7 +665,7 @@ class LeonardoServiceSpec
       mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project)
-    )(any[ApplicativeAsk[IO, TraceId]])
+    )(any[PolicyCheckable[RuntimeSamResource]], any[ApplicativeAsk[IO, TraceId]])
   }
 
   it should "delete a cluster's instances" in isolatedDbTest {

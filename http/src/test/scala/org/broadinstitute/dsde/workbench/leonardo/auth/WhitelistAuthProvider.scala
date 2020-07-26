@@ -5,9 +5,8 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.{LeoAuthAction, ProjectAction, SamResource}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -18,70 +17,79 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   protected def checkWhitelist(userInfo: UserInfo): IO[Boolean] =
     IO.pure(whitelist contains userInfo.userEmail.value.toLowerCase)
 
-  override def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Boolean] =
-    checkWhitelist(userInfo)
+  def hasPermission[R <: SamResource, A <: LeoAuthAction](samResource: R, action: A, userInfo: UserInfo)(
+    implicit act: ActionCheckable[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Boolean] = checkWhitelist(userInfo)
 
-  override def hasRuntimePermission(
-    samResource: RuntimeSamResource,
+  def hasPermissionWithProjectFallback[R <: SamResource, A <: LeoAuthAction](
+    samResource: R,
+    action: A,
+    projectAction: ProjectAction,
     userInfo: UserInfo,
-    action: RuntimeAction,
     googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
-    checkWhitelist(userInfo)
+  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = checkWhitelist(userInfo)
 
-  override def hasPersistentDiskPermission(
-    samResource: PersistentDiskSamResource,
-    userInfo: UserInfo,
-    action: PersistentDiskAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] =
-    checkWhitelist(userInfo)
+  def getActions[R <: SamResource, A <: LeoAuthAction](samResource: R, userInfo: UserInfo)(
+    implicit act: ActionCheckable[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[act.ActionCategory]] =
+    checkWhitelist(userInfo).map {
+      case true  => act.allActions
+      case false => List.empty
+    }
 
-  override def filterUserVisibleRuntimes(userInfo: UserInfo, clusters: List[(GoogleProject, RuntimeSamResource)])(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, RuntimeSamResource)]] =
-    clusters.traverseFilter { a =>
+  def getActionsWithProjectFallback[R <: SamResource, A <: LeoAuthAction](samResource: R,
+                                                                          googleProject: GoogleProject,
+                                                                          userInfo: UserInfo)(
+    implicit act: ActionCheckable[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[LeoAuthAction]] =
+    checkWhitelist(userInfo).map {
+      case true  => act.allActions ++ ProjectAction.allActions
+      case false => List.empty
+    }
+
+  def filterUserVisible[R <: SamResource](resources: List[R], userInfo: UserInfo)(
+    implicit pol: PolicyCheckable[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[R]] =
+    resources.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
         case false => None
       }
     }
 
-  override def filterUserVisiblePersistentDisks(userInfo: UserInfo,
-                                                disks: List[(GoogleProject, PersistentDiskSamResource)])(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, PersistentDiskSamResource)]] =
-    disks.traverseFilter { a =>
+  def filterUserVisibleWithProjectFallback[R <: SamResource](
+    resources: List[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(
+    implicit pol: PolicyCheckable[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[(GoogleProject, R)]] =
+    resources.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
         case false => None
       }
     }
 
-  def notifyResourceCreated(samResource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+  // Creates a resource in Sam
+  def notifyResourceCreated[R <: SamResource](samResource: R,
+                                              creatorEmail: WorkbenchEmail,
+                                              googleProject: GoogleProject)(
+    implicit pol: PolicyCheckable[R],
+    ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] = IO.unit
 
-  def notifyResourceDeleted(samResource: SamResource,
-                            userEmail: WorkbenchEmail,
-                            creatorEmail: WorkbenchEmail,
-                            googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  // Deletes a resource in Sam
+  def notifyResourceDeleted[R <: SamResource](
+    samResource: R,
+    userEmail: WorkbenchEmail,
+    creatorEmail: WorkbenchEmail,
+    googleProject: GoogleProject
+  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
-
-  override def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
-                                                    samResource: RuntimeSamResource,
-                                                    userInfo: UserInfo)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[LeoAuthAction]] =
-    if (checkWhitelist(userInfo) == IO.pure(true)) IO.pure(RuntimeAction.allActions.toList ++ ProjectAction.allActions)
-    else IO.pure(List.empty)
-
-  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[RuntimeAction]] =
-    if (checkWhitelist(userInfo) == IO.pure(true)) IO.pure(RuntimeAction.allActions.toList)
-    else IO.pure(List.empty)
 }

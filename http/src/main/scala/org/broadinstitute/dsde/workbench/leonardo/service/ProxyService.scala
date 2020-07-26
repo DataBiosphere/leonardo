@@ -40,14 +40,12 @@ import scala.concurrent.{ExecutionContext, Future}
 
 final case class HostContext(status: HostStatus, description: String)
 
-sealed trait SamResourceCacheKey[A] extends Product with Serializable {
+sealed trait SamResourceCacheKey extends Product with Serializable {
   def googleProject: GoogleProject
-  def name: A
 }
 object SamResourceCacheKey {
-  final case class RuntimeCacheKey(googleProject: GoogleProject, name: RuntimeName)
-      extends SamResourceCacheKey[RuntimeName]
-  final case class AppCacheKey(googleProject: GoogleProject, name: AppName) extends SamResourceCacheKey[AppName]
+  final case class RuntimeCacheKey(googleProject: GoogleProject, name: RuntimeName) extends SamResourceCacheKey
+  final case class AppCacheKey(googleProject: GoogleProject, name: AppName) extends SamResourceCacheKey
 }
 
 final case class ProxyHostNotReadyException(context: HostContext, traceId: TraceId)
@@ -122,13 +120,12 @@ class ProxyService(
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
-      new CacheLoader[SamResourceCacheKey[_], Option[SamResource]] {
-        def load(key: SamResourceCacheKey[_]): Option[SamResource] = {
+      new CacheLoader[SamResourceCacheKey, Option[SamResource]] {
+        def load(key: SamResourceCacheKey): Option[SamResource] = {
           val io = key match {
             case RuntimeCacheKey(googleProject, name) =>
               clusterQuery.getActiveClusterInternalIdByName(googleProject, name).transaction
             case AppCacheKey(googleProject, name) =>
-              // TODO is there a simpler way to get an app's sam resource ID?
               KubernetesServiceDbQueries
                 .getActiveFullAppByName(googleProject, name)
                 .map(_.map(_.app.samResourceId))
@@ -145,7 +142,7 @@ class ProxyService(
     for {
       ctx <- ev.ask
       cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
-      // We need to cast here because the guava cache erases the type of SamResource.
+      // We need to cast here because the guava cache erases the subtype of SamResource.
       castedCacheResult <- IO.fromEither(Either.catchNonFatal(cacheResult.asInstanceOf[Option[RuntimeSamResource]]))
       res <- castedCacheResult match {
         case Some(samResource) => IO.pure(samResource)
@@ -170,7 +167,7 @@ class ProxyService(
     for {
       ctx <- ev.ask
       cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
-      // We need to cast here because the guava cache erases the type of SamResource.
+      // We need to cast here because the guava cache erases the subtype of SamResource.
       castedCacheResult <- IO.fromEither(Either.catchNonFatal(cacheResult.asInstanceOf[Option[AppSamResource]]))
       res <- castedCacheResult match {
         case Some(samResource) => IO.pure(samResource)
@@ -198,7 +195,7 @@ class ProxyService(
     for {
       ctx <- ev.ask
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(googleProject, runtimeName))
-      // Note both these Sam actions are cached so it should be okay to call it twice
+      // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
       _ <- if (!hasViewPermission) {
         IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName, ctx.traceId.asString))
@@ -227,7 +224,7 @@ class ProxyService(
     for {
       ctx <- ev.ask
       samResource <- getCachedAppSamResource(AppCacheKey(googleProject, appName))
-      // Note both these Sam actions are cached so it should be okay to call it twice
+      // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
       _ <- if (!hasViewPermission) {
         IO.raiseError(AppNotFoundException(googleProject, appName, ctx.traceId))
