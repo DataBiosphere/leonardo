@@ -13,9 +13,10 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.RuntimeCacheKey
+import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockProxyService, TestProxy}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
@@ -66,6 +67,7 @@ class ProxyRoutesSpec
     proxyService.googleTokenCache.invalidateAll()
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
                                       Some(runtimeSamResource))
+    proxyService.samResourceCache.put(AppCacheKey(GoogleProject(googleProject), AppName(appName)), Some(appSamId))
   }
 
   "runtime proxy routes" should "listen on /proxy/{project}/{name}" in {
@@ -361,14 +363,6 @@ class ProxyRoutesSpec
       .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.Unauthorized
-    }
-  }
-
-  it should "404 when using a non-white-listed user" in {
-    Get(s"/proxy/$googleProject/$clusterName/setCookie")
-      .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value)))
-      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.NotFound
     }
   }
 

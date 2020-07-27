@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
-// Typeclass encapsulating which actions can be checked against which Sam resource types
+// Typeclass constraining which actions can be checked against which Sam resource types
 sealed trait ActionCheckable[R, A] {
   type ActionCategory <: LeoAuthAction
   def allActions: List[ActionCategory]

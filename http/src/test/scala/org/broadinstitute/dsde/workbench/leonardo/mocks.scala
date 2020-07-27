@@ -108,13 +108,13 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 
   override def notifyResourceDeleted[R <: SamResource](
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

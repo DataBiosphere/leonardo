@@ -137,7 +137,6 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     for {
       resourcePolicies <- samDao
         .getResourcePolicies(authHeader, pol.resourceType)
-      _ = println(s"sam returned $resourcePolicies")
       res = resourcePolicies.filter(rp => pol.policyNames.contains(rp.policyName))
     } yield resources.filter(r => res.exists(_.samResource == r))
   }
