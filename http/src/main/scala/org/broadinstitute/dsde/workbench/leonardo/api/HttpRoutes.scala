@@ -48,7 +48,7 @@ class HttpRoutes(
   private val leonardoRoutes = new LeoRoutes(leonardoService, userInfoDirectives)
   private val runtimeRoutes = new RuntimeRoutes(runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
-  private val kubernetesRoutes = new KubernetesRoutes(kubernetesService, userInfoDirectives)
+  private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
 
   private val myExceptionHandler = {
     ExceptionHandler {

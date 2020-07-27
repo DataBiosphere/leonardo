@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -205,7 +205,7 @@ class HttpRoutesSpec
       }
     }
     val routes = fakeRoutes(kubernetesService)
-    Delete("/api/google/v1/app/googleProject1/app1") ~> routes.route ~> check {
+    Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -359,7 +359,7 @@ class HttpRoutesSpec
   }
 
   "Kubernetes Routes" should "create an app" in {
-    Post("/api/google/v1/app/googleProject1/app1")
+    Post("/api/google/v1/apps/googleProject1/app1")
       .withEntity(ContentTypes.`application/json`, createAppRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -367,7 +367,7 @@ class HttpRoutesSpec
   }
 
   it should "list apps with project" in {
-    Get("/api/google/v1/app/googleProject1") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/googleProject1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
       responseAs[Vector[ListAppResponse]] shouldBe listAppResponse
@@ -375,21 +375,21 @@ class HttpRoutesSpec
   }
 
   it should "list apps with no project" in {
-    Get("/api/google/v1/app/") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "list apps with labels" in {
-    Get("/api/google/v1/app?project=foo&creator=bar&includeDeleted=true") ~> routes.route ~> check {
+    Get("/api/google/v1/apps?project=foo&creator=bar&includeDeleted=true") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "get app" in {
-    Get("/api/google/v1/app/googleProject1/app1") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
       responseAs[GetAppResponse] shouldBe getAppResponse
@@ -397,20 +397,20 @@ class HttpRoutesSpec
   }
 
   it should "delete app" in {
-    Delete("/api/google/v1/app/googleProject1/app1") ~> routes.route ~> check {
+    Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "validate app name" in {
-    Get("/api/google/v1/app/googleProject1/1badApp") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/googleProject1/1badApp") ~> routes.route ~> check {
       status.intValue shouldBe 500
     }
   }
 
   it should "validate create app request" in {
-    Post("/api/google/v1/app/googleProject1/app1")
+    Post("/api/google/v1/apps/googleProject1/app1")
       .withEntity(
         ContentTypes.`application/json`,
         createAppRequest

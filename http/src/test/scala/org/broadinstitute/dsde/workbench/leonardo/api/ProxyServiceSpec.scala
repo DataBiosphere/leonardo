@@ -21,7 +21,7 @@ class ProxyServiceSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite 
   }
 
   it should "not rewrite Galaxy paths" in {
-    val path = Uri.Path("/proxy/google/v1/apps/project/app/service")
+    val path = Uri.Path("/proxy/google/v1/apps/project/apps/service")
     rewriteJupyterPath(path) shouldBe path
   }
 }

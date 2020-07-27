@@ -20,19 +20,19 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   GetAppResponse,
   ListAppResponse
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.api.KubernetesRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 
-class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
+class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit timer: Timer[IO]
 ) {
 
   val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
     CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
 //      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-      pathPrefix("google" / "v1" / "app") {
+      pathPrefix("google" / "v1" / "apps") {
         pathEndOrSingleSlash {
           parameterMap { params =>
             get {
@@ -168,7 +168,7 @@ class KubernetesRoutes(kubernetesService: KubernetesService[IO], userInfoDirecti
 
 }
 
-object KubernetesRoutes {
+object AppRoutes {
 
   implicit val createAppDecoder: Decoder[CreateAppRequest] =
     Decoder.instance { x =>
