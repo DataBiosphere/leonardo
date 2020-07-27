@@ -185,10 +185,9 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         }
     } yield ()
 
-  def deleteResource(resource: SamResource,
-                     userEmail: WorkbenchEmail,
-                     creatorEmail: WorkbenchEmail,
-                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  def deleteResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit] =
     for {
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(

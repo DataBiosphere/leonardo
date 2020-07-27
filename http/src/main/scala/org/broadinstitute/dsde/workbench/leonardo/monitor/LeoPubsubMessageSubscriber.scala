@@ -225,6 +225,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                                                               10,
                                                               None)(
                     persistentDiskQuery.delete(id, now).transaction.void,
+                    // TODO delete disk resource in Sam
                     F.raiseError(
                       new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
                     ),
@@ -487,6 +488,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           None
         )(
           nowInstant.flatMap(now => persistentDiskQuery.delete(msg.diskId, now).transaction[F]).void,
+          // TODO delete disk in Sam
           F.raiseError(
             new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
           ), //Should save disk creation error if we have error column in DB

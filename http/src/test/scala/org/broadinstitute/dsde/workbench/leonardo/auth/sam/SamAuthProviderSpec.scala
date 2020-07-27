@@ -2,39 +2,51 @@ package org.broadinstitute.dsde.workbench.leonardo
 package auth.sam
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.ProjectSamResource
+import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
+  AppSamResource,
+  PersistentDiskSamResource,
+  ProjectSamResource,
+  RuntimeSamResource
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {
-//  val fakeUserInfo = UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
-//  val fakeUserInfo2 = UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
-
-  val mockSam = new MockSamDAO
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig = SamAuthProviderConfig(false)
   val samAuthProviderConfigWithCache: SamAuthProviderConfig = SamAuthProviderConfig(
     true,
     10,
     1.minutes
   )
-  val samAuthProvider =
-    new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, blocker)
-  val samAuthProviderWithCache =
-    new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, blocker)
 
+  val userInfo =
+    UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
   val projectOwnerUserInfo =
-    UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), mockSamDAO.projectOwnerEmail, 0)
-  val projectOwnerAuthHeader = MockSamDAO.userEmailToAuthorization(mockSam.projectOwnerEmail)
+    UserInfo(OAuth2BearerToken(s"TokenFor${MockSamDAO.projectOwnerEmail}"),
+             WorkbenchUserId("owner"),
+             MockSamDAO.projectOwnerEmail,
+             0)
+  val projectOwnerAuthHeader = MockSamDAO.userEmailToAuthorization(MockSamDAO.projectOwnerEmail)
   val authHeader = MockSamDAO.userEmailToAuthorization(userInfo.userEmail)
 
+  var mockSam: MockSamDAO = _
+  var samAuthProvider: SamAuthProvider[IO] = _
+  var samAuthProviderWithCache: SamAuthProvider[IO] = _
+
   before {
-    setUpMock()
+    setUpMockSam()
+    samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, blocker)
+    samAuthProviderWithCache =
+      new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, blocker)
+
   }
 
   "SamAuthProvider" should "check resource permissions" in {
@@ -50,6 +62,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     }
     AppAction.allActions.foreach { a =>
       samAuthProvider.hasPermission(appSamId, a, userInfo).unsafeRunSync() shouldBe true
+    }
+    MockSamDAO.appManagerActions.foreach { a =>
       samAuthProvider.hasPermission(appSamId, a, projectOwnerUserInfo).unsafeRunSync() shouldBe true
     }
 
@@ -147,7 +161,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     samAuthProvider
       .getActions(appSamId, projectOwnerUserInfo)
       .unsafeRunSync()
-      .toSet shouldBe mockSamDAO.appManagerActions
+      .toSet shouldBe MockSamDAO.appManagerActions
 
     // negative tests
     samAuthProvider.getActions(ProjectSamResource(project), unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
@@ -186,343 +200,210 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List.empty
   }
 
-  it should "cache hasPermission results" in {}
+  it should "cache hasPermission results" in {
+    // cache should be empty
+    samAuthProviderWithCache.authCache.size shouldBe 0
 
-  it should "consider userInfo objects with different tokenExpiresIn values as the same" in {}
+    // these actions should be cached
+    List(ProjectAction.GetRuntimeStatus, ProjectAction.ReadPersistentDisk).foreach { a =>
+      samAuthProviderWithCache
+        .hasPermission(ProjectSamResource(project), a, projectOwnerUserInfo)
+        .unsafeRunSync() shouldBe true
+    }
+    List(RuntimeAction.GetRuntimeStatus, RuntimeAction.ConnectToRuntime).foreach { a =>
+      samAuthProviderWithCache
+        .hasPermission(runtimeSamResource, a, userInfo)
+        .unsafeRunSync() shouldBe true
+      samAuthProviderWithCache
+        .hasPermission(runtimeSamResource, a, userInfo)
+        .unsafeRunSync() shouldBe true
+    }
+    List(PersistentDiskAction.ReadPersistentDisk).foreach { a =>
+      samAuthProviderWithCache
+        .hasPermission(diskSamResource, a, userInfo)
+        .unsafeRunSync() shouldBe true
+    }
+    List(AppAction.ConnectToApp, AppAction.GetAppStatus).foreach { a =>
+      samAuthProviderWithCache.hasPermission(appSamId, a, userInfo).unsafeRunSync() shouldBe true
+    }
 
-  it should "create a resource" in {}
+    // these actions should not be cached
+    List(
+      ProjectAction.CreateApp,
+      ProjectAction.CreatePersistentDisk,
+      ProjectAction.CreateRuntime,
+      ProjectAction.DeletePersistentDisk,
+      ProjectAction.DeleteRuntime,
+      ProjectAction.StopStartRuntime
+    ).foreach { a =>
+      samAuthProviderWithCache
+        .hasPermission(ProjectSamResource(project), a, projectOwnerUserInfo)
+        .unsafeRunSync() shouldBe true
+    }
+    List(RuntimeAction.ModifyRuntime, RuntimeAction.DeleteRuntime, RuntimeAction.StopStartRuntime).foreach { a =>
+      samAuthProviderWithCache
+        .hasPermission(runtimeSamResource, a, userInfo)
+        .unsafeRunSync() shouldBe true
+    }
+    List(PersistentDiskAction.DeletePersistentDisk,
+         PersistentDiskAction.ModifyPersistentDisk,
+         PersistentDiskAction.AttachPersistentDisk).foreach { a =>
+      samAuthProviderWithCache
+        .hasPermission(diskSamResource, a, userInfo)
+        .unsafeRunSync() shouldBe true
+    }
+    List(AppAction.DeleteApp, AppAction.UpdateApp).foreach { a =>
+      samAuthProviderWithCache
+        .hasPermission(appSamId, a, userInfo)
+        .unsafeRunSync() shouldBe true
+    }
 
-  it should "delete a resource" in {}
+    // check cache
+    samAuthProviderWithCache.authCache.size shouldBe 7
+    samAuthProviderWithCache.authCache.asMap().asScala.keySet shouldBe
+      Set(
+        AuthCacheKey(ProjectSamResource(project), projectOwnerAuthHeader, ProjectAction.GetRuntimeStatus),
+        AuthCacheKey(ProjectSamResource(project), projectOwnerAuthHeader, ProjectAction.ReadPersistentDisk),
+        AuthCacheKey(runtimeSamResource, authHeader, RuntimeAction.ConnectToRuntime),
+        AuthCacheKey(runtimeSamResource, authHeader, RuntimeAction.GetRuntimeStatus),
+        AuthCacheKey(diskSamResource, authHeader, PersistentDiskAction.ReadPersistentDisk),
+        AuthCacheKey(appSamId, authHeader, AppAction.GetAppStatus),
+        AuthCacheKey(appSamId, authHeader, AppAction.ConnectToApp)
+      )
+    samAuthProviderWithCache.authCache.asMap().asScala.values.toSet shouldBe Set(true)
+  }
 
-  it should "filter user visible resources" in {}
+  it should "create a resource" in {
+    val newRuntime = RuntimeSamResource("new_runtime")
+    samAuthProvider.notifyResourceCreated(newRuntime, userEmail, project).unsafeRunSync()
+    mockSam.runtimes.get((newRuntime, authHeader)) shouldBe Some(
+      RuntimeAction.allActions
+    )
 
-  it should "filter user visible resources with project fallback" in {}
-//
-//  "hasProjectPermission should return true if user has project permissions and false if they do not" in {
-//    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("launch_notebook_cluster",
-//                                                                       "create_persistent_disk")
-//    samAuthProvider.hasProjectPermission(fakeUserInfo, CreateRuntime, project).unsafeRunSync() shouldBe true
-//    samAuthProvider.hasProjectPermission(fakeUserInfo, CreatePersistentDisk, project).unsafeRunSync() shouldBe true
-//
-//    samAuthProvider.hasProjectPermission(unauthorizedUserInfo, CreateRuntime, project).unsafeRunSync() shouldBe false
-//    samAuthProvider
-//      .hasProjectPermission(unauthorizedUserInfo, CreatePersistentDisk, project)
-//      .unsafeRunSync() shouldBe false
-//    samAuthProvider
-//      .hasProjectPermission(fakeUserInfo, CreateRuntime, GoogleProject("leo-fake-project"))
-//      .unsafeRunSync() shouldBe false
-//    samAuthProvider
-//      .hasProjectPermission(fakeUserInfo, CreatePersistentDisk, GoogleProject("leo-fake-project"))
-//      .unsafeRunSync() shouldBe false
-//
-//    mockSam.billingProjects.remove((project, fakeUserAuthorization))
-//  }
-//
-//  "should add and delete a runtime resource with correct actions for the user when a runtime is created and then destroyed" in {
-//    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("launch_notebook_cluster")
-////     check the sam auth provider has no notebook-cluster resource
-//    mockSam.runtimes shouldBe empty
-//    val defaultPermittedActions = List("status", "connect", "sync", "delete")
-//    defaultPermittedActions.foreach { action =>
-//      mockSam
-//        .hasResourcePermission(runtimeSamResource, action, fakeUserAuthorization)
-//        .unsafeRunSync() shouldBe false
-//    }
-//
-//    // creating a cluster would call notify
-//    samAuthProvider.notifyResourceCreated(runtimeSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
-//
-//    // check the resource exists for the user and actions
-//    defaultPermittedActions.foreach { action =>
-//      mockSam
-//        .hasResourcePermission(runtimeSamResource, action, fakeUserAuthorization)
-//        .unsafeRunSync() shouldBe true
-//    }
-//    // deleting a cluster would call notify
-//    samAuthProvider
-//      .notifyResourceDeleted(runtimeSamResource, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
-//      .unsafeRunSync()
-//
-//    mockSam.runtimes shouldBe empty
-//    defaultPermittedActions.foreach { action =>
-//      mockSam
-//        .hasResourcePermission(runtimeSamResource, action, fakeUserAuthorization)
-//        .unsafeRunSync() shouldBe false
-//    }
-//
-//    mockSam.billingProjects.remove((project, fakeUserAuthorization))
-//  }
-//
-//  "hasNotebookClusterPermission should return true if user has notebook cluster permissions and false if they do not" in {
-//    mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set("sync")
-//    samAuthProvider
-//      .hasRuntimePermission(runtimeSamResource, fakeUserInfo, SyncDataToRuntime, project)
-//      .unsafeRunSync() shouldBe true
-//
-//    samAuthProvider
-//      .hasRuntimePermission(runtimeSamResource, unauthorizedUserInfo, SyncDataToRuntime, project)
-//      .unsafeRunSync() shouldBe false
-//    samAuthProvider
-//      .hasRuntimePermission(runtimeSamResource, fakeUserInfo, DeleteRuntime, project)
-//      .unsafeRunSync() shouldBe false
-//    mockSam.runtimes.remove((runtimeSamResource, fakeUserAuthorization))
-//  }
-//
-//  "hasNotebookClusterPermission should return true if user does not have notebook cluster permissions but does have project permissions" in {
-//    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("sync_notebook_cluster")
-//    mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set()
-//
-//    samAuthProvider
-//      .hasRuntimePermission(runtimeSamResource, fakeUserInfo, SyncDataToRuntime, project)
-//      .unsafeRunSync() shouldBe true
-//
-//    mockSam.billingProjects.remove((project, fakeUserAuthorization))
-//    mockSam.runtimes.remove((runtimeSamResource, fakeUserAuthorization))
-//  }
-//
-//  "getRuntimeActionsWithProjectFallback should return project permissions as well" in {
-//    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("sync_notebook_cluster")
-//    mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set()
-//
-//    samAuthProvider
-//      .getRuntimeActionsWithProjectFallback(project, runtimeSamResource, fakeUserInfo)
-//      .unsafeRunSync() shouldBe List(SyncDataToRuntime)
-//
-//    mockSam.billingProjects.remove((project, fakeUserAuthorization))
-//    mockSam.runtimes.remove((runtimeSamResource, fakeUserAuthorization))
-//  }
-//
-//  "notifyClusterCreated should create a new cluster resource" in {
-//    mockSam.runtimes shouldBe empty
-//    samAuthProvider.notifyResourceCreated(runtimeSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
-//    mockSam.runtimes.toList should contain(
-//      (runtimeSamResource, fakeUserAuthorization) -> Set("connect", "read_policies", "status", "delete", "sync")
-//    )
-//    mockSam.runtimes.remove((runtimeSamResource, fakeUserAuthorization))
-//  }
-//
-//  "notifyClusterDeleted should delete a cluster resource" in {
-//    mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set()
-//
-//    samAuthProvider
-//      .notifyResourceDeleted(runtimeSamResource, userInfo.userEmail, userInfo.userEmail, project)
-//      .unsafeRunSync()
-//    mockSam.runtimes.toList should not contain ((runtimeSamResource, fakeUserAuthorization) -> Set(
-//      "connect",
-//      "read_policies",
-//      "status",
-//      "delete",
-//      "sync"
-//    ))
-//  }
-//
-//  "should cache hasNotebookClusterPermission results" in {
-//    // cache should be empty
-//    samAuthProviderWithCache.notebookAuthCache.size shouldBe 0
-//
-//    // populate backing samClient
-//    mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set("sync")
-//
-//    // call provider method
-//    samAuthProviderWithCache
-//      .hasRuntimePermission(runtimeSamResource, fakeUserInfo, SyncDataToRuntime, project)
-//      .unsafeRunSync() shouldBe true
-//
-//    // cache should contain 1 entry
-//    samAuthProviderWithCache.notebookAuthCache.size shouldBe 1
-//    val key = NotebookAuthCacheKey(runtimeSamResource, fakeUserAuthorization, SyncDataToRuntime, project)
-//    samAuthProviderWithCache.notebookAuthCache.asMap.containsKey(key) shouldBe true
-//    samAuthProviderWithCache.notebookAuthCache.asMap.get(key) shouldBe true
-//    // remove info from samClient
-//    mockSam.runtimes.remove((runtimeSamResource, fakeUserAuthorization))
-//    // provider should still return true because the info is cached
-//    samAuthProviderWithCache
-//      .hasRuntimePermission(runtimeSamResource, fakeUserInfo, SyncDataToRuntime, project)
-//      .unsafeRunSync() shouldBe true
-//  }
-//
-//  "should consider userInfo objects with different tokenExpiresIn values as the same" in {
-//    samAuthProviderWithCache.notebookAuthCache.invalidateAll()
-//    // cache should be empty
-//    samAuthProviderWithCache.notebookAuthCache.size shouldBe 0
-//
-//    // populate backing samClient
-//    mockSam.runtimes += (runtimeSamResource, fakeUserAuthorization) -> Set("sync")
-//
-//    // call provider method
-//    samAuthProviderWithCache
-//      .hasRuntimePermission(runtimeSamResource, fakeUserInfo, SyncDataToRuntime, project)
-//      .unsafeRunSync() shouldBe true
-//
-//    samAuthProviderWithCache
-//      .hasRuntimePermission(runtimeSamResource,
-//                            fakeUserInfo.copy(tokenExpiresIn = userInfo.tokenExpiresIn + 10),
-//                            SyncDataToRuntime,
-//                            project)
-//      .unsafeRunSync() shouldBe true
-//
-//    samAuthProviderWithCache.notebookAuthCache.size shouldBe 1
-//  }
-//
-//  "filterRuntimes should return runtimes that were created by the user or whose project is owned by the user" in {
-//    val runtime1 = RuntimeSamResource(name1.asString)
-//    val runtime2 = RuntimeSamResource(name2.asString)
-//    // initial filterClusters should return empty list
-//    samAuthProvider
-//      .filterUserVisibleRuntimes(fakeUserInfo, List(project -> runtime1, project -> runtime2))
-//      .unsafeRunSync() shouldBe List.empty
-//
-//    val runtimePolicy = SamRuntimePolicy(AccessPolicyName.Creator, runtime2)
-//    // pretend user created name2
-//    mockSam.runtimeCreators += fakeUserAuthorization -> Set(runtimePolicy)
-//
-//    // name2 should now be returned
-//    samAuthProvider
-//      .filterUserVisibleRuntimes(fakeUserInfo, List(project -> runtime1, project -> runtime2))
-//      .unsafeRunSync() shouldBe List(project -> runtime2)
-//
-//    val projectPolicy = SamProjectPolicy(AccessPolicyName.Owner, project)
-//    // pretend user owns the project
-//    mockSam.projectOwners += fakeUserAuthorization -> Set(projectPolicy)
-//
-//    // name1 and name2 should now be returned
-//    samAuthProvider
-//      .filterUserVisibleRuntimes(fakeUserInfo, List(project -> runtime1, project -> runtime2))
-//      .unsafeRunSync() shouldBe List(project -> runtime1, project -> runtime2)
-//
-//    mockSam.projectOwners.remove(fakeUserAuthorization)
-//  }
-//
-//  "should add and delete a persistent-disk resource with correct actions for the user when a disk is created and then destroyed" in {
-//    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("create_persistent_disk")
-//    //     check the sam auth provider has no persistent-disk resource
-//    mockSam.persistentDisks shouldBe empty
-//    val defaultPermittedActions = List("read", "attach", "modify", "delete")
-//    defaultPermittedActions.foreach { action =>
-//      mockSam
-//        .hasResourcePermission(diskSamResource, action, fakeUserAuthorization)
-//        .unsafeRunSync() shouldBe false
-//    }
-//
-//    // creating a disk would call notify
-//    samAuthProvider.notifyResourceCreated(diskSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
-//
-//    // check the resource exists for the user and actions
-//    defaultPermittedActions.foreach { action =>
-//      mockSam
-//        .hasResourcePermission(diskSamResource, action, fakeUserAuthorization)
-//        .unsafeRunSync() shouldBe true
-//    }
-//    // deleting a disk would call notify
-//    samAuthProvider
-//      .notifyResourceDeleted(diskSamResource, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project)
-//      .unsafeRunSync()
-//
-//    mockSam.persistentDisks shouldBe empty
-//    defaultPermittedActions.foreach { action =>
-//      mockSam
-//        .hasResourcePermission(diskSamResource, action, fakeUserAuthorization)
-//        .unsafeRunSync() shouldBe false
-//    }
-//
-//    mockSam.billingProjects.remove((project, fakeUserAuthorization))
-//  }
-//
-//  "hasPersistentDiskPermission should return true if user has persistent disk permissions and false if they do not" in {
-//    mockSam.persistentDisks += (diskSamResource, fakeUserAuthorization) -> Set("attach")
-//    samAuthProvider
-//      .hasPersistentDiskPermission(diskSamResource, fakeUserInfo, AttachPersistentDisk, project)
-//      .unsafeRunSync() shouldBe true
-//    samAuthProvider
-//      .hasPersistentDiskPermission(diskSamResource, unauthorizedUserInfo, AttachPersistentDisk, project)
-//      .unsafeRunSync() shouldBe false
-//    samAuthProvider
-//      .hasPersistentDiskPermission(diskSamResource, fakeUserInfo, DeletePersistentDisk, project)
-//      .unsafeRunSync() shouldBe false
-//    mockSam.persistentDisks.remove((diskSamResource, fakeUserAuthorization))
-//  }
-//
-//  "hasPersistentDiskPermission should return true if user does not have persistent disk permissions but does have project permissions" in {
-//    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("delete_persistent_disk")
-//    mockSam.persistentDisks += (diskSamResource, fakeUserAuthorization) -> Set()
-//
-//    samAuthProvider
-//      .hasPersistentDiskPermission(diskSamResource, fakeUserInfo, DeletePersistentDisk, project)
-//      .unsafeRunSync() shouldBe true
-//
-//    mockSam.billingProjects.remove((project, fakeUserAuthorization))
-//    mockSam.persistentDisks.remove((diskSamResource, fakeUserAuthorization))
-//  }
-//
-//  "notifyPersistentDiskCreated should create a new persistent disk resource" in {
-//    mockSam.persistentDisks shouldBe empty
-//    samAuthProvider.notifyResourceCreated(diskSamResource, fakeUserInfo.userEmail, project).unsafeRunSync()
-//    mockSam.persistentDisks.toList should contain(
-//      (diskSamResource, fakeUserAuthorization) -> Set("read", "read_policies", "attach", "modify", "delete")
-//    )
-//    mockSam.persistentDisks.remove((diskSamResource, fakeUserAuthorization))
-//  }
-//
-//  "notifyPersistentDiskDeleted should delete a persistent disk resource" in {
-//    mockSam.persistentDisks += (diskSamResource, fakeUserAuthorization) -> Set()
-//
-//    samAuthProvider
-//      .notifyResourceDeleted(diskSamResource, userInfo.userEmail, userInfo.userEmail, project)
-//      .unsafeRunSync()
-//    mockSam.persistentDisks.toList should not contain ((diskSamResource, fakeUserAuthorization) -> Set("read",
-//                                                                                                       "attach",
-//                                                                                                       "modify",
-//                                                                                                       "delete"))
-//  }
-//
-//  "filterUserVisiblePersistentDisks should return disks that were created by the user or whose project is owned by the user" in {
-//    val disk1 = PersistentDiskSamResource(name1.asString)
-//    val disk2 = PersistentDiskSamResource(name2.asString)
-//    // initial filterDisks should return empty list
-//    samAuthProvider
-//      .filterUserVisiblePersistentDisks(fakeUserInfo, List(project -> disk1, project -> disk2))
-//      .unsafeRunSync() shouldBe List.empty
-//
-//    val persistentDiskPolicy = SamPersistentDiskPolicy(AccessPolicyName.Creator, disk2)
-//    // pretend user created name2
-//    mockSam.diskCreators += fakeUserAuthorization -> Set(persistentDiskPolicy)
-//
-//    // name2 should now be returned
-//    samAuthProvider
-//      .filterUserVisiblePersistentDisks(fakeUserInfo, List(project -> disk1, project -> disk2))
-//      .unsafeRunSync() shouldBe List(project -> disk2)
-//
-//    val projectPolicy = SamProjectPolicy(AccessPolicyName.Owner, project)
-//    // pretend user owns the project
-//    mockSam.projectOwners += fakeUserAuthorization -> Set(projectPolicy)
-//
-//    // name1 and name2 should now be returned
-//    samAuthProvider
-//      .filterUserVisiblePersistentDisks(fakeUserInfo, List(project -> disk1, project -> disk2))
-//      .unsafeRunSync() shouldBe List(project -> disk1, project -> disk2)
-//
-//    mockSam.projectOwners.remove(fakeUserAuthorization)
-//  }
+    val newDisk = PersistentDiskSamResource("new_disk")
+    samAuthProvider.notifyResourceCreated(newDisk, userEmail, project).unsafeRunSync()
+    mockSam.persistentDisks.get((newDisk, authHeader)) shouldBe Some(
+      PersistentDiskAction.allActions
+    )
 
-  private def setUpMock(): Unit = {
+    val newApp = AppSamResource("new_app")
+    samAuthProvider.notifyResourceCreated(newApp, userEmail, project).unsafeRunSync()
+    mockSam.apps.get((newApp, authHeader)) shouldBe Some(
+      AppAction.allActions
+    )
+    mockSam.apps.get((newApp, projectOwnerAuthHeader)) shouldBe Some(
+      MockSamDAO.appManagerActions
+    )
+  }
+
+  it should "delete a resource" in {
+    samAuthProvider.notifyResourceDeleted(runtimeSamResource, userEmail, project).unsafeRunSync()
+    mockSam.runtimes.get((runtimeSamResource, authHeader)) shouldBe None
+
+    samAuthProvider.notifyResourceDeleted(diskSamResource, userEmail, project).unsafeRunSync()
+    mockSam.persistentDisks.get((diskSamResource, authHeader)) shouldBe None
+
+    samAuthProvider.notifyResourceDeleted(appSamId, userEmail, project).unsafeRunSync()
+    mockSam.apps.get((appSamId, authHeader)) shouldBe None
+    mockSam.apps.get((appSamId, projectOwnerAuthHeader)) shouldBe None
+  }
+
+  it should "filter user visible resources" in {
+    // positive tests
+    val newRuntime = RuntimeSamResource("new_runtime")
+    println(mockSam.runtimeCreators)
+    mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
+    println(mockSam.runtimeCreators)
+    samAuthProvider.filterUserVisible(List(runtimeSamResource, newRuntime), userInfo).unsafeRunSync() shouldBe List(
+      runtimeSamResource
+    )
+
+    val newDisk = PersistentDiskSamResource("new_disk")
+    mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
+    samAuthProvider.filterUserVisible(List(diskSamResource, newDisk), userInfo).unsafeRunSync() shouldBe List(
+      diskSamResource
+    )
+
+    val newApp = AppSamResource("new_app")
+    mockSam.createResourceWithManagerPolicy(newApp, userEmail2, project).unsafeRunSync()
+    println(mockSam.appCreators)
+    samAuthProvider.filterUserVisible(List(appSamId, newApp), userInfo).unsafeRunSync() shouldBe List(
+      appSamId
+    )
+    samAuthProvider.filterUserVisible(List(appSamId, newApp), projectOwnerUserInfo).unsafeRunSync() shouldBe List(
+      appSamId,
+      newApp
+    )
+
+    // negative tests
+    samAuthProvider
+      .filterUserVisible(List(runtimeSamResource, newRuntime), unauthorizedUserInfo)
+      .unsafeRunSync() shouldBe List.empty
+    samAuthProvider
+      .filterUserVisible(List(runtimeSamResource, newRuntime), projectOwnerUserInfo)
+      .unsafeRunSync() shouldBe List.empty
+    samAuthProvider
+      .filterUserVisible(List(diskSamResource, newDisk), unauthorizedUserInfo)
+      .unsafeRunSync() shouldBe List.empty
+    samAuthProvider
+      .filterUserVisible(List(diskSamResource, newDisk), projectOwnerUserInfo)
+      .unsafeRunSync() shouldBe List.empty
+    samAuthProvider.filterUserVisible(List(appSamId, newApp), unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
+  }
+
+  it should "filter user visible resources with project fallback" in {
+    // positive tests
+    val newRuntime = RuntimeSamResource("new_runtime")
+    mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
+    samAuthProvider
+      .filterUserVisibleWithProjectFallback(List((project, runtimeSamResource), (project, newRuntime)), userInfo)
+      .unsafeRunSync() shouldBe List((project, runtimeSamResource))
+    samAuthProvider
+      .filterUserVisibleWithProjectFallback(List((project, runtimeSamResource), (project, newRuntime)),
+                                            projectOwnerUserInfo)
+      .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
+
+    val newDisk = PersistentDiskSamResource("new_disk")
+    mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
+    samAuthProvider
+      .filterUserVisibleWithProjectFallback(List((project, diskSamResource), (project, newDisk)), userInfo)
+      .unsafeRunSync() shouldBe List((project, diskSamResource))
+    samAuthProvider
+      .filterUserVisibleWithProjectFallback(List((project, diskSamResource), (project, newDisk)), projectOwnerUserInfo)
+      .unsafeRunSync() shouldBe List((project, diskSamResource), (project, newDisk))
+
+    // negative tests
+    samAuthProvider
+      .filterUserVisible(List(runtimeSamResource, newRuntime), unauthorizedUserInfo)
+      .unsafeRunSync() shouldBe List.empty
+    samAuthProvider
+      .filterUserVisible(List(diskSamResource, newDisk), unauthorizedUserInfo)
+      .unsafeRunSync() shouldBe List.empty
+  }
+
+  private def setUpMockSam(): Unit = {
+    mockSam = new MockSamDAO
     // set up mock sam with a project, runtime, disk, and app
-    mockSam.createResource(ProjectSamResource(project), mockSam.projectOwnerEmail, project)
+    mockSam.createResource(ProjectSamResource(project), MockSamDAO.projectOwnerEmail, project).unsafeRunSync()
     mockSam.billingProjects.get(
       (ProjectSamResource(project), projectOwnerAuthHeader)
     ) shouldBe Some(
       ProjectAction.allActions
     )
-    mockSam.createResource(runtimeSamResource, userEmail, project)
+    mockSam.createResource(runtimeSamResource, userEmail, project).unsafeRunSync()
     mockSam.runtimes.get((runtimeSamResource, authHeader)) shouldBe Some(
       RuntimeAction.allActions
     )
-    mockSam.createResource(diskSamResource, userEmail, project)
+    mockSam.createResource(diskSamResource, userEmail, project).unsafeRunSync()
     mockSam.persistentDisks.get((diskSamResource, authHeader)) shouldBe Some(
       PersistentDiskAction.allActions
     )
-    mockSam.createResourceWithManagerPolicy(KubernetesTestData.appSamId, userEmail, project)
+    mockSam.createResourceWithManagerPolicy(KubernetesTestData.appSamId, userEmail, project).unsafeRunSync()
     mockSam.apps.get((appSamId, authHeader)) shouldBe Some(
       AppAction.allActions
+    )
+    mockSam.apps.get((appSamId, projectOwnerAuthHeader)) shouldBe Some(
+      MockSamDAO.appManagerActions
     )
   }
 }

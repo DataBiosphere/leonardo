@@ -323,7 +323,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyResourceDeleted(
           runtime.samResource,
           runtime.auditInfo.creator,
-          runtime.auditInfo.creator,
           runtime.googleProject
         )
       }

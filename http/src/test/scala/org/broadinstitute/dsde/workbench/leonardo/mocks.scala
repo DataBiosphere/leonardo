@@ -112,7 +112,6 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
 
   override def notifyResourceDeleted[R <: SamResource](
     samResource: R,
-    userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???

@@ -596,7 +596,6 @@ class LeonardoServiceSpec
     verify(spyProvider, never).notifyResourceDeleted(
       RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
-      mockitoEq(userInfo.userEmail),
       mockitoEq(project)
     )(any[PolicyCheckable[RuntimeSamResource]], any[ApplicativeAsk[IO, TraceId]])
   }
@@ -662,7 +661,6 @@ class LeonardoServiceSpec
     // the auth provider should have not yet been notified of deletion
     verify(spyProvider, never).notifyResourceDeleted(
       RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
-      mockitoEq(userInfo.userEmail),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project)
     )(any[PolicyCheckable[RuntimeSamResource]], any[ApplicativeAsk[IO, TraceId]])

@@ -388,7 +388,6 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             .notifyResourceDeleted(
               runtimeAndRuntimeConfig.runtime.samResource,
               runtimeAndRuntimeConfig.runtime.auditInfo.creator,
-              runtimeAndRuntimeConfig.runtime.auditInfo.creator,
               runtimeAndRuntimeConfig.runtime.googleProject
             )
 

@@ -86,7 +86,6 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   // Deletes a resource in Sam
   def notifyResourceDeleted[R <: SamResource](
     samResource: R,
-    userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit

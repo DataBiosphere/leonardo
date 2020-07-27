@@ -29,15 +29,10 @@ class MockSamDAO extends SamDAO[IO] {
     new TrieMap()
   val apps: mutable.Map[(AppSamResource, Authorization), Set[AppAction]] = new TrieMap()
 
-  val projectOwners: mutable.Map[Authorization, Set[SamResourcePolicy]] = new TrieMap()
-  val runtimeCreators: mutable.Map[Authorization, Set[SamResourcePolicy]] = new TrieMap()
-  val diskCreators: mutable.Map[Authorization, Set[SamResourcePolicy]] = new TrieMap()
-  val appCreators: mutable.Map[Authorization, Set[SamResourcePolicy]] = new TrieMap()
-  val appManagers: mutable.Map[Authorization, Set[SamResourcePolicy]] = new TrieMap()
-
-  val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
-  val projectOwnerEmail = WorkbenchEmail("project-owner@test.org")
-  val appManagerActions = Set(AppAction.GetAppStatus, AppAction.DeleteApp)
+  var projectOwners: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
+  var runtimeCreators: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
+  var diskCreators: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
+  var appCreators: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
 
   //we don't care much about traceId in unit tests, hence providing a constant UUID here
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
@@ -84,56 +79,111 @@ class MockSamDAO extends SamDAO[IO] {
       case SamResourceType.PersistentDisk =>
         IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty))
       case SamResourceType.App =>
-        IO.pure((appCreators.toMap |+| appManagers.toMap).get(authHeader).map(_.toList).getOrElse(List.empty))
+        IO.pure(appCreators.toMap.get(authHeader).map(_.toList).getOrElse(List.empty))
     }
 
   override def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[Unit] =
+  ): IO[Unit] = {
+    val authHeader = userEmailToAuthorization(creatorEmail)
     resource match {
       case r: RuntimeSamResource =>
-        IO(runtimes += (r, userEmailToAuthorization(creatorEmail)) -> RuntimeAction.allActions)
+        IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
+          IO(
+            runtimeCreators =
+              runtimeCreators |+| Map(authHeader -> Set(SamResourcePolicy(resource, AccessPolicyName.Creator)))
+          ).void
       case r: PersistentDiskSamResource =>
-        IO(persistentDisks += (r, userEmailToAuthorization(creatorEmail)) -> PersistentDiskAction.allActions)
+        IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
+          IO(
+            diskCreators = diskCreators |+| Map(
+              authHeader -> Set(
+                SamResourcePolicy(resource, AccessPolicyName.Creator)
+              )
+            )
+          ).void
       case r: ProjectSamResource =>
-        IO(billingProjects += (r, userEmailToAuthorization(creatorEmail)) -> ProjectAction.allActions)
+        IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >>
+          IO(
+            projectOwners = projectOwners |+| Map(
+              authHeader -> Set(
+                SamResourcePolicy(resource, AccessPolicyName.Owner)
+              )
+            )
+          ).void
       case r: AppSamResource =>
-        IO(apps += (r, userEmailToAuthorization(creatorEmail)) -> AppAction.allActions)
+        IO(apps += (r, authHeader) -> AppAction.allActions) >>
+          IO(
+            appCreators = appCreators |+| Map(
+              authHeader -> Set(
+                SamResourcePolicy(resource, AccessPolicyName.Creator)
+              )
+            )
+          ).void
     }
+  }
 
   override def createResourceWithManagerPolicy(
     resource: SamResource,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = {
+    val authHeader = userEmailToAuthorization(creatorEmail)
+    val ownerAuthHeader = userEmailToAuthorization(projectOwnerEmail)
     resource match {
       case r: RuntimeSamResource =>
-        IO(runtimes += (r, userEmailToAuthorization(creatorEmail)) -> RuntimeAction.allActions)
+        IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
+          IO(
+            runtimeCreators = runtimeCreators |+| Map(
+              authHeader -> Set(
+                SamResourcePolicy(resource, AccessPolicyName.Creator)
+              )
+            )
+          ).void
       case r: PersistentDiskSamResource =>
-        IO(persistentDisks += (r, userEmailToAuthorization(creatorEmail)) -> PersistentDiskAction.allActions)
+        IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
+          IO(
+            diskCreators = diskCreators |+| Map(
+              authHeader -> Set(
+                SamResourcePolicy(resource, AccessPolicyName.Creator)
+              )
+            )
+          ).void
       case r: ProjectSamResource =>
-        IO(billingProjects += (r, userEmailToAuthorization(creatorEmail)) -> ProjectAction.allActions)
+        IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >> IO(
+          projectOwners = projectOwners |+| Map(
+            authHeader -> Set(
+              SamResourcePolicy(resource, AccessPolicyName.Owner)
+            )
+          )
+        ).void
       case r: AppSamResource =>
         IO(
           apps ++=
-            Map((r, userEmailToAuthorization(creatorEmail)) -> AppAction.allActions,
-                (r, userEmailToAuthorization(projectOwnerEmail)) -> appManagerActions)
-        )
+            Map((r, authHeader) -> AppAction.allActions, (r, ownerAuthHeader) -> appManagerActions)
+        ) >>
+          IO(
+            appCreators = appCreators |+| Map(
+              authHeader -> Set(SamResourcePolicy(resource, AccessPolicyName.Creator)),
+              ownerAuthHeader -> Set(SamResourcePolicy(resource, AccessPolicyName.Manager))
+            )
+          ).void
     }
+  }
 
-  override def deleteResource(resource: SamResource,
-                              userEmail: WorkbenchEmail,
-                              creatorEmail: WorkbenchEmail,
-                              googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def deleteResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] =
     resource match {
       case r: RuntimeSamResource =>
-        IO(runtimes.remove((r, userEmailToAuthorization(userEmail))))
+        IO(runtimes.remove((r, userEmailToAuthorization(creatorEmail))))
       case r: PersistentDiskSamResource =>
-        IO(persistentDisks.remove((r, userEmailToAuthorization(userEmail))))
+        IO(persistentDisks.remove((r, userEmailToAuthorization(creatorEmail))))
       case r: ProjectSamResource =>
-        IO(billingProjects.remove((r, userEmailToAuthorization(userEmail))))
+        IO(billingProjects.remove((r, userEmailToAuthorization(creatorEmail))))
       case r: AppSamResource =>
-        IO(apps.remove((r, userEmailToAuthorization(userEmail))))
+        IO(apps.remove((r, userEmailToAuthorization(creatorEmail)))) >>
+          IO(apps.remove((r, userEmailToAuthorization(projectOwnerEmail))))
     }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
@@ -189,6 +239,9 @@ class MockSamDAO extends SamDAO[IO] {
 }
 
 object MockSamDAO {
+  val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
+  val projectOwnerEmail = WorkbenchEmail("project-owner@test.org")
+  val appManagerActions = Set(AppAction.GetAppStatus, AppAction.DeleteApp)
   def userEmailToAuthorization(workbenchEmail: WorkbenchEmail): Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${workbenchEmail}"))
 }

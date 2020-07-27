@@ -122,7 +122,6 @@ trait LeoAuthProvider[F[_]] {
   // Deletes a resource in Sam
   def notifyResourceDeleted[R <: SamResource](
     samResource: R,
-    userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit]

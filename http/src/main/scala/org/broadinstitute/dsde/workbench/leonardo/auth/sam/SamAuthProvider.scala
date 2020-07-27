@@ -103,6 +103,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     for {
       listOfPermissions <- samDao
         .getListOfResourcePermissions(samResource, authorization)
+      setOfPermissions = listOfPermissions.toSet
       callerActions = act.allActions.collect { case a if listOfPermissions.contains(a.asString) => a }
     } yield callerActions
   }
@@ -117,11 +118,13 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     for {
       listOfPermissions <- samDao
         .getListOfResourcePermissions(samResource, authorization)
-      callerActions = act.allActions.collect { case a if listOfPermissions.contains(a.asString) => a }
+      setOfPermissions = listOfPermissions.toSet
+      callerActions = act.allActions.collect { case a if setOfPermissions.contains(a.asString) => a }
 
       listOfProjectPermissions <- samDao.getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
+      setOfProjectPermissions = listOfProjectPermissions.toSet
       projectCallerActions = ProjectAction.allActions.collect {
-        case a if listOfProjectPermissions.contains(a.toString) => a
+        case a if setOfProjectPermissions.contains(a.asString) => a
       }
     } yield callerActions ++ projectCallerActions
   }
@@ -134,6 +137,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     for {
       resourcePolicies <- samDao
         .getResourcePolicies(authHeader, pol.resourceType)
+      _ = println(s"sam returned $resourcePolicies")
       res = resourcePolicies.filter(rp => pol.policyNames.contains(rp.policyName))
     } yield resources.filter(r => res.exists(_.samResource == r))
   }
@@ -172,11 +176,10 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
 
   override def notifyResourceDeleted[R <: SamResource](
     samResource: R,
-    userEmail: WorkbenchEmail,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    samDao.deleteResource(samResource, userEmail, creatorEmail, googleProject)
+    samDao.deleteResource(samResource, creatorEmail, googleProject)
 
 }
 

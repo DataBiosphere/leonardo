@@ -28,10 +28,9 @@ trait SamDAO[F[_]] {
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit]
 
-  def deleteResource(resource: SamResource,
-                     userEmail: WorkbenchEmail,
-                     creatorEmail: WorkbenchEmail,
-                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def deleteResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: ApplicativeAsk[F, TraceId]
+  ): F[Unit]
 
   def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(
     implicit ev: ApplicativeAsk[F, TraceId]

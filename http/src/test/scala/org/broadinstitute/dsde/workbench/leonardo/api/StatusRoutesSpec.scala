@@ -79,7 +79,6 @@ class StatusRoutesSpec
         ???
 
       override def deleteResource(resource: SamResource,
-                                  userEmail: WorkbenchEmail,
                                   creatorEmail: WorkbenchEmail,
                                   googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         ???
