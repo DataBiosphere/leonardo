@@ -92,9 +92,8 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
       }
     }
 
-    //TODO Re-enable this test once we fix the runtime error
-    // https://broadworkbench.atlassian.net/browse/QA-1204
-    "should update DockerHub welder on a cluster" taggedAs Retryable ignore { billingProject =>
+
+    "should update DockerHub welder on a cluster" taggedAs Retryable in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
 
