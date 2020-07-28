@@ -91,7 +91,7 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
         newStatusResponse.toOption.get.gitHeadCommit should startWith(curWelderHash)
       }
     }
-    
+
     "should update DockerHub welder on a cluster" taggedAs Retryable in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
       val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
