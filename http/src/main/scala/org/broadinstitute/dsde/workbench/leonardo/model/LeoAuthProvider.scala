@@ -47,24 +47,24 @@ object ActionCheckable {
 // Typeclass encapsulating which policies are used for which Sam resource types
 sealed trait PolicyCheckable[R] {
   def resourceType: SamResourceType
-  def policyNames: Set[AccessPolicyName]
+  def policyNames: Set[SamPolicyName]
 }
 object PolicyCheckable {
   implicit def projectPolicyCheckable = new PolicyCheckable[ProjectSamResource] {
     val resourceType = SamResourceType.Project
-    val policyNames = Set(AccessPolicyName.Owner)
+    val policyNames = Set(SamPolicyName.Owner)
   }
   implicit def runtimePolicyCheckable = new PolicyCheckable[RuntimeSamResource] {
     val resourceType = SamResourceType.Runtime
-    val policyNames = Set(AccessPolicyName.Creator)
+    val policyNames = Set(SamPolicyName.Creator)
   }
   implicit def persistentDiskPolicyCheckable = new PolicyCheckable[PersistentDiskSamResource] {
     val resourceType = SamResourceType.PersistentDisk
-    val policyNames = Set(AccessPolicyName.Creator)
+    val policyNames = Set(SamPolicyName.Creator)
   }
   implicit def appPolicyCheckable = new PolicyCheckable[AppSamResource] {
     val resourceType = SamResourceType.App
-    val policyNames = Set(AccessPolicyName.Creator, AccessPolicyName.Manager)
+    val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Manager)
   }
 }
 

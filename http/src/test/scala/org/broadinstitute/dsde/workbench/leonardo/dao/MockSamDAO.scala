@@ -91,14 +91,14 @@ class MockSamDAO extends SamDAO[IO] {
         IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
           IO(
             runtimeCreators =
-              runtimeCreators |+| Map(authHeader -> Set(SamResourcePolicy(resource, AccessPolicyName.Creator)))
+              runtimeCreators |+| Map(authHeader -> Set(SamResourcePolicy(resource, SamPolicyName.Creator)))
           ).void
       case r: PersistentDiskSamResource =>
         IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
           IO(
             diskCreators = diskCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, AccessPolicyName.Creator)
+                SamResourcePolicy(resource, SamPolicyName.Creator)
               )
             )
           ).void
@@ -107,7 +107,7 @@ class MockSamDAO extends SamDAO[IO] {
           IO(
             projectOwners = projectOwners |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, AccessPolicyName.Owner)
+                SamResourcePolicy(resource, SamPolicyName.Owner)
               )
             )
           ).void
@@ -116,7 +116,7 @@ class MockSamDAO extends SamDAO[IO] {
           IO(
             appCreators = appCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, AccessPolicyName.Creator)
+                SamResourcePolicy(resource, SamPolicyName.Creator)
               )
             )
           ).void
@@ -136,7 +136,7 @@ class MockSamDAO extends SamDAO[IO] {
           IO(
             runtimeCreators = runtimeCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, AccessPolicyName.Creator)
+                SamResourcePolicy(resource, SamPolicyName.Creator)
               )
             )
           ).void
@@ -145,7 +145,7 @@ class MockSamDAO extends SamDAO[IO] {
           IO(
             diskCreators = diskCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, AccessPolicyName.Creator)
+                SamResourcePolicy(resource, SamPolicyName.Creator)
               )
             )
           ).void
@@ -153,7 +153,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >> IO(
           projectOwners = projectOwners |+| Map(
             authHeader -> Set(
-              SamResourcePolicy(resource, AccessPolicyName.Owner)
+              SamResourcePolicy(resource, SamPolicyName.Owner)
             )
           )
         ).void
@@ -164,8 +164,8 @@ class MockSamDAO extends SamDAO[IO] {
         ) >>
           IO(
             appCreators = appCreators |+| Map(
-              authHeader -> Set(SamResourcePolicy(resource, AccessPolicyName.Creator)),
-              ownerAuthHeader -> Set(SamResourcePolicy(resource, AccessPolicyName.Manager))
+              authHeader -> Set(SamResourcePolicy(resource, SamPolicyName.Creator)),
+              ownerAuthHeader -> Set(SamResourcePolicy(resource, SamPolicyName.Manager))
             )
           ).void
     }

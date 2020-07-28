@@ -152,7 +152,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     for {
       projectPolicies <- samDao.getResourcePolicies(authHeader, SamResourceType.Project)
       owningProjects = projectPolicies.collect {
-        case SamResourcePolicy(ProjectSamResource(p), AccessPolicyName.Owner) => p
+        case SamResourcePolicy(ProjectSamResource(p), SamPolicyName.Owner) => p
       }
       resourcePolicies <- samDao
         .getResourcePolicies(authHeader, pol.resourceType)
@@ -168,7 +168,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    if (pol.policyNames == Set(AccessPolicyName.Creator))
+    if (pol.policyNames == Set(SamPolicyName.Creator))
       samDao.createResource(samResource, creatorEmail, googleProject)
     else
       samDao.createResourceWithManagerPolicy(samResource, creatorEmail, googleProject)
