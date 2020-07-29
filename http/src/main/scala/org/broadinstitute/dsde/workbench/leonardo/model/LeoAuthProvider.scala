@@ -90,8 +90,7 @@ object SamResourceAction {
   }
 }
 
-// TODO: IA-XYZ will allow us to remove the *WithProjectFallback methods and
-// therefore reduce the number of Sam calls.
+// TODO: https://broadworkbench.atlassian.net/browse/IA-2093 will allow us to remove the *WithProjectFallback methods
 trait LeoAuthProvider[F[_]] {
   def serviceAccountProvider: ServiceAccountProvider[F]
 

@@ -46,8 +46,8 @@ object ProjectAction {
   final case class Other(asString: String) extends ProjectAction
 
   // TODO we'd like to remove the below actions at the project level, and control these
-  // actions with policies at the resource level instead. App resources currently follow
-  // this model. See IA-XYZ.
+  // actions with policies at the resource level instead.
+  // See https://broadworkbench.atlassian.net/browse/IA-2093
   final case object GetRuntimeStatus extends ProjectAction {
     val asString = "list_notebook_cluster"
   }
