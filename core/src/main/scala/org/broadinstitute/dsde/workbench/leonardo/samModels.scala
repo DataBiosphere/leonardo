@@ -112,7 +112,7 @@ object PersistentDiskAction {
   final case object DeletePersistentDisk extends PersistentDiskAction {
     val asString = "delete"
   }
-  final case object ReadPolicies extends RuntimeAction {
+  final case object ReadPolicies extends PersistentDiskAction {
     val asString = "read_policies"
   }
   val allActions = sealerate.values[PersistentDiskAction]
@@ -136,7 +136,7 @@ object AppAction {
   final case object DeleteApp extends AppAction {
     val asString = "delete"
   }
-  final case object ReadPolicies extends RuntimeAction {
+  final case object ReadPolicies extends AppAction {
     val asString = "read_policies"
   }
   val allActions = sealerate.values[AppAction]
