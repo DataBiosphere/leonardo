@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
+// Typeclass representing a Sam resource and associated policies
 sealed trait SamResource[R] {
   def resourceType: SamResourceType
   def resourceIdAsString(r: R): String
@@ -46,6 +47,8 @@ object SamResource {
   implicit object AppSamResource extends AppSamResource
 }
 
+// Typeclass representing an action on a Sam resource
+// Constrains at compile time which actions can be checked against which resource types
 sealed trait SamResourceAction[R, A] extends SamResource[R] {
   type ActionCategory
   def decoder: Decoder[ActionCategory]
