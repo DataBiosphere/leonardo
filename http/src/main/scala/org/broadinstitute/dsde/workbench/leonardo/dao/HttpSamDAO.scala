@@ -105,13 +105,15 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
   def getResourcePolicies[R](
     authHeader: Authorization
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[F, TraceId]): F[List[(R, SamPolicyName)]] =
-    httpClient.expectOr[List[(R, SamPolicyName)]](
-      Request[F](
-        method = Method.GET,
-        uri = config.samUri.withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
-        headers = Headers.of(authHeader)
-      )
-    )(onError)
+    for {
+      resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
+          headers = Headers.of(authHeader)
+        )
+      )(onError)
+    } yield resp.map(r => (r.samResourceId, r.samPolicyName))
 
   def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
@@ -369,6 +371,12 @@ object HttpSamDAO {
       email <- x.downField("email").as[SamPolicyEmail]
     } yield SyncStatusResponse(lastSyncDate, email)
   }
+  implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
+    for {
+      resourceId <- x.downField("resourceId").as[R]
+      policyName <- x.downField("accessPolicyName").as[SamPolicyName]
+    } yield ListResourceResponse(resourceId, policyName)
+  }
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
     for {
       ok <- c.downField("ok").as[Boolean]
@@ -387,6 +395,7 @@ object HttpSamDAO {
 
 final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
+final case class ListResourceResponse[R](samResourceId: R, samPolicyName: SamPolicyName)
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
