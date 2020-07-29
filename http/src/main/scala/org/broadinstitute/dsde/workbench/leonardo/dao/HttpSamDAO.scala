@@ -306,8 +306,17 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
   private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[SamPolicyEmail] =
-    // TODO impllement
-    ???
+    for {
+      resp <- httpClient.expectOr[SyncStatusResponse](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            s"/api/google/v1/resource/${SamResourceType.Project.asString}/${googleProject.value}/${SamPolicyName.Owner.toString}/sync"
+          ),
+          headers = Headers.of(authorization)
+        )
+      )(onError)
+    } yield resp.email
 }
 
 object HttpSamDAO {
@@ -354,6 +363,12 @@ object HttpSamDAO {
       roles <- x.downField("roles").as[List[SamRole]]
     } yield SamPolicyData(memberEmails, roles)
   }
+  implicit val syncStatusDecoder: Decoder[SyncStatusResponse] = Decoder.instance { x =>
+    for {
+      lastSyncDate <- x.downField("lastSyncDate").as[String]
+      email <- x.downField("email").as[SamPolicyEmail]
+    } yield SyncStatusResponse(lastSyncDate, email)
+  }
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
     for {
       ok <- c.downField("ok").as[Boolean]
@@ -371,6 +386,7 @@ object HttpSamDAO {
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
+final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
