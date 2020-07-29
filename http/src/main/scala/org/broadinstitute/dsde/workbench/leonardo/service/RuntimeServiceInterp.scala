@@ -400,9 +400,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
-      hasStartPermission = listOfPermissions.exists(
-        Set(RuntimeAction.StopStartRuntime, ProjectAction.StopStartRuntime).contains
-      )
+      hasStartPermission = listOfPermissions._1.toSet.contains(RuntimeAction.StopStartRuntime) ||
+        listOfPermissions._2.toSet.contains(ProjectAction.StopStartRuntime)
+
       // throw 403 if no StopStartCluster permission
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
