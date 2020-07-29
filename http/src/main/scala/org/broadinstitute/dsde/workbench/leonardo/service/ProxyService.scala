@@ -284,7 +284,7 @@ class ProxyService(
     // 1. filter out headers not needed for the backend server
     val newHeaders = filterHeaders(request.headers)
     // 2. strip out Uri.Authority:
-    val newUri = Uri(path = rewrittenPath, queryString = request.uri.queryString())
+    val newUri = Uri(path = rewrittenPath, queryString = request.uri.rawQueryString)
     // 3. build a new HttpRequest
     val newRequest = request.copy(headers = newHeaders, uri = newUri)
 

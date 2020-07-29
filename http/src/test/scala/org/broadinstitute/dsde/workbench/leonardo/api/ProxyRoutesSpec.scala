@@ -161,6 +161,13 @@ class ProxyRoutesSpec
     }
   }
 
+  it should "pass through encoded query string params in runtime proxy requests" in {
+    Get(s"/proxy/$googleProject/$clusterName?foo=This%20is%20an%20encoded%20param.&baz=biz")
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
+      responseAs[Data].qs shouldEqual Some("foo=This is an encoded param.&baz=biz")
+    }
+  }
+
   it should "pass through http methods in runtime proxy requests" in {
     Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].method shouldBe "GET"
@@ -287,6 +294,13 @@ class ProxyRoutesSpec
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName?foo=bar&baz=biz")
       .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
+    }
+  }
+
+  it should "pass through encoded query string params in app proxy requests" in {
+    Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName?foo=This%20is%20an%20encoded%20param.&baz=biz")
+      .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
+      responseAs[Data].qs shouldEqual Some("foo=This is an encoded param.&baz=biz")
     }
   }
 

@@ -45,7 +45,7 @@ final case class AppRecord(id: AppId,
                            dateAccessed: Instant,
                            namespaceId: NamespaceId,
                            diskId: Option[DiskId],
-                           customEnvironmentVariables: Map[String, String])
+                           customEnvironmentVariables: Option[Map[String, String]])
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   //unique (appName, destroyedDate)
@@ -61,7 +61,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def namespaceId = column[NamespaceId]("namespaceId", O.Length(254))
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
-  def customEnvironmentVariables = column[Map[String, String]]("customEnvironmentVariables")
+  def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
 
   def * =
     (
@@ -107,7 +107,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         sevices
       ),
       List(),
-      app.customEnvironmentVariables
+      app.customEnvironmentVariables.getOrElse(Map.empty)
     )
 
   def save(saveApp: SaveApp)(implicit ec: ExecutionContext): DBIO[App] = {
@@ -161,7 +161,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.auditInfo.dateAccessed,
         namespaceId,
         diskOpt.map(_.id),
-        saveApp.app.customEnvironmentVariables
+        if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables)
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
