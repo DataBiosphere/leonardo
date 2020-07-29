@@ -390,14 +390,16 @@ pipeline {
                                             sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                             cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                             cd jenkins/dataproc-custom-images
-                                            docker run -it --rm gcr.io/google.com/cloudsdktool/cloud-sdk:260.0.0 python -v `pwd`:/work:ro ./dataproc-custom-images/generate_custom_image.py \
+                                            docker run -it --rm -v `pwd`:/work:ro gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "gcloud auth activate-service-account --key-file=${googleCredentialFile} \
+                                                && gcloud auth configure-docker --quiet \
+                                                && python /work/dataproc-custom-images/generate_custom_image.py \
                                                 --image-name "$customDataprocImageBaseName-$dp_version_formatted-$imageID" \
                                                 --dataproc-version "$dp_version" \
-                                                --customization-script ./prepare-custom-leonardo-jupyter-dataproc-image.sh \
+                                                --customization-script /work/prepare-custom-leonardo-jupyter-dataproc-image.sh \
                                                 --zone $ZONE \
                                                 --gcs-bucket $DATAPROC_IMAGE_BUCKET \
                                                 --project-id=$GOOGLE_PROJECT \
-                                                --disk-size=50
+                                                --disk-size=50"
                                         """
                                     )
                                 }
