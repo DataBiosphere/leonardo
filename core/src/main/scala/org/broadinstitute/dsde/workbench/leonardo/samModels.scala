@@ -4,25 +4,10 @@ import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-sealed trait SamResource extends Product with Serializable {
-  def resourceId: String
-  def resourceType: SamResourceType
-}
-object SamResource {
-  final case class RuntimeSamResource(resourceId: String) extends SamResource {
-    val resourceType = SamResourceType.Runtime
-  }
-  final case class PersistentDiskSamResource(resourceId: String) extends SamResource {
-    val resourceType = SamResourceType.PersistentDisk
-  }
-  final case class ProjectSamResource(googleProject: GoogleProject) extends SamResource {
-    val resourceId = googleProject.value
-    val resourceType = SamResourceType.Project
-  }
-  final case class AppSamResource(resourceId: String) extends SamResource {
-    val resourceType = SamResourceType.App
-  }
-}
+final case class RuntimeSamResourceId(resourceId: String) extends AnyVal
+final case class PersistentDiskSamResourceId(resourceId: String) extends AnyVal
+final case class ProjectSamResourceId(googleProject: GoogleProject) extends AnyVal
+final case class AppSamResourceId(resourceId: String) extends AnyVal
 
 sealed trait SamResourceType extends Product with Serializable {
   def asString: String
@@ -44,17 +29,9 @@ object SamResourceType {
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap
 }
 
-sealed trait LeoAuthAction extends Product with Serializable {
+sealed trait ProjectAction extends Product with Serializable {
   def asString: String
 }
-object LeoAuthAction {
-  final case class Other(asString: String) extends LeoAuthAction
-
-  val stringToAction: Map[String, LeoAuthAction] =
-    sealerate.collect[LeoAuthAction].map(a => (a.asString, a)).toMap
-}
-
-sealed trait ProjectAction extends LeoAuthAction
 object ProjectAction {
   final case object CreateRuntime extends ProjectAction {
     val asString = "launch_notebook_cluster"
@@ -65,6 +42,8 @@ object ProjectAction {
   final case object CreateApp extends ProjectAction {
     val asString = "create_kubernetes_app"
   }
+  // Other exists because there are other project actions not used by Leo
+  final case class Other(asString: String) extends ProjectAction
 
   // TODO we'd like to remove the below actions at the project level, and control these
   // actions with policies at the resource level instead. App resources currently follow
@@ -85,10 +64,14 @@ object ProjectAction {
     val asString = "delete_persistent_disk"
   }
 
-  val allActions = sealerate.values[ProjectAction]
+  val allActions = sealerate.collect[ProjectAction]
+  val stringToAction: Map[String, ProjectAction] =
+    sealerate.collect[ProjectAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait RuntimeAction extends LeoAuthAction
+sealed trait RuntimeAction extends Product with Serializable {
+  def asString: String
+}
 object RuntimeAction {
   final case object GetRuntimeStatus extends RuntimeAction {
     val asString = "status"
@@ -106,9 +89,13 @@ object RuntimeAction {
     val asString = "stop_start"
   }
   val allActions = sealerate.values[RuntimeAction]
+  val stringToAction: Map[String, RuntimeAction] =
+    sealerate.collect[RuntimeAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait PersistentDiskAction extends LeoAuthAction
+sealed trait PersistentDiskAction extends Product with Serializable {
+  def asString: String
+}
 object PersistentDiskAction {
   final case object ReadPersistentDisk extends PersistentDiskAction {
     val asString = "read"
@@ -123,9 +110,13 @@ object PersistentDiskAction {
     val asString = "delete"
   }
   val allActions = sealerate.values[PersistentDiskAction]
+  val stringToAction: Map[String, PersistentDiskAction] =
+    sealerate.collect[PersistentDiskAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait AppAction extends LeoAuthAction
+sealed trait AppAction extends Product with Serializable {
+  def asString: String
+}
 object AppAction {
   final case object GetAppStatus extends AppAction {
     val asString = "status"
@@ -140,6 +131,8 @@ object AppAction {
     val asString = "delete"
   }
   val allActions = sealerate.values[AppAction]
+  val stringToAction: Map[String, AppAction] =
+    sealerate.collect[AppAction].map(a => (a.asString, a)).toMap
 }
 
 sealed trait SamRole extends Product with Serializable {
@@ -175,5 +168,4 @@ object SamPolicyName {
 }
 
 final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
-final case class SamPolicyData(actions: List[LeoAuthAction], memberEmails: List[WorkbenchEmail], roles: List[SamRole])
-final case class SamResourcePolicy(samResource: SamResource, policyName: SamPolicyName)
+final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])

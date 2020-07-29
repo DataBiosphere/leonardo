@@ -10,7 +10,8 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.ProjectSamResource
+import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -39,36 +40,41 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
       new CacheLoader[AuthCacheKey, java.lang.Boolean] {
         override def load(key: AuthCacheKey): java.lang.Boolean = {
           implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
-          checkPermission(key.samResource, key.action, key.authorization).toIO
+          checkPermission(key.samResourceType, key.samResource, key.action, key.authorization).toIO
             .unsafeRunSync()
         }
       }
     )
 
-  override def hasPermission[R <: SamResource, A <: LeoAuthAction](samResource: R, action: A, userInfo: UserInfo)(
-    implicit act: ActionCheckable[R, A],
+  override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
     ev: ApplicativeAsk[F, TraceId]
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    if (config.authCacheEnabled && act.cacheableActions.contains(action)) {
+    if (config.authCacheEnabled && sr.cacheableActions.contains(action)) {
       blocker.blockOn(
         Effect[F].delay(
           authCache
-            .get(AuthCacheKey(samResource, authHeader, action))
+            .get(
+              AuthCacheKey(sr.resourceType, sr.resourceIdAsString(samResource), authHeader, sr.actionAsString(action))
+            )
             .booleanValue()
         )
       )
     } else {
-      checkPermission(samResource, action, authHeader)
+      checkPermission(sr.resourceType, sr.resourceIdAsString(samResource), sr.actionAsString(action), authHeader)
     }
   }
 
-  private def checkPermission[R <: SamResource](samResource: R, action: LeoAuthAction, authHeader: Authorization)(
+  private def checkPermission(samResourceType: SamResourceType,
+                              samResource: String,
+                              action: String,
+                              authHeader: Authorization)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Boolean] =
     for {
       traceId <- ev.ask
-      res <- samDao.hasResourcePermission(samResource, action.asString, authHeader).recoverWith {
+      res <- samDao.hasResourcePermissionUnchecked(samResourceType, samResource, action, authHeader).recoverWith {
         case e =>
           Logger[F]
             .info(e)(s"${traceId} | $action is not allowed for resource $samResource")
@@ -76,13 +82,13 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
       }
     } yield res
 
-  override def hasPermissionWithProjectFallback[R <: SamResource, A <: LeoAuthAction](
+  override def hasPermissionWithProjectFallback[R, A](
     samResource: R,
     action: A,
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
+  )(implicit sr: SamResourceAction[R, A], ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       // First check permission at the resource level
@@ -90,94 +96,95 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
       // Fall back to the project-level check if necessary
       res <- resourcePermission match {
         case true => Sync[F].pure(true)
-        case _    => hasPermission(ProjectSamResource(googleProject), projectAction, userInfo)
+        case _    => hasPermission(ProjectSamResourceId(googleProject), projectAction, userInfo)
       }
     } yield res
   }
 
-  override def getActions[R <: SamResource, A <: LeoAuthAction](
+  override def getActions[R, A](
     samResource: R,
     userInfo: UserInfo
-  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[F, TraceId]): F[List[act.ActionCategory]] = {
+  )(implicit sr: SamResourceAction[R, A], ev: ApplicativeAsk[F, TraceId]): F[List[sr.ActionCategory]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
-        .getListOfResourcePermissions(samResource, authorization)
+        .getListOfResourcePermissions[R, A](samResource, authorization)
       setOfPermissions = listOfPermissions.toSet
-      callerActions = act.allActions.collect { case a if listOfPermissions.contains(a.asString) => a }
+      callerActions = sr.allActions.collect { case a if setOfPermissions.contains(a) => a }
     } yield callerActions
   }
 
-  def getActionsWithProjectFallback[R <: SamResource, A <: LeoAuthAction](samResource: R,
-                                                                          googleProject: GoogleProject,
-                                                                          userInfo: UserInfo)(
-    implicit act: ActionCheckable[R, A],
+  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
     ev: ApplicativeAsk[F, TraceId]
-  ): F[List[LeoAuthAction]] = {
+  ): F[(List[sr.ActionCategory], List[ProjectAction])] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
         .getListOfResourcePermissions(samResource, authorization)
       setOfPermissions = listOfPermissions.toSet
-      callerActions = act.allActions.collect { case a if setOfPermissions.contains(a.asString) => a }
+      callerActions = sr.allActions.collect { case a if setOfPermissions.contains(a) => a }
 
-      listOfProjectPermissions <- samDao.getListOfResourcePermissions(ProjectSamResource(googleProject), authorization)
+      listOfProjectPermissions <- samDao.getListOfResourcePermissions(ProjectSamResourceId(googleProject),
+                                                                      authorization)
       setOfProjectPermissions = listOfProjectPermissions.toSet
-      projectCallerActions = ProjectAction.allActions.collect {
-        case a if setOfProjectPermissions.contains(a.asString) => a
+      projectCallerActions = ProjectAction.allActions.toList.collect {
+        case a if setOfProjectPermissions.contains(a) => a
       }
-    } yield callerActions ++ projectCallerActions
+    } yield (callerActions, projectCallerActions)
   }
 
-  override def filterUserVisible[R <: SamResource](resources: List[R], userInfo: UserInfo)(
-    implicit pol: PolicyCheckable[R],
+  override def filterUserVisible[R](resources: List[R], userInfo: UserInfo)(
+    implicit sr: SamResource[R],
+    decoder: Decoder[R],
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       resourcePolicies <- samDao
-        .getResourcePolicies(authHeader, pol.resourceType)
-      res = resourcePolicies.filter(rp => pol.policyNames.contains(rp.policyName))
-    } yield resources.filter(r => res.exists(_.samResource == r))
+        .getResourcePolicies[R](authHeader)
+      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
+    } yield resources.filter(r => res.exists(_._1 == r))
   }
 
-  def filterUserVisibleWithProjectFallback[R <: SamResource](
+  def filterUserVisibleWithProjectFallback[R](
     resources: List[(GoogleProject, R)],
     userInfo: UserInfo
   )(
-    implicit pol: PolicyCheckable[R],
+    implicit sr: SamResource[R],
+    decoder: Decoder[R],
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
-      projectPolicies <- samDao.getResourcePolicies(authHeader, SamResourceType.Project)
+      projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader)
       owningProjects = projectPolicies.collect {
-        case SamResourcePolicy(ProjectSamResource(p), SamPolicyName.Owner) => p
+        case (r, SamPolicyName.Owner) => r.googleProject
       }
       resourcePolicies <- samDao
-        .getResourcePolicies(authHeader, pol.resourceType)
-      res = resourcePolicies.filter(rp => pol.policyNames.contains(rp.policyName))
+        .getResourcePolicies[R](authHeader)
+      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
     } yield resources.filter {
       case (project, r) =>
-        owningProjects.contains(project) || res.exists(_.samResource == r)
+        owningProjects.contains(project) || res.exists(_._1 == r)
     }
   }
 
-  override def notifyResourceCreated[R <: SamResource](
+  override def notifyResourceCreated[R](
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    if (pol.policyNames == Set(SamPolicyName.Creator))
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+    if (sr.policyNames == Set(SamPolicyName.Creator))
       samDao.createResource(samResource, creatorEmail, googleProject)
     else
       samDao.createResourceWithManagerPolicy(samResource, creatorEmail, googleProject)
 
-  override def notifyResourceDeleted[R <: SamResource](
+  override def notifyResourceDeleted[R](
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  )(implicit sr: SamResource[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, creatorEmail, googleProject)
 
 }
@@ -186,4 +193,7 @@ final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
                                        authCacheMaxSize: Int = 1000,
                                        authCacheExpiryTime: FiniteDuration = 15 minutes)
 
-private[sam] case class AuthCacheKey(samResource: SamResource, authorization: Authorization, action: LeoAuthAction)
+private[sam] case class AuthCacheKey(samResourceType: SamResourceType,
+                                     samResource: String,
+                                     authorization: Authorization,
+                                     action: String)

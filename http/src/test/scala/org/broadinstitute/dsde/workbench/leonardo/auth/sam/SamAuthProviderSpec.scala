@@ -3,14 +3,9 @@ package auth.sam
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
+import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  AppSamResource,
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
 import org.scalatest._
@@ -52,7 +47,9 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   "SamAuthProvider" should "check resource permissions" in {
     // positive tests
     ProjectAction.allActions.foreach { a =>
-      samAuthProvider.hasPermission(ProjectSamResource(project), a, projectOwnerUserInfo).unsafeRunSync() shouldBe true
+      samAuthProvider
+        .hasPermission(ProjectSamResourceId(project), a, projectOwnerUserInfo)
+        .unsafeRunSync() shouldBe true
     }
     RuntimeAction.allActions.foreach { a =>
       samAuthProvider.hasPermission(runtimeSamResource, a, userInfo).unsafeRunSync() shouldBe true
@@ -69,7 +66,9 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     // negative tests
     ProjectAction.allActions.foreach { a =>
-      samAuthProvider.hasPermission(ProjectSamResource(project), a, unauthorizedUserInfo).unsafeRunSync() shouldBe false
+      samAuthProvider
+        .hasPermission(ProjectSamResourceId(project), a, unauthorizedUserInfo)
+        .unsafeRunSync() shouldBe false
     }
     RuntimeAction.allActions.foreach { a =>
       samAuthProvider.hasPermission(runtimeSamResource, a, unauthorizedUserInfo).unsafeRunSync() shouldBe false
@@ -152,7 +151,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   it should "get actions" in {
     // positive tests
     samAuthProvider
-      .getActions(ProjectSamResource(project), projectOwnerUserInfo)
+      .getActions(ProjectSamResourceId(project), projectOwnerUserInfo)
       .unsafeRunSync()
       .toSet shouldBe ProjectAction.allActions
     samAuthProvider.getActions(runtimeSamResource, userInfo).unsafeRunSync().toSet shouldBe RuntimeAction.allActions
@@ -164,7 +163,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .toSet shouldBe MockSamDAO.appManagerActions
 
     // negative tests
-    samAuthProvider.getActions(ProjectSamResource(project), unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
+    samAuthProvider.getActions(ProjectSamResourceId(project), unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
     samAuthProvider.getActions(runtimeSamResource, unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
     samAuthProvider.getActions(runtimeSamResource, projectOwnerUserInfo).unsafeRunSync() shouldBe List.empty
     samAuthProvider.getActions(diskSamResource, unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
@@ -177,27 +176,27 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     samAuthProvider
       .getActionsWithProjectFallback(runtimeSamResource, project, userInfo)
       .unsafeRunSync()
-      .toSet shouldBe RuntimeAction.allActions
+      .leftMap(_.toSet) shouldBe (RuntimeAction.allActions, List.empty)
     samAuthProvider
       .getActionsWithProjectFallback(runtimeSamResource, project, projectOwnerUserInfo)
       .unsafeRunSync()
-      .toSet shouldBe ProjectAction.allActions
+      .map(_.toSet) shouldBe (List.empty, ProjectAction.allActions)
     samAuthProvider
       .getActionsWithProjectFallback(diskSamResource, project, userInfo)
       .unsafeRunSync()
-      .toSet shouldBe PersistentDiskAction.allActions
+      .leftMap(_.toSet) shouldBe (PersistentDiskAction.allActions, List.empty)
     samAuthProvider
       .getActionsWithProjectFallback(diskSamResource, project, projectOwnerUserInfo)
       .unsafeRunSync()
-      .toSet shouldBe ProjectAction.allActions
+      .map(_.toSet) shouldBe (List.empty, ProjectAction.allActions)
 
     // negative tests
     samAuthProvider
       .getActionsWithProjectFallback(runtimeSamResource, project, unauthorizedUserInfo)
-      .unsafeRunSync() shouldBe List.empty
+      .unsafeRunSync() shouldBe (List.empty, List.empty)
     samAuthProvider
       .getActionsWithProjectFallback(diskSamResource, project, unauthorizedUserInfo)
-      .unsafeRunSync() shouldBe List.empty
+      .unsafeRunSync() shouldBe (List.empty, List.empty)
   }
 
   it should "cache hasPermission results" in {
@@ -207,7 +206,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     // these actions should be cached
     List(ProjectAction.GetRuntimeStatus, ProjectAction.ReadPersistentDisk).foreach { a =>
       samAuthProviderWithCache
-        .hasPermission(ProjectSamResource(project), a, projectOwnerUserInfo)
+        .hasPermission(ProjectSamResourceId(project), a, projectOwnerUserInfo)
         .unsafeRunSync() shouldBe true
     }
     List(RuntimeAction.GetRuntimeStatus, RuntimeAction.ConnectToRuntime).foreach { a =>
@@ -237,7 +236,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       ProjectAction.StopStartRuntime
     ).foreach { a =>
       samAuthProviderWithCache
-        .hasPermission(ProjectSamResource(project), a, projectOwnerUserInfo)
+        .hasPermission(ProjectSamResourceId(project), a, projectOwnerUserInfo)
         .unsafeRunSync() shouldBe true
     }
     List(RuntimeAction.ModifyRuntime, RuntimeAction.DeleteRuntime, RuntimeAction.StopStartRuntime).foreach { a =>
@@ -262,31 +261,46 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     samAuthProviderWithCache.authCache.size shouldBe 7
     samAuthProviderWithCache.authCache.asMap().asScala.keySet shouldBe
       Set(
-        AuthCacheKey(ProjectSamResource(project), projectOwnerAuthHeader, ProjectAction.GetRuntimeStatus),
-        AuthCacheKey(ProjectSamResource(project), projectOwnerAuthHeader, ProjectAction.ReadPersistentDisk),
-        AuthCacheKey(runtimeSamResource, authHeader, RuntimeAction.ConnectToRuntime),
-        AuthCacheKey(runtimeSamResource, authHeader, RuntimeAction.GetRuntimeStatus),
-        AuthCacheKey(diskSamResource, authHeader, PersistentDiskAction.ReadPersistentDisk),
-        AuthCacheKey(appSamId, authHeader, AppAction.GetAppStatus),
-        AuthCacheKey(appSamId, authHeader, AppAction.ConnectToApp)
+        AuthCacheKey(SamResourceType.Project,
+                     project.value,
+                     projectOwnerAuthHeader,
+                     ProjectAction.GetRuntimeStatus.asString),
+        AuthCacheKey(SamResourceType.Project,
+                     project.value,
+                     projectOwnerAuthHeader,
+                     ProjectAction.ReadPersistentDisk.asString),
+        AuthCacheKey(SamResourceType.Runtime,
+                     runtimeSamResource.resourceId,
+                     authHeader,
+                     RuntimeAction.ConnectToRuntime.asString),
+        AuthCacheKey(SamResourceType.Runtime,
+                     runtimeSamResource.resourceId,
+                     authHeader,
+                     RuntimeAction.GetRuntimeStatus.asString),
+        AuthCacheKey(SamResourceType.PersistentDisk,
+                     diskSamResource.resourceId,
+                     authHeader,
+                     PersistentDiskAction.ReadPersistentDisk.asString),
+        AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.GetAppStatus.asString),
+        AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.ConnectToApp.asString)
       )
     samAuthProviderWithCache.authCache.asMap().asScala.values.toSet shouldBe Set(true)
   }
 
   it should "create a resource" in {
-    val newRuntime = RuntimeSamResource("new_runtime")
+    val newRuntime = RuntimeSamResourceId("new_runtime")
     samAuthProvider.notifyResourceCreated(newRuntime, userEmail, project).unsafeRunSync()
     mockSam.runtimes.get((newRuntime, authHeader)) shouldBe Some(
       RuntimeAction.allActions
     )
 
-    val newDisk = PersistentDiskSamResource("new_disk")
+    val newDisk = PersistentDiskSamResourceId("new_disk")
     samAuthProvider.notifyResourceCreated(newDisk, userEmail, project).unsafeRunSync()
     mockSam.persistentDisks.get((newDisk, authHeader)) shouldBe Some(
       PersistentDiskAction.allActions
     )
 
-    val newApp = AppSamResource("new_app")
+    val newApp = AppSamResourceId("new_app")
     samAuthProvider.notifyResourceCreated(newApp, userEmail, project).unsafeRunSync()
     mockSam.apps.get((newApp, authHeader)) shouldBe Some(
       AppAction.allActions
@@ -310,7 +324,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
   it should "filter user visible resources" in {
     // positive tests
-    val newRuntime = RuntimeSamResource("new_runtime")
+    val newRuntime = RuntimeSamResourceId("new_runtime")
     println(mockSam.runtimeCreators)
     mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
     println(mockSam.runtimeCreators)
@@ -318,13 +332,13 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       runtimeSamResource
     )
 
-    val newDisk = PersistentDiskSamResource("new_disk")
+    val newDisk = PersistentDiskSamResourceId("new_disk")
     mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
     samAuthProvider.filterUserVisible(List(diskSamResource, newDisk), userInfo).unsafeRunSync() shouldBe List(
       diskSamResource
     )
 
-    val newApp = AppSamResource("new_app")
+    val newApp = AppSamResourceId("new_app")
     mockSam.createResourceWithManagerPolicy(newApp, userEmail2, project).unsafeRunSync()
     println(mockSam.appCreators)
     samAuthProvider.filterUserVisible(List(appSamId, newApp), userInfo).unsafeRunSync() shouldBe List(
@@ -353,7 +367,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
   it should "filter user visible resources with project fallback" in {
     // positive tests
-    val newRuntime = RuntimeSamResource("new_runtime")
+    val newRuntime = RuntimeSamResourceId("new_runtime")
     mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
     samAuthProvider
       .filterUserVisibleWithProjectFallback(List((project, runtimeSamResource), (project, newRuntime)), userInfo)
@@ -363,7 +377,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
                                             projectOwnerUserInfo)
       .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
 
-    val newDisk = PersistentDiskSamResource("new_disk")
+    val newDisk = PersistentDiskSamResourceId("new_disk")
     mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
     samAuthProvider
       .filterUserVisibleWithProjectFallback(List((project, diskSamResource), (project, newDisk)), userInfo)
@@ -384,9 +398,9 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   private def setUpMockSam(): Unit = {
     mockSam = new MockSamDAO
     // set up mock sam with a project, runtime, disk, and app
-    mockSam.createResource(ProjectSamResource(project), MockSamDAO.projectOwnerEmail, project).unsafeRunSync()
+    mockSam.createResource(ProjectSamResourceId(project), MockSamDAO.projectOwnerEmail, project).unsafeRunSync()
     mockSam.billingProjects.get(
-      (ProjectSamResource(project), projectOwnerAuthHeader)
+      (ProjectSamResourceId(project), projectOwnerAuthHeader)
     ) shouldBe Some(
       ProjectAction.allActions
     )

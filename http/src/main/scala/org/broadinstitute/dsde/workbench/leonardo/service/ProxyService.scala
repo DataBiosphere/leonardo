@@ -20,7 +20,6 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
@@ -120,15 +119,15 @@ class ProxyService(
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
     .build(
-      new CacheLoader[SamResourceCacheKey, Option[SamResource]] {
-        def load(key: SamResourceCacheKey): Option[SamResource] = {
+      new CacheLoader[SamResourceCacheKey, Option[String]] {
+        def load(key: SamResourceCacheKey): Option[String] = {
           val io = key match {
             case RuntimeCacheKey(googleProject, name) =>
-              clusterQuery.getActiveClusterInternalIdByName(googleProject, name).transaction
+              clusterQuery.getActiveClusterInternalIdByName(googleProject, name).map(_.map(_.resourceId)).transaction
             case AppCacheKey(googleProject, name) =>
               KubernetesServiceDbQueries
                 .getActiveFullAppByName(googleProject, name)
-                .map(_.map(_.app.samResourceId))
+                .map(_.map(_.app.samResourceId.resourceId))
                 .transaction
           }
           io.unsafeRunSync()
@@ -138,13 +137,12 @@ class ProxyService(
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
     implicit ev: ApplicativeAsk[IO, AppContext]
-  ): IO[RuntimeSamResource] =
+  ): IO[RuntimeSamResourceId] =
     for {
       ctx <- ev.ask
       cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
-      // We need to cast here because the guava cache erases the subtype of SamResource.
-      castedCacheResult <- IO.fromEither(Either.catchNonFatal(cacheResult.asInstanceOf[Option[RuntimeSamResource]]))
-      res <- castedCacheResult match {
+      resourceId = cacheResult.map(RuntimeSamResourceId)
+      res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
           IO(
@@ -163,13 +161,12 @@ class ProxyService(
 
   def getCachedAppSamResource(key: AppCacheKey)(
     implicit ev: ApplicativeAsk[IO, AppContext]
-  ): IO[AppSamResource] =
+  ): IO[AppSamResourceId] =
     for {
       ctx <- ev.ask
       cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
-      // We need to cast here because the guava cache erases the subtype of SamResource.
-      castedCacheResult <- IO.fromEither(Either.catchNonFatal(cacheResult.asInstanceOf[Option[AppSamResource]]))
-      res <- castedCacheResult match {
+      resourceId = cacheResult.map(AppSamResourceId)
+      res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
           IO(

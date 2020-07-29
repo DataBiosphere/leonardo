@@ -24,12 +24,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   OperationName
 }
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -40,8 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.ActionCheckable._
-import org.broadinstitute.dsde.workbench.leonardo.model.PolicyCheckable._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -80,7 +75,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
-      hasPermission <- authProvider.hasPermission(ProjectSamResource(googleProject),
+      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateRuntime,
                                                   userInfo)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
@@ -99,7 +94,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, status))
         case None =>
           for {
-            samResource <- F.delay(RuntimeSamResource(UUID.randomUUID().toString))
+            samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
             petToken <- serviceAccountProvider.getAccessToken(userInfo.userEmail, googleProject).recoverWith {
               case e =>
                 log.warn(e)(
@@ -257,9 +252,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource,
                                                                       runtime.googleProject,
                                                                       req.userInfo)
-      hasStatusPermission = listOfPermissions.toSet.exists(
-        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
-      )
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
@@ -270,10 +264,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
       // throw 403 if no DeleteCluster permission
-
-      hasDeletePermission = listOfPermissions.toSet.exists(
-        Set(RuntimeAction.DeleteRuntime, ProjectAction.DeleteRuntime).contains
-      )
+      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
+        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
 
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(req.userInfo.userEmail))
       // throw 409 if the cluster is not deletable
@@ -353,9 +345,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.exists(
-        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
-      )
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
@@ -368,9 +359,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
       // throw 403 if no StopStartCluster permission
-      hasStopPermission = listOfPermissions.toSet.exists(
-        Set(RuntimeAction.StopStartRuntime, ProjectAction.StopStartRuntime).contains
-      )
+      hasStopPermission = listOfPermissions._1.toSet.contains(RuntimeAction.StopStartRuntime) ||
+        listOfPermissions._2.contains(ProjectAction.StopStartRuntime)
 
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the cluster is not stoppable
@@ -399,9 +389,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.exists(
-        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
-      )
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- if (hasStatusPermission) F.unit
       else
@@ -446,9 +435,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.exists(
-        Set(RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus).contains
-      )
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- if (hasStatusPermission) F.unit
       else
@@ -459,7 +447,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
       // throw 403 if no ModifyCluster permission
-      hasModifyPermission = listOfPermissions.contains(RuntimeAction.ModifyRuntime)
+      hasModifyPermission = listOfPermissions._1.toSet.contains(RuntimeAction.ModifyRuntime)
 
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the cluster is not updatable
@@ -683,7 +671,7 @@ object RuntimeServiceInterp {
                                serviceAccountInfo: WorkbenchEmail,
                                googleProject: GoogleProject,
                                runtimeName: RuntimeName,
-                               clusterInternalId: RuntimeSamResource,
+                               clusterInternalId: RuntimeSamResourceId,
                                clusterImages: Set[RuntimeImage],
                                config: RuntimeServiceConfig,
                                req: CreateRuntime2Request,
@@ -815,11 +803,11 @@ object RuntimeServiceInterp {
 
         case None =>
           for {
-            hasPermission <- authProvider.hasPermission(ProjectSamResource(googleProject),
+            hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                         ProjectAction.CreatePersistentDisk,
                                                         userInfo)
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
-            samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
+            samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(userInfo,
                                               serviceAccount,

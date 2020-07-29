@@ -17,9 +17,9 @@ import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{ProjectSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
@@ -170,7 +170,7 @@ class LeonardoService(
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
-    authProvider.hasPermission(ProjectSamResource(project), action, userInfo) flatMap {
+    authProvider.hasPermission(ProjectSamResourceId(project), action, userInfo) flatMap {
       case false => IO.raiseError(AuthorizationError(userInfo.userEmail))
       case true  => IO.unit
     }
@@ -180,7 +180,7 @@ class LeonardoService(
   protected def checkClusterPermission(userInfo: UserInfo,
                                        action: RuntimeAction,
                                        projectFallbackAction: Option[ProjectAction],
-                                       runtimeSamResource: RuntimeSamResource,
+                                       runtimeSamResource: RuntimeSamResourceId,
                                        runtimeProjectAndName: RuntimeProjectAndName,
                                        throw403: Boolean = false)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
@@ -252,7 +252,7 @@ class LeonardoService(
     // and if so, save the cluster creation request parameters in DB
     for {
       traceId <- ev.ask
-      internalId <- IO(RuntimeSamResource(UUID.randomUUID().toString))
+      internalId <- IO(RuntimeSamResourceId(UUID.randomUUID().toString))
       // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
       petToken <- serviceAccountProvider.getAccessToken(userEmail, googleProject).recoverWith {
         case e =>

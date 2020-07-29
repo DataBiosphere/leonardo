@@ -3,7 +3,6 @@ package db
 
 import cats.data.Chain
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
@@ -118,7 +117,7 @@ object RuntimeServiceDbQueries {
           }
           ListRuntimeResponse2(
             runtimeRec.id,
-            RuntimeSamResource(runtimeRec.internalId),
+            RuntimeSamResourceId(runtimeRec.internalId),
             runtimeRec.clusterName,
             runtimeRec.googleProject,
             runtimeRec.auditInfo,

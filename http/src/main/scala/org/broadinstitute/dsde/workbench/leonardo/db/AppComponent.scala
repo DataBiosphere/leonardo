@@ -3,30 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.leonardo.{
-  App,
-  AppId,
-  AppName,
-  AppResources,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  DiskId,
-  KubernetesCluster,
-  KubernetesService,
-  LabelMap,
-  Namespace,
-  NamespaceId,
-  Nodepool,
-  NodepoolLeoId,
-  PersistentDisk
-}
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.lifted.Tag
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import akka.http.scaladsl.model.StatusCodes
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -38,7 +20,7 @@ final case class AppRecord(id: AppId,
                            appType: AppType,
                            appName: AppName,
                            status: AppStatus,
-                           samResourceId: AppSamResource,
+                           samResourceId: AppSamResourceId,
                            creator: WorkbenchEmail,
                            createdDate: Instant,
                            destroyedDate: Instant,
@@ -54,7 +36,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def appType = column[AppType]("appType", O.Length(254))
   def appName = column[AppName]("appName", O.Length(254))
   def status = column[AppStatus]("status", O.Length(254))
-  def samResourceId = column[AppSamResource]("samResourceId", O.Length(254))
+  def samResourceId = column[AppSamResourceId]("samResourceId", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))

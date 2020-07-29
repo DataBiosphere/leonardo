@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -43,7 +42,7 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            name: DiskName,
                                            googleId: Option[GoogleId],
                                            serviceAccount: WorkbenchEmail,
-                                           samResource: PersistentDiskSamResource,
+                                           samResource: PersistentDiskSamResourceId,
                                            status: DiskStatus,
                                            auditInfo: AuditInfo,
                                            size: DiskSize,

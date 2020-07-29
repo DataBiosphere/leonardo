@@ -14,8 +14,8 @@ import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, ProjectSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   GalaxyAppConfig,
   KubernetesClusterConfig,
@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.includeDeletedKey
-import org.broadinstitute.dsde.workbench.leonardo.model.PolicyCheckable._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
@@ -57,7 +57,9 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-      hasPermission <- authProvider.hasPermission(ProjectSamResource(googleProject), ProjectAction.CreateApp, userInfo)
+      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
+                                                  ProjectAction.CreateApp,
+                                                  userInfo)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
@@ -65,7 +67,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         F.raiseError[Unit](AppAlreadyExistsException(googleProject, appName, c.app.status, ctx.traceId))
       )
 
-      samResourceId <- F.delay(AppSamResource(UUID.randomUUID().toString))
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
       _ <- authProvider
         .notifyResourceCreated(samResourceId, userInfo.userEmail, googleProject)
         .handleErrorWith { t =>
@@ -268,7 +270,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
   private[service] def getSavableApp(googleProject: GoogleProject,
                                      appName: AppName,
                                      userInfo: UserInfo,
-                                     samResourceId: AppSamResource,
+                                     samResourceId: AppSamResourceId,
                                      req: CreateAppRequest,
                                      diskOpt: Option[PersistentDisk],
                                      nodepoolId: NodepoolLeoId,
