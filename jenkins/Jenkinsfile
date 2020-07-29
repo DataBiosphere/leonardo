@@ -390,7 +390,7 @@ pipeline {
                                             sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                             cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                             cd jenkins/dataproc-custom-images/dataproc-custom-images
-                                            docker run -rm gcr.io/google.com/cloudsdktool/cloud-sdk:260.0.0 python -v `pwd`:/work generate_custom_image.py \
+                                            docker run -it --rm gcr.io/google.com/cloudsdktool/cloud-sdk:260.0.0 python -v `pwd`:/work:ro generate_custom_image.py \
                                                 --image-name "$customDataprocImageBaseName-$dp_version_formatted-$imageID" \
                                                 --dataproc-version "$dp_version" \
                                                 --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
