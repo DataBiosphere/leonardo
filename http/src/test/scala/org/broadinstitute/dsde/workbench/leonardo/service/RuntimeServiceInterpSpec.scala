@@ -12,7 +12,6 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleStorageInterpreter, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
@@ -374,7 +373,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
       getResponse <- runtimeService.getRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
     } yield {
@@ -387,8 +386,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
@@ -403,8 +402,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, Some(project), Map.empty)
@@ -419,8 +418,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
@@ -438,7 +437,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
-      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
 
       _ <- service.deleteRuntime(
@@ -467,7 +466,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
-      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
 
       _ <- service.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
@@ -493,7 +492,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
-      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Stopped).save())
 
       _ <- service.startRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
@@ -517,7 +516,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
       req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
 
@@ -540,7 +539,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
       it should s"fail to update a runtime in $status status" in isolatedDbTest {
         val res = for {
-          samResource <- IO(RuntimeSamResource(UUID.randomUUID.toString))
+          samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
           testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
           req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
           fail <- runtimeService

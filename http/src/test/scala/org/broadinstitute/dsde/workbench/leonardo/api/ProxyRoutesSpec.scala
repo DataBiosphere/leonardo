@@ -66,8 +66,9 @@ class ProxyRoutesSpec
   before {
     proxyService.googleTokenCache.invalidateAll()
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
-                                      Some(runtimeSamResource))
-    proxyService.samResourceCache.put(AppCacheKey(GoogleProject(googleProject), AppName(appName)), Some(appSamId))
+                                      Some(runtimeSamResource.resourceId))
+    proxyService.samResourceCache.put(AppCacheKey(GoogleProject(googleProject), AppName(appName)),
+                                      Some(appSamId.resourceId))
   }
 
   "runtime proxy routes" should "listen on /proxy/{project}/{name}" in {
@@ -97,7 +98,7 @@ class ProxyRoutesSpec
     }
     // should still 404 even if a cache entry is present
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(newName)),
-                                      Some(runtimeSamResource))
+                                      Some(runtimeSamResource.resourceId))
     Get(s"/proxy/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
@@ -143,7 +144,7 @@ class ProxyRoutesSpec
                            kubernetesDnsCache,
                            Some(queue))
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
-                                      Some(runtimeSamResource))
+                                      Some(runtimeSamResource.resourceId))
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
     Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.OK

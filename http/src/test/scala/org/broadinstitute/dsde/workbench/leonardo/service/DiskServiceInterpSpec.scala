@@ -10,7 +10,6 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.UpdateDiskRequest
@@ -94,7 +93,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      samResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = samResource).save()
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label1", "value1").transaction
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label2", "value2").transaction
@@ -156,7 +155,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
     val res = for {
       context <- ctx.ask
-      diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
 
       _ <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name)
@@ -179,7 +178,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
     val res = for {
       t <- ctx.ask
-      diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
@@ -200,7 +199,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val res = for {
           t <- ctx.ask
-          diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+          diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
           disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, DiskSize(600))
           fail <- diskService
@@ -218,7 +217,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
     val res = for {
       context <- ctx.ask
-      diskSamResource <- IO(PersistentDiskSamResource(UUID.randomUUID.toString))
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(DiskId(1)).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, DiskSize(600))
       _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)

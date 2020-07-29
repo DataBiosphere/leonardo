@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDis
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.GCR
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
@@ -594,10 +593,10 @@ class LeonardoServiceSpec
     validateStatus.unsafeRunSync()
     // the auth provider should have not yet been notified of deletion
     verify(spyProvider, never).notifyResourceDeleted(
-      RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
+      RuntimeSamResourceId(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project)
-    )(any[PolicyCheckable[RuntimeSamResource]], any[ApplicativeAsk[IO, TraceId]])
+    )(any[SamResource[RuntimeSamResourceId]], any[ApplicativeAsk[IO, TraceId]])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
@@ -660,10 +659,10 @@ class LeonardoServiceSpec
 
     // the auth provider should have not yet been notified of deletion
     verify(spyProvider, never).notifyResourceDeleted(
-      RuntimeSamResource(mockitoEq(cluster.samResource.resourceId)),
+      RuntimeSamResourceId(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project)
-    )(any[PolicyCheckable[RuntimeSamResource]], any[ApplicativeAsk[IO, TraceId]])
+    )(any[SamResource[RuntimeSamResourceId]], any[ApplicativeAsk[IO, TraceId]])
   }
 
   it should "delete a cluster's instances" in isolatedDbTest {

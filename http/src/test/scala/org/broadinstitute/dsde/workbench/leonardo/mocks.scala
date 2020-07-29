@@ -7,7 +7,7 @@ import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.BucketSourceOption
 import com.google.pubsub.v1.PubsubMessage
 import fs2.{Pipe, Stream}
-import io.circe.Encoder
+import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
@@ -18,9 +18,9 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{
-  ActionCheckable,
   LeoAuthProvider,
-  PolicyCheckable,
+  SamResource,
+  SamResourceAction,
   ServiceAccountProvider
 }
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
@@ -70,51 +70,50 @@ object NoDeleteGoogleStorage extends BaseFakeGoogleStorage {
 object MockAuthProvider extends LeoAuthProvider[IO] {
   override def serviceAccountProvider: ServiceAccountProvider[IO] = ???
 
-  override def hasPermission[R <: SamResource, A <: LeoAuthAction](samResource: R, action: A, userInfo: UserInfo)(
-    implicit act: ActionCheckable[R, A],
+  override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
     ev: ApplicativeAsk[IO, TraceId]
   ): IO[Boolean] = ???
 
-  override def hasPermissionWithProjectFallback[R <: SamResource, A <: LeoAuthAction](
+  override def hasPermissionWithProjectFallback[R, A](
     samResource: R,
     action: A,
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
+  )(implicit sr: SamResourceAction[R, A], ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
 
-  override def getActions[R <: SamResource, A <: LeoAuthAction](samResource: R, userInfo: UserInfo)(
-    implicit act: ActionCheckable[R, A],
+  override def getActions[R, A](samResource: R, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
     ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[act.ActionCategory]] = ???
+  ): IO[List[sr.ActionCategory]] = ???
 
-  override def getActionsWithProjectFallback[R <: SamResource, A <: LeoAuthAction](
-    samResource: R,
-    googleProject: GoogleProject,
+  override def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[(List[sr.ActionCategory], List[ProjectAction])] = ???
+
+  override def filterUserVisible[R](
+    resources: List[R],
     userInfo: UserInfo
-  )(implicit act: ActionCheckable[R, A], ev: ApplicativeAsk[IO, TraceId]): IO[List[LeoAuthAction]] = ???
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[IO, TraceId]): IO[List[R]] = ???
 
-  override def filterUserVisible[R <: SamResource](resources: List[R], userInfo: UserInfo)(
-    implicit pol: PolicyCheckable[R],
-    ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[R]] = ???
-
-  override def filterUserVisibleWithProjectFallback[R <: SamResource](
+  override def filterUserVisibleWithProjectFallback[R](
     resources: List[(GoogleProject, R)],
     userInfo: UserInfo
-  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, R)]] = ???
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, R)]] =
+    ???
 
-  override def notifyResourceCreated[R <: SamResource](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  override def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] = IO.unit
 
-  override def notifyResourceDeleted[R <: SamResource](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit pol: PolicyCheckable[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  override def notifyResourceDeleted[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit sr: SamResource[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] = IO.unit
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

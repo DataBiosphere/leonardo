@@ -9,15 +9,13 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
-import org.http4s.headers.Authorization
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -58,52 +56,9 @@ class StatusRoutesSpec
   }
 
   it should "give 500 for not ok" in {
-    val badSam = new SamDAO[IO] {
+    val badSam = new MockSamDAO {
       override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] =
         IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
-
-      override def hasResourcePermission(
-        resource: SamResource,
-        action: String,
-        authHeader: Authorization
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-
-      override def getResourcePolicies(authHeader: Authorization, resourceType: SamResourceType)(
-        implicit
-        ev: ApplicativeAsk[IO, TraceId]
-      ): IO[List[SamResourcePolicy]] = ???
-
-      override def createResource(resource: SamResource,
-                                  creatorEmail: WorkbenchEmail,
-                                  googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-        ???
-
-      override def deleteResource(resource: SamResource,
-                                  creatorEmail: WorkbenchEmail,
-                                  googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-        ???
-
-      override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Option[WorkbenchEmail]] = ???
-
-      override def getUserProxy(userEmail: WorkbenchEmail)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Option[WorkbenchEmail]] = ???
-
-      override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Option[String]] = ???
-
-      override def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[List[String]] = ???
-
-      override def createResourceWithManagerPolicy(
-        resource: SamResource,
-        creatorEmail: WorkbenchEmail,
-        googleProject: GoogleProject
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =

@@ -6,13 +6,9 @@ import java.util.UUID
 import cats.effect.IO
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  AppSamResource,
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
+import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
+import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
@@ -22,166 +18,180 @@ import org.http4s.{AuthScheme, Credentials}
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
+// TODO this class is full of .asInstanceOf calls to make our generic methods work with the mutable Maps.
+// There may be a better way to structure this mock.
 class MockSamDAO extends SamDAO[IO] {
-  val billingProjects: mutable.Map[(ProjectSamResource, Authorization), Set[ProjectAction]] = new TrieMap()
-  val runtimes: mutable.Map[(RuntimeSamResource, Authorization), Set[RuntimeAction]] = new TrieMap()
-  val persistentDisks: mutable.Map[(PersistentDiskSamResource, Authorization), Set[PersistentDiskAction]] =
+  val billingProjects: mutable.Map[(ProjectSamResourceId, Authorization), Set[ProjectAction]] = new TrieMap()
+  val runtimes: mutable.Map[(RuntimeSamResourceId, Authorization), Set[RuntimeAction]] = new TrieMap()
+  val persistentDisks: mutable.Map[(PersistentDiskSamResourceId, Authorization), Set[PersistentDiskAction]] =
     new TrieMap()
-  val apps: mutable.Map[(AppSamResource, Authorization), Set[AppAction]] = new TrieMap()
+  val apps: mutable.Map[(AppSamResourceId, Authorization), Set[AppAction]] = new TrieMap()
 
-  var projectOwners: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
-  var runtimeCreators: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
-  var diskCreators: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
-  var appCreators: Map[Authorization, Set[SamResourcePolicy]] = Map.empty
+  var projectOwners: Map[Authorization, Set[(ProjectSamResourceId, SamPolicyName)]] = Map.empty
+  var runtimeCreators: Map[Authorization, Set[(RuntimeSamResourceId, SamPolicyName)]] = Map.empty
+  var diskCreators: Map[Authorization, Set[(PersistentDiskSamResourceId, SamPolicyName)]] = Map.empty
+  var appCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
 
   //we don't care much about traceId in unit tests, hence providing a constant UUID here
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
-  override def hasResourcePermission(resource: SamResource, action: String, authHeader: Authorization)(
+  override def hasResourcePermissionUnchecked(resourceType: SamResourceType,
+                                              resource: String,
+                                              action: String,
+                                              authHeader: Authorization)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Boolean] =
-    resource.resourceType match {
+    resourceType match {
       case SamResourceType.Project =>
         val res = billingProjects
-          .get((ProjectSamResource(GoogleProject(resource.resourceId)), authHeader))
+          .get((ProjectSamResourceId(GoogleProject(resource)), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
       case SamResourceType.Runtime =>
         val res = runtimes
-          .get((RuntimeSamResource(resource.resourceId), authHeader))
+          .get((RuntimeSamResourceId(resource), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
       case SamResourceType.PersistentDisk =>
         val res = persistentDisks
-          .get((PersistentDiskSamResource(resource.resourceId), authHeader))
+          .get((PersistentDiskSamResourceId(resource), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
       case SamResourceType.App =>
         val res = apps
-          .get((AppSamResource(resource.resourceId), authHeader))
+          .get((AppSamResourceId(resource), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
     }
 
-  override def getResourcePolicies(
-    authHeader: Authorization,
-    resourceType: SamResourceType
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[SamResourcePolicy]] =
-    resourceType match {
+  override def getResourcePolicies[R](authHeader: Authorization)(
+    implicit sr: SamResource[R],
+    decoder: Decoder[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[(R, SamPolicyName)]] =
+    sr.resourceType match {
       case SamResourceType.Runtime =>
-        IO.pure(runtimeCreators.get(authHeader).map(_.toList).getOrElse(List.empty))
+        IO.pure(
+          runtimeCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
+        )
       case SamResourceType.Project =>
-        IO.pure(projectOwners.get(authHeader).map(_.toList).getOrElse(List.empty))
+        IO.pure(
+          projectOwners.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
+        )
       case SamResourceType.PersistentDisk =>
-        IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty))
+        IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
       case SamResourceType.App =>
-        IO.pure(appCreators.toMap.get(authHeader).map(_.toList).getOrElse(List.empty))
+        IO.pure(appCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
     }
 
-  override def createResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+  override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit sr: SamResource[R],
+    ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] = {
     val authHeader = userEmailToAuthorization(creatorEmail)
     resource match {
-      case r: RuntimeSamResource =>
+      case r: RuntimeSamResourceId =>
         IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
           IO(
             runtimeCreators =
-              runtimeCreators |+| Map(authHeader -> Set(SamResourcePolicy(resource, SamPolicyName.Creator)))
+              runtimeCreators |+| Map(authHeader -> Set((r, SamPolicyName.Creator)))
           ).void
-      case r: PersistentDiskSamResource =>
+      case r: PersistentDiskSamResourceId =>
         IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
           IO(
             diskCreators = diskCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, SamPolicyName.Creator)
+                (r, SamPolicyName.Creator)
               )
             )
           ).void
-      case r: ProjectSamResource =>
+      case r: ProjectSamResourceId =>
         IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >>
           IO(
             projectOwners = projectOwners |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, SamPolicyName.Owner)
+                (r, SamPolicyName.Owner)
               )
             )
           ).void
-      case r: AppSamResource =>
+      case r: AppSamResourceId =>
         IO(apps += (r, authHeader) -> AppAction.allActions) >>
           IO(
             appCreators = appCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, SamPolicyName.Creator)
+                (r, SamPolicyName.Creator)
               )
             )
           ).void
     }
   }
 
-  override def createResourceWithManagerPolicy(
-    resource: SamResource,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = {
+  override def createResourceWithManagerPolicy[R](resource: R,
+                                                  creatorEmail: WorkbenchEmail,
+                                                  googleProject: GoogleProject)(
+    implicit sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] = {
     val authHeader = userEmailToAuthorization(creatorEmail)
     val ownerAuthHeader = userEmailToAuthorization(projectOwnerEmail)
     resource match {
-      case r: RuntimeSamResource =>
+      case r: RuntimeSamResourceId =>
         IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
           IO(
             runtimeCreators = runtimeCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, SamPolicyName.Creator)
+                (r, SamPolicyName.Creator)
               )
             )
           ).void
-      case r: PersistentDiskSamResource =>
+      case r: PersistentDiskSamResourceId =>
         IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
           IO(
             diskCreators = diskCreators |+| Map(
               authHeader -> Set(
-                SamResourcePolicy(resource, SamPolicyName.Creator)
+                (r, SamPolicyName.Creator)
               )
             )
           ).void
-      case r: ProjectSamResource =>
+      case r: ProjectSamResourceId =>
         IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >> IO(
           projectOwners = projectOwners |+| Map(
             authHeader -> Set(
-              SamResourcePolicy(resource, SamPolicyName.Owner)
+              (r, SamPolicyName.Owner)
             )
           )
         ).void
-      case r: AppSamResource =>
+      case r: AppSamResourceId =>
         IO(
           apps ++=
             Map((r, authHeader) -> AppAction.allActions, (r, ownerAuthHeader) -> appManagerActions)
         ) >>
           IO(
             appCreators = appCreators |+| Map(
-              authHeader -> Set(SamResourcePolicy(resource, SamPolicyName.Creator)),
-              ownerAuthHeader -> Set(SamResourcePolicy(resource, SamPolicyName.Manager))
+              authHeader -> Set((r, SamPolicyName.Creator)),
+              ownerAuthHeader -> Set((r, SamPolicyName.Manager))
             )
           ).void
     }
   }
 
-  override def deleteResource(resource: SamResource, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit sr: SamResource[R],
+    ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
     resource match {
-      case r: RuntimeSamResource =>
+      case r: RuntimeSamResourceId =>
         IO(runtimes.remove((r, userEmailToAuthorization(creatorEmail))))
-      case r: PersistentDiskSamResource =>
+      case r: PersistentDiskSamResourceId =>
         IO(persistentDisks.remove((r, userEmailToAuthorization(creatorEmail))))
-      case r: ProjectSamResource =>
+      case r: ProjectSamResourceId =>
         IO(billingProjects.remove((r, userEmailToAuthorization(creatorEmail))))
-      case r: AppSamResource =>
+      case r: AppSamResourceId =>
         IO(apps.remove((r, userEmailToAuthorization(creatorEmail)))) >>
           IO(apps.remove((r, userEmailToAuthorization(projectOwnerEmail))))
     }
@@ -203,37 +213,38 @@ class MockSamDAO extends SamDAO[IO] {
   override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] =
     IO.pure(StatusCheckResponse(true, Map.empty))
 
-  override def getListOfResourcePermissions(resource: SamResource, authHeader: Authorization)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[String]] =
-    resource.resourceType match {
+  override def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(
+    implicit sr: SamResourceAction[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[sr.ActionCategory]] =
+    sr.resourceType match {
       case SamResourceType.Project =>
         val res = billingProjects
-          .get((ProjectSamResource(GoogleProject(resource.resourceId)), authHeader))
+          .get((resource.asInstanceOf[ProjectSamResourceId], authHeader))
           .map(_.toList)
-          .map(_.map(_.asString))
           .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
         IO.pure(res)
       case SamResourceType.Runtime =>
         val res = runtimes
-          .get((RuntimeSamResource(resource.resourceId), authHeader))
+          .get((resource.asInstanceOf[RuntimeSamResourceId], authHeader))
           .map(_.toList)
-          .map(_.map(_.asString))
           .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
         IO.pure(res)
       case SamResourceType.PersistentDisk =>
         val res = persistentDisks
-          .get((PersistentDiskSamResource(resource.resourceId), authHeader))
+          .get((resource.asInstanceOf[PersistentDiskSamResourceId], authHeader))
           .map(_.toList)
-          .map(_.map(_.asString))
           .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
         IO.pure(res)
       case SamResourceType.App =>
         val res = apps
-          .get((AppSamResource(resource.resourceId), authHeader))
+          .get((resource.asInstanceOf[AppSamResourceId], authHeader))
           .map(_.toList)
-          .map(_.map(_.asString))
           .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
         IO.pure(res)
     }
 }

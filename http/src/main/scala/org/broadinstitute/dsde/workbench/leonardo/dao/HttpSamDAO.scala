@@ -306,25 +306,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
   private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[SamPolicyEmail] =
-    // TODO this still isn't right because it requires the caller to be a project owner. I pinged Doug.
+    // TODO impllement
     ???
-//    for {
-//      trace <- ev.ask
-//      resp <- httpClient.expectOr[List[ListPolicyResponse]](
-//        Request[F](
-//          method = Method.GET,
-//          uri = config.samUri.withPath(
-//            s"/api/resources/v1/${SamResourceType.Project.asString}/${googleProject.value}/policies"
-//          ),
-//          headers = Headers.of(authorization)
-//        )
-//      )(onError)
-//      ownerEmailOpt = resp.collect { case ListPolicyResponse(email, SamPolicyName.Owner, _) => email }.headOption
-//      ownerEmail <- Effect[F].fromOption(
-//        ownerEmailOpt,
-//        AuthProviderException(trace, s"Could not find owner policy for project $googleProject", StatusCodes.Conflict)
-//      )
-//    } yield ownerEmail
 }
 
 object HttpSamDAO {

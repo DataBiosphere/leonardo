@@ -4,7 +4,6 @@ package http
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -46,7 +45,7 @@ object DiskRoutesTestJsonCodec {
       serviceAccount,
       // TODO samResource probably shouldn't be in the GetPersistentDiskResponse
       // if it's not in the encoder
-      PersistentDiskSamResource("test"),
+      PersistentDiskSamResourceId("test"),
       status,
       auditInfo,
       size,
