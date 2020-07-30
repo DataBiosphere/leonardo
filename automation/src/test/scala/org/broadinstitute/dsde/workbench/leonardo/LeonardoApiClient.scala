@@ -170,14 +170,17 @@ object LeonardoApiClient {
       )
     )
 
-  def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit client: Client[IO],
-                                                                            authHeader: Authorization): IO[Unit] =
+  def deleteRuntime(googleProject: GoogleProject,
+                    runtimeName: RuntimeName,
+                    deleteDisk: Boolean = true)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
     client
       .successful(
         Request[IO](
           method = Method.DELETE,
           headers = Headers.of(authHeader),
-          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+          uri = rootUri
+            .withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+            .withQueryParam("deleteDisk", deleteDisk)
         )
       )
       .flatMap { success =>
@@ -187,13 +190,13 @@ object LeonardoApiClient {
           IO.raiseError(new RuntimeException(s"Fail to delete runtime ${googleProject.value}/${runtimeName.asString}"))
       }
 
-  def deleteRuntimeWithWait(googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def deleteRuntimeWithWait(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
     for {
-      _ <- deleteRuntime(googleProject, runtimeName)
+      _ <- deleteRuntime(googleProject, runtimeName, deleteDisk)
       ioa = getRuntime(googleProject, runtimeName).attempt
       res <- timer.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit
@@ -296,7 +299,9 @@ object LeonardoApiClient {
   private def onError(response: Response[IO]): IO[Throwable] =
     for {
       body <- response.bodyText.compile.foldMonoid
-    } yield new Exception(body)
+    } yield RestError(response.status, body)
 }
 
-final case class RestError(statusCode: Status, message: String) extends NoStackTrace
+final case class RestError(statusCode: Status, message: String) extends NoStackTrace {
+  override def getMessage: String = s"stauts: ${statusCode}, ${message}"
+}

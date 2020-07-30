@@ -272,11 +272,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (runtime.status.isDeletable) F.unit
       else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
       // delete the runtime
-
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      _ <- runtimeConfig match {
+      persistentDiskToDelete <- runtimeConfig match {
         case x: RuntimeConfig.GceWithPdConfig =>
-          x.persistentDiskId.traverse { diskId =>
+          x.persistentDiskId.flatTraverse { diskId =>
             for {
               diskOpt <- persistentDiskQuery.getPersistentDiskRecord(diskId).transaction
               disk <- F.fromEither(
@@ -301,15 +300,19 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 ),
                 F.unit)
               _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
-            } yield ()
+            } yield {
+              if (req.deleteDisk)
+                Some(diskId)
+              else None
+            }
           }
-        case _ => F.unit
+        case _ => F.pure(none[DiskId])
       }
 
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreDeleting, ctx.now).transaction >> publisherQueue
           .enqueue1(
-            DeleteRuntimeMessage(runtime.id, req.deleteDisk, Some(ctx.traceId))
+            DeleteRuntimeMessage(runtime.id, persistentDiskToDelete, Some(ctx.traceId))
           )
       } else {
         clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyResourceDeleted(

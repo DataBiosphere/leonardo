@@ -442,7 +442,8 @@ class ZombieRuntimeMonitorSpec
   )(validations: () => A): A = {
     val dataprocInterp =
       new DataprocInterpreter(dataprocInterpreterConfig, null, null, gdDAO, gce, disk, null, null, null, null, blocker)
-    val gceInterp = new GceInterpreter(gceInterpreterConfig, null, null, gce, disk, null, blocker)
+    val gceInterp =
+      new GceInterpreter(gceInterpreterConfig, null, null, gce, disk, null, blocker)
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     val zombieClusterMonitor = ZombieRuntimeMonitor[IO](Config.zombieRuntimeMonitorConfig, googleProjectDAO)

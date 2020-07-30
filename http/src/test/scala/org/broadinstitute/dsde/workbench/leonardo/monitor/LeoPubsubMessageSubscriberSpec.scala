@@ -3,7 +3,6 @@ package monitor
 
 import java.time.Instant
 
-import cats.implicits._
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
@@ -47,13 +46,13 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent._
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.Left
-import org.scalatest.flatspec.AnyFlatSpecLike
-import org.scalatest.matchers.should.Matchers
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -164,7 +163,7 @@ class LeoPubsubMessageSubscriberSpec
       leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
-      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, false, Some(tr)))
+      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, None, Some(tr)))
       _ <- withInfiniteStream(
         asyncTaskProcessor.process,
         clusterQuery
@@ -177,7 +176,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
-  it should "delete disk when handling DeleteRuntimeMessage with deleteDisk being true" in isolatedDbTest {
+  it should "delete disk when handling DeleteRuntimeMessage when autoDeleteDisks is set" in isolatedDbTest {
     val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -190,16 +189,14 @@ class LeoPubsubMessageSubscriberSpec
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask
-      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, true, Some(tr)))
-      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      _ <- leoSubscriber.messageResponder(
+        DeleteRuntimeMessage(runtime.id, Some(disk.id), Some(tr))
+      )
       _ <- withInfiniteStream(
         asyncTaskProcessor.process,
         persistentDiskQuery.getStatus(disk.id).transaction.map(status => status shouldBe (Some(DiskStatus.Deleted)))
       )
-    } yield {
-      updatedRuntime shouldBe 'defined
-      updatedRuntime.get.status shouldBe RuntimeStatus.Deleting
-    }
+    } yield ()
 
     res.unsafeRunSync()
   }
@@ -224,7 +221,7 @@ class LeoPubsubMessageSubscriberSpec
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask
-      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, true, Some(tr)))
+      _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, Some(disk.id), Some(tr)))
       _ <- withInfiniteStream(
         asyncTaskProcessor.process,
         clusterErrorQuery.get(runtime.id).transaction.map { error =>
@@ -245,7 +242,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
       tr <- traceId.ask
-      message = DeleteRuntimeMessage(runtime.id, false, Some(tr))
+      message = DeleteRuntimeMessage(runtime.id, None, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
       attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
