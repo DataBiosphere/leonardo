@@ -60,7 +60,7 @@ object SamResourceAction {
   implicit def projectSamResourceAction[A <: ProjectAction] =
     new ProjectSamResource with SamResourceAction[ProjectSamResourceId, A] {
       type ActionCategory = ProjectAction
-      val decoder = implicitly[Decoder[ProjectAction]]
+      val decoder = Decoder[ProjectAction]
       val allActions = ProjectAction.allActions.toList
       val cacheableActions = List(ProjectAction.GetRuntimeStatus, ProjectAction.ReadPersistentDisk)
       def actionAsString(a: A): String = a.asString
@@ -69,7 +69,7 @@ object SamResourceAction {
   implicit def runtimeSamResourceAction[A <: RuntimeAction] =
     new RuntimeSamResource with SamResourceAction[RuntimeSamResourceId, A] {
       type ActionCategory = RuntimeAction
-      val decoder = implicitly[Decoder[RuntimeAction]]
+      val decoder = Decoder[RuntimeAction]
       val allActions = RuntimeAction.allActions.toList
       val cacheableActions = List(RuntimeAction.GetRuntimeStatus, RuntimeAction.ConnectToRuntime)
       def actionAsString(a: A): String = a.asString
@@ -78,7 +78,7 @@ object SamResourceAction {
   implicit def persistentDiskSamResourceAction[A <: PersistentDiskAction] =
     new PersistentDiskSamResource with SamResourceAction[PersistentDiskSamResourceId, A] {
       type ActionCategory = PersistentDiskAction
-      val decoder = implicitly[Decoder[PersistentDiskAction]]
+      val decoder = Decoder[PersistentDiskAction]
       val allActions = PersistentDiskAction.allActions.toList
       val cacheableActions = List(PersistentDiskAction.ReadPersistentDisk)
       def actionAsString(a: A): String = a.asString
@@ -86,7 +86,7 @@ object SamResourceAction {
 
   implicit def AppSamResourceAction[A <: AppAction] = new AppSamResource with SamResourceAction[AppSamResourceId, A] {
     type ActionCategory = AppAction
-    val decoder = implicitly[Decoder[AppAction]]
+    val decoder = Decoder[AppAction]
     val allActions = AppAction.allActions.toList
     val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
     def actionAsString(a: A): String = a.asString

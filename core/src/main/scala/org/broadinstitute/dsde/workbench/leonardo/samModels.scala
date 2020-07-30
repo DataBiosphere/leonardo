@@ -23,7 +23,7 @@ object SamResourceType {
     val asString = "persistent-disk"
   }
   final case object App extends SamResourceType {
-    val asString = "app"
+    val asString = "kubernetes-app"
   }
   val stringToSamResourceType: Map[String, SamResourceType] =
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap

@@ -33,7 +33,7 @@ import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.Authorization
+import org.http4s.headers.{`Content-Type`, Authorization}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -182,7 +182,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
             method = Method.POST,
             uri = config.samUri
               .withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
-            headers = Headers.of(authHeader),
+            headers = Headers.of(authHeader, `Content-Type`(MediaType.application.json)),
             body = Stream.emits(CreateSamResourceRequest(resource, policies).asJson.noSpaces.getBytes)
           )
         )
@@ -342,11 +342,7 @@ object HttpSamDAO {
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))
-  implicit val samPolicyEmailDecoder: Decoder[SamPolicyEmail] = Decoder.instance { c =>
-    for {
-      email <- c.downField("email").as[WorkbenchEmail]
-    } yield SamPolicyEmail(email)
-  }
+  implicit val samPolicyEmailDecoder: Decoder[SamPolicyEmail] = Decoder[WorkbenchEmail].map(SamPolicyEmail)
   implicit val projectActionDecoder: Decoder[ProjectAction] =
     Decoder.decodeString.map(x => ProjectAction.stringToAction.getOrElse(x, ProjectAction.Other(x)))
   implicit val runtimeActionDecoder: Decoder[RuntimeAction] =

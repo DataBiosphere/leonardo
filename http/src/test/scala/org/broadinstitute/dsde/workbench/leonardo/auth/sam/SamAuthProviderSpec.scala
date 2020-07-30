@@ -4,8 +4,8 @@ package auth.sam
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
