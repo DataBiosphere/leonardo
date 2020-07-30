@@ -264,8 +264,11 @@ pipeline {
 
                                 if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
                                     println("Using version $version for $image in this build of custom GCE images")
+                                    // Not replace aou version because we want to fix bake 2 aou versions until aou migrate to new version
                                     sh """
-                                        sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                                        if [ $image != 'terra-jupyter-aou' ]; then
+                                            sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                                        fi
                                     """
                                 }
                             }
