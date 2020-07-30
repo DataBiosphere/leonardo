@@ -414,7 +414,7 @@ pipeline {
                     when { expression { GENERATE_GCE_IMAGE == "true" } }
                         steps {
                             script {
-                                String daisyImage = "gcr.io/compute-image-tools/daisy:latest"
+                                String daisyImage = "gcr.io/compute-image-tools/daisy:release"
                                 sshagent(['jenkins-ssh-github']) {
                                     sh """
                                         cd ${WORKSPACE}/jenkins/gce-custom-images/cis-harden-images
