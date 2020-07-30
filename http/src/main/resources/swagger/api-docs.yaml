@@ -14,6 +14,8 @@ tags:
     description: Runtimes API. Support both Google Dataproc and Google Compute Engine.
   - name: disks
     description: Persistent Disks API.
+  - name: apps
+    description: Experimental App API
   - name: cluster
     description: Legacy Clusters API. Supports Google Dataproc only.
   - name: proxy
@@ -22,8 +24,6 @@ tags:
     description: Notebooks API. Deprecated in favor of Proxy API.
   - name: service_info
     description: Service Info API
-  - name: apps
-    description: Experimental App API
 security:
   - googleoauth:
       - openid
@@ -1129,7 +1129,7 @@ paths:
     get:
       tags:
         - apps
-      summary: Experimental. List kubernetes app
+      summary: List apps
       description: List kubernetes apps the caller has access to, without specifying a project
       operationId: listApp
       parameters:
@@ -1180,7 +1180,7 @@ paths:
             - profile
   "/api/google/v1/apps/{googleProject}":
     get:
-      summary: Experimental. List kubernetes app
+      summary: List apps within a project
       description: List kubernetes apps the caller has access to with a project filter
       operationId: listAppByProject
       tags:
@@ -1239,7 +1239,7 @@ paths:
             - profile
   "/api/google/v1/apps/{googleProject}/{appName}":
     post:
-      summary: Experimental. Creates a new app in the given project with the given name
+      summary: Creates a new app in the given project with the given name
       description: Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
       operationId: createApp
       tags:
@@ -1288,7 +1288,7 @@ paths:
             - email
             - profile
     get:
-      summary: Experimental. Get details of an App
+      summary: Get details of an app
       description: >
         Returns information about an existing App managed by Leo.
         Poll this to find out when your app has finished starting up.
@@ -1335,7 +1335,7 @@ paths:
             - email
             - profile
     delete:
-      summary: Experimental. Deletes an existing App in the given project
+      summary: Deletes an existing app in the given project
       description: deletes an App
       operationId: deleteApp
       tags:

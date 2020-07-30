@@ -238,7 +238,8 @@ object Boot extends IOApp {
                                                appDependencies.subscriber,
                                                appDependencies.asyncTasksQueue,
                                                googleDiskService,
-                                               googleDependencies.computePollOperation)
+                                               googleDependencies.computePollOperation,
+                                               appDependencies.authProvider)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,

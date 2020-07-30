@@ -179,9 +179,16 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       appResult <- F.fromOption(appOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
 
-      hasPermission <- authProvider.hasPermission(appResult.app.samResourceId, AppAction.DeleteApp, params.userInfo)
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, params.userInfo)
 
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(params.userInfo.userEmail))
+      // throw 404 if no GetAppStatus permission
+      hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+      _ <- if (hasReadPermission) F.unit
+      else F.raiseError[Unit](AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+
+      // throw 403 if no DeleteApp permission
+      hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(params.userInfo.userEmail))
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <- if (canDelete) F.unit

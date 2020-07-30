@@ -142,8 +142,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
         case None =>
           for {
             isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
-            isAttached <- if (isAttachedToRuntime) DBIO.successful(true)
-            else appQuery.isDiskAttached(diskId)
+            isAttached <- if (isAttachedToRuntime) DBIO.successful(true) else appQuery.isDiskAttached(diskId)
           } yield isAttached
         case Some(FormattedBy.Galaxy) =>
           appQuery.isDiskAttached(diskId)

@@ -511,7 +511,8 @@ class LeoPubsubMessageSubscriberSpec
       googleSubscriber,
       asyncTaskQueue,
       MockGoogleDiskService,
-      computePollOperation
+      computePollOperation,
+      MockAuthProvider
     )
   }
 }
