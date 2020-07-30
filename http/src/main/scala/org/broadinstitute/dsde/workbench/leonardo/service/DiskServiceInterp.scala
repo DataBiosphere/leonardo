@@ -12,7 +12,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.PersistentDiskSamResource
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.UpdateDiskRequest
@@ -21,12 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.{
   includeDeletedKey,
   processListParameters
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.PersistentDiskAction.{
-  DeletePersistentDisk,
-  ModifyPersistentDisk,
-  ReadPersistentDisk
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -58,7 +53,9 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
 
-      hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
+      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
+                                                  ProjectAction.CreatePersistentDisk,
+                                                  userInfo)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       serviceAccountOpt <- serviceAccountProvider
@@ -74,7 +71,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, diskName, c.status, ctx.traceId))
         case None =>
           for {
-            samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
+            samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             disk <- F.fromEither(
               convertToDisk(userInfo, petSA, googleProject, diskName, samResource, config, req, ctx.now)
             )
@@ -98,10 +95,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(googleProject, diskName, ctx.traceId).transaction
-      hasPermission <- authProvider.hasPersistentDiskPermission(resp.samResource,
-                                                                userInfo,
-                                                                ReadPersistentDisk,
-                                                                googleProject)
+      hasPermission <- authProvider.hasPermissionWithProjectFallback(resp.samResource,
+                                                                     PersistentDiskAction.ReadPersistentDisk,
+                                                                     ProjectAction.ReadPersistentDisk,
+                                                                     userInfo,
+                                                                     googleProject)
       _ <- if (hasPermission) F.unit
       else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
 
@@ -114,7 +112,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       paramMap <- F.fromEither(processListParameters(params))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, googleProject).transaction
       samVisibleDisks <- authProvider
-        .filterUserVisiblePersistentDisks(userInfo, disks.map(d => (d.googleProject, d.samResource)))
+        .filterUserVisibleWithProjectFallback(disks.map(d => (d.googleProject, d.samResource)), userInfo)
     } yield {
       // Making the assumption that users will always be able to access disks that they create
       disks
@@ -148,17 +146,16 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 404 if no ReadPersistentDisk permission
       // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
       // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
-      hasPermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
-                                                                userInfo,
-                                                                ReadPersistentDisk,
-                                                                googleProject)
-      _ <- if (hasPermission) F.unit
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
+      hasReadPermission = listOfPermissions._1.toSet
+        .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
+        .contains(ProjectAction.ReadPersistentDisk)
+      _ <- if (hasReadPermission) F.unit
       else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
       // throw 403 if no DeleteDisk permission
-      hasDeletePermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
-                                                                      userInfo,
-                                                                      DeletePersistentDisk,
-                                                                      googleProject)
+      hasDeletePermission = listOfPermissions._1.toSet
+        .contains(PersistentDiskAction.DeletePersistentDisk) || listOfPermissions._2.toSet
+        .contains(ProjectAction.DeletePersistentDisk)
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the disk is not deletable
       _ <- if (disk.status.isDeletable) F.unit
@@ -193,17 +190,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 404 if no ReadPersistentDisk permission
       // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
       // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
-      hasPermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
-                                                                userInfo,
-                                                                ReadPersistentDisk,
-                                                                googleProject)
-      _ <- if (hasPermission) F.unit
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
+      hasReadPermission = listOfPermissions._1.toSet
+        .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
+        .contains(ProjectAction.ReadPersistentDisk)
+      _ <- if (hasReadPermission) F.unit
       else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
       // throw 403 if no ModifyPersistentDisk permission
-      hasModifyPermission <- authProvider.hasPersistentDiskPermission(disk.samResource,
-                                                                      userInfo,
-                                                                      ModifyPersistentDisk,
-                                                                      googleProject)
+      hasModifyPermission = listOfPermissions._1.contains(PersistentDiskAction.ModifyPersistentDisk)
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the disk is not updatable
       _ <- if (disk.status.isUpdatable) F.unit
@@ -220,7 +214,7 @@ object DiskServiceInterp {
                                      serviceAccount: WorkbenchEmail,
                                      googleProject: GoogleProject,
                                      diskName: DiskName,
-                                     samResource: PersistentDiskSamResource,
+                                     samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant): Either[Throwable, PersistentDisk] = {

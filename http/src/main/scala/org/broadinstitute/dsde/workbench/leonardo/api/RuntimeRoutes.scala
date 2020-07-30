@@ -19,7 +19,6 @@ import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec.dataprocConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
@@ -513,7 +512,7 @@ final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntime
                                       updateAutopauseThreshold: Option[FiniteDuration])
 
 final case class ListRuntimeResponse2(id: Long,
-                                      samResource: RuntimeSamResource,
+                                      samResource: RuntimeSamResourceId,
                                       clusterName: RuntimeName,
                                       googleProject: GoogleProject,
                                       auditInfo: AuditInfo,

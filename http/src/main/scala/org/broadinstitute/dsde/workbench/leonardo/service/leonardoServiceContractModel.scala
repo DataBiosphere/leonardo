@@ -6,7 +6,6 @@ import java.net.URL
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
@@ -33,7 +32,7 @@ final case class CreateRuntimeRequest(labels: LabelMap = Map.empty,
 
 object CreateRuntimeRequest {
   def toRuntime(request: CreateRuntimeRequest,
-                samResource: RuntimeSamResource,
+                samResource: RuntimeSamResourceId,
                 userEmail: WorkbenchEmail,
                 runtimeName: RuntimeName,
                 googleProject: GoogleProject,
@@ -76,7 +75,7 @@ object CreateRuntimeRequest {
 // Currently, CreateRuntimeResponse has exactly the same fields as GetRuntimeResponse, but going forward, when we can,
 // we should deprecate and remove some of fields for createRuntime request
 final case class CreateRuntimeResponse(id: Long,
-                                       samResource: RuntimeSamResource,
+                                       samResource: RuntimeSamResourceId,
                                        clusterName: RuntimeName,
                                        googleProject: GoogleProject,
                                        serviceAccountInfo: WorkbenchEmail,
@@ -134,7 +133,7 @@ object CreateRuntimeResponse {
 }
 
 final case class ListRuntimeResponse(id: Long,
-                                     samResource: RuntimeSamResource,
+                                     samResource: RuntimeSamResourceId,
                                      clusterName: RuntimeName,
                                      googleProject: GoogleProject,
                                      serviceAccountInfo: WorkbenchEmail,
@@ -179,7 +178,7 @@ object ListRuntimeResponse {
 }
 
 final case class GetRuntimeResponse(id: Long,
-                                    samResource: RuntimeSamResource,
+                                    samResource: RuntimeSamResourceId,
                                     clusterName: RuntimeName,
                                     googleProject: GoogleProject,
                                     serviceAccountInfo: WorkbenchEmail,

@@ -17,17 +17,15 @@ import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DockerDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition._
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -46,7 +44,7 @@ import scala.concurrent.duration._
 
 case class AuthorizationError(email: WorkbenchEmail)
     extends LeoException(
-      s"${email.value} is unauthorized." +
+      s"${email.value} is unauthorized. " +
         "If you have proper permissions to use the workspace, make sure you are also added to the billing account",
       StatusCodes.Forbidden
     )
@@ -172,7 +170,7 @@ class LeonardoService(
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject)(
     implicit ev: ApplicativeAsk[IO, TraceId]
   ): IO[Unit] =
-    authProvider.hasProjectPermission(userInfo, action, project) flatMap {
+    authProvider.hasPermission(ProjectSamResourceId(project), action, userInfo) flatMap {
       case false => IO.raiseError(AuthorizationError(userInfo.userEmail))
       case true  => IO.unit
     }
@@ -181,15 +179,22 @@ class LeonardoService(
   // If the cluster really exists and you're OK with the user knowing that, set throw403 = true.
   protected def checkClusterPermission(userInfo: UserInfo,
                                        action: RuntimeAction,
-                                       runtimeSamResource: RuntimeSamResource,
+                                       projectFallbackAction: Option[ProjectAction],
+                                       runtimeSamResource: RuntimeSamResourceId,
                                        runtimeProjectAndName: RuntimeProjectAndName,
                                        throw403: Boolean = false)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     for {
       traceId <- ev.ask
-      hasPermission <- authProvider.hasRuntimePermission(runtimeSamResource,
-                                                         userInfo,
-                                                         action,
-                                                         runtimeProjectAndName.googleProject)
+      hasPermission <- projectFallbackAction match {
+        case Some(projectAction) =>
+          authProvider.hasPermissionWithProjectFallback(runtimeSamResource,
+                                                        action,
+                                                        projectAction,
+                                                        userInfo,
+                                                        runtimeProjectAndName.googleProject)
+        case None =>
+          authProvider.hasPermission(runtimeSamResource, action, userInfo)
+      }
       _ <- hasPermission match {
         case false =>
           log
@@ -220,7 +225,7 @@ class LeonardoService(
     request: CreateRuntimeRequest
   )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeResponse] =
     for {
-      _ <- checkProjectPermission(userInfo, CreateRuntime, googleProject)
+      _ <- checkProjectPermission(userInfo, ProjectAction.CreateRuntime, googleProject)
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccount <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
@@ -247,7 +252,7 @@ class LeonardoService(
     // and if so, save the cluster creation request parameters in DB
     for {
       traceId <- ev.ask
-      internalId <- IO(RuntimeSamResource(UUID.randomUUID().toString))
+      internalId <- IO(RuntimeSamResourceId(UUID.randomUUID().toString))
       // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
       petToken <- serviceAccountProvider.getAccessToken(userEmail, googleProject).recoverWith {
         case e =>
@@ -319,7 +324,8 @@ class LeonardoService(
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
       _ <- checkClusterPermission(
         userInfo,
-        GetRuntimeStatus,
+        RuntimeAction.GetRuntimeStatus,
+        Some(ProjectAction.GetRuntimeStatus),
         cluster.samResource,
         RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName)
       ) //throws 404 if no auth
@@ -333,10 +339,13 @@ class LeonardoService(
       resp <- RuntimeServiceDbQueries
         .getRuntime(googleProject, clusterName)
         .transaction //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo,
-                                  GetRuntimeStatus,
-                                  resp.samResource,
-                                  RuntimeProjectAndName(resp.googleProject, resp.clusterName)) //throws 404 if no auth
+      _ <- checkClusterPermission(
+        userInfo,
+        RuntimeAction.GetRuntimeStatus,
+        Some(ProjectAction.GetRuntimeStatus),
+        resp.samResource,
+        RuntimeProjectAndName(resp.googleProject, resp.clusterName)
+      ) //throws 404 if no auth
     } yield resp
 
   private def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: RuntimeName): IO[Runtime] =
@@ -400,11 +409,14 @@ class LeonardoService(
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually destroy it
-      _ <- checkClusterPermission(userInfo,
-                                  DeleteRuntime,
-                                  cluster.samResource,
-                                  RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
-                                  throw403 = true)
+      _ <- checkClusterPermission(
+        userInfo,
+        RuntimeAction.DeleteRuntime,
+        Some(ProjectAction.DeleteRuntime),
+        cluster.samResource,
+        RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
+        throw403 = true
+      )
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
@@ -444,11 +456,14 @@ class LeonardoService(
       _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done getActiveClusterDetails")))
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo,
-                                  StopStartRuntime,
-                                  cluster.samResource,
-                                  RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
-                                  throw403 = true)
+      _ <- checkClusterPermission(
+        userInfo,
+        RuntimeAction.StopStartRuntime,
+        Some(ProjectAction.StopStartRuntime),
+        cluster.samResource,
+        RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
+        throw403 = true
+      )
       _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done check sam permission")))
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
@@ -479,11 +494,14 @@ class LeonardoService(
       _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done getActiveClusterDetails")))
 
       //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo,
-                                  StopStartRuntime,
-                                  cluster.samResource,
-                                  RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
-                                  throw403 = true)
+      _ <- checkClusterPermission(
+        userInfo,
+        RuntimeAction.StopStartRuntime,
+        Some(ProjectAction.StopStartRuntime),
+        cluster.samResource,
+        RuntimeProjectAndName(cluster.googleProject, cluster.runtimeName),
+        throw403 = true
+      )
       _ <- ctx.span.traverse(s => IO(s.addAnnotation("Check stopStartCluster permission")))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       _ <- if (runtimeConfig.cloudService == CloudService.Dataproc) IO.unit
@@ -509,7 +527,7 @@ class LeonardoService(
       paramMap <- IO.fromEither(processListParameters(params))
       clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProjectOpt).transaction
       samVisibleClusters <- authProvider
-        .filterUserVisibleRuntimes(userInfo, clusters.map(c => (c.googleProject, c.samResource)))
+        .filterUserVisibleWithProjectFallback(clusters.map(c => (c.googleProject, c.samResource)), userInfo)
     } yield {
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821

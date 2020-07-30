@@ -8,39 +8,30 @@ import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.effect.Async
-import cats.mtl.ApplicativeAsk
-import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  nodepoolQuery,
-  ClusterDoesNotExist,
-  ClusterExists,
-  DbReference,
-  KubernetesServiceDbQueries,
-  SaveApp,
-  SaveKubernetesCluster
-}
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
+import io.chrisdavenport.log4cats.StructuredLogger
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   GalaxyAppConfig,
   KubernetesClusterConfig,
   NodepoolConfig,
   PersistentDiskConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import LeonardoService.includeDeletedKey
-import io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.KubernetesName
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.includeDeletedKey
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.concurrent.ExecutionContext
 
@@ -66,8 +57,9 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-      //TODO check SAM permissions
-      hasPermission <- F.pure(true)
+      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
+                                                  ProjectAction.CreateApp,
+                                                  userInfo)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
@@ -75,9 +67,14 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         F.raiseError[Unit](AppAlreadyExistsException(googleProject, appName, c.app.status, ctx.traceId))
       )
 
-      samResourceId <- F.delay(AppSamResource(UUID.randomUUID().toString))
-//   TODO: notify SAM
-//      _ <- authProvider.notifyKubernetesClusterCreated(samResourceId)
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
+      _ <- authProvider
+        .notifyResourceCreated(samResourceId, userInfo.userEmail, googleProject)
+        .handleErrorWith { t =>
+          log.error(t)(
+            s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
+          ) >> F.raiseError(t)
+        }
 
       saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetForApp(saveCluster).transaction
@@ -137,8 +134,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
       app <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
 
-      //TODO ask SAM
-      hasPermission <- F.pure(true)
+      hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
     } yield GetAppResponse.fromDbResult(app)
 
@@ -146,12 +142,12 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
     userInfo: UserInfo,
     googleProject: Option[GoogleProject],
     params: Map[String, String]
-  ): F[Vector[ListAppResponse]] =
+  )(implicit as: ApplicativeAsk[F, AppContext]): F[Vector[ListAppResponse]] =
     for {
       params <- F.fromEither(LeonardoService.processListParameters(params))
       allClusters <- KubernetesServiceDbQueries.listFullApps(googleProject, params._1, params._2).transaction
-      //TODO: make SAM call
-      samVisibleApps <- F.pure(List[(GoogleProject, AppSamResource)]())
+      samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
+      samVisibleApps <- authProvider.filterUserVisible(samResources, userInfo)
     } yield {
       //we construct this list of clusters by first filtering apps the user doesn't have permissions to see
       //then we build back up by filtering nodepools without apps and clusters without nodepools
@@ -164,7 +160,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
                   // Making the assumption that users will always be able to access apps that they create
                   // Fix for https://github.com/DataBiosphere/leonardo/issues/821
                   samVisibleApps
-                    .contains((c.googleProject, a.samResourceId)) || a.auditInfo.creator == userInfo.userEmail
+                    .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
                 })
               }
               .filterNot(_.apps.isEmpty)
@@ -183,10 +179,16 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       appResult <- F.fromOption(appOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
 
-      //TODO implement SAM check
-      hasPermission <- F.pure(true)
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, params.userInfo)
 
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(params.userInfo.userEmail))
+      // throw 404 if no GetAppStatus permission
+      hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+      _ <- if (hasReadPermission) F.unit
+      else F.raiseError[Unit](AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+
+      // throw 403 if no DeleteApp permission
+      hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(params.userInfo.userEmail))
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <- if (canDelete) F.unit
@@ -275,7 +277,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
   private[service] def getSavableApp(googleProject: GoogleProject,
                                      appName: AppName,
                                      userInfo: UserInfo,
-                                     samResourceId: AppSamResource,
+                                     samResourceId: AppSamResourceId,
                                      req: CreateAppRequest,
                                      diskOpt: Option[PersistentDisk],
                                      nodepoolId: NodepoolLeoId,

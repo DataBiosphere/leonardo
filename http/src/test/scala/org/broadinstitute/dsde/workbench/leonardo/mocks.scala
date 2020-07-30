@@ -6,10 +6,10 @@ import com.google.auth.Credentials
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.BucketSourceOption
 import com.google.pubsub.v1.PubsubMessage
-import fs2.Pipe
-import fs2.Stream
-import io.circe.Encoder
+import fs2.{Pipe, Stream}
+import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.RetryConfig
+import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
   GcsBlobName,
@@ -17,18 +17,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   GooglePublisher,
   GoogleSubscriber
 }
-import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
-  LeoAuthAction,
   LeoAuthProvider,
-  PersistentDiskAction,
-  ProjectAction,
-  RuntimeAction,
+  SamResource,
+  SamResourceAction,
   ServiceAccountProvider
 }
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 object FakeGoogleStorageService extends BaseFakeGoogleStorage {
   override def getObjectMetadata(bucketName: GcsBucketName,
@@ -73,48 +69,51 @@ object NoDeleteGoogleStorage extends BaseFakeGoogleStorage {
 
 object MockAuthProvider extends LeoAuthProvider[IO] {
   override def serviceAccountProvider: ServiceAccountProvider[IO] = ???
-  override def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+
+  override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
   ): IO[Boolean] = ???
-  override def hasRuntimePermission(
-    samResource: RuntimeSamResource,
+
+  override def hasPermissionWithProjectFallback[R, A](
+    samResource: R,
+    action: A,
+    projectAction: ProjectAction,
     userInfo: UserInfo,
-    action: RuntimeAction,
     googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-  override def hasPersistentDiskPermission(
-    samResource: PersistentDiskSamResource,
-    userInfo: UserInfo,
-    action: PersistentDiskAction,
-    googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
-  override def filterUserVisibleRuntimes(userInfo: UserInfo, runtimes: List[(GoogleProject, RuntimeSamResource)])(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[(GoogleProject, RuntimeSamResource)]] = ???
-  override def filterUserVisiblePersistentDisks(
-    userInfo: UserInfo,
-    disks: List[(GoogleProject, PersistentDiskSamResource)]
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, PersistentDiskSamResource)]] = ???
-  override def notifyResourceCreated(samResource: SamResource,
-                                     creatorEmail: WorkbenchEmail,
-                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  )(implicit sr: SamResourceAction[R, A], ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
+
+  override def getActions[R, A](samResource: R, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[sr.ActionCategory]] = ???
+
+  override def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
+    implicit sr: SamResourceAction[R, A],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[(List[sr.ActionCategory], List[ProjectAction])] = ???
+
+  override def filterUserVisible[R](
+    resources: List[R],
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[IO, TraceId]): IO[List[R]] = ???
+
+  override def filterUserVisibleWithProjectFallback[R](
+    resources: List[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, R)]] =
     ???
-  override def notifyResourceDeleted(samResource: SamResource,
-                                     userEmail: WorkbenchEmail,
-                                     creatorEmail: WorkbenchEmail,
-                                     googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-    IO.unit
 
-  override def getRuntimeActionsWithProjectFallback(googleProject: GoogleProject,
-                                                    samResource: RuntimeSamResource,
-                                                    userInfo: UserInfo)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[LeoAuthAction]] = ???
+  override def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] = IO.unit
 
-  def getRuntimeActions(samResource: RuntimeSamResource, userInfo: UserInfo)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
-  ): IO[List[RuntimeAction]] = ???
-
+  override def notifyResourceDeleted[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit sr: SamResource[R],
+    ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Unit] = IO.unit
 }
 
 object FakeGooglePublisher extends GooglePublisher[IO] {

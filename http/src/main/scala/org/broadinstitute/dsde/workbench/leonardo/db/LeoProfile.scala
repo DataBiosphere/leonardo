@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{AppSamResource, PersistentDiskSamResource}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
@@ -100,8 +99,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[ZoneName, String](_.value, ZoneName.apply)
     implicit val diskNameMappedColumnType: BaseColumnType[DiskName] =
       MappedColumnType.base[DiskName, String](_.value, DiskName.apply)
-    implicit val diskSamResourceMappedColumnType: BaseColumnType[PersistentDiskSamResource] =
-      MappedColumnType.base[PersistentDiskSamResource, String](_.resourceId, PersistentDiskSamResource.apply)
+    implicit val diskSamResourceMappedColumnType: BaseColumnType[PersistentDiskSamResourceId] =
+      MappedColumnType.base[PersistentDiskSamResourceId, String](_.resourceId, PersistentDiskSamResourceId.apply)
     implicit val diskStatusMappedColumnType: BaseColumnType[DiskStatus] =
       MappedColumnType.base[DiskStatus, String](_.entryName, DiskStatus.withName)
     implicit val diskTypeMappedColumnType: BaseColumnType[DiskType] =
@@ -168,8 +167,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[AppId, Long](_.id, AppId.apply)
     implicit val appNameColumnType: BaseColumnType[AppName] =
       MappedColumnType.base[AppName, String](_.value, AppName.apply)
-    implicit val appSamResourceIdColumnType: BaseColumnType[AppSamResource] =
-      MappedColumnType.base[AppSamResource, String](_.resourceId, AppSamResource.apply)
+    implicit val appSamResourceIdColumnType: BaseColumnType[AppSamResourceId] =
+      MappedColumnType.base[AppSamResourceId, String](_.resourceId, AppSamResourceId.apply)
     implicit val appTypeColumnType: BaseColumnType[AppType] =
       MappedColumnType.base[AppType, String](
         _.toString,

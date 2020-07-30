@@ -4,7 +4,6 @@ package db
 import cats.data.Chain
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -85,7 +84,7 @@ object LeonardoServiceDbQueries {
           }
           ListRuntimeResponse(
             clusterRec.id,
-            RuntimeSamResource(clusterRec.internalId),
+            RuntimeSamResourceId(clusterRec.internalId),
             clusterRec.clusterName,
             clusterRec.googleProject,
             clusterRec.serviceAccountInfo,

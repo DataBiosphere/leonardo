@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
@@ -38,7 +38,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   asyncTasks: InspectableQueue[F, Task[F]],
   googleDiskService: GoogleDiskService[F],
-  computePollOperation: ComputePollOperation[F]
+  computePollOperation: ComputePollOperation[F],
+  authProvider: LeoAuthProvider[F]
 )(implicit executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
   logger: StructuredLogger[F],
@@ -218,18 +219,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                   disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
 
                   deleteDiskOp <- googleDiskService.deleteDisk(runtime.googleProject, disk.zone, disk.name)
+                  whenDone = persistentDiskQuery.delete(id, now).transaction.void >> authProvider.notifyResourceDeleted(
+                    disk.samResource,
+                    disk.creator,
+                    disk.googleProject
+                  )
+                  whenTimeout = F.raiseError[Unit](
+                    new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
+                  )
+                  whenInterrupted = F.unit
                   _ <- computePollOperation.pollZoneOperation(runtime.googleProject,
                                                               disk.zone,
                                                               OperationName(deleteDiskOp.getName),
                                                               2 seconds,
                                                               10,
-                                                              None)(
-                    persistentDiskQuery.delete(id, now).transaction.void,
-                    F.raiseError(
-                      new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
-                    ),
-                    F.unit
-                  )
+                                                              None)(whenDone, whenTimeout, whenInterrupted)
                 } yield ()
 
                 deleteDisk.handleErrorWith(e =>
@@ -467,6 +471,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      now <- nowInstant
       diskOpt <- persistentDiskQuery.getById(msg.diskId).transaction
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId, msg))
@@ -477,6 +482,15 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       else F.unit
       operation <- googleDiskService.deleteDisk(disk.googleProject, disk.zone, disk.name)
+      whenDone = persistentDiskQuery.delete(msg.diskId, now).transaction[F].void >> authProvider.notifyResourceDeleted(
+        disk.samResource,
+        disk.auditInfo.creator,
+        disk.googleProject
+      )
+      whenTimeout = F.raiseError[Unit](
+        new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
+      )
+      whenInterrupted = F.unit
       task = computePollOperation
         .pollZoneOperation(
           disk.googleProject,
@@ -485,13 +499,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           config.persistentDiskMonitorConfig.create.interval,
           config.persistentDiskMonitorConfig.create.maxAttempts,
           None
-        )(
-          nowInstant.flatMap(now => persistentDiskQuery.delete(msg.diskId, now).transaction[F]).void,
-          F.raiseError(
-            new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
-          ), //Should save disk creation error if we have error column in DB
-          F.unit
-        )
+        )(whenDone, whenTimeout, whenInterrupted)
 
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId,

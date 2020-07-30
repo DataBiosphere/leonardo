@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   NetworkName,
   SubnetworkName
 }
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -269,7 +268,7 @@ final case class App(id: AppId,
                      appType: AppType,
                      appName: AppName,
                      status: AppStatus,
-                     samResourceId: AppSamResource,
+                     samResourceId: AppSamResourceId,
                      auditInfo: AuditInfo,
                      labels: LabelMap,
                      //this is populated async to app creation

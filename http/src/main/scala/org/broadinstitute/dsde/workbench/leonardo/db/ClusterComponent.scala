@@ -19,7 +19,6 @@ import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor
@@ -374,13 +373,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def getActiveClusterInternalIdByName(project: GoogleProject, name: RuntimeName)(
     implicit ec: ExecutionContext
-  ): DBIO[Option[RuntimeSamResource]] =
+  ): DBIO[Option[RuntimeSamResourceId]] =
     clusterQuery
       .filter(_.googleProject === project)
       .filter(_.clusterName === name)
       .filter(_.destroyedDate === dummyDate)
       .result
-      .map(recs => recs.headOption.map(clusterRec => RuntimeSamResource(clusterRec.internalId)))
+      .map(recs => recs.headOption.map(clusterRec => RuntimeSamResourceId(clusterRec.internalId)))
 
   private[leonardo] def getIdByUniqueKey(cluster: Runtime)(implicit ec: ExecutionContext): DBIO[Option[Long]] =
     getIdByUniqueKey(cluster.googleProject, cluster.runtimeName, cluster.auditInfo.destroyedDate)
@@ -710,7 +709,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
     Runtime(
       clusterRecord.id,
-      RuntimeSamResource(clusterRecord.internalId),
+      RuntimeSamResourceId(clusterRecord.internalId),
       name,
       project,
       clusterRecord.serviceAccountInfo,

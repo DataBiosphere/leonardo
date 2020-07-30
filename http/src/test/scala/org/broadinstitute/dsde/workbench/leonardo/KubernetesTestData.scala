@@ -5,7 +5,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -14,7 +13,7 @@ object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val appSamId = AppSamResource("067e2867-5d4a-47f3-a53c-fd711529b289")
+  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
   val location = Location("us-central1-a")
 
   val externalIp = IP("0.0.0.0")

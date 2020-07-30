@@ -24,8 +24,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   OperationName
 }
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -36,21 +36,20 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.ProjectAction._
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeAction._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessage,
   RuntimeConfigInCreateRuntimeMessage,
   RuntimePatchDetails
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            diskConfig: PersistentDiskConfig,
@@ -76,7 +75,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
-      hasPermission <- authProvider.hasProjectPermission(userInfo, CreateRuntime, googleProject)
+      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
+                                                  ProjectAction.CreateRuntime,
+                                                  userInfo)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
@@ -93,7 +94,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, status))
         case None =>
           for {
-            samResource <- F.delay(RuntimeSamResource(UUID.randomUUID().toString))
+            samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
             petToken <- serviceAccountProvider.getAccessToken(userInfo.userEmail, googleProject).recoverWith {
               case e =>
                 log.warn(e)(
@@ -201,7 +202,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(googleProject, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasRuntimePermission(resp.samResource, userInfo, GetRuntimeStatus, googleProject)
+      hasPermission <- authProvider.hasPermissionWithProjectFallback(resp.samResource,
+                                                                     RuntimeAction.GetRuntimeStatus,
+                                                                     ProjectAction.GetRuntimeStatus,
+                                                                     userInfo,
+                                                                     googleProject)
       _ <- if (hasPermission) F.unit
       else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName, "permission denied"))
     } yield resp
@@ -215,7 +220,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       samVisibleRuntimes <- authProvider
-        .filterUserVisibleRuntimes(userInfo, runtimes.map(r => (r.googleProject, r.samResource)))
+        .filterUserVisibleWithProjectFallback(
+          runtimes.map(r => (r.googleProject, r.samResource)),
+          userInfo
+        )
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create
@@ -241,10 +249,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      listOfPermissions <- authProvider.getRuntimeActionsWithProjectFallback(req.googleProject,
-                                                                             runtime.samResource,
-                                                                             req.userInfo)
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource,
+                                                                      runtime.googleProject,
+                                                                      req.userInfo)
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
@@ -255,8 +264,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
       // throw 403 if no DeleteCluster permission
-
-      hasDeletePermission = listOfPermissions.toSet.contains(RuntimeAction.DeleteRuntime)
+      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
+        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
 
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(req.userInfo.userEmail))
       // throw 409 if the cluster is not deletable
@@ -306,7 +315,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyResourceDeleted(
           runtime.samResource,
           runtime.auditInfo.creator,
-          runtime.auditInfo.creator,
           runtime.googleProject
         )
       }
@@ -335,9 +343,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
@@ -350,7 +359,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
       // throw 403 if no StopStartCluster permission
-      hasStopPermission = listOfPermissions.toSet.contains(RuntimeAction.StopStartRuntime)
+      hasStopPermission = listOfPermissions._1.toSet.contains(RuntimeAction.StopStartRuntime) ||
+        listOfPermissions._2.contains(ProjectAction.StopStartRuntime)
 
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the cluster is not stoppable
@@ -377,9 +387,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- if (hasStatusPermission) F.unit
       else
@@ -389,7 +400,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
 
-      hasStartPermission = listOfPermissions.contains(RuntimeAction.StopStartRuntime)
+      hasStartPermission = listOfPermissions._1.toSet.contains(RuntimeAction.StopStartRuntime) ||
+        listOfPermissions._2.toSet.contains(ProjectAction.StopStartRuntime)
+
       // throw 403 if no StopStartCluster permission
       _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
@@ -420,9 +433,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getRuntimeActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
 
-      hasStatusPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
 
       _ <- if (hasStatusPermission) F.unit
       else
@@ -433,7 +447,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
 
       // throw 403 if no ModifyCluster permission
-      hasModifyPermission = listOfPermissions.contains(RuntimeAction.ModifyRuntime)
+      hasModifyPermission = listOfPermissions._1.toSet.contains(RuntimeAction.ModifyRuntime)
 
       _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
       // throw 409 if the cluster is not updatable
@@ -657,7 +671,7 @@ object RuntimeServiceInterp {
                                serviceAccountInfo: WorkbenchEmail,
                                googleProject: GoogleProject,
                                runtimeName: RuntimeName,
-                               clusterInternalId: RuntimeSamResource,
+                               clusterInternalId: RuntimeSamResourceId,
                                clusterImages: Set[RuntimeImage],
                                config: RuntimeServiceConfig,
                                req: CreateRuntime2Request,
@@ -780,19 +794,20 @@ object RuntimeServiceInterp {
             _ <- if (isAttached)
               F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
             else F.unit
-            hasPermission <- authProvider.hasPersistentDiskPermission(pd.samResource,
-                                                                      userInfo,
-                                                                      PersistentDiskAction.AttachPersistentDisk,
-                                                                      googleProject)
+            hasPermission <- authProvider.hasPermission(pd.samResource,
+                                                        PersistentDiskAction.AttachPersistentDisk,
+                                                        userInfo)
 
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
           } yield PersistentDiskRequestResult(pd, false)
 
         case None =>
           for {
-            hasPermission <- authProvider.hasProjectPermission(userInfo, CreatePersistentDisk, googleProject)
+            hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
+                                                        ProjectAction.CreatePersistentDisk,
+                                                        userInfo)
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
-            samResource <- F.delay(PersistentDiskSamResource(UUID.randomUUID().toString))
+            samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(userInfo,
                                               serviceAccount,

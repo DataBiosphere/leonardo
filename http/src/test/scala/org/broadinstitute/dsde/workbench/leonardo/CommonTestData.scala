@@ -23,7 +23,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{PersistentDiskSamResource, RuntimeSamResource}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -45,10 +44,11 @@ object CommonTestData {
   val name1 = RuntimeName("clustername1")
   val name2 = RuntimeName("clustername2")
   val name3 = RuntimeName("clustername3")
-  val runtimeSamResource = RuntimeSamResource("067e2867-5d4a-47f3-a53c-fd711529b287")
+  val runtimeSamResource = RuntimeSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b287")
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
+  val userEmail2 = WorkbenchEmail("user2@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
@@ -84,7 +84,7 @@ object CommonTestData {
   val zone = ZoneName("us-central1-a")
   val diskName = DiskName("disk-name")
   val googleId = GoogleId("google-id")
-  val diskSamResource = PersistentDiskSamResource("disk-resource-id")
+  val diskSamResource = PersistentDiskSamResourceId("disk-resource-id")
   val diskSize = DiskSize(500)
   val diskType = DiskType.Standard
   val blockSize = BlockSize(4096)

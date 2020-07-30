@@ -6,12 +6,6 @@ import java.time.Instant
 import cats.implicits._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResource.{
-  AppSamResource,
-  PersistentDiskSamResource,
-  ProjectSamResource,
-  RuntimeSamResource
-}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
@@ -59,10 +53,11 @@ object JsonCodec {
   implicit val machineTypeEncoder: Encoder[MachineTypeName] = Encoder.encodeString.contramap(_.value)
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
+  implicit val runtimeSamResourceIdEncoder: Encoder[RuntimeSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
   implicit val diskNameEncoder: Encoder[DiskName] = Encoder.encodeString.contramap(_.value)
-  implicit val diskSamResourceIdEncoder: Encoder[PersistentDiskSamResource] =
+  implicit val diskSamResourceIdEncoder: Encoder[PersistentDiskSamResourceId] =
     Encoder.encodeString.contramap(_.resourceId)
   implicit val diskSizeEncoder: Encoder[DiskSize] = Encoder.encodeInt.contramap(_.gb)
   implicit val blockSizeEncoder: Encoder[BlockSize] = Encoder.encodeInt.contramap(_.bytes)
@@ -179,7 +174,7 @@ object JsonCodec {
       case _                                   => status.toString
     }
   )
-  implicit val kubeSamIdEncoder: Encoder[AppSamResource] = Encoder.encodeString.contramap(_.resourceId)
+  implicit val kubeSamIdEncoder: Encoder[AppSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val namespaceEncoder: Encoder[NamespaceName] = Encoder.encodeString.contramap(_.value)
   implicit val appNameEncoder: Encoder[AppName] = Encoder.encodeString.contramap(_.value)
   implicit val appStatusEncoder: Encoder[AppStatus] = Encoder.encodeString.contramap(_.toString)
@@ -336,12 +331,12 @@ object JsonCodec {
     "labels"
   )(x => (x.name, x.size, x.diskType, x.labels))
 
-  implicit val runtimeSamResourceDecoder: Decoder[RuntimeSamResource] =
-    Decoder.decodeString.map(RuntimeSamResource)
-  implicit val persistentDiskSamResourceDecoder: Decoder[PersistentDiskSamResource] =
-    Decoder.decodeString.map(PersistentDiskSamResource)
-  implicit val projectSamResourceDecoder: Decoder[ProjectSamResource] =
-    Decoder.decodeString.map(x => ProjectSamResource(GoogleProject(x)))
+  implicit val runtimeSamResourceDecoder: Decoder[RuntimeSamResourceId] =
+    Decoder.decodeString.map(RuntimeSamResourceId)
+  implicit val persistentDiskSamResourceDecoder: Decoder[PersistentDiskSamResourceId] =
+    Decoder.decodeString.map(PersistentDiskSamResourceId)
+  implicit val projectSamResourceDecoder: Decoder[ProjectSamResourceId] =
+    Decoder.decodeString.map(x => ProjectSamResourceId(GoogleProject(x)))
 
   implicit val errorSourceDecoder: Decoder[ErrorSource] =
     Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
@@ -368,7 +363,7 @@ object JsonCodec {
   implicit val kubeClusterStatusDecoder: Decoder[KubernetesClusterStatus] = Decoder.decodeString.emap(s =>
     KubernetesClusterStatus.stringToObject.get(s).toRight(s"Invalid cluster status ${s}")
   )
-  implicit val appSamIdDecoder: Decoder[AppSamResource] = Decoder.decodeString.map(AppSamResource)
+  implicit val appSamIdDecoder: Decoder[AppSamResourceId] = Decoder.decodeString.map(AppSamResourceId)
   implicit val namespaceNameDecoder: Decoder[NamespaceName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NamespaceName).leftMap(_.getMessage))
   implicit val namespaceIdDecoder: Decoder[NamespaceId] = Decoder.decodeLong.map(NamespaceId)

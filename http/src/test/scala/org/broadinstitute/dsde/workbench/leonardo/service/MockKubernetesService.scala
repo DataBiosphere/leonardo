@@ -24,9 +24,9 @@ class MockKubernetesServiceInterp extends KubernetesService[IO] {
   ): IO[GetAppResponse] =
     IO.pure(getAppResponse)
 
-  override def listApp(userInfo: UserInfo,
-                       googleProject: Option[GoogleProject],
-                       params: Map[String, String]): IO[Vector[ListAppResponse]] =
+  override def listApp(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+    implicit as: ApplicativeAsk[IO, AppContext]
+  ): IO[Vector[ListAppResponse]] =
     IO.pure(listAppResponse)
 
   override def deleteApp(params: DeleteAppParams)(
