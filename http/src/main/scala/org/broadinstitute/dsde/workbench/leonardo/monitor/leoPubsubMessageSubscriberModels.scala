@@ -122,6 +122,11 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object DeleteApp extends LeoPubsubMessageType {
     val asString = "deleteApp"
   }
+
+  final case object BatchNodepoolCreate extends LeoPubsubMessageType {
+    val asString = "batchNodepoolCreate"
+  }
+
 }
 
 sealed trait LeoPubsubMessage {
@@ -220,6 +225,10 @@ object LeoPubsubMessage {
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
+  }
+
+  final case class BatchNodepoolCreateMessage(createCluster: CreateCluster, nodepools: List[NodepoolLeoId], project: GoogleProject, traceId: Option[TraceId]) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.BatchNodepoolCreate
   }
 
   final case class DeleteRuntimeMessage(runtimeId: Long,

@@ -236,6 +236,8 @@ object GetRuntimeResponse {
   )
 }
 
+final case class BatchNodepoolCreateRequest(numNodes: NumNodepools, kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig])
+
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
                                   diskConfig: Option[PersistentDiskRequest],

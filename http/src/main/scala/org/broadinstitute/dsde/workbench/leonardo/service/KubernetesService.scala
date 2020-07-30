@@ -2,16 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  CreateAppRequest,
-  DeleteAppParams,
-  GetAppResponse,
-  ListAppResponse
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{BatchNodepoolCreateRequest, CreateAppRequest, DeleteAppParams, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait KubernetesService[F[_]] {
+  def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest): F[Unit]
 
   def createApp(
     userInfo: UserInfo,

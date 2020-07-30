@@ -97,7 +97,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       else F.unit
 
       clusterId = saveClusterResult.minimalCluster.id
-      saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req, ctx.now))
+      saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
       nodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
 
       runtimeServiceAccountOpt <- serviceAccountProvider
@@ -271,11 +271,11 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
                                        userInfo: UserInfo,
-                                       req: CreateAppRequest,
+                                       runtimeConfig: Option[KubernetesRuntimeConfig],
                                        now: Instant): Either[Throwable, Nodepool] = {
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
 
-    val machineConfig = req.kubernetesRuntimeConfig.getOrElse(
+    val machineConfig = runtimeConfig.getOrElse(
       KubernetesRuntimeConfig(
         leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
         leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
@@ -357,6 +357,21 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
     )
   }
 
+  override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest): F[Unit] =
+    for {
+    //TODO: rename nodepoolId in createcluster to defaultNodepoolId
+    //TODO: refactor createApp to check if there are any unclaimed nodepools before queue createAppMessage
+        //transactionally claim it
+    //TODO: refactor pubsub handleCreateAppMessage to check if the nodepool is unclaimed before create
+    // check sam permission
+    // check if the cluster exists (we reject if it does)
+    // create default nodepool with size dependant on number of nodes requested
+    // check max number of nodes
+    // create list of UNCLAIMED nodepools
+    // save all with PreCreating
+    // publish pubsub message
+    // update all to provisioning
+    } yield ()
 }
 
 object LeoKubernetesServiceInterp {

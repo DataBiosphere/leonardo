@@ -75,6 +75,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         handleCreateAppMessage(msg)
       case msg: DeleteAppMessage =>
         handleDeleteAppMessage(msg)
+      case msg: BatchNodepoolCreateMessage =>
+        handleBatchNodepoolCreateMessage(msg)
     }
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
@@ -653,6 +655,17 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
       )
+    } yield ()
+
+  def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage): F[Unit] =
+    for {
+    _ <- F.unit
+      //transform list of nodepool id to list of google nodepool
+      //get cluster with list of nodepools
+      //create cluster
+    //poll create cluster
+      //update all nodepool status to unclaimed
+    //TODO: serialize create app if an operation fails
     } yield ()
 
   private def handleKubernetesError(e: Throwable): F[Unit] =
