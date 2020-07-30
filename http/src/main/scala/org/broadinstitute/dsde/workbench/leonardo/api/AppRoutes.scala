@@ -201,6 +201,15 @@ object AppRoutes {
   implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
   implicit val getAppDecoder: Decoder[GetAppResponse] =
     Decoder.forProduct5("kubernetesRuntimeConfig", "errors", "status", "proxyUrls", "diskName")(GetAppResponse.apply)
+
+  implicit val numNodepoolsDecoder: Decoder[NumNodepools] =  Decoder.decodeInt.emap(n => n match {
+    case n if n < 1 => Left("Minimum number of nodepools is 1")
+    case n if n > 200 => Left("Maximum number of nodepools is 200")
+    case _ => Right(NumNodepools.apply(n))
+  })
+
+  implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] = Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
+
   implicit val listAppDecoder: Decoder[ListAppResponse] = Decoder.forProduct7("googleProject",
                                                                               "kubernetesRuntimeConfig",
                                                                               "errors",

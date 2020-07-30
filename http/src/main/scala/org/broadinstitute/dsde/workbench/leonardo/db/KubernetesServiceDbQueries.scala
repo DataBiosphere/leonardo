@@ -134,6 +134,13 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
 
+  def getAllNodepoolsForCluster(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[List[Nodepool]] =
+    for {
+      nodepools <- nodepoolQuery
+        .findActiveByClusterIdQuery(clusterId)
+        .result
+    } yield nodepools.map(rec => unmarshalNodepool(rec, List.empty)).toList
+
   def markPendingCreating(nodepoolId: NodepoolLeoId, appId: AppId, createCluster: Option[CreateCluster])(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
@@ -146,6 +153,17 @@ object KubernetesServiceDbQueries {
       )
       _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Provisioning)
       _ <- appQuery.updateStatus(appId, AppStatus.Provisioning)
+    } yield ()
+
+  def markPendingCreating(clusterId: KubernetesClusterLeoId, nodepoolIds: List[NodepoolLeoId])(
+    implicit ec: ExecutionContext
+  ): DBIO[Unit] =
+    for {
+      _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Provisioning)
+      _ <- nodepoolQuery
+          .filter(_.id.inSet(nodepoolIds.toSet))
+          .map(_.status)
+          .update(NodepoolStatus.Provisioning)
     } yield ()
 
   def markPreDeleting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =

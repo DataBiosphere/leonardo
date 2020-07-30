@@ -524,11 +524,14 @@ object Config {
                             config.as[List[CidrIP]]("authorizedNetworks"))
   }
 
+  private implicit val maxNodepoolsPerDefaultNodeReader: ValueReader[MaxNodepoolsPerDefaultNode] = intValueReader.map(MaxNodepoolsPerDefaultNode)
+
   implicit val defaultNodepoolConfigReader: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
     DefaultNodepoolConfig(
       config.as[MachineTypeName]("machineType"),
       config.as[NumNodes]("numNodes"),
-      config.as[Boolean]("autoscalingEnabled")
+      config.as[Boolean]("autoscalingEnabled"),
+      config.as[MaxNodepoolsPerDefaultNode]("maxNodepoolsPerDefaultNode")
     )
   }
 
