@@ -8,7 +8,8 @@
 // Constants
 String REGION = "us-central1"
 String ZONE = "${REGION}-a"
-String GCE_BASE_IMAGE = "projects/debian-cloud/global/images/debian-9-stretch-v20200210"
+// to update this, run `gcloud compute images list | grep debian`
+String GCE_BASE_IMAGE = "projects/debian-cloud/global/images/debian-9-stretch-v20200714"
 String GOOGLE_CREDENTIAL_FILE_NAME = "image-build-account.json"
 
 // Variables populated by the first stages
@@ -179,7 +180,7 @@ pipeline {
                         script: "$selectBuildableTerraDockerImagesQuery | select(.automated_flags.include_in_custom_dataproc == true) | .name'",
                         returnStdout: true
                     ).trim().split("\n")
-                    
+
                     def terraDockerGceImageArray = sh(
                         script: "$selectBuildableTerraDockerImagesQuery | select(.automated_flags.include_in_custom_gce == true) | .name'",
                         returnStdout: true
@@ -285,7 +286,7 @@ pipeline {
 
                         if (GENERATE_GCE_IMAGE == "true") {
                             println("Printing any changed versions in prepare_custom_leonardo_gce_image.sh:\n")
-                            sh """                  
+                            sh """
                                 git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
                             """
                         }
