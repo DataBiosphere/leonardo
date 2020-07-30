@@ -8,6 +8,7 @@
 // Constants
 String REGION = "us-central1"
 String ZONE = "${REGION}-a"
+// to update this, run `gcloud compute images list | grep debian`
 String GCE_BASE_IMAGE = "projects/debian-cloud/global/images/debian-9-stretch-v20200714"
 String GOOGLE_CREDENTIAL_FILE_NAME = "image-build-account.json"
 
