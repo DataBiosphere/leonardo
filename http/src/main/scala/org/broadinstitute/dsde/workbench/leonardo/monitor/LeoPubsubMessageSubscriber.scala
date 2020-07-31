@@ -430,26 +430,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      task <- createDisk(msg)
-      _ <- asyncTasks.enqueue1(
-        Task(
-          ctx.traceId,
-          task,
-          Some(
-            logError(s"${ctx.traceId.asString} | ${msg.googleProject.value}/${msg.diskId.value}", "creating disk")
-          ),
-          ctx.now
-        )
-      )
-    } yield ()
+    createDisk(msg, false)
 
   //this returns an F[F[Unit]. It kicks off the google operation, and then return an F containing the async polling task
-  private[monitor] def createDisk(msg: CreateDiskMessage)(
+  private[monitor] def createDisk(msg: CreateDiskMessage, sync: Boolean)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[F[Unit]] =
-    for {
+  ): F[Unit] = {
+    val create = for {
       ctx <- ev.ask
       operation <- googleDiskService
         .createDisk(
@@ -464,51 +451,52 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             .setPhysicalBlockSizeBytes(msg.blockSize.bytes.toString)
             .build()
         )
-        .onError {
-          case e =>
-            for {
-              ctx <- ev.ask
-              _ <- logger.error(e)(
-                s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}"
-              )
-              _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction[F]
-            } yield ()
-        }
       _ <- persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(operation.getTargetId), ctx.now).transaction[F]
-    } yield computePollOperation
-      .pollZoneOperation(
-        msg.googleProject,
-        msg.zone,
-        OperationName(operation.getName),
-        config.persistentDiskMonitorConfig.create.interval,
-        config.persistentDiskMonitorConfig.create.maxAttempts,
-        None
-      )(
-        persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void,
-        F.raiseError(
-          new TimeoutException(s"Fail to create disk ${msg.name.value} in a timely manner")
-        ), //Should save disk creation error if we have error column in DB
-        F.unit
-      )
+      task = computePollOperation
+        .pollZoneOperation(
+          msg.googleProject,
+          msg.zone,
+          OperationName(operation.getName),
+          config.persistentDiskMonitorConfig.create.interval,
+          config.persistentDiskMonitorConfig.create.maxAttempts,
+          None
+        )(
+          persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void,
+          F.raiseError(
+            new TimeoutException(s"Fail to create disk ${msg.name.value} in a timely manner")
+          ), //Should save disk creation error if we have error column in DB
+          F.unit
+        )
+      _ <- if (sync) task else {
+        asyncTasks.enqueue1(
+          Task(ctx.traceId,
+            task,
+            Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creatiing Disk")),
+            ctx.now)
+        )
+      }
+    } yield ()
+
+    create.onError {
+      case e =>
+        for {
+          ctx <- ev.ask
+          _ <- logger.error(e)(
+            s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}"
+          )
+          _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction[F]
+        } yield ()
+    }
+  }
 
   private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      task <- deleteDisk(msg.diskId)
-      _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId,
-             task,
-             Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Deleting Disk")),
-             ctx.now)
-      )
-    } yield ()
+     deleteDisk(msg.diskId, false)
 
-  //this returns an F[F[Unit]. It kicks off the google operation, and then return an F containing the async polling task
-  private[monitor] def deleteDisk(diskId: DiskId)(
+  private[monitor] def deleteDisk(diskId: DiskId, sync: Boolean)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[F[Unit]] =
+  ): F[Unit] =
     for {
       ctx <- ev.ask
       diskOpt <- persistentDiskQuery.getById(diskId).transaction
@@ -530,15 +518,24 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
       )
       whenInterrupted = F.unit
-    } yield computePollOperation
-      .pollZoneOperation(
-        disk.googleProject,
-        disk.zone,
-        OperationName(operation.getName),
-        config.persistentDiskMonitorConfig.create.interval,
-        config.persistentDiskMonitorConfig.create.maxAttempts,
-        None
-      )(whenDone, whenTimeout, whenInterrupted)
+      task = computePollOperation
+        .pollZoneOperation(
+          disk.googleProject,
+          disk.zone,
+          OperationName(operation.getName),
+          config.persistentDiskMonitorConfig.create.interval,
+          config.persistentDiskMonitorConfig.create.maxAttempts,
+          None
+        )(whenDone, whenTimeout, whenInterrupted)
+      _ <- if (sync) task else {
+        asyncTasks.enqueue1(
+          Task(ctx.traceId,
+            task,
+            Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
+            ctx.now)
+        )
+      }
+    } yield ()
 
   private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
@@ -669,10 +666,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   private def deleteDiskForApp(diskId: DiskId)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
-    for {
-      asyncTask <- deleteDisk(diskId)
-      _ <- asyncTask
-    } yield ()
+      deleteDisk(diskId, true)
 
   private def createDiskForApp(msg: CreateAppMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
@@ -690,8 +684,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               s"create disk was true for create app message, but app ${getApp.app.id} does not have a disk id saved"
             )
           )
-          asyncTask <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)))
-          _ <- asyncTask
+          _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), true)
         } yield ()
       case false => F.unit
     }
