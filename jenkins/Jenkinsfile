@@ -259,12 +259,15 @@ pipeline {
                                 version = versionMap[image]
 
                                 if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image)) {
-                                    println("Using version $version for $image in this build of custom Dataproc images")
-                                    sh """
-                                       if [ $image != 'terra-jupyter-aou' ]; then
+                                    if (image != 'terra-jupyter-aou') {
+                                        println("Using version $version for $image in this build of custom Dataproc images")
+                                        sh """
                                           sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                                       fi
-                                    """
+                                          """
+                                    } else {
+                                        println("not updating version for image $image")
+                                    }
+
                                 }
 
                                 if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
