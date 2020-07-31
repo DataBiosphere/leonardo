@@ -314,7 +314,7 @@ pipeline {
 
                         println("Manually replacing line with $image with $image:$version...")
 
-                        if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image)) {
+                        if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image) && image != 'terra-jupyter-aou') {
                             println("Using version $version for $image in this build of custom Dataproc images")
                             sh """
                                 sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
