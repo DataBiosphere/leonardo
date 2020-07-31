@@ -29,13 +29,15 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Pro
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{ListRuntimeResponse2}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  DiskUpdate,
   LeoPubsubMessage,
   RuntimeConfigInCreateRuntimeMessage,
   RuntimePatchDetails
@@ -425,15 +427,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      runtimeOpt <- clusterQuery.getActiveClusterRecordByName(googleProject, runtimeName).transaction
       runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
+        F.raiseError[ClusterRecord](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
       )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(RuntimeSamResourceId(runtime.internalId),
+                                                                      googleProject,
+                                                                      userInfo)
 
       hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
         listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
@@ -464,7 +468,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       else Async[F].unit
       // Updating the runtime config will potentially generate a PubSub message
       _ <- req.updatedRuntimeConfig.traverse_(update =>
-        processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig, ctx.traceId)
+        processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig)
       )
     } yield ()
 
