@@ -18,8 +18,7 @@ abstract class ClusterFixtureSpec
     extends FixtureAnyFreeSpec
     with BeforeAndAfterAll
     with LeonardoTestUtils
-    with Retries
-    {
+    with Retries {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
