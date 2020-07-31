@@ -129,7 +129,7 @@ pipeline {
         booleanParam(name: "GENERATE_DATAPROC_IMAGE", defaultValue: true)
         booleanParam(name: "GENERATE_GCE_IMAGE", defaultValue: true)
         string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
-            description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters).")
+            description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters). This should be changed only for testing purposes, as this script relies on the name here matching the name in leo .conf files.")
         booleanParam(name: "USE_CUSTOM_IMAGE_IDENTIFIER", defaultValue: false)
         string(name: "CUSTOM_IMAGE_ID", defaultValue: "sampleUniqueID",
             description: "Specify along with USE_CUSTOM_IMAGE_IDENTIFIER to build the VM image with a specific name")
@@ -260,7 +260,7 @@ pipeline {
 
                                 if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image)) {
                                     if (image != 'terra-jupyter-aou') {
-                                        println("Using version $version for $image in this build of custom Dataproc images")
+                                        println("Using version $version for '$image' in this build of custom Dataproc images")
                                         sh """
                                           sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                           """
