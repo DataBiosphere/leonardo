@@ -176,7 +176,6 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
                 notebookPage areElementsPresent (syncIssueElements) shouldBe true
 
                 notebookPage executeJavaScript ("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
-                notebookPage executeJavaScript ("Jupyter.notebook.set_autosave_interval(0);") //removes Notebook changed modal
 
                 notebookPage clickOverrideNotebookChanged
 
