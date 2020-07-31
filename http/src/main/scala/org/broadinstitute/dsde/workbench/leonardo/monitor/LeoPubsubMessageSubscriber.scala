@@ -467,12 +467,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           ), //Should save disk creation error if we have error column in DB
           F.unit
         )
-      _ <- if (sync) task else {
+      _ <- if (sync) task
+      else {
         asyncTasks.enqueue1(
           Task(ctx.traceId,
-            task,
-            Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creatiing Disk")),
-            ctx.now)
+               task,
+               Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creatiing Disk")),
+               ctx.now)
         )
       }
     } yield ()
@@ -492,7 +493,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
-     deleteDisk(msg.diskId, false)
+    deleteDisk(msg.diskId, false)
 
   private[monitor] def deleteDisk(diskId: DiskId, sync: Boolean)(
     implicit ev: ApplicativeAsk[F, AppContext]
@@ -527,12 +528,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           config.persistentDiskMonitorConfig.create.maxAttempts,
           None
         )(whenDone, whenTimeout, whenInterrupted)
-      _ <- if (sync) task else {
+      _ <- if (sync) task
+      else {
         asyncTasks.enqueue1(
           Task(ctx.traceId,
-            task,
-            Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
-            ctx.now)
+               task,
+               Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
+               ctx.now)
         )
       }
     } yield ()
@@ -666,7 +668,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   private def deleteDiskForApp(diskId: DiskId)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
-      deleteDisk(diskId, true)
+    deleteDisk(diskId, true)
 
   private def createDiskForApp(msg: CreateAppMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
