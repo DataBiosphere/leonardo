@@ -101,7 +101,8 @@ class MockGoogleComputeService extends GoogleComputeService[IO] {
     zone: ZoneName,
     instanceName: InstanceName,
     autoDeleteDisks: Set[DiskName]
-  )(implicit ev: ApplicativeAsk[IO, TraceId], computePollOperation: ComputePollOperation[IO]): IO[Operation] = ???
+  )(implicit ev: ApplicativeAsk[IO, TraceId], computePollOperation: ComputePollOperation[IO]): IO[Operation] =
+    IO.pure(Operation.newBuilder().setId("op").setName("opName").setStatus("DONE").setTargetId("target").build())
 }
 
 object MockGoogleComputeService extends MockGoogleComputeService

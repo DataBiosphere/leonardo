@@ -207,46 +207,38 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting).compile.drain
       }
-      fa = if (msg.deleteDisk)
-        runtimeConfig match {
-          case rc: RuntimeConfig.GceWithPdConfig =>
-            for {
-              _ <- poll
-              now <- nowInstant
-              _ <- rc.persistentDiskId.traverse { id =>
-                val deleteDisk = for {
-                  diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
-                  disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
+      fa = msg.persistentDiskToDelete.fold(poll) { id =>
+        val deleteDisk = for {
+          _ <- poll
+          now <- nowInstant
+          diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
+          disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
 
-                  deleteDiskOp <- googleDiskService.deleteDisk(runtime.googleProject, disk.zone, disk.name)
-                  whenDone = persistentDiskQuery.delete(id, now).transaction.void >> authProvider.notifyResourceDeleted(
-                    disk.samResource,
-                    disk.creator,
-                    disk.googleProject
-                  )
-                  whenTimeout = F.raiseError[Unit](
-                    new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
-                  )
-                  whenInterrupted = F.unit
-                  _ <- computePollOperation.pollZoneOperation(runtime.googleProject,
-                                                              disk.zone,
-                                                              OperationName(deleteDiskOp.getName),
-                                                              2 seconds,
-                                                              10,
-                                                              None)(whenDone, whenTimeout, whenInterrupted)
-                } yield ()
+          deleteDiskOp <- googleDiskService.deleteDisk(runtime.googleProject, disk.zone, disk.name)
+          whenDone = persistentDiskQuery.delete(id, now).transaction.void >> authProvider.notifyResourceDeleted(
+            disk.samResource,
+            disk.creator,
+            disk.googleProject
+          )
+          whenTimeout = F.raiseError[Unit](
+            new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
+          )
+          whenInterrupted = F.unit
+          _ <- computePollOperation.pollZoneOperation(runtime.googleProject,
+                                                      disk.zone,
+                                                      OperationName(deleteDiskOp.getName),
+                                                      2 seconds,
+                                                      10,
+                                                      None)(whenDone, whenTimeout, whenInterrupted)
+        } yield ()
 
-                deleteDisk.handleErrorWith(e =>
-                  clusterErrorQuery
-                    .save(runtime.id, RuntimeError(e.getMessage, -1, now))
-                    .transaction
-                    .void
-                )
-              }
-            } yield ()
-          case _ => poll
-        }
-      else poll
+        deleteDisk.handleErrorWith(e =>
+          clusterErrorQuery
+            .save(runtime.id, RuntimeError(e.getMessage, -1, ctx.now))
+            .transaction
+            .void
+        )
+      }
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, fa, Some(logError(runtime.projectNameString, "deleting runtime")), ctx.now)
       )

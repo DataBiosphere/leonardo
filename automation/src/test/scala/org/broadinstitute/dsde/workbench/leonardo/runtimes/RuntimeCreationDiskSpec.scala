@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
 import java.util.concurrent.TimeoutException
+
 import cats.implicits._
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
@@ -14,8 +15,10 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+
 import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+import org.http4s.Status
 
 @DoNotDiscover
 class RuntimeCreationDiskSpec
@@ -96,7 +99,7 @@ class RuntimeCreationDiskSpec
       implicit val client = dep.httpClient
       for {
         _ <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        _ <- LeonardoApiClient.deleteRuntime(googleProject, runtimeName)
+        _ <- LeonardoApiClient.deleteRuntime(googleProject, runtimeName, deleteDisk = false)
         getRuntimeResponse <- getRuntime(googleProject, runtimeName)
         // Validate disk is detached
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
@@ -169,7 +172,7 @@ class RuntimeCreationDiskSpec
             res should include("/home/jupyter-user/notebooks")
           }
         })
-        _ <- deleteRuntimeWithWait(googleProject, runtimeName)
+        _ <- deleteRuntimeWithWait(googleProject, runtimeName, false)
 
         // Creating new runtime with existing disk should have test.txt file and user installed package
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntimeRequest)
@@ -183,13 +186,15 @@ class RuntimeCreationDiskSpec
             notebookPage.executeCell(persistedPackage).get should include("/home/jupyter-user/notebooks/packages")
           }
         })
-        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName)
-        _ <- deleteDiskWithWait(googleProject, diskName)
+        _ <- testTimer.sleep(5 seconds) //runtime status updates to Deleted before disk status change, hence add a sleep
+        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
+        diskResp <- getDisk(googleProject, diskName).attempt
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
         runtime.diskConfig.map(_.size) shouldBe Some(diskSize)
         stoppedRuntime.status shouldBe ClusterStatus.Stopped
         stoppedRuntime.diskConfig.map(_.name) shouldBe Some(diskName)
+        diskResp.swap.toOption.get.asInstanceOf[RestError].statusCode shouldBe Status.NotFound
       }
     }
 

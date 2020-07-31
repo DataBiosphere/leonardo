@@ -435,7 +435,7 @@ class LeonardoService(
         _ <- if (hasDataprocInfo)
           clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.PreDeleting, now).transaction >> publisherQueue
             .enqueue1(
-              DeleteRuntimeMessage(cluster.id, false, Some(ctx))
+              DeleteRuntimeMessage(cluster.id, None, Some(ctx))
             )
         else clusterQuery.completeDeletion(cluster.id, now).transaction
         _ <- labelQuery

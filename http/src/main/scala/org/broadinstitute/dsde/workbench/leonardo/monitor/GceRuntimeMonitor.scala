@@ -134,7 +134,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
             .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.PreDeleting, timeWhenInterrupted)
             .transaction >> publisherQueue
             .enqueue1(
-              DeleteRuntimeMessage(runtimeAndRuntimeConfig.runtime.id, false, Some(monitorContext.traceId))
+              DeleteRuntimeMessage(runtimeAndRuntimeConfig.runtime.id, None, Some(monitorContext.traceId))
               //Known limitation, we set deleteDisk is falsehere; but in reality, it could be `true`
             )
         case _ =>

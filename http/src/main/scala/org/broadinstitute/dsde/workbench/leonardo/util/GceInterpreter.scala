@@ -52,7 +52,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
 )(implicit val executionContext: ExecutionContext, metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F], F: Async[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F] {
-
   override def createRuntime(
     params: CreateRuntimeParams
   )(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse] =
