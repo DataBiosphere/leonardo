@@ -179,6 +179,8 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
 
                 notebookPage clickOverrideNotebookChanged
 
+                notebookPage clickOverrideNotebookChanged
+
                 notebookPage makeACopyFromSyncIssue
 
               }
