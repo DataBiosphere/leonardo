@@ -321,7 +321,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
   it should "persist persistentDiskId foreign key" in isolatedDbTest {
     val res = for {
-      savedDisk <- makePersistentDisk(DiskId(1)).save()
+      savedDisk <- makePersistentDisk(None).save()
       savedRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))

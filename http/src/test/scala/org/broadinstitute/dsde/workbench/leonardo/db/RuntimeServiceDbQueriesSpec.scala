@@ -6,6 +6,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.{
@@ -48,13 +49,13 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
-      d1 <- makePersistentDisk(DiskId(1)).save()
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50))
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(d1RuntimeConfig)
       )
       list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
-      d2 <- makePersistentDisk(DiskId(2)).save()
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       d2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50))
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
@@ -78,10 +79,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   it should "list runtimes by labels" in isolatedDbTest {
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      d1 <- makePersistentDisk(DiskId(1)).save()
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50))
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
-      d2 <- makePersistentDisk(DiskId(2)).save()
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50))
       c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
       labels1 = Map("googleProject" -> c1.googleProject.value,
@@ -119,12 +120,12 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   it should "list runtimes by project" in isolatedDbTest {
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      d1 <- makePersistentDisk(DiskId(1)).save()
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50))
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig)
       )
-      d2 <- makePersistentDisk(DiskId(2)).save()
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50))
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
@@ -148,21 +149,21 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   it should "list runtimes including deleted" in isolatedDbTest {
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      d1 <- makePersistentDisk(DiskId(1)).save()
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50))
       c1 <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Deleted)
           .saveWithRuntimeConfig(c1RuntimeConfig)
       )
-      d2 <- makePersistentDisk(DiskId(2)).save()
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50))
       c2 <- IO(
         makeCluster(2)
           .copy(status = RuntimeStatus.Deleted)
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
-      d3 <- makePersistentDisk(DiskId(3)).save()
+      d3 <- makePersistentDisk(None).save()
       c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d3.id), bootDiskSize = DiskSize(50))
       c3 <- IO(
         makeCluster(3).saveWithRuntimeConfig(
@@ -188,7 +189,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
 
   it should "get a runtime" in isolatedDbTest {
     val res = for {
-      disk <- makePersistentDisk(DiskId(1)).save()
+      disk <- makePersistentDisk(None).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(disk.id), bootDiskSize = DiskSize(50))
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       get1 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, c1.runtimeName).transaction

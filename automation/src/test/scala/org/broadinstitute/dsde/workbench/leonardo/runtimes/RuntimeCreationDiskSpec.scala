@@ -108,11 +108,11 @@ class RuntimeCreationDiskSpec
         _ <- if (res.isDone) IO.unit
         else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
         disk <- LeonardoApiClient.getDisk(googleProject, diskName)
+        _ <- IO(disk.status shouldBe DiskStatus.Ready)
+        _ <- IO(disk.size shouldBe diskSize)
         _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
         listofDisks <- LeonardoApiClient.listDisk(googleProject, true)
       } yield {
-        disk.status shouldBe DiskStatus.Ready
-        disk.size shouldBe diskSize
         listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
           DiskStatus.Deleted
         ) //assume we won't have multiple disks with same name in the same project in tests

@@ -64,7 +64,7 @@ class LabelComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPath
   private def makeResource(index: Int, lblType: LabelResourceType): IO[Long] =
     lblType match {
       case LabelResourceType.Runtime        => IO(makeCluster(index).save()).map(_.id)
-      case LabelResourceType.PersistentDisk => makePersistentDisk(DiskId(index)).save().map(_.id.value)
+      case LabelResourceType.PersistentDisk => makePersistentDisk(None).save().map(_.id.value)
       case LabelResourceType.App =>
         for {
           clusterId <- IO(makeKubeCluster(index).save()).map(_.id)

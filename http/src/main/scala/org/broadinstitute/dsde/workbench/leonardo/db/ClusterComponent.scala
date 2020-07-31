@@ -27,11 +27,11 @@ import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
                                internalId: String,
-                               clusterName: RuntimeName,
+                               runtimeName: RuntimeName,
                                googleId: Option[GoogleId],
                                googleProject: GoogleProject,
                                operationName: Option[String],
-                               status: String,
+                               status: RuntimeStatus,
                                hostIp: Option[String],
                                jupyterUserScriptUri: Option[UserScriptPath],
                                jupyterStartUserScriptUri: Option[UserScriptPath],
@@ -45,7 +45,9 @@ final case class ClusterRecord(id: Long,
                                stopAfterCreation: Boolean,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String],
-                               runtimeConfigId: RuntimeConfigId)
+                               runtimeConfigId: RuntimeConfigId) {
+  def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
+}
 
 class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -55,7 +57,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
   def operationName = column[Option[String]]("operationName", O.Length(254))
-  def status = column[String]("status", O.Length(254))
+  def status = column[RuntimeStatus]("status", O.Length(254))
   def hostIp = column[Option[String]]("hostIp", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
@@ -163,7 +165,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
         (
           c.id,
           c.internalId,
-          c.clusterName,
+          c.runtimeName,
           c.googleId,
           c.googleProject,
           c.operationName,
@@ -297,45 +299,42 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     clusterLabelPatchQuery.result.map(unmarshalMinimalCluster)
 
   def listActiveWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =
-    clusterLabelPatchQuery.filter(_._1.status inSetBind RuntimeStatus.activeStatuses.map(_.toString)).result map {
-      recs => unmarshalMinimalCluster(recs)
+    clusterLabelPatchQuery.filter(_._1.status inSetBind RuntimeStatus.activeStatuses).result map { recs =>
+      unmarshalMinimalCluster(recs)
     }
 
   def listMonitored(implicit ec: ExecutionContext): DBIO[Seq[RuntimeToMonitor]] =
     clusterQuery
-      .filter(_.status inSetBind RuntimeStatus.monitoredStatuses.map(_.toString))
+      .filter(_.status inSetBind RuntimeStatus.monitoredStatuses)
       .join(runtimeConfigs)
       .on(_.runtimeConfigId === _.id)
       .joinLeft(patchQuery)
       .on(_._1.id === _.clusterId)
       .result map { recs =>
       recs.map { rec =>
-        val runtimeStatus = RuntimeStatus
-          .withNameInsensitiveOption(rec._1._1.status)
-          .getOrElse(throw new Exception(s"unexpected runtime status ${rec._1._1.status} from database"))
         RuntimeToMonitor(rec._1._1.id,
                          rec._1._2.runtimeConfig.cloudService,
-                         runtimeStatus,
+                         rec._1._1.status,
                          rec._2.map(_.inProgress).getOrElse(false))
       }
     }
 
   def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =
-    clusterJoinClusterImageQuery.filter(_._1.status === RuntimeStatus.Running.toString).result map {
+    clusterJoinClusterImageQuery.filter(_._1.status === (RuntimeStatus.Running: RuntimeStatus)).result map {
       unmarshalRunningCluster
     }
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
     clusterQuery
       .filter(_.serviceAccount === clusterServiceAccount)
-      .filter(_.status inSetBind RuntimeStatus.activeStatuses.map(_.toString))
+      .filter(_.status inSetBind RuntimeStatus.activeStatuses)
       .length
       .result
 
   def countActiveByProject(googleProject: GoogleProject) =
     clusterQuery
       .filter(_.googleProject === googleProject)
-      .filter(_.status inSetBind RuntimeStatus.activeStatuses.map(_.toString))
+      .filter(_.status inSetBind RuntimeStatus.activeStatuses)
       .length
       .result
 
@@ -350,7 +349,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def getDeletingClusterByName(project: GoogleProject,
                                name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).filter {
-      _._1.status === RuntimeStatus.Deleting.toString
+      _._1.status === (RuntimeStatus.Deleting: RuntimeStatus)
     }.result map { recs => unmarshalFullCluster(recs).headOption }
 
   def getActiveClusterByNameMinimal(project: GoogleProject,
@@ -367,6 +366,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       }
     }
   }
+
+  def getActiveClusterRecordByName(project: GoogleProject,
+                                   name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[ClusterRecord]] =
+    clusterQuery
+      .filter(_.googleProject === project)
+      .filter(_.clusterName === name)
+      .filter(_.destroyedDate === dummyDate)
+      .result
+      .map(recs => recs.headOption)
 
   def getClusterById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryById(id).result map { recs => unmarshalFullCluster(recs).headOption }
@@ -425,10 +433,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       // staging bucket is saved as a bucket name rather than a path
       .map(recs => recs.headOption.flatten.flatMap(head => parseGcsPath("gs://" + head + "/").toOption))
 
-  def getClusterStatus(id: Long)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] =
-    findByIdQuery(id).map(_.status).result.headOption map { statusOpt =>
-      statusOpt flatMap RuntimeStatus.withNameInsensitiveOption
-    }
+  def getClusterStatus(id: Long): DBIO[Option[RuntimeStatus]] =
+    findByIdQuery(id).map(_.status).result.headOption
 
   def getInitBucket(id: Long)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
     findByIdQuery(id)
@@ -444,7 +450,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     val baseQuery = clusterQuery
       .filter(_.autopauseThreshold =!= autoPauseOffValue)
       .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autopauseThreshold)
-      .filter(_.status inSetBind RuntimeStatus.stoppableStatuses.map(_.toString))
+      .filter(_.status inSetBind RuntimeStatus.stoppableStatuses)
 
     fullClusterQuery(baseQuery).result map { recs => unmarshalFullCluster(recs) }
   }
@@ -452,14 +458,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def markPendingDeletion(id: Long, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.status, c.hostIp, c.dateAccessed))
-      .update((RuntimeStatus.Deleting.toString, None, dateAccessed))
+      .update((RuntimeStatus.Deleting, None, dateAccessed))
 
   // TODO: is there a better way to construct this query?
   def completeDeletion(id: Long, destroyedDate: Instant)(implicit ec: ExecutionContext): DBIO[Unit] =
     for {
       _ <- findByIdQuery(id)
         .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
-        .update((destroyedDate, RuntimeStatus.Deleted.toString, None, destroyedDate)): DBIO[Int]
+        .update((destroyedDate, RuntimeStatus.Deleted, None, destroyedDate)): DBIO[Int]
       rid <- findByIdQuery(id).result.head.map[RuntimeConfigId](_.runtimeConfigId): DBIO[RuntimeConfigId]
       _ <- RuntimeConfigQueries.updatePersistentDiskId(rid, None, destroyedDate): DBIO[Int]
     } yield ()
@@ -470,7 +476,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                    dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.status, c.hostIp, c.dateAccessed))
-      .update((status.toString, hostIp.map(_.value), dateAccessed))
+      .update((status, hostIp.map(_.value), dateAccessed))
 
   def updateClusterHostIp(id: Long, hostIp: Option[IP], dateAccessed: Instant): DBIO[Int] =
     clusterQuery
@@ -497,7 +503,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .update((None, None, None, None, dateAccessed))
 
   def updateClusterStatus(id: Long, newStatus: RuntimeStatus, dateAccessed: Instant): DBIO[Int] =
-    findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update((newStatus.toString, dateAccessed))
+    findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update((newStatus, dateAccessed))
 
   // for testing only
   def updateClusterCreatedDate(id: Long, createdDate: Instant): DBIO[Int] =
@@ -565,7 +571,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.asyncRuntimeFields.map(_.googleId),
       runtime.googleProject,
       runtime.asyncRuntimeFields.map(_.operationName.value),
-      runtime.status.toString,
+      runtime.status,
       runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)),
       runtime.jupyterUserScriptUri,
       runtime.jupyterStartUserScriptUri,
@@ -616,7 +622,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         val containers = Chain.fromSeq(
           RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(clusterImageRec.imageType).toSeq
         )
-        Map(RunningRuntime(clusterRec.googleProject, clusterRec.clusterName, List.empty) -> containers)
+        Map(RunningRuntime(clusterRec.googleProject, clusterRec.runtimeName, List.empty) -> containers)
     }
 
     clusterContainerMap.toSeq.map {
@@ -692,7 +698,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                clusterImageRecords: List[ClusterImageRecord],
                                scopes: List[ScopeRecord],
                                patch: List[PatchRecord]): Runtime = {
-    val name = clusterRecord.clusterName
+    val name = clusterRecord.runtimeName
     val project = clusterRecord.googleProject
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
@@ -717,7 +723,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterRecord.auditInfo,
       clusterRecord.kernelFoundBusyDate,
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),
-      RuntimeStatus.withName(clusterRecord.status),
+      clusterRecord.status,
       labels,
       clusterRecord.jupyterUserScriptUri,
       clusterRecord.jupyterStartUserScriptUri,

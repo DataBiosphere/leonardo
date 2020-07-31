@@ -8,7 +8,6 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{Operation, _}
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
   GoogleComputeService,
   GoogleDiskService,
   InstanceName,
@@ -322,12 +321,12 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
     Async[F].unit
 
   override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    googleDiskService
-      .resizeDisk(params.runtime.googleProject,
-                  config.gceConfig.zoneName,
-                  DiskName(params.runtime.runtimeName.asString),
-                  params.diskSize.gb)
-      .void
+    UpdateDiskSizeParams.gcePrism
+      .getOption(params)
+      .traverse_(p =>
+        googleDiskService
+          .resizeDisk(p.googleProject, config.gceConfig.zoneName, p.diskName, p.diskSize.gb)
+      )
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     Async[F].unit

@@ -352,20 +352,19 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         googleComputeService.setMachineType(instance.key.project, instance.key.zone, instance.key.name, machineType)
       )
 
+  // Note: we don't support changing the machine type for worker instances. While this is possible
+  // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
+  // and rebuilding the cluster if new worker machine/disk sizes are needed.
   override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    params.runtime.dataprocInstances.toList.traverse_ { instance =>
-      // Note: we don't support changing the machine type for worker instances. While this is possible
-      // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
-      // and rebuilding the cluster if new worker machine/disk sizes are needed.
-      instance.dataprocRole match {
-        case Master =>
-          // Note for Dataproc the disk name is the same as the instance name
-          googleDiskService
-            .resizeDisk(instance.key.project, instance.key.zone, DiskName(instance.key.name.value), params.diskSize.gb)
-            .void
-        case _ => Async[F].unit
+    UpdateDiskSizeParams.dataprocPrism
+      .getOption(params)
+      .traverse_ { p =>
+        googleDiskService
+          .resizeDisk(p.masterDataprocInstance.key.project,
+                      p.masterDataprocInstance.key.zone,
+                      DiskName(p.masterDataprocInstance.key.name.value),
+                      p.diskSize.gb)
       }
-    }
 
   def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: WorkbenchEmail): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = true)

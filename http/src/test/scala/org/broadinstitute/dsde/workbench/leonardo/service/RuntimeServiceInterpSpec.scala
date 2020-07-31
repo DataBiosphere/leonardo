@@ -9,14 +9,13 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleStorageInterpreter, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{UpdateRuntimeConfigRequest, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.PersistentDiskRequestResult
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -25,6 +24,7 @@ import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
+import org.broadinstitute.dsde.workbench.leonardo.monitor.DiskUpdate
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -555,11 +555,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   "RuntimeServiceInterp.processUpdateRuntimeConfigRequest" should "fail to update the wrong cloud service type" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(100)), None, None)
     val res = for {
-      t <- traceId.ask
-      fail <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testCluster, gceRuntimeConfig, t).attempt
+      ctx <- appContext.ask
+      fail <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig).attempt
     } yield {
       fail shouldBe Left(
-        WrongCloudServiceException(CloudService.GCE, CloudService.Dataproc, t)
+        WrongCloudServiceException(CloudService.GCE, CloudService.Dataproc, ctx.traceId)
       )
     }
     res.unsafeRunSync()
@@ -569,7 +569,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(gceRuntimeConfig.machineType), Some(gceRuntimeConfig.diskSize))
     val res = for {
       traceId <- traceId.ask
-      _ <- runtimeService.processUpdateGceConfigRequest(req, false, testCluster, gceRuntimeConfig, traceId)
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
       messageOpt <- publisherQueue.tryDequeue1
     } yield {
       messageOpt shouldBe None
@@ -582,9 +582,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-8")), Some(gceRuntimeConfig.diskSize))
     val runtime = testCluster.copy(status = RuntimeStatus.Running)
     val res = for {
-      traceId <- traceId.ask
+      ctx <- appContext.ask
       savedRuntime <- IO(runtime.save())
-      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, true, savedRuntime, gceRuntimeConfig, traceId)
+      clusterRecordOpt <- clusterQuery
+        .getActiveClusterRecordByName(runtime.googleProject, runtime.runtimeName)
+        .transaction
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(
+        req,
+        true,
+        clusterRecordOpt.getOrElse(throw new Exception(s"cluster ${savedRuntime.projectNameString} not found")),
+        gceRuntimeConfig
+      )
       patchInProgress <- patchQuery.isInprogress(savedRuntime.id).transaction
       message <- publisherQueue.dequeue1
     } yield {
@@ -595,7 +603,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             None,
                                             None,
-                                            Some(traceId))
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
   }
@@ -603,21 +611,20 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "update a GCE machine type in Stopped state" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
-      traceId <- traceId.ask
-      _ <- runtimeService.processUpdateGceConfigRequest(req,
-                                                        false,
-                                                        testCluster.copy(status = RuntimeStatus.Stopped),
-                                                        gceRuntimeConfig,
-                                                        traceId)
+      ctx <- appContext.ask
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
+                                                            false,
+                                                            testClusterRecord.copy(status = RuntimeStatus.Stopped),
+                                                            gceRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id,
+      message shouldBe UpdateRuntimeMessage(testClusterRecord.id,
                                             Some(MachineTypeName("n1-micro-2")),
                                             false,
                                             None,
                                             None,
                                             None,
-                                            Some(traceId))
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
   }
@@ -625,21 +632,20 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "update a GCE machine type in Running state" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
-      traceId <- traceId.ask
-      _ <- runtimeService.processUpdateGceConfigRequest(req,
-                                                        true,
-                                                        testCluster.copy(status = RuntimeStatus.Running),
-                                                        gceRuntimeConfig,
-                                                        traceId)
+      ctx <- appContext.ask
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
+                                                            true,
+                                                            testClusterRecord.copy(status = RuntimeStatus.Running),
+                                                            gceRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id,
+      message shouldBe UpdateRuntimeMessage(testClusterRecord.id,
                                             Some(MachineTypeName("n1-micro-2")),
                                             true,
                                             None,
                                             None,
                                             None,
-                                            Some(traceId))
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
   }
@@ -647,46 +653,84 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "fail to update a GCE machine type in Running state with allowStop set to false" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
-      traceId <- traceId.ask
-      _ <- runtimeService.processUpdateGceConfigRequest(req,
-                                                        false,
-                                                        testCluster.copy(status = RuntimeStatus.Running),
-                                                        gceRuntimeConfig,
-                                                        traceId)
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
+                                                            false,
+                                                            testClusterRecord.copy(status = RuntimeStatus.Running),
+                                                            gceRuntimeConfig)
     } yield ()
     res.attempt.unsafeRunSync() shouldBe Left(
-      RuntimeMachineTypeCannotBeChangedException(testCluster.copy(status = RuntimeStatus.Running))
+      RuntimeMachineTypeCannotBeChangedException(testClusterRecord.projectNameString, RuntimeStatus.Running)
     )
   }
 
   it should "increase the disk on a GCE runtime" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
-      traceId <- traceId.ask
-      _ <- runtimeService.processUpdateGceConfigRequest(req, false, testCluster, gceRuntimeConfig, traceId)
+      ctx <- appContext.ask
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
       message shouldBe UpdateRuntimeMessage(testCluster.id,
                                             None,
-                                            false,
-                                            Some(DiskSize(1024)),
+                                            true,
+                                            Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
                                             None,
                                             None,
-                                            Some(traceId))
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
+  }
+
+  it should "increase the persistent disk is attached to a GCE runtime" in isolatedDbTest {
+    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
+    val res = for {
+      ctx <- appContext.ask
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(
+        req,
+        true,
+        testClusterRecord,
+        gceWithPdRuntimeConfig.copy(persistentDiskId = Some(disk.id))
+      )
+      message <- publisherQueue.dequeue1
+    } yield {
+      message shouldBe UpdateRuntimeMessage(testCluster.id,
+                                            None,
+                                            true,
+                                            Some(DiskUpdate.PdSizeUpdate(disk.id, disk.name, DiskSize(1024))),
+                                            None,
+                                            None,
+                                            Some(ctx.traceId))
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "fail to increase the disk on a GCE runtime if allowStop is false" in {
+    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
+    val res = for {
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(
+        req,
+        false,
+        testClusterRecord,
+        gceWithPdRuntimeConfig.copy(persistentDiskId = Some(disk.id))
+      )
+    } yield ()
+    res.attempt.unsafeRunSync() shouldBe Left(RuntimeDiskSizeCannotBeChangedException(testCluster.projectNameString))
   }
 
   it should "fail to decrease the disk on a GCE runtime" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(50)))
     val res = for {
       traceId <- traceId.ask
-      _ <- runtimeService.processUpdateGceConfigRequest(req, false, testCluster, gceRuntimeConfig, traceId)
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
     } yield ()
-    res.attempt.unsafeRunSync() shouldBe Left(RuntimeDiskSizeCannotBeDecreasedException(testCluster))
+    res.attempt.unsafeRunSync() shouldBe Left(
+      RuntimeDiskSizeCannotBeDecreasedException(testClusterRecord.projectNameString)
+    )
   }
 
-  "RuntimeServiceInterp.processUpdateDataprocConfigRequest" should "not update a Dataproc runtime when there are no changes" in {
+  "RuntimeServiceInterp.processUpdateDataprocConfigRequest" should "not update a Dataproc runtime when there are no changes" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(
       Some(defaultDataprocRuntimeConfig.masterMachineType),
       Some(defaultDataprocRuntimeConfig.masterDiskSize),
@@ -694,12 +738,27 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       defaultDataprocRuntimeConfig.numberOfPreemptibleWorkers
     )
     val res = for {
-      traceId <- traceId.ask
+      ctx <- appContext.ask
+      cluster = testCluster.copy(dataprocInstances =
+        Set(
+          DataprocInstance(
+            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            1,
+            GceInstanceStatus.Running,
+            Some(IP("")),
+            DataprocRole.Master,
+            ctx.now
+          )
+        )
+      )
+      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
+      clusterRecord <- clusterQuery
+        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
-                                                             testCluster,
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+                                                             clusterRecord.get,
+                                                             defaultDataprocRuntimeConfig)
       messageOpt <- publisherQueue.tryDequeue1
     } yield {
       messageOpt shouldBe None
@@ -707,62 +766,113 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
-  it should "update Dataproc workers and preemptibles" in {
+  it should "update Dataproc workers and preemptibles" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), Some(1000))
     val res = for {
-      traceId <- traceId.ask
+      ctx <- appContext.ask
+      cluster = testCluster.copy(dataprocInstances =
+        Set(
+          DataprocInstance(
+            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            1,
+            GceInstanceStatus.Running,
+            Some(IP("")),
+            DataprocRole.Master,
+            ctx.now
+          )
+        )
+      )
+      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
+      clusterRecord <- clusterQuery
+        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
-                                                             testCluster,
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+                                                             clusterRecord.get,
+                                                             defaultDataprocRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id, None, false, None, Some(50), Some(1000), Some(traceId))
+      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
+                                            None,
+                                            false,
+                                            None,
+                                            Some(50),
+                                            Some(1000),
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
   }
 
-  it should "update a Dataproc master machine type in Stopped state" in {
+  it should "update a Dataproc master machine type in Stopped state" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
-      traceId <- traceId.ask
+      ctx <- appContext.ask
+      cluster = testCluster.copy(dataprocInstances =
+        Set(
+          DataprocInstance(
+            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            1,
+            GceInstanceStatus.Running,
+            Some(IP("")),
+            DataprocRole.Master,
+            ctx.now
+          )
+        )
+      )
+      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
+      clusterRecord <- clusterQuery
+        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
-                                                             testCluster.copy(status = RuntimeStatus.Stopped),
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+                                                             clusterRecord.get.copy(status = RuntimeStatus.Stopped),
+                                                             defaultDataprocRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id,
+      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
                                             Some(MachineTypeName("n1-micro-2")),
                                             false,
                                             None,
                                             None,
                                             None,
-                                            Some(traceId))
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
   }
 
-  it should "update a Dataproc machine type in Running state" in {
+  it should "update a Dataproc machine type in Running state" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
-      traceId <- traceId.ask
+      ctx <- appContext.ask
+      cluster = testCluster.copy(dataprocInstances =
+        Set(
+          DataprocInstance(
+            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            1,
+            GceInstanceStatus.Running,
+            Some(IP("")),
+            DataprocRole.Master,
+            ctx.now
+          )
+        )
+      )
+      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
+      clusterRecord <- clusterQuery
+        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              true,
-                                                             testCluster.copy(status = RuntimeStatus.Running),
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+                                                             clusterRecord.get.copy(status = RuntimeStatus.Running),
+                                                             defaultDataprocRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id,
+      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
                                             Some(MachineTypeName("n1-micro-2")),
                                             true,
                                             None,
                                             None,
                                             None,
-                                            Some(traceId))
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
   }
@@ -770,64 +880,87 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "fail to update a Dataproc machine type in Running state with allowStop set to false" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
-      traceId <- traceId.ask
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
-                                                             testCluster.copy(status = RuntimeStatus.Running),
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+                                                             testClusterRecord.copy(status = RuntimeStatus.Running),
+                                                             defaultDataprocRuntimeConfig)
     } yield ()
     res.attempt.unsafeRunSync() shouldBe Left(
-      RuntimeMachineTypeCannotBeChangedException(testCluster.copy(status = RuntimeStatus.Running))
+      RuntimeMachineTypeCannotBeChangedException(testClusterRecord.projectNameString, RuntimeStatus.Running)
     )
   }
 
   it should "fail to update a Dataproc machine type when workers are also updated" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, Some(50), None)
     val res = for {
-      traceId <- traceId.ask
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
-                                                             testCluster.copy(status = RuntimeStatus.Running),
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+                                                             testClusterRecord.copy(status = RuntimeStatus.Running),
+                                                             defaultDataprocRuntimeConfig)
     } yield ()
     res.attempt.unsafeRunSync().isLeft shouldBe true
   }
 
-  it should "increase the disk on a Dataproc runtime" in {
+  it should "increase the disk on a Dataproc runtime" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(1024)), None, None)
     val res = for {
-      traceId <- traceId.ask
-      _ <- runtimeService.processUpdateDataprocConfigRequest(req,
-                                                             false,
-                                                             testCluster,
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+      ctx <- appContext.ask
+      masterInstance = DataprocInstance(
+        DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+        1,
+        GceInstanceStatus.Running,
+        Some(IP("")),
+        DataprocRole.Master,
+        ctx.now
+      )
+      cluster = testCluster.copy(dataprocInstances =
+        Set(
+          masterInstance
+        )
+      )
+      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
+      clusterRecord <- clusterQuery
+        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .transaction
+      _ <- runtimeService.processUpdateDataprocConfigRequest(req, true, clusterRecord.get, defaultDataprocRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id,
+      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
                                             None,
-                                            false,
-                                            Some(DiskSize(1024)),
+                                            true,
+                                            Some(DiskUpdate.Dataproc(DiskSize(1024), masterInstance)),
                                             None,
                                             None,
-                                            Some(traceId))
+                                            Some(ctx.traceId))
     }
     res.unsafeRunSync()
   }
 
-  it should "fail to decrease the disk on a Dataproc runtime" in {
+  it should "fail to decrease the disk on a Dataproc runtime" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(50)), None, None)
     val res = for {
-      traceId <- traceId.ask
-      _ <- runtimeService.processUpdateDataprocConfigRequest(req,
-                                                             false,
-                                                             testCluster,
-                                                             defaultDataprocRuntimeConfig,
-                                                             traceId)
+      ctx <- appContext.ask
+      cluster = testCluster.copy(dataprocInstances =
+        Set(
+          DataprocInstance(
+            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            1,
+            GceInstanceStatus.Running,
+            Some(IP("")),
+            DataprocRole.Master,
+            ctx.now
+          )
+        )
+      )
+      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
+      clusterRecord <- clusterQuery
+        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .transaction
+      _ <- runtimeService.processUpdateDataprocConfigRequest(req, true, clusterRecord.get, defaultDataprocRuntimeConfig)
     } yield ()
-    res.attempt.unsafeRunSync() shouldBe Left(RuntimeDiskSizeCannotBeDecreasedException(testCluster))
+    res.attempt.unsafeRunSync() shouldBe Left(
+      RuntimeDiskSizeCannotBeDecreasedException(testClusterRecord.projectNameString)
+    )
   }
 
   "RuntimeServiceInterp.processDiskConfigRequest" should "process a create disk request" in isolatedDbTest {
@@ -871,7 +1004,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "return existing disk if a disk with the same name already exists" in isolatedDbTest {
     val res = for {
       t <- ctx.ask
-      disk <- makePersistentDisk(DiskId(1)).save()
+      disk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
       returnedDisk <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
@@ -911,7 +1044,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
     val res = for {
       t <- ctx.ask
-      savedDisk <- makePersistentDisk(DiskId(1)).save()
+      savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
@@ -937,7 +1070,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "fail to process a disk reference when the disk is already formatted by another app" in isolatedDbTest {
     val res = for {
       t <- ctx.ask
-      gceDisk <- makePersistentDisk(DiskId(1), Some(FormattedBy.GCE)).save()
+      gceDisk <- makePersistentDisk(Some(DiskName("gceDisk")), Some(FormattedBy.GCE)).save()
       req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
       formatGceDiskError <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
@@ -948,7 +1081,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       whitelistAuthProvider,
                                       Config.persistentDiskConfig)
         .attempt
-      galaxyDisk <- makePersistentDisk(DiskId(2), Some(FormattedBy.Galaxy)).save()
+      galaxyDisk <- makePersistentDisk(Some(DiskName("galaxyDisk")), Some(FormattedBy.Galaxy)).save()
       req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
       formatGalaxyDiskError <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
@@ -974,7 +1107,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "fail to attach a disk when caller has no attach permission" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val res = for {
-      savedDisk <- makePersistentDisk(DiskId(1)).save()
+      savedDisk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       _ <- RuntimeServiceInterp.processPersistentDiskRequest(req,
                                                              project,

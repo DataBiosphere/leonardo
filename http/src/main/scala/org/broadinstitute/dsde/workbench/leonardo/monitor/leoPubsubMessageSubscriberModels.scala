@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import scala.concurrent.duration.FiniteDuration
+import scala.util.control.NoStackTrace
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
@@ -241,7 +243,7 @@ object LeoPubsubMessage {
                                         newMachineType: Option[MachineTypeName],
                                         // if true, the runtime will be stopped and undergo a followup transition
                                         stopToUpdateMachineType: Boolean,
-                                        newDiskSize: Option[DiskSize],
+                                        diskUpdate: Option[DiskUpdate],
                                         newNumWorkers: Option[Int],
                                         newNumPreemptibles: Option[Int],
                                         traceId: Option[TraceId])
@@ -253,6 +255,16 @@ object LeoPubsubMessage {
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
+}
+
+sealed trait DiskUpdate extends Product with Serializable {
+  def newDiskSize: DiskSize
+}
+object DiskUpdate {
+  final case class NoPdSizeUpdate(override val newDiskSize: DiskSize) extends DiskUpdate
+  final case class PdSizeUpdate(diskId: DiskId, diskName: DiskName, override val newDiskSize: DiskSize)
+      extends DiskUpdate
+  final case class Dataproc(override val newDiskSize: DiskSize, masterInstance: DataprocInstance) extends DiskUpdate
 }
 
 final case class RuntimePatchDetails(runtimeId: Long, runtimeStatus: RuntimeStatus) extends Product with Serializable
@@ -272,11 +284,30 @@ object LeoPubsubCodec {
   implicit val startRuntimeDecoder: Decoder[StartRuntimeMessage] =
     Decoder.forProduct2("runtimeId", "traceId")(StartRuntimeMessage.apply)
 
+  implicit val diskUpdateDecoder: Decoder[DiskUpdate] = Decoder.instance { c =>
+    for {
+      diskId <- c.downField("diskId").as[Option[DiskId]]
+      diskSize <- c.downField("newDiskSize").as[DiskSize]
+      res <- diskId.fold(for {
+        masterInstance <- c.downField("masterInstance").as[Option[DataprocInstance]]
+      } yield masterInstance match {
+        case Some(instance) =>
+          DiskUpdate.Dataproc(diskSize, instance): DiskUpdate
+        case None =>
+          DiskUpdate.NoPdSizeUpdate(diskSize): DiskUpdate
+      })(diskId =>
+        for {
+          diskName <- c.downField("diskName").as[DiskName]
+        } yield (DiskUpdate.PdSizeUpdate(diskId, diskName, diskSize): DiskUpdate)
+      )
+    } yield res
+  }
+
   implicit val updateRuntimeDecoder: Decoder[UpdateRuntimeMessage] =
     Decoder.forProduct7("runtimeId",
                         "newMachineType",
                         "stopToUpdateMachineType",
-                        "newDiskSize",
+                        "diskUpdate",
                         "newNumWorkers",
                         "newNumPreemptibles",
                         "traceId")(
@@ -484,12 +515,27 @@ object LeoPubsubCodec {
   implicit val startRuntimeMessageEncoder: Encoder[StartRuntimeMessage] =
     Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
 
+  implicit val noPdSizeUpdateEncoder: Encoder[DiskUpdate.NoPdSizeUpdate] =
+    Encoder.forProduct1("newDiskSize")(x => DiskUpdate.NoPdSizeUpdate.unapply(x).get)
+  implicit val pdSizeUpdateEncoder: Encoder[DiskUpdate.PdSizeUpdate] =
+    Encoder.forProduct3("diskId", "diskName", "newDiskSize")(x => DiskUpdate.PdSizeUpdate.unapply(x).get)
+  implicit val dataprocDiskUpdateEncoder: Encoder[DiskUpdate.Dataproc] =
+    Encoder.forProduct2("newDiskSize", "masterInstance")(x => DiskUpdate.Dataproc.unapply(x).get)
+
+  implicit val diskUpdateEncoder: Encoder[DiskUpdate] = Encoder.instance { a =>
+    a match {
+      case x: DiskUpdate.NoPdSizeUpdate => x.asJson
+      case x: DiskUpdate.PdSizeUpdate   => x.asJson
+      case x: DiskUpdate.Dataproc       => x.asJson
+    }
+  }
+
   implicit val updateRuntimeMessageEncoder: Encoder[UpdateRuntimeMessage] =
     Encoder.forProduct8("messageType",
                         "runtimeId",
                         "newMachineType",
                         "stopToUpdateMachineType",
-                        "newDiskSize",
+                        "diskUpdate",
                         "newNumWorkers",
                         "newNumPreemptibles",
                         "traceId")(x =>
@@ -497,7 +543,7 @@ object LeoPubsubCodec {
        x.runtimeId,
        x.newMachineType,
        x.stopToUpdateMachineType,
-       x.newDiskSize,
+       x.diskUpdate,
        x.newNumWorkers,
        x.newNumPreemptibles,
        x.traceId)
@@ -559,3 +605,58 @@ object LeoPubsubCodec {
     }
   }
 }
+
+sealed trait PubsubHandleMessageError extends NoStackTrace {
+  def isRetryable: Boolean
+}
+object PubsubHandleMessageError {
+  final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
+    val isRetryable: Boolean = false
+  }
+
+  final case class ClusterNotStopped(clusterId: Long,
+                                     projectName: String,
+                                     clusterStatus: RuntimeStatus,
+                                     message: LeoPubsubMessage)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
+    val isRetryable: Boolean = false
+  }
+
+  final case class ClusterInvalidState(clusterId: Long,
+                                       projectName: String,
+                                       cluster: Runtime,
+                                       message: LeoPubsubMessage)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
+    val isRetryable: Boolean = false
+  }
+
+  final case class DiskNotFound(diskId: DiskId, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process message ${message} for disk ${diskId.value} because it was not found in the database"
+    val isRetryable: Boolean = false
+  }
+
+  final case class DiskInvalidState(diskId: DiskId,
+                                    projectName: String,
+                                    disk: PersistentDisk,
+                                    message: LeoPubsubMessage)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"${diskId}, ${projectName}, ${message} | Unable to process disk because not in correct state. Disk details: ${disk}"
+    val isRetryable: Boolean = false
+  }
+}
+
+final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
+final case class PersistentDiskMonitorConfig(create: PersistentDiskMonitor,
+                                             delete: PersistentDiskMonitor,
+                                             update: PersistentDiskMonitor)
+final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
+                                                  timeout: FiniteDuration,
+                                                  persistentDiskMonitorConfig: PersistentDiskMonitorConfig)

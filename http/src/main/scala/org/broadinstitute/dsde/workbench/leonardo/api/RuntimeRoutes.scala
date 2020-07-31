@@ -489,28 +489,6 @@ object RuntimeRoutes {
 
 }
 
-sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
-  def cloudService: CloudService
-}
-object UpdateRuntimeConfigRequest {
-  final case class GceConfig(updatedMachineType: Option[MachineTypeName], updatedDiskSize: Option[DiskSize])
-      extends UpdateRuntimeConfigRequest {
-    val cloudService: CloudService = CloudService.GCE
-  }
-  final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName],
-                                  updatedMasterDiskSize: Option[DiskSize],
-                                  updatedNumberOfWorkers: Option[Int],
-                                  updatedNumberOfPreemptibleWorkers: Option[Int])
-      extends UpdateRuntimeConfigRequest {
-    val cloudService: CloudService = CloudService.Dataproc
-  }
-}
-
-final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequest],
-                                      allowStop: Boolean,
-                                      updateAutopauseEnabled: Option[Boolean],
-                                      updateAutopauseThreshold: Option[FiniteDuration])
-
 final case class ListRuntimeResponse2(id: Long,
                                       samResource: RuntimeSamResourceId,
                                       clusterName: RuntimeName,

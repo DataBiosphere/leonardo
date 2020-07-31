@@ -82,17 +82,19 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 isGceFormatted: Boolean,
                                                 useGceStartupScript: Boolean)
 object RuntimeTemplateValuesConfig {
-  def fromCreateRuntimeParams(params: CreateRuntimeParams,
-                              initBucketName: Option[GcsBucketName],
-                              stagingBucketName: Option[GcsBucketName],
-                              serviceAccountKey: Option[ServiceAccountKey],
-                              imageConfig: ImageConfig,
-                              welderConfig: WelderConfig,
-                              proxyConfig: ProxyConfig,
-                              clusterFilesConfig: ClusterFilesConfig,
-                              clusterResourcesConfig: ClusterResourcesConfig,
-                              clusterResourceConstraints: Option[RuntimeResourceConstraints],
-                              isFormatted: Boolean): RuntimeTemplateValuesConfig =
+  def fromCreateRuntimeParams(
+    params: CreateRuntimeParams,
+    initBucketName: Option[GcsBucketName],
+    stagingBucketName: Option[GcsBucketName],
+    serviceAccountKey: Option[ServiceAccountKey],
+    imageConfig: ImageConfig,
+    welderConfig: WelderConfig,
+    proxyConfig: ProxyConfig,
+    clusterFilesConfig: ClusterFilesConfig,
+    clusterResourcesConfig: ClusterResourcesConfig,
+    clusterResourceConstraints: Option[RuntimeResourceConstraints],
+    isFormatted: Boolean
+  ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       params.runtimeProjectAndName,
       stagingBucketName,
