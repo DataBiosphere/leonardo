@@ -171,6 +171,10 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterResponse(patchRequest(url + path, clusterRequest))
     }
   }
+
+  object app {
+    def createApp()
+  }
 }
 
 object AutomationTestJsonCodec {
