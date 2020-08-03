@@ -670,7 +670,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           _ <- logger.error(e)(s"updating db state for an async error for app ${e.appId}")
         } yield ()
       case _ =>
-        F.raiseError(new RuntimeException(s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}"))
+        F.raiseError(
+          new RuntimeException(s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}")
+        )
     }
 
   private def deleteDiskForApp(diskId: DiskId)(
