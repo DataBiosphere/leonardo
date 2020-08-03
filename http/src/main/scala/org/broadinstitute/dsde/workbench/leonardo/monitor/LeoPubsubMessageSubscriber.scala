@@ -614,7 +614,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         }
         _ <- gkeInterp.createAndPollNodepool(msg.nodepoolId, msg.appId).adaptError {
           case e =>
-            PubsubHandleMessageError.PubsubKubernetesError(
+            PubsubKubernetesError(
               AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
               msg.appId,
               false,
@@ -626,7 +626,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
 
       diskCreation = createDiskForApp(msg).adaptError {
         case e =>
-          PubsubHandleMessageError.PubsubKubernetesError(
+          PubsubKubernetesError(
             AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
             msg.appId,
             false,
@@ -640,7 +640,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         _ <- parPreAppCreationSetup
         _ <- gkeInterp.createAndPollApp(msg).adaptError {
           case e =>
-            PubsubHandleMessageError.PubsubKubernetesError(
+            PubsubKubernetesError(
               AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
               msg.appId,
               false,
@@ -670,7 +670,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           _ <- logger.error(e)(s"updating db state for an async error for app ${e.appId}")
         } yield ()
       case _ =>
-        F.raiseError(new RuntimeException("handleKubernetesError should not be used with a non kubernetes error"))
+        F.raiseError(new RuntimeException(s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}"))
     }
 
   private def deleteDiskForApp(diskId: DiskId)(
