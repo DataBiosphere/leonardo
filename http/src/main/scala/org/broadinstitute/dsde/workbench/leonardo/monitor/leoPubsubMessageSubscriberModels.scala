@@ -634,7 +634,7 @@ object PubsubHandleMessageError {
                                          isRetryable: Boolean,
                                          nodepoolId: Option[NodepoolLeoId],
                                          clusterId: Option[KubernetesClusterLeoId])
-    extends PubsubHandleMessageError {
+      extends PubsubHandleMessageError {
     override def getMessage: String =
       s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
   }
@@ -672,7 +672,7 @@ object PubsubHandleMessageError {
   }
 
   final case class DiskInvalidState(diskId: DiskId, projectName: String, disk: PersistentDisk)
-    extends PubsubHandleMessageError {
+      extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${diskId}, ${projectName} | Unable to process disk because not in correct state. Disk details: ${disk}"
     val isRetryable: Boolean = false
@@ -702,7 +702,7 @@ final case class PubsubKubernetesError(dbError: AppError,
                                        isRetryable: Boolean,
                                        nodepoolId: Option[NodepoolLeoId],
                                        clusterId: Option[KubernetesClusterLeoId])
-  extends PubsubHandleMessageError {
+    extends PubsubHandleMessageError {
   override def getMessage: String =
     s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
 }

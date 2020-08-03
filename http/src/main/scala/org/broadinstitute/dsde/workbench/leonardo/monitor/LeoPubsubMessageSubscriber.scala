@@ -14,7 +14,15 @@ import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.google2.{ComputePollOperation, DiskName, Event, GoogleDiskService, GoogleSubscriber, MachineTypeName, OperationName}
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  DiskName,
+  Event,
+  GoogleDiskService,
+  GoogleSubscriber,
+  MachineTypeName,
+  OperationName
+}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
