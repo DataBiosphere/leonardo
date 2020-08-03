@@ -40,7 +40,6 @@ class MonitorAtBoot[F[_]: Timer](implicit F: Async[F],
                       statusOpt
                         .toRight(new Exception(s"${tid} | ${c.id} not found after transition. This is very weird!"))
                     )
-                    now <- nowInstant[F]
                     _ <- if (s != RuntimeStatus.Running) {
                       // There's slight chance where pubsub message is never published during a redeploy.
                       // In this case, user will see that the runtime doesn't get patched after clicking patch button.

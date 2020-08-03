@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeSe
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterErrorQuery,
   clusterQuery,
+  patchQuery,
   persistentDiskQuery,
   RuntimeConfigQueries,
   TestComponent
@@ -369,6 +370,7 @@ class LeoPubsubMessageSubscriberSpec
           updatedRuntimeConfig <- updatedRuntime.traverse(r =>
             RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
           )
+          patchInProgress <- patchQuery.getPatchAction(runtime.id).transaction
         } yield {
           // runtime should be Starting after having gone through a stop -> update -> start
           updatedRuntime shouldBe 'defined
@@ -376,6 +378,7 @@ class LeoPubsubMessageSubscriberSpec
           // machine type should be updated
           updatedRuntimeConfig shouldBe 'defined
           updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
+          patchInProgress shouldBe false
         }
         assertion.unsafeRunSync()
       })
