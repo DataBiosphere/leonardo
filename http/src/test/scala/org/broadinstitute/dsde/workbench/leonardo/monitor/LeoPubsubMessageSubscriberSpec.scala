@@ -363,14 +363,14 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(
         UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, None, None, None, Some(tr))
       )
-
-      assert = IO(eventually(timeout(30.seconds)) {
-        val assertion = for {
+      _ <- withInfiniteStream(
+        asyncTaskProcessor.process,
+        for {
           updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
           updatedRuntimeConfig <- updatedRuntime.traverse(r =>
             RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
           )
-          patchInProgress <- patchQuery.getPatchAction(runtime.id).transaction
+          patchInProgress <- patchQuery.isInprogress(runtime.id).transaction
         } yield {
           // runtime should be Starting after having gone through a stop -> update -> start
           updatedRuntime shouldBe 'defined
@@ -380,16 +380,7 @@ class LeoPubsubMessageSubscriberSpec
           updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
           patchInProgress shouldBe false
         }
-        assertion.unsafeRunSync()
-      })
-      _ <- Deferred[IO, Unit].flatMap { signalToStop =>
-        val assertStream = Stream.eval(assert) ++ Stream.eval(signalToStop.complete(()))
-        Stream(assertStream, asyncTaskProcessor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))))
-          .covary[IO]
-          .parJoin(2)
-          .compile
-          .drain
-      }
+      )
     } yield ()
 
     res.unsafeRunSync()

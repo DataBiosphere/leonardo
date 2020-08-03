@@ -6,8 +6,6 @@ start() {
 
     echo "attempting to remove old $CONTAINER container..."
     docker rm -f $CONTAINER || echo "docker rm failed. $CONTAINER not found."
-    echo "attempting to remove old $CONTAINER2 container..."
-    docker rm -f $CONTAINER2 || echo "docker rm failed. $CONTAINER2 not found."
 
     # start up mysql
     echo "starting up mysql container..."
@@ -42,10 +40,6 @@ stop() {
     echo "Stopping docker $CONTAINER container..."
     docker stop $CONTAINER || echo "mysql stop failed. container $CONTAINER already stopped."
     docker rm -v $CONTAINER || echo "mysql rm -v failed.  container $CONTAINER already destroyed."
-
-    echo "Stopping docker $CONTAINER2 container..."
-    docker stop $CONTAINER2 || echo "mysql stop failed. container $CONTAINER2 already stopped."
-    docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container $CONTAINER2 already destroyed."
 }
 
 if [ ${#@} == 0 ]; then
@@ -56,7 +50,6 @@ fi
 COMMAND=$1
 TARGET=${2:-leonardo}
 CONTAINER=${3:-leonardo-mysql}
-CONTAINER2=mysql
 
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start"
