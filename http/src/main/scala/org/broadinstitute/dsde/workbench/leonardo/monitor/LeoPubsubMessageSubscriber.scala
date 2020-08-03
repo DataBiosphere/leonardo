@@ -386,8 +386,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               AppContext(ctx.traceId, now)
             )
             _ <- startAndUpdateRuntime(runtime, msg.newMachineType)(ctxStarting)
-            _ <- if (msg.newMachineType.isDefined) patchQuery.updatePatchAsComplete(runtime.id).transaction.void
-            else F.unit
           } yield ()
           _ <- asyncTasks.enqueue1(
             Task(ctx.traceId, task, Some(logError(runtime.projectNameString, "updating runtime")), ctx.now)
@@ -405,7 +403,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- targetMachineType.traverse(m =>
         runtimeConfig.cloudService.interpreter
@@ -422,6 +419,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           ctx.now
         )
       }
+      _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction.void
       _ <- runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting).compile.drain
     } yield ()
 
