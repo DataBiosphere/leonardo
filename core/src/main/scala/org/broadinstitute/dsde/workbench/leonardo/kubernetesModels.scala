@@ -149,10 +149,6 @@ object NodepoolStatus {
     override def toString: String = "UNCLAIMED"
   }
 
-  final case object Claimed extends NodepoolStatus {
-    override def toString: String = "CLAIMED"
-  }
-
   def values: Set[NodepoolStatus] = sealerate.values[NodepoolStatus]
   def stringToObject: Map[String, NodepoolStatus] = values.map(v => v.toString -> v).toMap
 
