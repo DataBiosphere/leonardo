@@ -5,6 +5,7 @@ package db
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appErrorQuery,
   appQuery,
   nodepoolQuery,
   AppExistsForProjectException,
@@ -230,6 +231,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         SaveKubernetesCluster(c.googleProject,
                               c.clusterName,
                               c.location,
+                              c.region,
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
@@ -259,6 +261,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         SaveKubernetesCluster(c.googleProject,
                               c.clusterName,
                               c.location,
+                              c.region,
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
@@ -270,6 +273,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         SaveKubernetesCluster(c.googleProject,
                               c.clusterName,
                               c.location,
+                              c.region,
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
@@ -299,6 +303,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         SaveKubernetesCluster(c.googleProject,
                               c.clusterName,
                               c.location,
+                              c.region,
                               c.status,
                               c.serviceAccount,
                               c.auditInfo,
@@ -326,6 +331,25 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     the[AppExistsForProjectException] thrownBy {
       val savedApp2 = makeApp(2, savedNodepool2.id).copy(appName = appName).save()
     }
+  }
+
+  it should "save and get errors" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+    val now = Instant.now()
+    val error1 = AppError("error1", now, ErrorAction.CreateGalaxyApp, ErrorSource.App, Some(1))
+    val error2 = AppError("error2", now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, Some(2))
+    appErrorQuery.save(savedApp1.id, error1).transaction.unsafeRunSync()
+    appErrorQuery.save(savedApp1.id, error2).transaction.unsafeRunSync()
+
+    val getApp = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+    }.get
+
+    getApp.app.errors should contain(error1)
+    getApp.app.errors should contain(error2)
   }
 
 }

@@ -4,7 +4,7 @@ package db
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
-import org.broadinstitute.dsde.workbench.google2.{Location, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.{Location, NetworkName, RegionName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import slick.lifted.Tag
@@ -20,6 +20,7 @@ final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                          googleProject: GoogleProject,
                                          clusterName: KubernetesClusterName,
                                          location: Location,
+                                         region: RegionName,
                                          status: KubernetesClusterStatus,
                                          serviceAccount: WorkbenchEmail,
                                          creator: WorkbenchEmail,
@@ -36,6 +37,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def googleProject = column[GoogleProject]("googleProject", O.Length(254))
   def clusterName = column[KubernetesClusterName]("clusterName", O.Length(254))
   def location = column[Location]("location", O.Length(254))
+  def region = column[RegionName]("region", O.Length(254))
   def status = column[KubernetesClusterStatus]("status", O.Length(254))
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
@@ -54,6 +56,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      googleProject,
      clusterName,
      location,
+     region,
      status,
      serviceAccount,
      creator,
@@ -169,6 +172,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       cr.googleProject,
       cr.clusterName,
       cr.location,
+      cr.region,
       cr.status,
       cr.serviceAccount,
       AuditInfo(
@@ -182,8 +186,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
         case _                                       => None
       },
       namespaces,
-      nodepools,
-      List()
+      nodepools
     )
 
   private[db] def findByIdQuery(
@@ -212,6 +215,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 case class SaveKubernetesCluster(googleProject: GoogleProject,
                                  clusterName: KubernetesClusterName,
                                  location: Location,
+                                 region: RegionName,
                                  status: KubernetesClusterStatus,
                                  serviceAccount: WorkbenchEmail,
                                  auditInfo: AuditInfo,
@@ -222,6 +226,7 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
       googleProject,
       clusterName,
       location,
+      region,
       status,
       serviceAccount,
       auditInfo.creator,

@@ -8,7 +8,6 @@ import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.effect.Async
-import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
@@ -16,13 +15,24 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  nodepoolQuery,
+  ClusterDoesNotExist,
+  ClusterExists,
+  DbReference,
+  KubernetesAppCreationException,
+  KubernetesServiceDbQueries,
+  SaveApp,
+  SaveKubernetesCluster
+}
+import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   GalaxyAppConfig,
   KubernetesClusterConfig,
   NodepoolConfig,
   PersistentDiskConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.includeDeletedKey
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
@@ -78,6 +88,13 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetForApp(saveCluster).transaction
+      _ <- if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
+        F.raiseError[Unit](
+          KubernetesAppCreationException(
+            s"You cannot create an app while a cluster is in status ${saveClusterResult.minimalCluster.status}"
+          )
+        )
+      else F.unit
 
       clusterId = saveClusterResult.minimalCluster.id
       saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req, ctx.now))
@@ -113,6 +130,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
           case res: ClusterDoesNotExist => Some(CreateCluster(res.minimalCluster.id, res.defaultNodepool.id))
         },
         app.id,
+        app.appName,
         nodepool.id,
         saveClusterResult.minimalCluster.googleProject,
         diskResultOpt.map(_.creationNeeded).getOrElse(false),
@@ -198,12 +216,20 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         )
 
       _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+      diskOpt <- if (params.deleteDisk)
+        appResult.app.appResources.disk.fold(
+          F.raiseError[Option[DiskId]](
+            NoDiskForAppException(appResult.cluster.googleProject, appResult.app.appName, ctx.traceId)
+          )
+        )(d => F.pure(Some(d.id)))
+      else F.pure[Option[DiskId]](None)
 
       deleteMessage = DeleteAppMessage(
         appResult.app.id,
+        appResult.app.appName,
         appResult.nodepool.id,
         appResult.cluster.googleProject,
-        params.deleteDisk,
+        diskOpt,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.enqueue1(deleteMessage)
@@ -235,6 +261,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       googleProject = googleProject,
       clusterName = clusterName,
       location = leoKubernetesConfig.clusterConfig.location,
+      region = leoKubernetesConfig.clusterConfig.region,
       status = KubernetesClusterStatus.Precreating,
       serviceAccount = leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail,
       auditInfo = auditInfo,
@@ -268,7 +295,6 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       numNodes = machineConfig.numNodes,
       autoscalingEnabled = machineConfig.autoscalingEnabled,
       autoscalingConfig = Some(leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingConfig),
-      List.empty,
       List.empty,
       false
     )
@@ -356,6 +382,21 @@ case class AppAlreadyExistsException(googleProject: GoogleProject,
     )
 
 case class AppCannotBeDeletedException(googleProject: GoogleProject,
+                                       appName: AppName,
+                                       status: AppStatus,
+                                       traceId: TraceId)
+    extends LeoException(
+      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict
+    )
+
+case class NoDiskForAppException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
+    extends LeoException(
+      s"Specified delete disk for app ${googleProject.value}/${appName.value}, but this app does not have a disk. Trace ID: ${traceId.asString}",
+      StatusCodes.BadRequest
+    )
+
+case class AppCannotBeCreatedException(googleProject: GoogleProject,
                                        appName: AppName,
                                        status: AppStatus,
                                        traceId: TraceId)

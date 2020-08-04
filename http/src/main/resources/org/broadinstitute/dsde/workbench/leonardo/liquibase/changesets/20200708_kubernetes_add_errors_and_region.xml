@@ -1,0 +1,37 @@
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="jcanas" id="add_cluster_region_and_errors">
+        <addColumn tableName="KUBERNETES_CLUSTER">
+            <column name="region" type="VARCHAR(254)" defaultValue="us-central1">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <createTable tableName="APP_ERROR">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="appId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="errorMessage" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="timestamp" type="TIMESTAMP(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="action" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleErrorCode" type="INT">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+        <createIndex indexName="FK_APP_ERROR_APP_ID" tableName="APP_ERROR">
+            <column name="appId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="appId" baseTableName="APP_ERROR" constraintName="FK_APP_ERROR_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
+    </changeSet>
+</databaseChangeLog>
