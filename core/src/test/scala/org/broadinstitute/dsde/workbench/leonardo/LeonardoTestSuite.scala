@@ -31,7 +31,7 @@ trait LeonardoTestSuite extends Matchers {
       val signal = Stream.unfoldEval(accumulator) { acc =>
         if (acc.maxRetry < 0)
           signalToStop
-            .complete(Assertions.fail(s"time out after retries", acc.throwable.getOrElse(null)))
+            .complete(Assertions.fail(s"time out after retries", acc.throwable.orNull))
             .as(None)
         else
           testTimer.sleep(1 seconds) >> validations.attempt.flatMap {

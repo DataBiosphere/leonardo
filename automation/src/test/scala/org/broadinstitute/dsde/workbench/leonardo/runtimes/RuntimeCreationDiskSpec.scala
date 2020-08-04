@@ -186,9 +186,9 @@ class RuntimeCreationDiskSpec
             notebookPage.executeCell(persistedPackage).get should include("/home/jupyter-user/notebooks/packages")
           }
         })
-        _ <- testTimer.sleep(5 seconds) //runtime status updates to Deleted before disk status change, hence add a sleep
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
-        diskResp <- getDisk(googleProject, diskName).attempt
+        ioa = getDisk(googleProject, diskName).attempt
+        diskResp <- streamFUntilDone(ioa, 5, 10 seconds).compile.lastOrError
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
         runtime.diskConfig.map(_.size) shouldBe Some(diskSize)
