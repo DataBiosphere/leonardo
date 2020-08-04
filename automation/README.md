@@ -47,7 +47,7 @@ in `application.conf` to the new chrome driver that you just downloaded
 
 Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do the following for running the individual test
 - Comment out `@DoNotDiscover` of the test you are running
-- Any `Spec` that requires a Google project needs to extend `GPAllocBeforeAndAfterAll` directly or indirectly.
+- Have `Spec` extend `GPAllocBeforeAndAfterAll` directly or indirectly:
 	- If the `Spec` extends `ClusterFixtureSpec`/`RuntimeFixtureSpec`, add `with GPAllocBeforeAndAfterAll` to `ClusterFixtureSpec`/`RuntimeFixtureSpec`. 
 	- If not, add `with GPAllocBeforeAndAfterAll` to the `Spec` directly.
 
