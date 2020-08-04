@@ -26,7 +26,6 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
 
   val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
     CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
-//      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
       pathPrefix("google" / "v1" / "apps") {
         pathEndOrSingleSlash {
           parameterMap { params =>
@@ -208,6 +207,8 @@ object AppRoutes {
     case _ => Right(NumNodepools.apply(n))
   })
 
+  implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
+
   implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] = Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
 
   implicit val listAppDecoder: Decoder[ListAppResponse] = Decoder.forProduct7("googleProject",
@@ -222,6 +223,9 @@ object AppRoutes {
     Encoder.forProduct5("kubernetesRuntimeConfig", "appType", "diskConfig", "labels", "customEnvironmentVariables")(x =>
       CreateAppRequest.unapply(x).get
     )
+
+  implicit val batchNodepoolCreateEncoder: Encoder[BatchNodepoolCreateRequest] =
+    Encoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(x => BatchNodepoolCreateRequest.unapply(x).get)
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =

@@ -208,7 +208,7 @@ object LeoPubsubMessage {
   final case class CreateAppMessage(cluster: Option[CreateCluster],
                                     appId: AppId,
                                     appName: AppName,
-                                    nodepoolId: NodepoolLeoId,
+                                    nodepoolId: Option[NodepoolLeoId],
                                     project: GoogleProject,
                                     createDisk: Boolean,
                                     customEnvironmentVariables: Map[String, String],
@@ -717,7 +717,7 @@ final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) ext
 }
 
 final case class PubsubKubernetesError(dbError: AppError,
-                                       appId: AppId,
+                                       appId: Option[AppId],
                                        isRetryable: Boolean,
                                        nodepoolId: Option[NodepoolLeoId],
                                        clusterId: Option[KubernetesClusterLeoId])

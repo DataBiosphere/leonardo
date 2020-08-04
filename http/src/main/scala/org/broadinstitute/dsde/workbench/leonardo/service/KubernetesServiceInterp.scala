@@ -82,8 +82,12 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       else F.unit
 
       clusterId = saveClusterResult.minimalCluster.id
-      saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
-      nodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+      claimedNodepoolOpt <- nodepoolQuery.claimNodepool(clusterId).transaction
+      nodepool <- claimedNodepoolOpt.fold(
+        for {
+          saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
+          savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+        } yield savedNodepool)(n => F.pure(n))
 
       runtimeServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
@@ -116,7 +120,8 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         },
         app.id,
         app.appName,
-        nodepool.id,
+        //we don't want to create a nodepool if we already have claimed an existing one
+        claimedNodepoolOpt.fold[Option[NodepoolLeoId]](Some(nodepool.id))(_ => None),
         saveClusterResult.minimalCluster.googleProject,
         diskResultOpt.map(_.creationNeeded).getOrElse(false),
         req.customEnvironmentVariables,
@@ -224,12 +229,11 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
-    //TODO: rename nodepoolId in createcluster to defaultNodepoolId
-    //TODO: refactor createApp to check if there are any unclaimed nodepools before queue createAppMessage
-    //transactionally claim i
-    //TODO: refactor pubsub handleCreateAppMessage to check if the nodepool is unclaimed before create
-    // TODO: check sam permission
     ctx <- ev.ask
+    hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
+      ProjectAction.CreateApp,
+      userInfo)
+    _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
     // create default nodepool with size dependant on number of nodes requested
     saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now, Some(req.numNodepools)))
@@ -247,7 +251,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
     nodepools <- eitherNodepoolsOrError.traverse(n => F.fromEither(n))
     _ <- nodepoolQuery.saveAllForCluster(nodepools).transaction
     dbNodepools <- KubernetesServiceDbQueries.getAllNodepoolsForCluster(createCluster.clusterId).transaction
-    allNodepoolIds = dbNodepools.map(_.id) ++ List(createCluster.nodepoolId)
+    allNodepoolIds = dbNodepools.map(_.id)
     msg = BatchNodepoolCreateMessage(createCluster.clusterId, allNodepoolIds, googleProject, Some(ctx.traceId))
     _ <- publisherQueue.enqueue1(msg)
     } yield ()

@@ -84,7 +84,7 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "read DefaultNodepoolConfig properly" in {
-    val expectedResult = DefaultNodepoolConfig(MachineTypeName("n1-standard-1"), NumNodes(1), false)
+    val expectedResult = DefaultNodepoolConfig(MachineTypeName("n1-standard-1"), NumNodes(1), false, MaxNodepoolsPerDefaultNode(16))
     Config.gkeDefaultNodepoolConfig shouldBe expectedResult
   }
 

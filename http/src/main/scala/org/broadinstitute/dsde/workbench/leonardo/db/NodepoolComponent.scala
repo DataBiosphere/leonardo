@@ -94,12 +94,19 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
         nodepools.map(fromNodepool(_))
     } yield ()
 
-
   def saveForCluster(n: Nodepool)(implicit ec: ExecutionContext): DBIO[Nodepool] =
     for {
       nodepoolId <- nodepoolQuery returning nodepoolQuery.map(_.id) +=
         fromNodepool(n)
     } yield n.copy(id = nodepoolId)
+
+  def markAsUnclaimed(ids: List[NodepoolLeoId])(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- nodepoolQuery
+        .filter(_.id.inSet(ids.toSet))
+        .map(_.status)
+        .update(NodepoolStatus.Unclaimed)
+    } yield ()
 
   private def fromNodepool(n: Nodepool) = NodepoolRecord(
     NodepoolLeoId(0),
@@ -124,8 +131,9 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
         .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
           .result
           .headOption
-      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatus(rec.id, NodepoolStatus.Claimed))
-    } yield unclaimedNodepoolOpt.map(rec => unmarshalNodepool(rec, List.empty))
+      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatus(rec.id, NodepoolStatus.Running))
+      claimedNodepoolOpt <- unclaimedNodepoolOpt.flatTraverse(n => getMinimalById(n.id))
+    } yield claimedNodepoolOpt
 
   def updateStatus(id: NodepoolLeoId, status: NodepoolStatus): DBIO[Int] =
     findByNodepoolIdQuery(id)

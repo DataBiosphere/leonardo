@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{BatchNodepoolCreateRequest, CreateAppRequest, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 object KubernetesTestData {
@@ -44,6 +44,8 @@ object KubernetesTestData {
     Map.empty,
     Map.empty
   )
+
+  val batchNodepoolCreateRequest = BatchNodepoolCreateRequest(NumNodepools(100), Some(kubernetesRuntimeConfig))
 
   val testCluster = makeKubeCluster(1)
   val testNodepool = makeNodepool(1, testCluster.id)

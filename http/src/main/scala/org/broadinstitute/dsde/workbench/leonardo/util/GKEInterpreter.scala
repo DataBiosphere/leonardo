@@ -118,18 +118,21 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
     builderWithAutoscaling.build()
   }
 
-  def createCluster(createMessage: CreateCluster, appId: AppId)(
+  def createCluster(clusterId: KubernetesClusterLeoId, nodepoolsToCreate: List[NodepoolLeoId], isNodepoolPrecreate: Boolean)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[CreateClusterResult] =
     for {
-      _ <- logger.info(s"beginning cluster creation for app ${appId}")
-      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(createMessage.clusterId).transaction
+      _ <- logger.info(s"beginning cluster creation for cluster ${clusterId}")
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(clusterId).transaction
       dbCluster <- F.fromOption(
         clusterOpt,
-        KubernetesClusterNotFoundException(s"cluster with id ${createMessage.clusterId} not found in database")
+        KubernetesClusterNotFoundException(s"cluster with id ${clusterId} not found in database")
       )
-      defaultNodepool <- F.fromOption(dbCluster.nodepools.filter(_.isDefault).headOption,
-                                      DefaultNodepoolNotFoundException(dbCluster.id))
+      nodepools = dbCluster.nodepools
+        .filter(n => nodepoolsToCreate.contains(n.id))
+        .map(getGoogleNodepool(_))
+
+      _ <- if (nodepools.size != nodepoolsToCreate.size) F.raiseError[Unit](ClusterCreationException(s"createCluster was called with nodepools that are not present in the database for cluster ${dbCluster.id}. Nodepools to create: ${nodepoolsToCreate}")) else F.unit
 
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
         SetUpProjectNetworkParams(dbCluster.googleProject)
@@ -144,8 +147,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
       createClusterReq = Cluster
         .newBuilder()
         .setName(dbCluster.clusterName.value)
-        .addNodePools(
-          getGoogleNodepool(defaultNodepool)
+        .addAllNodePools(
+          nodepools.asJava
         )
         // all the below code corresponds to security recommendations
         .setLegacyAbac(LegacyAbac.newBuilder().setEnabled(false))
@@ -180,9 +183,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
                                   subnetwork,
                                   Config.vpcConfig.subnetworkIpRange
                                 ),
-                                appId,
-                                createMessage.clusterId,
-                                createMessage.nodepoolId,
+                                clusterId,
+                                isNodepoolPrecreate,
                                 op)
 
   def pollCluster(clusterResult: CreateClusterResult)(
@@ -224,6 +226,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
         .transaction
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
       _ <- nodepoolQuery.updateStatus(defaultNodepool.id, NodepoolStatus.Running).transaction
+      _ <- if (clusterResult.isNodepoolPrecreate) nodepoolQuery.markAsUnclaimed(dbCluster.nodepools.filterNot(_.isDefault).map(_.id)).transaction else F.unit
     } yield ()
 
   def createAndPollNodepool(nodepoolId: NodepoolLeoId, appId: AppId)(
@@ -330,10 +333,10 @@ final case class AppDeletionException(message: String) extends AppProcessingExce
 }
 
 final case class CreateClusterResult(networkFields: NetworkFields,
-                                     appId: AppId,
                                      clusterId: KubernetesClusterLeoId,
-                                     defaultNodepoolId: NodepoolLeoId,
+                                     isNodepoolPrecreate: Boolean,
                                      operation: com.google.container.v1.Operation)
+
 final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       operation: com.google.container.v1.Operation,
                                       getAppResult: GetAppResult)
