@@ -1,3 +1,6 @@
+FROM golang:1.14.6-stretch
+
+
 FROM oracle/graalvm-ce:20.0.0-java8
 
 EXPOSE 8080
