@@ -6,12 +6,10 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
-import cats.effect.concurrent.Deferred
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Operation
 import com.google.cloud.pubsub.v1.AckReplyConsumer
-import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
@@ -43,8 +41,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeSe
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterErrorQuery,
   clusterQuery,
-  patchQuery,
   kubernetesClusterQuery,
+  patchQuery,
   persistentDiskQuery,
   KubernetesServiceDbQueries,
   RuntimeConfigQueries,
@@ -61,8 +59,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent._
-import org.scalatest.flatspec.AnyFlatSpecLike
-import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import org.mockito.Mockito.verify
 
