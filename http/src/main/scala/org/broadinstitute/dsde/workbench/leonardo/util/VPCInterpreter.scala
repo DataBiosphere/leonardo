@@ -77,7 +77,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
               params.project,
               googleComputeService.getNetwork(params.project, config.vpcConfig.networkName),
               googleComputeService.createNetwork(params.project, buildNetwork(params.project)),
-              NetworkNotReadyException(params.project, config.vpcConfig.networkName)
+              NetworkNotReadyException(params.project, config.vpcConfig.networkName),
+              s"get or create network (${params.project} / ${config.vpcConfig.networkName.value})"
             )
             // If we specify autoCreateSubnetworks, a subnet is automatically created in each region with the same name as the network.
             // See https://cloud.google.com/vpc/docs/vpc#subnet-ranges
@@ -93,7 +94,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
                 googleComputeService.createSubnetwork(params.project,
                                                       config.vpcConfig.subnetworkRegion,
                                                       buildSubnetwork(params.project)),
-                SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName)
+                SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
+                s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
               ).as(config.vpcConfig.subnetworkName)
             }
           } yield (config.vpcConfig.networkName, subnetworkName)
@@ -112,7 +114,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
           params.project,
           googleComputeService.getFirewallRule(params.project, fw.name),
           googleComputeService.addFirewallRule(params.project, buildFirewall(params.project, params.networkName, fw)),
-          FirewallNotReadyException(params.project, fw.name)
+          FirewallNotReadyException(params.project, fw.name),
+          s"get or create firewall rule (${params.project} / ${fw.name.value})"
         )
       }
       // if the default network exists, remove configured firewalls
@@ -123,7 +126,11 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
       } else F.unit
     } yield ()
 
-  private def createIfAbsent[A](project: GoogleProject, get: F[Option[A]], create: F[Operation], fail: Throwable)(
+  private def createIfAbsent[A](project: GoogleProject,
+                                get: F[Option[A]],
+                                create: F[Operation],
+                                fail: Throwable,
+                                msg: String)(
     implicit ev: ApplicativeAsk[F, TraceId]
   ): F[Unit] = {
     val getAndCreate = for {
@@ -143,13 +150,17 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
 
     // Retry the whole get-check-create operation
     Stream
-      .retry(getAndCreate,
-             retryPolicy.retryInitialDelay,
-             retryPolicy.retryNextDelay,
-             retryPolicy.maxAttempts,
-             retryPolicy.retryable)
+      .retry(
+        getAndCreate.onError {
+          case e => Logger[F].error(e)(s"Attempt failed: $msg. Retryable = ${retryPolicy.retryable(e)}")
+        },
+        retryPolicy.retryInitialDelay,
+        retryPolicy.retryNextDelay,
+        retryPolicy.maxAttempts,
+        retryPolicy.retryable
+      )
       .compile
-      .drain
+      .lastOrError
   }
 
   private[util] def buildNetwork(project: GoogleProject): Network =
