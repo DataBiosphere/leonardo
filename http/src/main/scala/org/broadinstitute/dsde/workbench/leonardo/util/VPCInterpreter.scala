@@ -1,12 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import _root_.io.chrisdavenport.log4cats.Logger
 import cats.Parallel
-import cats.effect.{Async, ContextShift, IO}
+import cats.effect.{Async, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
-import io.chrisdavenport.log4cats.Logger
+import fs2._
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   FirewallRuleName,
@@ -36,7 +38,7 @@ final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork:
 final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName)
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time")
 
-final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
+final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
   config: VPCInterpreterConfig,
   googleProjectDAO: GoogleProjectDAO,
   googleComputeService: GoogleComputeService[F],
@@ -45,6 +47,14 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
     extends VPCAlgebra[F] {
 
   val defaultNetworkName = NetworkName("default")
+
+  // Retry 400 and 409 responses from Google, as those can occur on concurrent operations
+  // (e.g. multiple network creations at the same time).
+  val retryPolicy = RetryPredicates.retryConfigWithPredicates(
+    RetryPredicates.standardRetryPredicate,
+    RetryPredicates.whenStatusCode(400),
+    RetryPredicates.whenStatusCode(409)
+  )
 
   override def setUpProjectNetwork(
     params: SetUpProjectNetworkParams
@@ -115,8 +125,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
 
   private def createIfAbsent[A](project: GoogleProject, get: F[Option[A]], create: F[Operation], fail: Throwable)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit] =
-    for {
+  ): F[Unit] = {
+    val getAndCreate = for {
       existing <- get
       _ <- if (existing.isEmpty) {
         for {
@@ -130,6 +140,17 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
         } yield ()
       } else F.unit
     } yield ()
+
+    // Retry the whole get-check-create operation
+    Stream
+      .retry(getAndCreate,
+             retryPolicy.retryInitialDelay,
+             retryPolicy.retryNextDelay,
+             retryPolicy.maxAttempts,
+             retryPolicy.retryable)
+      .compile
+      .drain
+  }
 
   private[util] def buildNetwork(project: GoogleProject): Network =
     Network
