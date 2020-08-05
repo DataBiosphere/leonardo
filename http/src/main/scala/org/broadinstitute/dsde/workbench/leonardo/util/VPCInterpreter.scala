@@ -122,7 +122,10 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
       defaultNetwork <- googleComputeService.getNetwork(params.project, defaultNetworkName)
       _ <- if (defaultNetwork.isDefined) {
         config.vpcConfig.firewallsToRemove
-          .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
+          .parTraverse_(fw =>
+            retryF(googleComputeService.deleteFirewallRule(params.project, fw),
+                   s"delete firewall rule (${params.project} / ${fw.value})")
+          )
       } else F.unit
     } yield ()
 
@@ -149,9 +152,14 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
     } yield ()
 
     // Retry the whole get-check-create operation
+    retryF(getAndCreate, msg)
+  }
+
+  // TODO maybe use wb-libs tracedRetryGoogleF directly
+  private def retryF[A](fa: F[A], msg: String): F[A] =
     Stream
       .retry(
-        getAndCreate.onError {
+        fa.onError {
           case e => Logger[F].error(e)(s"Attempt failed: $msg. Retryable = ${retryPolicy.retryable(e)}")
         },
         retryPolicy.retryInitialDelay,
@@ -161,7 +169,6 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
       )
       .compile
       .lastOrError
-  }
 
   private[util] def buildNetwork(project: GoogleProject): Network =
     Network
