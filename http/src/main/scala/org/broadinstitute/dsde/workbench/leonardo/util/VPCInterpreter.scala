@@ -1,15 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import _root_.io.chrisdavenport.log4cats.Logger
+import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
-import fs2._
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
+  tracedRetryGoogleF,
   ComputePollOperation,
   FirewallRuleName,
   GoogleComputeService,
@@ -38,7 +38,7 @@ final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork:
 final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName)
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time")
 
-final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
+final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer](
   config: VPCInterpreterConfig,
   googleProjectDAO: GoogleProjectDAO,
   googleComputeService: GoogleComputeService[F],
@@ -155,21 +155,6 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
     retryF(getAndCreate, msg)
   }
 
-  // TODO maybe use wb-libs tracedRetryGoogleF directly
-  private def retryF[A](fa: F[A], msg: String): F[A] =
-    Stream
-      .retry(
-        fa.onError {
-          case e => Logger[F].error(e)(s"Attempt failed: $msg. Retryable = ${retryPolicy.retryable(e)}")
-        },
-        retryPolicy.retryInitialDelay,
-        retryPolicy.retryNextDelay,
-        retryPolicy.maxAttempts,
-        retryPolicy.retryable
-      )
-      .compile
-      .lastOrError
-
   private[util] def buildNetwork(project: GoogleProject): Network =
     Network
       .newBuilder()
@@ -207,4 +192,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger: Timer](
           .asJava
       )
       .build
+
+  private def retryF[A](fa: F[A], msg: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[A] =
+    tracedRetryGoogleF(retryPolicy)(fa, msg).compile.lastOrError
 }
