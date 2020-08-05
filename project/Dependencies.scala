@@ -21,9 +21,10 @@ object Dependencies {
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
   val workbenchGoogleV = "0.21-2a218f3"
-  val workbenchGoogle2V = "0.11-c0e6762"
+  val workbenchGoogle2V = "0.11-59c8c5da-SNAP"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchOpenTelemetryV = "0.1-e66171c"
+  val workbenchErrorReportingV = "0.1-92fcd96"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = "akka-stream_2.12")
@@ -37,6 +38,7 @@ object Dependencies {
   val excludeFindbugsJsr = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeGson = ExclusionRule(organization = "com.google.code.gson", name = "gson")
   val excludeGoogleApiClient = ExclusionRule(organization = "com.google.api-client", name = "google-api-client")
+  val excludeGoogleErrorReporting = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-errorreporting")
   val excludeGoogleApiClientJackson2 = ExclusionRule(organization = "com.google.http-client", name = "google-http-client-jackson2")
   val excludeGoogleHttpClient = ExclusionRule(organization = "com.google.http-client", name = "google-http-client")
   val excludeJacksonCore = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-core")
@@ -61,7 +63,6 @@ object Dependencies {
   val jacksonCore: ModuleID =         "com.fasterxml.jackson.core" % "jackson-core"         % jacksonV
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
-  val ravenLogback: ModuleID =    "com.getsentry.raven"         % "raven-logback"   % "8.0.3" excludeAll (excludeJacksonCore, excludeSlf4j, excludeLogbackCore, excludeLogbackClassic)
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.25.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.4.7"
@@ -76,8 +77,10 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.28.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.28.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
   val googleOAuth2: ModuleID =              "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1" excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
+  val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
+  val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % "test"
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-14" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -89,7 +92,7 @@ object Dependencies {
   val workbenchUtil: ModuleID =         "org.broadinstitute.dsde.workbench" %% "workbench-util"     % workbenchUtilV excludeAll (excludeWorkbenchModel, excludeGoogleError, excludeGuava)
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
   val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeGuava)
-  val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (excludeWorkbenchUtil,
+ val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (excludeWorkbenchUtil,
     excludeWorkbenchModel,
     excludeWorkbenchMetrics,
     excludeIoGrpc,
@@ -107,13 +110,15 @@ object Dependencies {
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchUtil, excludeWorkbenchModel, excludeGuava)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
-  val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % "test" classifier "tests" excludeAll (excludeGuava)
+  val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
+  val workbenchErrorReporting: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV excludeAll(excludeGoogleErrorReporting)
+  val workbenchErrorReportingTest: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV % Test classifier "tests" excludeAll(excludeGoogleErrorReporting)
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.18"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.8.8"
-  val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.5"
+  val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % "test" // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
@@ -131,7 +136,7 @@ object Dependencies {
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
     workbenchOpenTelemetryTest,
-    "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
+//    "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
     "org.scalacheck" %% "scalacheck" % "1.14.1" % "test",
     sealerate,
     enumeratum,
@@ -149,7 +154,6 @@ object Dependencies {
     jacksonCore,
     fs2Io,
     logbackClassic,
-    ravenLogback,
     scalaLogging,
     swaggerUi,
     ficus,
@@ -164,10 +168,15 @@ object Dependencies {
     googleDataproc,
     googleRpc,
     googleOAuth2,
+//    googleGaxGrpc,
+    googleErrorReporting, // forcing an older versin of google-cloud-errorreporting because latest version brings in higher version of gax-grpc, which isn't compatible with other google dependencies
+
     hikariCP,
     workbenchUtil,
     workbenchGoogle,
     workbenchGoogleTest,
+    workbenchErrorReporting,
+    workbenchErrorReportingTest,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
     "com.rms.miu" %% "slick-cats" % "0.10.1",

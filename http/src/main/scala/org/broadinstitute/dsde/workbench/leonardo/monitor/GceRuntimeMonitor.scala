@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.sql.SQLDataException
+
 import cats.Parallel
 import cats.effect.{Async, Timer}
 import cats.implicits._
@@ -192,11 +194,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
     case Some(i) =>
       for {
         context <- ev.ask
-        gceStatus <- F.fromEither(
-          GceInstanceStatus
-            .withNameInsensitiveOption(i.getStatus)
-            .toRight(new Exception(s"Unknown GCE instance status ${i.getStatus}"))
-        ) //TODO: Ideally we should have sentry report this case
+        gceStatus <- F.fromOption(GceInstanceStatus
+                                    .withNameInsensitiveOption(i.getStatus),
+                                  new SQLDataException(s"Unknown GCE instance status ${i.getStatus}"))
         r <- gceStatus match {
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))

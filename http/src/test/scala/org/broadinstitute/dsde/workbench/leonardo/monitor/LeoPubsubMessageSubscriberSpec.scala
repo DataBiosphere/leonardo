@@ -1344,7 +1344,8 @@ class LeoPubsubMessageSubscriberSpec
       MockGoogleDiskService,
       computePollOperation,
       MockAuthProvider,
-      gkeInterp
+      gkeInterp,
+      org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting
     )
   }
 }
