@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.google.{
   HttpGoogleProjectDAO,
   HttpGoogleStorageDAO
 }
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
@@ -356,7 +357,16 @@ object Boot extends IOApp {
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
-      googleComputeService <- GoogleComputeService.resource(pathToCredentialJson, blocker, semaphore)
+      // Retry 400 responses from Google, as those can occur when resources aren't ready yet
+      // (e.g. if the subnet isn't ready when creating an instance).
+      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(
+        RetryPredicates.standardRetryPredicate,
+        RetryPredicates.whenStatusCode(400)
+      )
+      googleComputeService <- GoogleComputeService.resource(pathToCredentialJson,
+                                                            blocker,
+                                                            semaphore,
+                                                            googleComputeRetryPolicy)
       dataprocService <- GoogleDataprocService.resource(
         pathToCredentialJson,
         blocker,

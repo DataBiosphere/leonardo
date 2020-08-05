@@ -48,11 +48,9 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
 
   val defaultNetworkName = NetworkName("default")
 
-  // Retry 400 and 409 responses from Google, as those can occur on concurrent operations
-  // (e.g. multiple network creations at the same time).
+  // Retry 409s to support concurrent get-check-create operations
   val retryPolicy = RetryPredicates.retryConfigWithPredicates(
     RetryPredicates.standardRetryPredicate,
-    RetryPredicates.whenStatusCode(400),
     RetryPredicates.whenStatusCode(409)
   )
 
@@ -122,10 +120,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
       defaultNetwork <- googleComputeService.getNetwork(params.project, defaultNetworkName)
       _ <- if (defaultNetwork.isDefined) {
         config.vpcConfig.firewallsToRemove
-          .parTraverse_(fw =>
-            retryF(googleComputeService.deleteFirewallRule(params.project, fw),
-                   s"delete firewall rule (${params.project} / ${fw.value})")
-          )
+          .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
       } else F.unit
     } yield ()
 
@@ -151,8 +146,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
       } else F.unit
     } yield ()
 
-    // Retry the whole get-check-create operation
-    retryF(getAndCreate, msg)
+    // Retry the whole get-check-create operation in case of 409
+    tracedRetryGoogleF(retryPolicy)(getAndCreate, msg).compile.lastOrError
   }
 
   private[util] def buildNetwork(project: GoogleProject): Network =
@@ -192,7 +187,4 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
           .asJava
       )
       .build
-
-  private def retryF[A](fa: F[A], msg: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[A] =
-    tracedRetryGoogleF(retryPolicy)(fa, msg).compile.lastOrError
 }
