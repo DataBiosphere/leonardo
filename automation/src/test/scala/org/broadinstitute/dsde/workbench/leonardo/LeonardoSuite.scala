@@ -57,11 +57,13 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
+      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll beforeAll"))
       claimAttempt <- claimProject().attempt
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
         case Right(billingProject) =>
-          IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
+          IO(sys.props.put(gpallocProjectKey, billingProject.value)) >>
+            createInitialRuntime(billingProject)
       }
     } yield ()
 
@@ -70,17 +72,17 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 
   override def afterAll(): Unit = {
     val res = for {
-      shouldUnclaim <- IO(sys.props.get(shouldUnclaimProjectsKey))
-      prop <- IO(sys.props.get(gpallocProjectKey))
-      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaim"))
-      _ <- if (shouldUnclaim != Some("false")) {
-        val project = prop.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
-        for {
-          _ <- project.fold(IO.unit)(p =>
-            deleteInitialRuntime(p) >> unclaimProject(p) >> IO(sys.props.remove(gpallocProjectKey))
-          )
-        } yield ()
-      } else IO(logger.info(s"Not going to release project: ${prop} due to error happened"))
+      shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
+      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaimProp"))
+      projectProp <- IO(sys.props.get(gpallocProjectKey))
+      project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
+      _ <- if (shouldUnclaimProp != Some("false")) {
+        project.traverse(p =>
+          deleteInitialRuntime(p) >>
+            unclaimProject(p)
+        )
+      } else IO(logger.info(s"Not going to release project: ${projectProp} due to error happened"))
+      _ <- IO(sys.props.remove(gpallocProjectKey))
       _ <- IO(super.afterAll())
     } yield ()
 
