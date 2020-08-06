@@ -116,6 +116,10 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
       _ <- IO(logger.info(s"Billing project released: ${project.value}"))
     } yield ()
 
+  // NOTE: createInitialRuntime / deleteInitialRuntime exists so we can ensure that project-level
+  // resources like networks, subnets, etc are set up prior to the concurrent test execution.
+  // We can remove this once https://broadworkbench.atlassian.net/browse/IA-2121 is done.
+
   private def createInitialRuntime(project: GoogleProject): IO[Unit] =
     LeonardoApiClient.client.use { implicit c =>
       implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
