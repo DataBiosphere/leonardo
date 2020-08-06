@@ -189,7 +189,7 @@ class RuntimeCreationDiskSpec
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
         getDiskAttempt = getDisk(googleProject, diskName).attempt
         // Disk deletion may take some time so we're retrying to reduce flaky test failures
-        diskResp <- streamFUntilDone(getDiskAttempt, 5, 10 seconds).compile.lastOrError
+        diskResp <- streamFUntilDone(getDiskAttempt, 5, 5 seconds).compile.lastOrError
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
         runtime.diskConfig.map(_.size) shouldBe Some(diskSize)
