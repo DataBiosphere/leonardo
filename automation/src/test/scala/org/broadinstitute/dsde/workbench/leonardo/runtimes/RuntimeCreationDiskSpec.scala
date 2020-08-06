@@ -121,7 +121,7 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()
   }
 
-  "create runtime and attach an existing a persistent disk" in { googleProject =>
+  "create runtime and attach an existing persistent disk" in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
