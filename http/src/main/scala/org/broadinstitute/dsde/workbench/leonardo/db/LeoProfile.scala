@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   Location,
   MachineTypeName,
   NetworkName,
-  OperationName,
+  RegionName,
   SubnetworkName,
   ZoneName
 }
@@ -135,8 +135,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       )
     implicit val kubernetesClusterNameColumnType: BaseColumnType[KubernetesClusterName] =
       MappedColumnType.base[KubernetesClusterName, String](_.value, KubernetesClusterName.apply)
-    implicit val operationNameColumnType: BaseColumnType[OperationName] =
-      MappedColumnType.base[OperationName, String](_.value, OperationName.apply)
+    implicit val regionNameColumnType: BaseColumnType[RegionName] =
+      MappedColumnType.base[RegionName, String](_.value, RegionName.apply)
     implicit val locationColumnType: BaseColumnType[Location] =
       MappedColumnType.base[Location, String](_.value, Location.apply)
     implicit val ipColumnType: BaseColumnType[IP] =
@@ -186,6 +186,21 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         _.toString,
         s => AppStatus.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid app status ${s}"))
       )
+
+    implicit val errorSourceColumnType: BaseColumnType[ErrorSource] =
+      MappedColumnType.base[ErrorSource, String](
+        _.toString,
+        s => ErrorSource.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid error source ${s}"))
+      )
+
+    implicit val errorActionColumnType: BaseColumnType[ErrorAction] =
+      MappedColumnType.base[ErrorAction, String](
+        _.toString,
+        s => ErrorAction.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid error action ${s}"))
+      )
+
+    implicit val errorIdColumnType: BaseColumnType[KubernetesErrorId] =
+      MappedColumnType.base[KubernetesErrorId, Long](_.value, KubernetesErrorId.apply)
 
     implicit val serviceIdColumnType: BaseColumnType[ServiceId] =
       MappedColumnType.base[ServiceId, Long](_.id, ServiceId.apply)

@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -11,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   Location,
   MachineTypeName,
   NetworkName,
+  RegionName,
   SubnetworkName
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -24,14 +26,13 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              // Leo currently specifies a zone, e.g. "us-central1-a" and makes all clusters single-zone
                              // Location is exposed here in case we ever want to leverage the flexibility GKE provides
                              location: Location,
+                             region: RegionName,
                              status: KubernetesClusterStatus,
                              serviceAccount: WorkbenchEmail,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
-                             nodepools: List[Nodepool],
-                             //TODO: populate this
-                             errors: List[KubernetesError]) {
+                             nodepools: List[Nodepool]) {
 
   def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
@@ -39,6 +40,9 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
 final case class KubernetesClusterAsyncFields(externalIp: IP, networkInfo: NetworkFields)
 
 final case class NetworkFields(networkName: NetworkName, subNetworkName: SubnetworkName, subNetworkIpRange: IpRange)
+
+//should be in the format 0.0.0.0/0
+final case class CidrIP(value: String) extends AnyVal
 
 /** Google Container Cluster statuses
  *  see: https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters#Cluster.Status
@@ -161,7 +165,6 @@ final case class Nodepool(id: NodepoolLeoId,
                           numNodes: NumNodes,
                           autoscalingEnabled: Boolean,
                           autoscalingConfig: Option[AutoscalingConfig],
-                          errors: List[KubernetesError],
                           apps: List[App],
                           isDefault: Boolean)
 object KubernetesNameUtils {
@@ -189,7 +192,6 @@ case class DefaultNodepool(id: NodepoolLeoId,
              numNodes,
              autoscalingEnabled,
              autoscalingConfig,
-             List.empty,
              List.empty,
              true)
 }
@@ -226,19 +228,43 @@ final case class DefaultKubernetesLabels(googleProject: GoogleProject,
     )
 }
 
-final case class KubernetesError(errorMessage: String, errorCode: Int, timestamp: Instant, errorSource: ErrorSource)
+sealed abstract class ErrorAction
+object ErrorAction {
+  case object CreateGalaxyApp extends ErrorAction {
+    override def toString: String = "createGalaxyApp"
+  }
+
+  case object DeleteGalaxyApp extends ErrorAction {
+    override def toString: String = "deleteGalaxyApp"
+  }
+
+  def values: Set[ErrorAction] = sealerate.values[ErrorAction]
+  def stringToObject: Map[String, ErrorAction] = values.map(v => v.toString -> v).toMap
+}
+final case class AppError(errorMessage: String,
+                          timestamp: Instant,
+                          action: ErrorAction,
+                          source: ErrorSource,
+                          googleErrorCode: Option[Int])
+
+final case class KubernetesErrorId(value: Long) extends AnyVal
+
 sealed abstract class ErrorSource
 object ErrorSource {
   case object Cluster extends ErrorSource {
-    override def toString: String = "Cluster"
+    override def toString: String = "cluster"
   }
 
   case object Nodepool extends ErrorSource {
-    override def toString: String = "Nodepool"
+    override def toString: String = "nodepool"
   }
 
   case object App extends ErrorSource {
-    override def toString: String = "App"
+    override def toString: String = "app"
+  }
+
+  case object Disk extends ErrorSource {
+    override def toString: String = "disk"
   }
 
   def values: Set[ErrorSource] = sealerate.values[ErrorSource]
@@ -273,8 +299,13 @@ final case class App(id: AppId,
                      labels: LabelMap,
                      //this is populated async to app creation
                      appResources: AppResources,
-                     errors: List[KubernetesError],
-                     customEnvironmentVariables: Map[String, String])
+                     errors: List[AppError],
+                     customEnvironmentVariables: Map[String, String]) {
+  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
+    appResources.services.map { service =>
+      (service.config.name, new URL(s"$proxyUrlBase/$project/$appName/${service.config.name}"))
+    }.toMap
+}
 
 sealed abstract class AppStatus
 object AppStatus {
@@ -326,3 +357,11 @@ final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: Machin
 
 //used in pubsub messaging to indicate the cluster and dummy nodepool to be created
 final case class CreateCluster(clusterId: KubernetesClusterLeoId, nodepoolId: NodepoolLeoId)
+
+final case class NodepoolNotFoundException(nodepoolLeoId: NodepoolLeoId) extends Exception {
+  override def getMessage: String = s"nodepool with id ${nodepoolLeoId} not found"
+}
+
+final case class DefaultNodepoolNotFoundException(clusterId: KubernetesClusterLeoId) extends Exception {
+  override def getMessage: String = s"Unable to find default nodepool for cluster with id ${clusterId}"
+}

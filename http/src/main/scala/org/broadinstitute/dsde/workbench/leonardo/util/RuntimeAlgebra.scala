@@ -105,7 +105,7 @@ sealed trait RuntimeInterpreterConfig {
   def imageConfig: ImageConfig
   def proxyConfig: ProxyConfig
   def clusterResourcesConfig: ClusterResourcesConfig
-  def clusterFilesConfig: ClusterFilesConfig
+  def clusterFilesConfig: SecurityFilesConfig
   def runtimeCreationTimeout: FiniteDuration
 }
 object RuntimeInterpreterConfig {
@@ -116,7 +116,7 @@ object RuntimeInterpreterConfig {
                                              proxyConfig: ProxyConfig,
                                              vpcConfig: VPCConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
-                                             clusterFilesConfig: ClusterFilesConfig,
+                                             clusterFilesConfig: SecurityFilesConfig,
                                              runtimeCreationTimeout: FiniteDuration)
       extends RuntimeInterpreterConfig
 
@@ -126,7 +126,7 @@ object RuntimeInterpreterConfig {
                                         proxyConfig: ProxyConfig,
                                         vpcConfig: VPCConfig,
                                         clusterResourcesConfig: ClusterResourcesConfig,
-                                        clusterFilesConfig: ClusterFilesConfig,
+                                        clusterFilesConfig: SecurityFilesConfig,
                                         runtimeCreationTimeout: FiniteDuration)
       extends RuntimeInterpreterConfig
 }

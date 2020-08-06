@@ -369,6 +369,12 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
       )
       .forall(identity)
 
+  def clickOverrideNotebookChanged(): Unit =
+    if (find(confirmNotebookSaveButton).size > 0) {
+      click on confirmNotebookSaveButton
+      await notVisible jupyterModal
+    }
+
   //will cause an exception if no modal exists - check existence of below ID before calling
   def makeACopyFromSyncIssue(): Unit =
     click on getSelectorFrom(syncCopyButton)

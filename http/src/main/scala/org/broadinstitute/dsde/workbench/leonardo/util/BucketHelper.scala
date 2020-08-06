@@ -202,5 +202,5 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
 case class BucketHelperConfig(imageConfig: ImageConfig,
                               welderConfig: WelderConfig,
                               proxyConfig: ProxyConfig,
-                              clusterFilesConfig: ClusterFilesConfig,
+                              clusterFilesConfig: SecurityFilesConfig,
                               clusterResourcesConfig: ClusterResourcesConfig)

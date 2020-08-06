@@ -40,13 +40,11 @@ class MonitorAtBoot[F[_]: Timer](implicit F: Async[F],
                       statusOpt
                         .toRight(new Exception(s"${tid} | ${c.id} not found after transition. This is very weird!"))
                     )
-                    now <- nowInstant[F]
                     _ <- if (s != RuntimeStatus.Running) {
                       // There's slight chance where pubsub message is never published during a redeploy.
                       // In this case, user will see that the runtime doesn't get patched after clicking patch button.
                       // In the ideal case, patch is completed, and runtime has come back to Running.
                       metrics.incrementCounter("PatchInProgressFailed")
-                      F.unit
                     } else {
                       // If patch is in progress and we didn't finish patching, we don't really have a good way to recover;
                       // There is a chance that leonardo will be able to recover if the UpdateRuntimeEvent has already been sent to pubsub,

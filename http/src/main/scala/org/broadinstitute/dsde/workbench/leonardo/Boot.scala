@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   credentialResource,
   ComputePollOperation,
   Event,
+  GKEService,
   GoogleComputeService,
   GoogleDataprocService,
   GoogleDiskService,
@@ -34,6 +35,7 @@ import org.broadinstitute.dsde.workbench.google.{
   HttpGoogleProjectDAO,
   HttpGoogleStorageDAO
 }
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
@@ -75,7 +77,7 @@ object Boot extends IOApp {
         imageConfig,
         welderConfig,
         proxyConfig,
-        clusterFilesConfig,
+        securityFilesConfig,
         clusterResourcesConfig
       )
       val bucketHelper = new BucketHelper(bucketHelperConfig,
@@ -233,13 +235,20 @@ object Boot extends IOApp {
           // only needed for backleo
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
+          val gkeInterp = new GKEInterpreter[IO](gkeInterpConfig,
+                                                 vpcInterp,
+                                                 googleDependencies.gkeService,
+                                                 googleDependencies.kubeService,
+                                                 appDependencies.blocker)
+
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
                                                appDependencies.subscriber,
                                                appDependencies.asyncTasksQueue,
                                                googleDiskService,
                                                googleDependencies.computePollOperation,
-                                               appDependencies.authProvider)
+                                               appDependencies.authProvider,
+                                               gkeInterp)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -339,12 +348,25 @@ object Boot extends IOApp {
         InspectableQueue.bounded[F, UpdateDateAccessMessage](dateAccessUpdaterConfig.queueSize)
       )
 
+      gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
+      kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
+        .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
+
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
-      googleComputeService <- GoogleComputeService.resource(pathToCredentialJson, blocker, semaphore)
+      // Retry 400 responses from Google, as those can occur when resources aren't ready yet
+      // (e.g. if the subnet isn't ready when creating an instance).
+      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(
+        RetryPredicates.standardRetryPredicate,
+        RetryPredicates.whenStatusCode(400)
+      )
+      googleComputeService <- GoogleComputeService.resource(pathToCredentialJson,
+                                                            blocker,
+                                                            semaphore,
+                                                            googleComputeRetryPolicy)
       dataprocService <- GoogleDataprocService.resource(
         pathToCredentialJson,
         blocker,
@@ -367,7 +389,9 @@ object Boot extends IOApp {
         googleIamDAO,
         gdDAO,
         dataprocService,
-        kubernetesDnsCache
+        kubernetesDnsCache,
+        gkeService,
+        kubeService
       )
     } yield AppDependencies(
       storage,
@@ -404,7 +428,9 @@ final case class GoogleDependencies[F[_]](
   googleIamDAO: HttpGoogleIamDAO,
   googleDataprocDAO: HttpGoogleDataprocDAO,
   googleDataproc: GoogleDataprocService[F],
-  kubernetesDnsCache: KubernetesDnsCache[F]
+  kubernetesDnsCache: KubernetesDnsCache[F],
+  gkeService: GKEService[F],
+  kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F]
 )
 
 final case class AppDependencies[F[_]](

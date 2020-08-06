@@ -59,4 +59,5 @@
     <include file="changesets/20200701_kubernetes_drop_port_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200701_kubernetes_default_nodepool.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200719_add_app_custom_env_vars.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200708_kubernetes_add_errors_and_region.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
