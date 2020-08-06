@@ -1,13 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
-import cats.effect.{Async, ContextShift, IO}
+import cats.effect.{Async, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
-import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
+  tracedRetryGoogleF,
   ComputePollOperation,
   FirewallRuleName,
   GoogleComputeService,
@@ -36,7 +38,7 @@ final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork:
 final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName)
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time")
 
-final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
+final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer](
   config: VPCInterpreterConfig,
   googleProjectDAO: GoogleProjectDAO,
   googleComputeService: GoogleComputeService[F],
@@ -45,6 +47,12 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
     extends VPCAlgebra[F] {
 
   val defaultNetworkName = NetworkName("default")
+
+  // Retry 409s to support concurrent get-check-create operations
+  val retryPolicy = RetryPredicates.retryConfigWithPredicates(
+    RetryPredicates.standardRetryPredicate,
+    RetryPredicates.whenStatusCode(409)
+  )
 
   override def setUpProjectNetwork(
     params: SetUpProjectNetworkParams
@@ -67,7 +75,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
               params.project,
               googleComputeService.getNetwork(params.project, config.vpcConfig.networkName),
               googleComputeService.createNetwork(params.project, buildNetwork(params.project)),
-              NetworkNotReadyException(params.project, config.vpcConfig.networkName)
+              NetworkNotReadyException(params.project, config.vpcConfig.networkName),
+              s"get or create network (${params.project} / ${config.vpcConfig.networkName.value})"
             )
             // If we specify autoCreateSubnetworks, a subnet is automatically created in each region with the same name as the network.
             // See https://cloud.google.com/vpc/docs/vpc#subnet-ranges
@@ -83,7 +92,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
                 googleComputeService.createSubnetwork(params.project,
                                                       config.vpcConfig.subnetworkRegion,
                                                       buildSubnetwork(params.project)),
-                SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName)
+                SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
+                s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
               ).as(config.vpcConfig.subnetworkName)
             }
           } yield (config.vpcConfig.networkName, subnetworkName)
@@ -102,7 +112,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
           params.project,
           googleComputeService.getFirewallRule(params.project, fw.name),
           googleComputeService.addFirewallRule(params.project, buildFirewall(params.project, params.networkName, fw)),
-          FirewallNotReadyException(params.project, fw.name)
+          FirewallNotReadyException(params.project, fw.name),
+          s"get or create firewall rule (${params.project} / ${fw.name.value})"
         )
       }
       // if the default network exists, remove configured firewalls
@@ -113,10 +124,14 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
       } else F.unit
     } yield ()
 
-  private def createIfAbsent[A](project: GoogleProject, get: F[Option[A]], create: F[Operation], fail: Throwable)(
+  private def createIfAbsent[A](project: GoogleProject,
+                                get: F[Option[A]],
+                                create: F[Operation],
+                                fail: Throwable,
+                                msg: String)(
     implicit ev: ApplicativeAsk[F, TraceId]
-  ): F[Unit] =
-    for {
+  ): F[Unit] = {
+    val getAndCreate = for {
       existing <- get
       _ <- if (existing.isEmpty) {
         for {
@@ -130,6 +145,10 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: Logger](
         } yield ()
       } else F.unit
     } yield ()
+
+    // Retry the whole get-check-create operation in case of 409
+    tracedRetryGoogleF(retryPolicy)(getAndCreate, msg).compile.lastOrError
+  }
 
   private[util] def buildNetwork(project: GoogleProject): Network =
     Network

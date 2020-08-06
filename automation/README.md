@@ -38,15 +38,18 @@ IntelliJ
 - Edit Configurations -> Defaults -> ScalaTest
 - set VM parameters `-Djsse.enableSNIExtension=false -Dheadless=false`
 - set Working dir to local dir
-- use classpath and SDK of the leonardoTests module
-- should be able to right-click-run
+- use classpath and SDK of the leonardoTests (automation) module
+- IntelliJ -> Preferences -> Build, Execution, Deployment -> Build Tools -> sbt: Check the two boxes next to `Use sbt shell`
+- should be able to right-click-run on the particular test
 - If you get an error like `selenium.common.exceptions.SessionNotCreatedException: Message: session not created: This version of ChromeDriver only supports Chrome version 75`,
 download the chrome driver from `https://sites.google.com/a/chromium.org/chromedriver/downloads` that has the same version of your local chrome. Update `chromeSettings.chromedriverPath`
 in `application.conf` to the new chrome driver that you just downloaded
 
 Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do the following for running the individual test
 - Comment out `@DoNotDiscover` of the test you are running
-- add `with GPAllocBeforeAndAfterAll` to `ClusterFixtureSpec`
+- Have `Spec` extend `GPAllocBeforeAndAfterAll` directly or indirectly:
+	- If the `Spec` extends `ClusterFixtureSpec`/`RuntimeFixtureSpec`, add `with GPAllocBeforeAndAfterAll` to `ClusterFixtureSpec`/`RuntimeFixtureSpec`. 
+	- If not, add `with GPAllocBeforeAndAfterAll` to the `Spec` directly.
 
 ### Developing locally
 
