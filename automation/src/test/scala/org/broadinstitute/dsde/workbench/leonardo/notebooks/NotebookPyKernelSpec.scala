@@ -138,8 +138,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val firstApiCall =
             Leonardo.cluster.getRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
           //Sleeping for 90s to simulate idle notebook
-          logger.info("Sleeping for 90s to simulate idle notebook")
-          Thread.sleep(90000)
+          logger.info("Sleeping for 120s to simulate idle notebook")
+          Thread.sleep(120000)
           val secondApiCall =
             Leonardo.cluster.getRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
           firstApiCall.auditInfo.dateAccessed should be < secondApiCall.auditInfo.dateAccessed
