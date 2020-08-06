@@ -121,7 +121,7 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()
   }
 
-  "create runtime and attach an existing a persistent disk" in { googleProject =>
+  "create runtime and attach an existing persistent disk" in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
@@ -186,9 +186,10 @@ class RuntimeCreationDiskSpec
             notebookPage.executeCell(persistedPackage).get should include("/home/jupyter-user/notebooks/packages")
           }
         })
-        _ <- testTimer.sleep(5 seconds) //runtime status updates to Deleted before disk status change, hence add a sleep
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
-        diskResp <- getDisk(googleProject, diskName).attempt
+        getDiskAttempt = getDisk(googleProject, diskName).attempt
+        // Disk deletion may take some time so we're retrying to reduce flaky test failures
+        diskResp <- streamFUntilDone(getDiskAttempt, 5, 5 seconds).compile.lastOrError
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
         runtime.diskConfig.map(_.size) shouldBe Some(diskSize)
