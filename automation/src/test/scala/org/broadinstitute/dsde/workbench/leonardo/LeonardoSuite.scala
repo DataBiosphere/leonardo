@@ -1,14 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.leonardo.cluster.{ClusterAutopauseSpec, ClusterStatusTransitionsSpec}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks._
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
-import org.scalatest._
+import cats.effect.IO
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
+import org.broadinstitute.dsde.workbench.leonardo.cluster.{ClusterAutopauseSpec, ClusterStatusTransitionsSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
+import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
   RuntimeAutopauseSpec,
@@ -16,6 +14,12 @@ import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
   RuntimePatchSpec,
   RuntimeStatusTransitionsSpec
 }
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
+import org.http4s.AuthScheme
+import org.http4s.Credentials.Token
+import org.http4s.headers.Authorization
+import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
 trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
@@ -44,53 +48,124 @@ object GPAllocFixtureSpec {
   val gpallocProjectKey = "leonardo.billingProject"
   val shouldUnclaimProjectsKey = "leonardo.shouldUnclaimProjects"
   val gpallocErrorPrefix = "Failed To Claim Project: "
+  val initalRuntimeName = RuntimeName("initial-runtime")
 }
 
 trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils {
   this: TestSuite =>
 
   override def beforeAll(): Unit = {
-    super.beforeAll()
-    Either.catchNonFatal(claimProject()) match {
-      case Left(e)               => sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage)
-      case Right(billingProject) => sys.props.put(gpallocProjectKey, billingProject.value)
-    }
+    val res = for {
+      _ <- IO(super.beforeAll())
+      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll beforeAll"))
+      claimAttempt <- claimProject().attempt
+      _ <- claimAttempt match {
+        case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
+        case Right(billingProject) =>
+          IO(sys.props.put(gpallocProjectKey, billingProject.value)) >>
+            createInitialRuntime(billingProject)
+      }
+    } yield ()
+
+    res.unsafeRunSync()
   }
 
   override def afterAll(): Unit = {
-    val shouldUnclaim = sys.props.get(shouldUnclaimProjectsKey)
-    logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaim")
-    if (shouldUnclaim != Some("false")) {
-      sys.props.get(gpallocProjectKey).foreach { billingProject =>
-        unclaimProject(GoogleProject(billingProject))
-        sys.props.remove(gpallocProjectKey)
-      }
-    } else logger.info(s"Not going to release project: ${sys.props.get(gpallocProjectKey)} due to error happened")
-    super.afterAll()
+    val res = for {
+      shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
+      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaimProp"))
+      projectProp <- IO(sys.props.get(gpallocProjectKey))
+      project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
+      _ <- if (shouldUnclaimProp != Some("false")) {
+        project.traverse(p =>
+          deleteInitialRuntime(p) >>
+            unclaimProject(p)
+        )
+      } else IO(logger.info(s"Not going to release project: ${projectProp} due to error happened"))
+      _ <- IO(sys.props.remove(gpallocProjectKey))
+      _ <- IO(super.afterAll())
+    } yield ()
+
+    res.unsafeRunSync()
   }
 
   /**
    * Claim new billing project by Hermione
    */
-  private def claimProject(): GoogleProject = {
-    val claimedBillingProject = claimGPAllocProject(hermioneCreds)
-    Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
-                                                  ronEmail,
-                                                  BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-    logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-    GoogleProject(claimedBillingProject.projectName)
-  }
+  private def claimProject(): IO[GoogleProject] =
+    for {
+      claimedBillingProject <- IO(claimGPAllocProject(hermioneCreds))
+      _ <- IO(
+        Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
+                                                      ronEmail,
+                                                      BillingProject.BillingProjectRole.User)(hermioneAuthToken)
+      )
+      _ <- IO(logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}"))
+    } yield GoogleProject(claimedBillingProject.projectName)
 
   /**
    * Unclaiming billing project claim by Hermione
    */
-  private def unclaimProject(project: GoogleProject): Unit = {
-    Orchestration.billing.removeUserFromBillingProject(project.value, ronEmail, BillingProject.BillingProjectRole.User)(
-      hermioneAuthToken
-    )
-    releaseGPAllocProject(project.value, hermioneCreds)
-    logger.info(s"Billing project released: ${project.value}")
-  }
+  private def unclaimProject(project: GoogleProject): IO[Unit] =
+    for {
+      _ <- IO(
+        Orchestration.billing
+          .removeUserFromBillingProject(project.value, ronEmail, BillingProject.BillingProjectRole.User)(
+            hermioneAuthToken
+          )
+      )
+      _ <- IO(releaseGPAllocProject(project.value, hermioneCreds))
+      _ <- IO(logger.info(s"Billing project released: ${project.value}"))
+    } yield ()
+
+  // NOTE: createInitialRuntime / deleteInitialRuntime exists so we can ensure that project-level
+  // resources like networks, subnets, etc are set up prior to the concurrent test execution.
+  // We can remove this once https://broadworkbench.atlassian.net/browse/IA-2121 is done.
+
+  private def createInitialRuntime(project: GoogleProject): IO[Unit] =
+    LeonardoApiClient.client.use { implicit c =>
+      implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+      for {
+        res <- LeonardoApiClient
+          .createRuntimeWithWait(
+            project,
+            initalRuntimeName,
+            LeonardoApiClient.defaultCreateRuntime2Request
+          )
+          .attempt
+        _ <- res match {
+          case Right(_) =>
+            IO(logger.info(s"Created initial runtime ${project.value} / ${initalRuntimeName.asString}"))
+          case Left(err) =>
+            IO(logger.warn(
+                 s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
+               ),
+               err)
+        }
+      } yield ()
+    }
+
+  private def deleteInitialRuntime(project: GoogleProject): IO[Unit] =
+    LeonardoApiClient.client.use { implicit c =>
+      implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+      for {
+        res <- LeonardoApiClient
+          .deleteRuntime(
+            project,
+            initalRuntimeName
+          )
+          .attempt
+        _ <- res match {
+          case Right(_) =>
+            IO(logger.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}"))
+          case Left(err) =>
+            IO(logger.warn(
+                 s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
+               ),
+               err)
+        }
+      } yield ()
+    }
 }
 
 final class LeonardoSuite
