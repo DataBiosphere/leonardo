@@ -117,9 +117,8 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
     } yield ()
 
   private def createInitialRuntime(project: GoogleProject): IO[Unit] =
-    LeonardoApiClient.client.use { c =>
+    LeonardoApiClient.client.use { implicit c =>
       implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
-      implicit val client = c
       for {
         res <- LeonardoApiClient
           .createRuntimeWithWait(
@@ -141,9 +140,8 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
     }
 
   private def deleteInitialRuntime(project: GoogleProject): IO[Unit] =
-    LeonardoApiClient.client.use { c =>
+    LeonardoApiClient.client.use { implicit c =>
       implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
-      implicit val client = c
       for {
         res <- LeonardoApiClient
           .deleteRuntime(
