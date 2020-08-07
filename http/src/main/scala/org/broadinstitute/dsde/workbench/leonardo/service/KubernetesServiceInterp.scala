@@ -169,7 +169,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
-    } yield GetAppResponse.fromDbResult(app)
+    } yield app.toGetAppResponse
 
   override def listApp(
     userInfo: UserInfo,

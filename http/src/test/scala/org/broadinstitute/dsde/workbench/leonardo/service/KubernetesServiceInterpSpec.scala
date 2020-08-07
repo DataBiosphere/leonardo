@@ -9,10 +9,10 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AppNotFoundException,
   AppRequiresDiskException,
   ClusterExistsException,
-  DeleteAppParams,
   DiskAlreadyAttachedException,
   LeoKubernetesServiceInterp
 }
+import org.broadinstitute.dsde.workbench.leonardo.http.DeleteAppParams
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._

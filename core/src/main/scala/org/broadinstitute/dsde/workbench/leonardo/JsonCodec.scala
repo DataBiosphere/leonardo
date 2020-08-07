@@ -185,6 +185,7 @@ object JsonCodec {
   implicit val appStatusEncoder: Encoder[AppStatus] = Encoder.encodeString.contramap(_.toString)
   implicit val appTypeEncoder: Encoder[AppType] = Encoder.encodeString.contramap(_.toString)
   implicit val serviceNameEncoder: Encoder[ServiceName] = Encoder.encodeString.contramap(_.value)
+  implicit val serviceNameDecoder: Decoder[ServiceName] = Decoder.decodeString.map(s => ServiceName(s))
 
   implicit val apiServerIpEncoder: Encoder[KubernetesApiServerIp] = Encoder.encodeString.contramap(_.value)
   implicit val networkNameEncoder: Encoder[NetworkName] = Encoder.encodeString.contramap(_.value)

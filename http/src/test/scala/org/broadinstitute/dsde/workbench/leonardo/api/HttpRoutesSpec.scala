@@ -23,13 +23,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  DeleteAppParams,
   DeleteRuntimeRequest,
-  GetAppResponse,
   GetRuntimeResponse,
-  ListAppResponse,
   RuntimeService
 }
+import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppParams, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.service.{
   BaseMockRuntimeServiceInterp,
   KubernetesService,
