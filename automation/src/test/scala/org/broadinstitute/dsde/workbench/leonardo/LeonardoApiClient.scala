@@ -10,13 +10,10 @@ import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   BatchNodepoolCreateRequest,
   CreateAppRequest,
-  CreateAppRequest,
   CreateDiskRequest,
   CreateRuntime2Request,
   GetAppResponse,
-  GetAppResponse,
   GetPersistentDiskResponse,
-  ListAppResponse,
   ListAppResponse,
   ListPersistentDiskResponse,
   UpdateRuntimeRequest
