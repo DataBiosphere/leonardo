@@ -8,14 +8,14 @@ import cats.effect.{IO, Resource, Timer}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateAppRequest,
   CreateDiskRequest,
   CreateRuntime2Request,
+  GetAppResponse,
   GetPersistentDiskResponse,
+  ListAppResponse,
   ListPersistentDiskResponse,
-  UpdateRuntimeRequest,
- GetAppResponse,
- ListAppResponse,
-CreateAppRequest
+  UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
@@ -332,8 +332,11 @@ object LeonardoApiClient {
       body <- response.bodyText.compile.foldMonoid
     } yield RestError(response.status, body)
 
-  def createApp(googleProject: GoogleProject, appName: AppName, createAppRequest: CreateAppRequest = defaultCreateAppRequest)(implicit client: Client[IO],
-                                                                authHeader: Authorization): IO[Unit] =
+  def createApp(
+    googleProject: GoogleProject,
+    appName: AppName,
+    createAppRequest: CreateAppRequest = defaultCreateAppRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
     client
       .successful(
         Request[IO](
@@ -349,7 +352,8 @@ object LeonardoApiClient {
         else IO.raiseError(new Exception(s"Fail to create app ${googleProject.value}/${appName.value}"))
       }
 
-  def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                                authHeader: Authorization): IO[Unit] =
     client
       .successful(
         Request[IO](
@@ -365,7 +369,8 @@ object LeonardoApiClient {
           IO.raiseError(new RuntimeException(s"Fail to delete app ${googleProject.value}/${appName.value}"))
       }
 
-  def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO], authHeader: Authorization): IO[GetAppResponse] =
+  def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                             authHeader: Authorization): IO[GetAppResponse] =
     client.expectOr[GetAppResponse](
       Request[IO](
         method = Method.GET,
@@ -375,8 +380,10 @@ object LeonardoApiClient {
       )
     )(onError)
 
-  def listApps(googleProject: GoogleProject, includeDeleted: Boolean = false
-              )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListAppResponse]] = {
+  def listApps(
+    googleProject: GoogleProject,
+    includeDeleted: Boolean = false
+  )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListAppResponse]] = {
     val uriWithoutQueryParam = rootUri
       .withPath(s"/api/google/v1/apps/${googleProject.value}")
 
@@ -391,7 +398,6 @@ object LeonardoApiClient {
       )
     )(onError)
   }
-
 }
 
 final case class RestError(statusCode: Status, message: String) extends NoStackTrace {

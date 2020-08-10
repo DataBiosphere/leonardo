@@ -24,21 +24,17 @@ object AppRoutesTestJsonCodec {
     )
   )
 
-  implicit val proxyUrlDecoder: Decoder[Map[ServiceName, URL]] = Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
+  implicit val proxyUrlDecoder: Decoder[Map[ServiceName, URL]] =
+    Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
-  implicit val getAppResponseDecoder: Decoder[GetAppResponse] = Decoder.forProduct5(
-    "kubernetesRuntimeConfig",
-    "errors",
-    "status",
-    "proxyUrls",
-    "diskName")(GetAppResponse.apply)
+  implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
+    Decoder.forProduct5("kubernetesRuntimeConfig", "errors", "status", "proxyUrls", "diskName")(GetAppResponse.apply)
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] = Decoder.forProduct7("googleProject",
-    "kubernetesRuntimeConfig",
-    "errors",
-    "status",
-    "proxyUrls",
-    "appName",
-    "diskName")(ListAppResponse.apply)
-
+                                                                                      "kubernetesRuntimeConfig",
+                                                                                      "errors",
+                                                                                      "status",
+                                                                                      "proxyUrls",
+                                                                                      "appName",
+                                                                                      "diskName")(ListAppResponse.apply)
 }

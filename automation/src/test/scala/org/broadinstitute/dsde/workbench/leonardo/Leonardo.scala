@@ -171,7 +171,6 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterResponse(patchRequest(url + path, clusterRequest))
     }
   }
-
 }
 
 object AutomationTestJsonCodec {
@@ -221,9 +220,6 @@ object AutomationTestJsonCodec {
     "labels",
     "patchInProgress"
   )(ListRuntimeResponseCopy.apply)
-
-
-
 }
 
 sealed trait ApiVersion {
