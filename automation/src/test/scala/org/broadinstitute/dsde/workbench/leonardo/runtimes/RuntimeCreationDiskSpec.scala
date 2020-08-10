@@ -20,12 +20,12 @@ import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.http4s.Status
 
-//@DoNotDiscover
+@DoNotDiscover
 class RuntimeCreationDiskSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with NotebookTestUtils with GPAllocBeforeAndAfterAll {
+    with NotebookTestUtils {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 

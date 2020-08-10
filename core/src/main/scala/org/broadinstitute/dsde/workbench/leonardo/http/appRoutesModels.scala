@@ -5,13 +5,15 @@ import java.net.URL
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AppError,
   AppName,
   AppStatus,
   AppType,
   KubernetesCluster,
-  KubernetesError,
+  KubernetesClusterStatus,
   KubernetesRuntimeConfig,
-  LabelMap
+  LabelMap,
+  NodepoolStatus
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -28,14 +30,14 @@ final case class DeleteAppParams(userInfo: UserInfo,
                                  deleteDisk: Boolean)
 
 final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
-                                errors: List[KubernetesError],
+                                errors: List[AppError],
                                 status: AppStatus, //TODO: do we need some sort of aggregate status?
                                 proxyUrls: Map[ServiceName, URL],
                                 diskName: Option[DiskName])
 
 final case class ListAppResponse(googleProject: GoogleProject,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
-                                 errors: List[KubernetesError],
+                                 errors: List[AppError],
                                  status: AppStatus, //TODO: do we need some sort of aggregate status?
                                  proxyUrls: Map[ServiceName, URL],
                                  appName: AppName,
@@ -45,7 +47,10 @@ object ListAppResponse {
   def fromCluster(c: KubernetesCluster): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
-        val errors = c.errors ++ n.errors ++ a.errors
+        val hasError = c.status == KubernetesClusterStatus.Error ||
+          n.status == NodepoolStatus.Error ||
+          a.status == AppStatus.Error ||
+          a.errors.length > 0
         ListAppResponse(
           c.googleProject,
           KubernetesRuntimeConfig(
@@ -53,9 +58,9 @@ object ListAppResponse {
             n.machineType,
             n.autoscalingEnabled
           ),
-          errors,
-          if (errors.isEmpty) a.status else AppStatus.Error, //TODO: aggregate?
-          Map.empty, //TODO: change this when proxy is implemented
+          a.errors,
+          if (hasError) AppStatus.Error else a.status,
+          a.getProxyUrls(c.googleProject, "https://leo/proxy/"),
           a.appName,
           a.appResources.disk.map(_.name)
         )
