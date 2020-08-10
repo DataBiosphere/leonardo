@@ -6,7 +6,10 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
 import org.broadinstitute.dsde.workbench.leonardo.{
+<<<<<<< HEAD
   App,
+=======
+>>>>>>> fixing compile issues
   AppError,
   AppName,
   AppStatus,
