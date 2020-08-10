@@ -135,7 +135,9 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
 
-  def getAllNodepoolsForCluster(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[List[Nodepool]] =
+  def getAllNodepoolsForCluster(
+    clusterId: KubernetesClusterLeoId
+  )(implicit ec: ExecutionContext): DBIO[List[Nodepool]] =
     for {
       nodepools <- nodepoolQuery
         .findActiveByClusterIdQuery(clusterId)
@@ -162,9 +164,9 @@ object KubernetesServiceDbQueries {
     for {
       _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Provisioning)
       _ <- nodepoolQuery
-          .filter(_.id.inSet(nodepoolIds.toSet))
-          .map(_.status)
-          .update(NodepoolStatus.Provisioning)
+        .filter(_.id.inSet(nodepoolIds.toSet))
+        .map(_.status)
+        .update(NodepoolStatus.Provisioning)
     } yield ()
 
   def markPreDeleting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =

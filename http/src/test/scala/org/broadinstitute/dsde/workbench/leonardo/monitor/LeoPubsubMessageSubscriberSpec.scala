@@ -751,22 +751,22 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       tr <- traceId.ask
-      msg = CreateAppMessage(Some(CreateCluster(KubernetesClusterLeoId(-1), NodepoolLeoId(-1))),
-                             savedApp1.id,
-                             savedApp1.appName,
-                             Some(NodepoolLeoId(-1)),
-                             project,
-                             false,
-                             Map.empty,
-                             Some(tr))
+      msg = CreateAppMessage(
+        Some(CreateCluster(KubernetesClusterLeoId(-1), NodepoolLeoId(-1))),
+        savedApp1.id,
+        savedApp1.appName,
+        Some(NodepoolLeoId(-1)),
+        project,
+        false,
+        Map.empty,
+        Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
     } yield ()
     res.unsafeRunSync()
     assertions.unsafeRunSync()
-    //we expect a nack because we retry cluster creation
-    verify(mockAckConsumer, times(1)).nack()
   }
 
   //handle an error in createNodepool
@@ -811,8 +811,6 @@ class LeoPubsubMessageSubscriberSpec
 
     res.unsafeRunSync()
     assertions.unsafeRunSync()
-    //we expect a nack because it fails cluster creation
-    verify(mockAckConsumer, times(1)).nack()
   }
 
   it should "error on create if user nodepool doesn't exist" in isolatedDbTest {
@@ -1148,7 +1146,6 @@ class LeoPubsubMessageSubscriberSpec
 
     res.unsafeRunSync()
     assertions.unsafeRunSync()
-    verify(mockAckConsumer, times(1)).nack()
   }
 
   //error on delete disk if disk doesn't exist
@@ -1204,12 +1201,19 @@ class LeoPubsubMessageSubscriberSpec
       getMinimalCluster.get.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
       getMinimalCluster.get.nodepools.filterNot(_.isDefault).size shouldBe 2
       getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.size shouldBe 1
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.head shouldBe NodepoolStatus.Unclaimed
+      getMinimalCluster.get.nodepools
+        .filterNot(_.isDefault)
+        .map(_.status)
+        .distinct
+        .head shouldBe NodepoolStatus.Unclaimed
     }
 
     val res = for {
       tr <- traceId.ask
-      msg = BatchNodepoolCreateMessage(savedCluster1.id, List(savedNodepool1.id, savedNodepool2.id), savedCluster1.googleProject, Some(tr))
+      msg = BatchNodepoolCreateMessage(savedCluster1.id,
+                                       List(savedNodepool1.id, savedNodepool2.id),
+                                       savedCluster1.googleProject,
+                                       Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1298,12 +1302,19 @@ class LeoPubsubMessageSubscriberSpec
       getMinimalCluster.get.nodepools.filterNot(_.isDefault).size shouldBe 2
       getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.size shouldBe 1
       //we should not have updated the status here, since the nodepools given were faulty
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.head shouldBe NodepoolStatus.Precreating
+      getMinimalCluster.get.nodepools
+        .filterNot(_.isDefault)
+        .map(_.status)
+        .distinct
+        .head shouldBe NodepoolStatus.Precreating
     }
 
     val res = for {
       tr <- traceId.ask
-      msg = BatchNodepoolCreateMessage(savedCluster1.id, List(savedNodepool1.id, savedNodepool2.id, savedNodepool3.id), savedCluster1.googleProject, Some(tr))
+      msg = BatchNodepoolCreateMessage(savedCluster1.id,
+                                       List(savedNodepool1.id, savedNodepool2.id, savedNodepool3.id),
+                                       savedCluster1.googleProject,
+                                       Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)

@@ -524,7 +524,8 @@ object Config {
                             config.as[List[CidrIP]]("authorizedNetworks"))
   }
 
-  private implicit val maxNodepoolsPerDefaultNodeReader: ValueReader[MaxNodepoolsPerDefaultNode] = intValueReader.map(MaxNodepoolsPerDefaultNode)
+  implicit private val maxNodepoolsPerDefaultNodeReader: ValueReader[MaxNodepoolsPerDefaultNode] =
+    intValueReader.map(MaxNodepoolsPerDefaultNode)
 
   implicit val defaultNodepoolConfigReader: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
     DefaultNodepoolConfig(

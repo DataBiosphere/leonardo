@@ -6,7 +6,12 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{BatchNodepoolCreateRequest, CreateAppRequest, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  BatchNodepoolCreateRequest,
+  CreateAppRequest,
+  GetAppResponse,
+  ListAppResponse
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 object KubernetesTestData {

@@ -3,14 +3,43 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppCannotBeDeletedException, AppNotFoundException, AppRequiresDiskException, ClusterExistsException, DeleteAppParams, DiskAlreadyAttachedException, LeoKubernetesServiceInterp}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppAlreadyExistsException,
+  AppCannotBeDeletedException,
+  AppNotFoundException,
+  AppRequiresDiskException,
+  ClusterExistsException,
+  DeleteAppParams,
+  DiskAlreadyAttachedException,
+  LeoKubernetesServiceInterp
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, CreateCluster, KubernetesClusterStatus, LabelMap, LeonardoTestSuite, NodepoolStatus}
-import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesAppCreationException, KubernetesServiceDbQueries, TestComponent, appQuery, kubernetesClusterQuery, persistentDiskQuery}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AppStatus,
+  AppType,
+  CreateCluster,
+  KubernetesClusterStatus,
+  LabelMap,
+  LeonardoTestSuite,
+  NodepoolStatus
+}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  KubernetesAppCreationException,
+  KubernetesServiceDbQueries,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{BatchNodepoolCreateMessage, CreateAppMessage, DeleteAppMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  BatchNodepoolCreateMessage,
+  CreateAppMessage,
+  DeleteAppMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -373,14 +402,13 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     batchNodepoolCreateMessage.project shouldBe project
     //we add 1 for the default nodepool
     batchNodepoolCreateMessage.nodepools.size shouldBe batchNodepoolCreateRequest.numNodepools.value + 1
-    val cluster = dbFutureValue { kubernetesClusterQuery.getMinimalActiveClusterByName(project) }.get
+    val cluster = dbFutureValue(kubernetesClusterQuery.getMinimalActiveClusterByName(project)).get
     cluster.nodepools.size shouldBe batchNodepoolCreateRequest.numNodepools.value + 1
     cluster.nodepools.filter(_.isDefault).size shouldBe 1
     cluster.nodepools.filterNot(_.isDefault).size shouldBe batchNodepoolCreateRequest.numNodepools.value
     cluster.nodepools.map(_.status).distinct.size shouldBe 1
     cluster.nodepools.map(_.status).distinct shouldBe List(NodepoolStatus.Precreating)
   }
-
 
   it should "fail to batch create nodepools if cluster exists in project" in isolatedDbTest {
     val appName = AppName("app1")
@@ -419,7 +447,8 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     preAppCluster.nodepools.size shouldBe 2
-    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified, NodepoolStatus.Unclaimed).sortBy(_.toString)
+    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
+                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
 
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -432,7 +461,8 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     cluster.nodepools.size shouldBe 2
-    cluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Unspecified).sortBy(_.toString)
+    cluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Unspecified)
+      .sortBy(_.toString)
     cluster.nodepools.filter(_.status == NodepoolStatus.Running).size shouldBe 1
     val claimedNodepool = cluster.nodepools.filter(_.id == savedNodepool1.id).head
 
@@ -461,11 +491,14 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     preAppCluster.nodepools.size shouldBe 3
-    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified, NodepoolStatus.Unclaimed, NodepoolStatus.Unclaimed).sortBy(_.toString)
+    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
+                                                                           NodepoolStatus.Unclaimed,
+                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
 
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq1 = createAppRequest.copy(diskConfig = Some(createDiskConfig1), customEnvironmentVariables = customEnvVars)
+    val appReq1 =
+      createAppRequest.copy(diskConfig = Some(createDiskConfig1), customEnvironmentVariables = customEnvVars)
 
     val appName1 = AppName("app1")
     kubeServiceInterp.createApp(userInfo, savedCluster1.googleProject, appName1, appReq1).unsafeRunSync()
@@ -474,7 +507,11 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     clusterAfterApp1.nodepools.size shouldBe 3
-    clusterAfterApp1.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Unclaimed, NodepoolStatus.Unspecified).sortBy(_.toString)
+    clusterAfterApp1.nodepools.map(_.status).sortBy(_.toString) shouldBe List(
+      NodepoolStatus.Running,
+      NodepoolStatus.Unclaimed,
+      NodepoolStatus.Unspecified
+    ).sortBy(_.toString)
     val claimedNodepool1 = clusterAfterApp1.nodepools.filter(_.id == savedNodepool1.id).head
     claimedNodepool1.status shouldBe NodepoolStatus.Running
 
@@ -498,7 +535,11 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     clusterAfterApp2.nodepools.size shouldBe 3
-    clusterAfterApp2.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Running, NodepoolStatus.Unspecified).sortBy(_.toString)
+    clusterAfterApp2.nodepools.map(_.status).sortBy(_.toString) shouldBe List(
+      NodepoolStatus.Running,
+      NodepoolStatus.Running,
+      NodepoolStatus.Unspecified
+    ).sortBy(_.toString)
     val claimedNodepool2 = clusterAfterApp2.nodepools.filter(_.id == savedNodepool2.id).head
     claimedNodepool2.status shouldBe NodepoolStatus.Running
 
@@ -526,7 +567,8 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     preAppCluster.nodepools.size shouldBe 2
-    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified, NodepoolStatus.Unclaimed).sortBy(_.toString)
+    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
+                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
 
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -539,7 +581,8 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     cluster.nodepools.size shouldBe 2
-    cluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Unspecified).sortBy(_.toString)
+    cluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Unspecified)
+      .sortBy(_.toString)
     cluster.nodepools.filter(_.status == NodepoolStatus.Running).size shouldBe 1
     val claimedNodepool = cluster.nodepools.filter(_.id == savedNodepool1.id).head
 
@@ -565,7 +608,11 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     }.get
 
     clusterAfterApp2.nodepools.size shouldBe 3
-    clusterAfterApp2.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Precreating, NodepoolStatus.Unspecified).sortBy(_.toString)
+    clusterAfterApp2.nodepools.map(_.status).sortBy(_.toString) shouldBe List(
+      NodepoolStatus.Running,
+      NodepoolStatus.Precreating,
+      NodepoolStatus.Unspecified
+    ).sortBy(_.toString)
 
     val appResult2 = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, appName2)

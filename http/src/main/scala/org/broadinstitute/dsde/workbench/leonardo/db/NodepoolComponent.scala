@@ -79,7 +79,9 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
 }
 
 object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
-  private[db] def findActiveByClusterIdQuery(clusterId: KubernetesClusterLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
+  private[db] def findActiveByClusterIdQuery(
+    clusterId: KubernetesClusterLeoId
+  ): Query[NodepoolTable, NodepoolRecord, Seq] =
     nodepoolQuery
       .filter(_.clusterId === clusterId)
       .filter(_.destroyedDate === dummyDate)
@@ -129,8 +131,8 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     for {
       unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
         .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
-          .result
-          .headOption
+        .result
+        .headOption
       _ <- unclaimedNodepoolOpt.traverse(rec => updateStatus(rec.id, NodepoolStatus.Running))
       claimedNodepoolOpt <- unclaimedNodepoolOpt.flatTraverse(n => getMinimalById(n.id))
     } yield claimedNodepoolOpt

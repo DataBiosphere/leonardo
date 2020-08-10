@@ -14,7 +14,13 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.server.Directives._
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateAppRequest, DeleteAppParams, GetAppResponse, ListAppResponse, BatchNodepoolCreateRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  BatchNodepoolCreateRequest,
+  CreateAppRequest,
+  DeleteAppParams,
+  GetAppResponse,
+  ListAppResponse
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
@@ -201,15 +207,18 @@ object AppRoutes {
   implicit val getAppDecoder: Decoder[GetAppResponse] =
     Decoder.forProduct5("kubernetesRuntimeConfig", "errors", "status", "proxyUrls", "diskName")(GetAppResponse.apply)
 
-  implicit val numNodepoolsDecoder: Decoder[NumNodepools] =  Decoder.decodeInt.emap(n => n match {
-    case n if n < 1 => Left("Minimum number of nodepools is 1")
-    case n if n > 200 => Left("Maximum number of nodepools is 200")
-    case _ => Right(NumNodepools.apply(n))
-  })
+  implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
+    n match {
+      case n if n < 1   => Left("Minimum number of nodepools is 1")
+      case n if n > 200 => Left("Maximum number of nodepools is 200")
+      case _            => Right(NumNodepools.apply(n))
+    }
+  )
 
   implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
 
-  implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] = Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
+  implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
+    Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
 
   implicit val listAppDecoder: Decoder[ListAppResponse] = Decoder.forProduct7("googleProject",
                                                                               "kubernetesRuntimeConfig",

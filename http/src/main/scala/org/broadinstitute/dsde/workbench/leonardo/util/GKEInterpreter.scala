@@ -118,7 +118,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
     builderWithAutoscaling.build()
   }
 
-  def createCluster(clusterId: KubernetesClusterLeoId, nodepoolsToCreate: List[NodepoolLeoId], isNodepoolPrecreate: Boolean)(
+  def createCluster(clusterId: KubernetesClusterLeoId,
+                    nodepoolsToCreate: List[NodepoolLeoId],
+                    isNodepoolPrecreate: Boolean)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[CreateClusterResult] =
     for {
@@ -132,7 +134,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
         .filter(n => nodepoolsToCreate.contains(n.id))
         .map(getGoogleNodepool(_))
 
-      _ <- if (nodepools.size != nodepoolsToCreate.size) F.raiseError[Unit](ClusterCreationException(s"createCluster was called with nodepools that are not present in the database for cluster ${dbCluster.id}. Nodepools to create: ${nodepoolsToCreate}")) else F.unit
+      _ <- if (nodepools.size != nodepoolsToCreate.size)
+        F.raiseError[Unit](
+          ClusterCreationException(
+            s"createCluster was called with nodepools that are not present in the database for cluster ${dbCluster.id}. Nodepools to create: ${nodepoolsToCreate}"
+          )
+        )
+      else F.unit
 
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
         SetUpProjectNetworkParams(dbCluster.googleProject)
@@ -226,7 +234,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
         .transaction
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
       _ <- nodepoolQuery.updateStatus(defaultNodepool.id, NodepoolStatus.Running).transaction
-      _ <- if (clusterResult.isNodepoolPrecreate) nodepoolQuery.markAsUnclaimed(dbCluster.nodepools.filterNot(_.isDefault).map(_.id)).transaction else F.unit
+      _ <- if (clusterResult.isNodepoolPrecreate)
+        nodepoolQuery.markAsUnclaimed(dbCluster.nodepools.filterNot(_.isDefault).map(_.id)).transaction
+      else F.unit
     } yield ()
 
   def createAndPollNodepool(nodepoolId: NodepoolLeoId, appId: AppId)(

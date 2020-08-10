@@ -1242,17 +1242,17 @@ paths:
       summary: Creates a cluster with pool of unclaimed nodepools, such that nodepools already exist at app creation time
       description: This will fail if a cluster already exists in the project
       operationId: batchNodepoolCreate
-    tags:
-      - apps
-    parameters:
-      - in: path
-        name: googleProject
-        description: googleProject
-        required: true
-        schema:
-          type: string
-    requestBody:
-      $ref: "#/components/requestBodies/BatchNodepoolCreateRequest"
+      tags:
+        - apps
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/BatchNodepoolCreateRequest"
       responses:
         "202":
           description: Batch nodepool creation request successful

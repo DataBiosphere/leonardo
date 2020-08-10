@@ -600,7 +600,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           PubsubKubernetesError(
             AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
             Some(msg.appId),
-            true,
+            false,
             msg.cluster.map(_.nodepoolId),
             msg.cluster.map(_.clusterId)
           )
@@ -626,7 +626,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                 Some(msg.appId),
                 false,
                 Some(nodepoolId),
-                None)
+                None
+              )
           }
         }
       } yield ()
@@ -673,7 +674,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           PubsubKubernetesError(
             AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
             None,
-            true,
+            false,
             None,
             Some(msg.clusterId)
           )
@@ -758,7 +759,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           PubsubKubernetesError(
             AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, None),
             Some(msg.appId),
-            true,
+            false,
             Some(msg.nodepoolId),
             None
           )

@@ -84,7 +84,7 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
       claim2 <- nodepoolQuery.claimNodepool(savedCluster1.id)
     } yield (claim1, claim2)
 
-    val (claim1, claim2) = dbFutureValue { claims }
+    val (claim1, claim2) = dbFutureValue(claims)
     claim1 shouldBe Some(savedNodepool1.copy(status = NodepoolStatus.Running))
     claim1.get.status shouldBe NodepoolStatus.Running
     claim2 shouldBe None
