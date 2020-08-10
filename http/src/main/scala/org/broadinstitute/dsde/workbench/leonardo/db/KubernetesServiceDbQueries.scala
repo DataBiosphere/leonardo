@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
-import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
+import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.rms.miu.slickcats.DBIOInstances._
@@ -357,21 +357,5 @@ final case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultN
     extends SaveClusterResult
 final case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
 
-final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App) {
-  def toGetAppResponse: GetAppResponse = {
-    val errors = cluster.errors ++ nodepool.errors ++ app.errors
-    GetAppResponse(
-      KubernetesRuntimeConfig(
-        nodepool.numNodes,
-        nodepool.machineType,
-        nodepool.autoscalingEnabled
-      ),
-      errors,
-      if (errors.isEmpty) app.status else AppStatus.Error,
-      Map.empty, //TODO: Implement when proxy functionality exists
-      app.appResources.disk.map(_.name)
-    )
-  }
-}
 final case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError)
 final case class KubernetesAppCreationException(msg: String) extends LeoException(msg, StatusCodes.Conflict)

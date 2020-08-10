@@ -12,7 +12,8 @@ import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostReady}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, GetAppResult, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.{AppName, KubernetesCluster}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 

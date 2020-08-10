@@ -5,6 +5,7 @@ import java.net.URL
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
   AppError,
   AppName,
   AppStatus,
@@ -13,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesClusterStatus,
   KubernetesRuntimeConfig,
   LabelMap,
+  Nodepool,
   NodepoolStatus
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -43,8 +45,10 @@ final case class ListAppResponse(googleProject: GoogleProject,
                                  appName: AppName,
                                  diskName: Option[DiskName])
 
+final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
+
 object ListAppResponse {
-  def fromCluster(c: KubernetesCluster): List[ListAppResponse] =
+  def fromCluster(c: KubernetesCluster, proxyUrlBase: String): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         val hasError = c.status == KubernetesClusterStatus.Error ||
@@ -60,11 +64,31 @@ object ListAppResponse {
           ),
           a.errors,
           if (hasError) AppStatus.Error else a.status,
-          a.getProxyUrls(c.googleProject, "https://leo/proxy/"),
+          a.getProxyUrls(c.googleProject, proxyUrlBase),
           a.appName,
           a.appResources.disk.map(_.name)
         )
       }
     )
 
+}
+
+object GetAppResponse {
+  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse = {
+    val hasError = appResult.cluster.status == KubernetesClusterStatus.Error ||
+      appResult.nodepool.status == NodepoolStatus.Error ||
+      appResult.app.status == AppStatus.Error ||
+      appResult.app.errors.length > 0
+    GetAppResponse(
+      KubernetesRuntimeConfig(
+        appResult.nodepool.numNodes,
+        appResult.nodepool.machineType,
+        appResult.nodepool.autoscalingEnabled
+      ),
+      appResult.app.errors,
+      if (hasError) AppStatus.Error else appResult.app.status,
+      appResult.app.getProxyUrls(appResult.cluster.googleProject, proxyUrlBase),
+      appResult.app.appResources.disk.map(_.name)
+    )
+  }
 }
