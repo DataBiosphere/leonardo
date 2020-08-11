@@ -301,7 +301,7 @@ object ListAppResponse {
           ),
           a.errors,
           if (hasError) AppStatus.Error else a.status,
-          a.getProxyUrls(c.googleProject, Config.proxyConfig.proxyUrlBase),
+          a.getProxyUrls(c.googleProject),
           a.appName,
           a.appResources.disk.map(_.name)
         )

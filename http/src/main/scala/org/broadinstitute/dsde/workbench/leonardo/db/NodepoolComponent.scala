@@ -105,7 +105,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
   def markAsUnclaimed(ids: List[NodepoolLeoId])(implicit ec: ExecutionContext): DBIO[Unit] =
     for {
       _ <- nodepoolQuery
-        .filter(_.id.inSet(ids.toSet))
+        .filter(_.id inSetBind ids.toSet)
         .map(_.status)
         .update(NodepoolStatus.Unclaimed)
     } yield ()

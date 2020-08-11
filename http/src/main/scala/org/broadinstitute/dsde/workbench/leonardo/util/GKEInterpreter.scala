@@ -124,12 +124,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[CreateClusterResult] =
     for {
-      _ <- logger.info(s"beginning cluster creation for cluster ${clusterId}")
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(clusterId).transaction
       dbCluster <- F.fromOption(
         clusterOpt,
-        KubernetesClusterNotFoundException(s"cluster with id ${clusterId} not found in database")
+        KubernetesClusterNotFoundException(
+          s"Failed kubernetes cluster creation. Cluster with id ${clusterId} not found in database"
+        )
       )
+      _ <- logger.info(s"beginning cluster creation for cluster ${clusterId} in project ${dbCluster.googleProject}")
+
       nodepools = dbCluster.nodepools
         .filter(n => nodepoolsToCreate.contains(n.id))
         .map(getGoogleNodepool(_))

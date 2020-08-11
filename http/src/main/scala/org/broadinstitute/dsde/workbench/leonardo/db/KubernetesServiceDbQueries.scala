@@ -151,14 +151,14 @@ object KubernetesServiceDbQueries {
       _ <- createCluster.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
         for {
           _ <- kubernetesClusterQuery.updateStatus(createCluster.clusterId, KubernetesClusterStatus.Provisioning)
-          _ <- nodepoolQuery.updateStatus(createCluster.nodepoolId, NodepoolStatus.Provisioning)
+          _ <- nodepoolQuery.updateStatus(createCluster.defaultNodepoolId, NodepoolStatus.Provisioning)
         } yield ()
       )
       _ <- nodepoolId.traverse(id => nodepoolQuery.updateStatus(id, NodepoolStatus.Provisioning))
       _ <- appQuery.updateStatus(appId, AppStatus.Provisioning)
     } yield ()
 
-  def markPendingCreating(clusterId: KubernetesClusterLeoId, nodepoolIds: List[NodepoolLeoId])(
+  def markPendingBatchCreating(clusterId: KubernetesClusterLeoId, nodepoolIds: List[NodepoolLeoId])(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
     for {

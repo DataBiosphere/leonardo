@@ -593,7 +593,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
 
       initialGoogleCall = msg.cluster
         .traverse(createClusterMessage =>
-          gkeInterp.createCluster(createClusterMessage.clusterId, List(createClusterMessage.nodepoolId), false)
+          gkeInterp.createCluster(createClusterMessage.clusterId, List(createClusterMessage.defaultNodepoolId), false)
         )
       clusterResult <- initialGoogleCall.adaptError {
         case e =>
@@ -601,7 +601,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
             Some(msg.appId),
             false,
-            msg.cluster.map(_.nodepoolId),
+            msg.cluster.map(_.defaultNodepoolId),
             msg.cluster.map(_.clusterId)
           )
       }
@@ -613,7 +613,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
               Some(msg.appId),
               false,
-              msg.cluster.map(_.nodepoolId),
+              msg.cluster.map(_.defaultNodepoolId),
               msg.cluster.map(_.clusterId)
             )
         }

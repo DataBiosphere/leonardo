@@ -102,10 +102,17 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       clusterId = saveClusterResult.minimalCluster.id
       claimedNodepoolOpt <- nodepoolQuery.claimNodepool(clusterId).transaction
-      nodepool <- claimedNodepoolOpt.fold(for {
-        saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
-        savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
-      } yield savedNodepool)(n => log.info(s"claimed nodepool ${n.id}") >> F.pure(n))
+      nodepool <- claimedNodepoolOpt match {
+        case None =>
+          for {
+            saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
+            savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+          } yield savedNodepool
+        case Some(n) =>
+          log.info(s"claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject}") >> F.pure(
+            n
+          )
+      }
 
       runtimeServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)

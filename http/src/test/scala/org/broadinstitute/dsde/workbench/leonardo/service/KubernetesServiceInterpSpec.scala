@@ -122,10 +122,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     createAppMessage.project shouldBe project
     createAppMessage.createDisk shouldBe true
     createAppMessage.cluster shouldBe Some(
-      CreateCluster(
-        getMinimalCluster.id,
-        defaultNodepool.id
-      )
+      CreateCluster(getMinimalCluster.id, defaultNodepool.id)
     )
     createAppMessage.customEnvironmentVariables shouldBe customEnvVars
   }

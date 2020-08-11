@@ -361,7 +361,7 @@ final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: Machin
 final case class NumNodepools(value: Int) extends AnyVal
 
 //used in pubsub messaging to indicate the cluster and dummy nodepool to be created
-final case class CreateCluster(clusterId: KubernetesClusterLeoId, nodepoolId: NodepoolLeoId)
+final case class CreateCluster(clusterId: KubernetesClusterLeoId, defaultNodepoolId: NodepoolLeoId)
 
 final case class NodepoolNotFoundException(nodepoolLeoId: NodepoolLeoId) extends Exception {
   override def getMessage: String = s"nodepool with id ${nodepoolLeoId} not found"
