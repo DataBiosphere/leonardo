@@ -103,7 +103,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       Some(CreateCluster(KubernetesClusterLeoId(1), NodepoolLeoId(1))),
       AppId(1),
       AppName("app1"),
-      NodepoolLeoId(2),
+      Some(NodepoolLeoId(2)),
       GoogleProject("project1"),
       true,
       Map.empty,

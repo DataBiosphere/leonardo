@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unma
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import com.rms.miu.slickcats.DBIOInstances._
 
 import scala.concurrent.ExecutionContext
 
@@ -134,18 +135,38 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
       .map(_.headOption)
 
-  def markPendingCreating(nodepoolId: NodepoolLeoId, appId: AppId, createCluster: Option[CreateCluster])(
+  def getAllNodepoolsForCluster(
+    clusterId: KubernetesClusterLeoId
+  )(implicit ec: ExecutionContext): DBIO[List[Nodepool]] =
+    for {
+      nodepools <- nodepoolQuery
+        .findActiveByClusterIdQuery(clusterId)
+        .result
+    } yield nodepools.map(rec => unmarshalNodepool(rec, List.empty)).toList
+
+  def markPendingCreating(nodepoolId: Option[NodepoolLeoId], appId: AppId, createCluster: Option[CreateCluster])(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
     for {
       _ <- createCluster.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
         for {
           _ <- kubernetesClusterQuery.updateStatus(createCluster.clusterId, KubernetesClusterStatus.Provisioning)
-          _ <- nodepoolQuery.updateStatus(createCluster.nodepoolId, NodepoolStatus.Provisioning)
+          _ <- nodepoolQuery.updateStatus(createCluster.defaultNodepoolId, NodepoolStatus.Provisioning)
         } yield ()
       )
-      _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Provisioning)
+      _ <- nodepoolId.traverse(id => nodepoolQuery.updateStatus(id, NodepoolStatus.Provisioning))
       _ <- appQuery.updateStatus(appId, AppStatus.Provisioning)
+    } yield ()
+
+  def markPendingBatchCreating(clusterId: KubernetesClusterLeoId, nodepoolIds: List[NodepoolLeoId])(
+    implicit ec: ExecutionContext
+  ): DBIO[Unit] =
+    for {
+      _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Provisioning)
+      _ <- nodepoolQuery
+        .filter(_.id.inSet(nodepoolIds.toSet))
+        .map(_.status)
+        .update(NodepoolStatus.Provisioning)
     } yield ()
 
   def markPreDeleting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
@@ -309,7 +330,7 @@ object KubernetesServiceDbQueries {
         case (appRec, (services, namespaces, labelMap, diskMap, errors)) =>
           appQuery.unmarshalApp(
             appRec,
-            services.map(serviceQuery.unmarshalService).toList,
+            services.map(serviceQuery.unmarshalService).toList.toSet.toList,
             labelMap.mapValues(_.toList.toSet.head),
             //the database ensures we always have a single namespace here
             namespaceQuery.unmarshalNamespace(namespaces.headOption.get),

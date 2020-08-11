@@ -100,6 +100,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, savedApp.appName)
     }
     getApp.get.app shouldEqual savedApp
+    getApp.get.app.appResources.services.size shouldBe 2
   }
 
   it should "list apps" in isolatedDbTest {

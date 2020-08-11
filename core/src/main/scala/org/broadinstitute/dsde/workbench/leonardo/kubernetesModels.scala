@@ -145,11 +145,15 @@ object NodepoolStatus {
     override def toString: String = "PREDELETING"
   }
 
+  final case object Unclaimed extends NodepoolStatus {
+    override def toString: String = "UNCLAIMED"
+  }
+
   def values: Set[NodepoolStatus] = sealerate.values[NodepoolStatus]
   def stringToObject: Map[String, NodepoolStatus] = values.map(v => v.toString -> v).toMap
 
   val deletableStatuses: Set[NodepoolStatus] =
-    Set(Unspecified, Running, Reconciling, Error, RunningWithError)
+    Set(Unspecified, Running, Reconciling, Unclaimed, Error, RunningWithError)
 }
 
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
@@ -354,9 +358,10 @@ final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindNam
 final case class KubernetesServiceKindName(value: String) extends AnyVal
 
 final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: MachineTypeName, autoscalingEnabled: Boolean)
+final case class NumNodepools(value: Int) extends AnyVal
 
 //used in pubsub messaging to indicate the cluster and dummy nodepool to be created
-final case class CreateCluster(clusterId: KubernetesClusterLeoId, nodepoolId: NodepoolLeoId)
+final case class CreateCluster(clusterId: KubernetesClusterLeoId, defaultNodepoolId: NodepoolLeoId)
 
 final case class NodepoolNotFoundException(nodepoolLeoId: NodepoolLeoId) extends Exception {
   override def getMessage: String = s"nodepool with id ${nodepoolLeoId} not found"

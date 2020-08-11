@@ -1237,6 +1237,45 @@ paths:
             - openid
             - email
             - profile
+  "/api/google/v1/apps/{googleProject}/batchNodepoolCreate":
+    post:
+      summary: Creates a cluster with pool of unclaimed nodepools, such that nodepools already exist at app creation time
+      description: This will fail if a cluster already exists in the project
+      operationId: batchNodepoolCreate
+      tags:
+        - apps
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/BatchNodepoolCreateRequest"
+      responses:
+        "202":
+          description: Batch nodepool creation request successful
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "403":
+          description: User does not have permission to perform action
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
   "/api/google/v1/apps/{googleProject}/{appName}":
     post:
       summary: Creates a new app in the given project with the given name
@@ -1960,6 +1999,13 @@ components:
           example:
             diskConfig:
               name: "disk1"
+    BatchNodepoolCreateRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BatchNodepoolCreateRequest"
+          example:
+            numNodepools: 10
     # legacy
     ClusterRequest:
       content:
@@ -3079,6 +3125,18 @@ components:
           type: object
           description: The labels to be placed on the cluster. Of type Map[String,String]
 
+    BatchNodepoolCreateRequest:
+      description: The configuration for a pool of nodepools, used to create a cluster with pre-created nodepools
+      type: object
+      required:
+        - numNodepools
+      properties:
+        numNodepools:
+          type: integer
+          description: number of nodepools to pre-create in the cluster. We enforce a max of 200. There will be an additional default nodepool created as well.
+        kubernetesRuntimeConfig:
+          $ref: '#/components/schemas/KubernetesRuntimeConfig'
+
     GetAppResponse:
       description: the configuration of an app
       type: object
@@ -3181,6 +3239,3 @@ components:
         googleErrorCode:
           type: integer
           description: if the error is associated with an external API call, the error code will be propagated here
-
-
-

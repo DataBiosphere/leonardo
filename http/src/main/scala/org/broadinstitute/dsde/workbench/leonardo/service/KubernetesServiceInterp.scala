@@ -38,7 +38,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.i
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  BatchNodepoolCreateMessage,
+  CreateAppMessage,
+  DeleteAppMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
@@ -86,7 +90,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
           ) >> F.raiseError(t)
         }
 
-      saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now))
+      saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now, None))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetForApp(saveCluster).transaction
       _ <- if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
         F.raiseError[Unit](
@@ -97,8 +101,18 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       else F.unit
 
       clusterId = saveClusterResult.minimalCluster.id
-      saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req, ctx.now))
-      nodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+      claimedNodepoolOpt <- nodepoolQuery.claimNodepool(clusterId).transaction
+      nodepool <- claimedNodepoolOpt match {
+        case None =>
+          for {
+            saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
+            savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+          } yield savedNodepool
+        case Some(n) =>
+          log.info(s"claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject}") >> F.pure(
+            n
+          )
+      }
 
       runtimeServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
@@ -131,7 +145,8 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         },
         app.id,
         app.appName,
-        nodepool.id,
+        //we don't want to create a nodepool if we already have claimed an existing one
+        claimedNodepoolOpt.fold[Option[NodepoolLeoId]](Some(nodepool.id))(_ => None),
         saveClusterResult.minimalCluster.googleProject,
         diskResultOpt.map(_.creationNeeded).getOrElse(false),
         req.customEnvironmentVariables,
@@ -235,9 +250,43 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       _ <- publisherQueue.enqueue1(deleteMessage)
     } yield ()
 
-  private[service] def getSavableCluster(userInfo: UserInfo,
-                                         googleProject: GoogleProject,
-                                         now: Instant): Either[Throwable, SaveKubernetesCluster] = {
+  override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
+                                                  ProjectAction.CreateApp,
+                                                  userInfo)
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
+
+      // create default nodepool with size dependant on number of nodes requested
+      saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now, Some(req.numNodepools)))
+      saveClusterResult <- KubernetesServiceDbQueries.saveOrGetForApp(saveCluster).transaction
+
+      // check if the cluster exists (we reject this request if it does)
+      createCluster <- saveClusterResult match {
+        case _: ClusterExists         => F.raiseError[CreateCluster](ClusterExistsException(googleProject))
+        case res: ClusterDoesNotExist => F.pure(CreateCluster(res.minimalCluster.id, res.defaultNodepool.id))
+      }
+      // create list of Precreating nodepools
+      eitherNodepoolsOrError = List.tabulate(req.numNodepools.value) { _ =>
+        getUserNodepool(createCluster.clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now)
+      }
+      nodepools <- eitherNodepoolsOrError.traverse(n => F.fromEither(n))
+      _ <- nodepoolQuery.saveAllForCluster(nodepools).transaction
+      dbNodepools <- KubernetesServiceDbQueries.getAllNodepoolsForCluster(createCluster.clusterId).transaction
+      allNodepoolIds = dbNodepools.map(_.id)
+      msg = BatchNodepoolCreateMessage(createCluster.clusterId, allNodepoolIds, googleProject, Some(ctx.traceId))
+      _ <- publisherQueue.enqueue1(msg)
+    } yield ()
+
+  private[service] def getSavableCluster(
+    userInfo: UserInfo,
+    googleProject: GoogleProject,
+    now: Instant,
+    numNodepools: Option[NumNodepools]
+  ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
 
     val defaultNodepool = for {
@@ -249,7 +298,18 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       status = NodepoolStatus.Precreating,
       auditInfo,
       machineType = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
-      numNodes = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes,
+      numNodes = numNodepools
+        .map(n =>
+          NumNodes(
+            math
+              .ceil(
+                n.value.toDouble /
+                  leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.maxNodepoolsPerDefaultNode.value.toDouble
+              )
+              .toInt
+          )
+        )
+        .getOrElse(leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes),
       autoscalingEnabled = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.autoscalingEnabled,
       autoscalingConfig = None
     )
@@ -271,11 +331,11 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
                                        userInfo: UserInfo,
-                                       req: CreateAppRequest,
+                                       runtimeConfig: Option[KubernetesRuntimeConfig],
                                        now: Instant): Either[Throwable, Nodepool] = {
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
 
-    val machineConfig = req.kubernetesRuntimeConfig.getOrElse(
+    val machineConfig = runtimeConfig.getOrElse(
       KubernetesRuntimeConfig(
         leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
         leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
@@ -409,4 +469,10 @@ case class AppRequiresDiskException(googleProject: GoogleProject, appName: AppNa
     extends LeoException(
       s"App ${googleProject.value}/${appName.value} cannot be created because the request does not contain a valid disk. Apps of type ${appType} require a disk. Trace ID: ${traceId.asString}",
       StatusCodes.BadRequest
+    )
+
+case class ClusterExistsException(googleProject: GoogleProject)
+    extends LeoException(
+      s"Cannot pre-create nodepools for project $googleProject because a cluster already exists",
+      StatusCodes.Conflict
     )

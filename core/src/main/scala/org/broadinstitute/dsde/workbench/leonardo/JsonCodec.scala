@@ -196,7 +196,7 @@ object JsonCodec {
     Encoder.forProduct2("apiServerIp", "networkInfo")(x => KubernetesClusterAsyncFields.unapply(x).get)
 
   implicit val createClusterEncoder: Encoder[CreateCluster] =
-    Encoder.forProduct2("clusterId", "nodepoolId")(x => (x.clusterId, x.nodepoolId))
+    Encoder.forProduct2("clusterId", "nodepoolId")(x => (x.clusterId, x.defaultNodepoolId))
   implicit val instanceNameEncoder: Encoder[InstanceName] = Encoder.encodeString.contramap(_.value)
   implicit val dataprocRoleEncoder: Encoder[DataprocRole] =
     Encoder.encodeString.contramap(_.toString) // We've been using `.toString` in db

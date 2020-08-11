@@ -20,6 +20,8 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
+import cats.implicits._
+import com.rms.miu.slickcats.DBIOInstances._
 
 import scala.concurrent.ExecutionContext
 
@@ -77,7 +79,9 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
 }
 
 object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
-  private def findActiveByClusterIdQuery(clusterId: KubernetesClusterLeoId): Query[NodepoolTable, NodepoolRecord, Seq] =
+  private[db] def findActiveByClusterIdQuery(
+    clusterId: KubernetesClusterLeoId
+  ): Query[NodepoolTable, NodepoolRecord, Seq] =
     nodepoolQuery
       .filter(_.clusterId === clusterId)
       .filter(_.destroyedDate === dummyDate)
@@ -86,26 +90,52 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     nodepoolQuery
       .filter(_.id === id)
 
+  def saveAllForCluster(nodepools: List[Nodepool])(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- nodepoolQuery ++=
+        nodepools.map(fromNodepool(_))
+    } yield ()
+
   def saveForCluster(n: Nodepool)(implicit ec: ExecutionContext): DBIO[Nodepool] =
     for {
       nodepoolId <- nodepoolQuery returning nodepoolQuery.map(_.id) +=
-        NodepoolRecord(
-          NodepoolLeoId(0),
-          n.clusterId,
-          n.nodepoolName,
-          n.status,
-          n.auditInfo.creator,
-          n.auditInfo.createdDate,
-          dummyDate,
-          n.auditInfo.dateAccessed,
-          n.machineType,
-          n.numNodes,
-          n.autoscalingEnabled,
-          n.autoscalingConfig.map(_.autoscalingMin),
-          n.autoscalingConfig.map(_.autoscalingMax),
-          n.isDefault
-        )
+        fromNodepool(n)
     } yield n.copy(id = nodepoolId)
+
+  def markAsUnclaimed(ids: List[NodepoolLeoId])(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- nodepoolQuery
+        .filter(_.id inSetBind ids.toSet)
+        .map(_.status)
+        .update(NodepoolStatus.Unclaimed)
+    } yield ()
+
+  private def fromNodepool(n: Nodepool) = NodepoolRecord(
+    NodepoolLeoId(0),
+    n.clusterId,
+    n.nodepoolName,
+    n.status,
+    n.auditInfo.creator,
+    n.auditInfo.createdDate,
+    dummyDate,
+    n.auditInfo.dateAccessed,
+    n.machineType,
+    n.numNodes,
+    n.autoscalingEnabled,
+    n.autoscalingConfig.map(_.autoscalingMin),
+    n.autoscalingConfig.map(_.autoscalingMax),
+    n.isDefault
+  )
+
+  def claimNodepool(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+    for {
+      unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
+        .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
+        .result
+        .headOption
+      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatus(rec.id, NodepoolStatus.Running))
+      claimedNodepoolOpt <- unclaimedNodepoolOpt.flatTraverse(n => getMinimalById(n.id))
+    } yield claimedNodepoolOpt
 
   def updateStatus(id: NodepoolLeoId, status: NodepoolStatus): DBIO[Int] =
     findByNodepoolIdQuery(id)

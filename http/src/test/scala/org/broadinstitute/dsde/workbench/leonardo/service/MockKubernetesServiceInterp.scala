@@ -5,6 +5,7 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  BatchNodepoolCreateRequest,
   CreateAppRequest,
   DeleteAppParams,
   GetAppResponse,
@@ -33,6 +34,10 @@ class MockKubernetesServiceInterp extends KubernetesService[IO] {
     implicit as: ApplicativeAsk[IO, AppContext]
   ): IO[Unit] =
     IO.unit
+
+  override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[Unit] = IO.unit
 }
 
 object MockKubernetesServiceInterp extends MockKubernetesServiceInterp
