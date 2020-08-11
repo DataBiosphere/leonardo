@@ -486,5 +486,3 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     }
   }
 }
-
-object DataprocRuntimeMonitor {}
