@@ -8,9 +8,12 @@ import cats.effect.{IO, Resource, Timer}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateAppRequest,
   CreateDiskRequest,
   CreateRuntime2Request,
+  GetAppResponse,
   GetPersistentDiskResponse,
+  ListAppResponse,
   ListPersistentDiskResponse,
   UpdateRuntimeRequest
 }
@@ -22,7 +25,7 @@ import org.http4s.headers._
 import org.http4s.circe.CirceEntityEncoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-
+import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import scala.concurrent.duration._
 import ApiJsonDecoder._
 import org.http4s._
@@ -72,6 +75,14 @@ object LeonardoApiClient {
     None,
     None,
     Set.empty,
+    Map.empty
+  )
+
+  val defaultCreateAppRequest = CreateAppRequest(
+    None,
+    AppType.Galaxy,
+    None,
+    Map.empty,
     Map.empty
   )
 
@@ -320,6 +331,73 @@ object LeonardoApiClient {
     for {
       body <- response.bodyText.compile.foldMonoid
     } yield RestError(response.status, body)
+
+  def createApp(
+    googleProject: GoogleProject,
+    appName: AppName,
+    createAppRequest: CreateAppRequest = defaultCreateAppRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    client
+      .successful(
+        Request[IO](
+          method = Method.POST,
+          headers = Headers.of(authHeader, defaultMediaType),
+          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"),
+          body = createAppRequest
+        )
+      )
+      .flatMap { success =>
+        if (success)
+          IO.unit
+        else IO.raiseError(new Exception(s"Fail to create app ${googleProject.value}/${appName.value}"))
+      }
+
+  def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                                authHeader: Authorization): IO[Unit] =
+    client
+      .successful(
+        Request[IO](
+          method = Method.DELETE,
+          headers = Headers.of(authHeader),
+          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+        )
+      )
+      .flatMap { success =>
+        if (success)
+          IO.unit
+        else
+          IO.raiseError(new RuntimeException(s"Fail to delete app ${googleProject.value}/${appName.value}"))
+      }
+
+  def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                             authHeader: Authorization): IO[GetAppResponse] =
+    client.expectOr[GetAppResponse](
+      Request[IO](
+        method = Method.GET,
+        headers = Headers.of(authHeader),
+        uri = rootUri
+          .withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+      )
+    )(onError)
+
+  def listApps(
+    googleProject: GoogleProject,
+    includeDeleted: Boolean = false
+  )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListAppResponse]] = {
+    val uriWithoutQueryParam = rootUri
+      .withPath(s"/api/google/v1/apps/${googleProject.value}")
+
+    val uri =
+      if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
+      else uriWithoutQueryParam
+    client.expectOr[List[ListAppResponse]](
+      Request[IO](
+        method = Method.GET,
+        headers = Headers.of(authHeader),
+        uri = uri
+      )
+    )(onError)
+  }
 }
 
 final case class RestError(statusCode: Status, message: String) extends NoStackTrace {

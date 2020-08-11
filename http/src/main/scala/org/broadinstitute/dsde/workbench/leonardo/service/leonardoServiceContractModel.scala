@@ -5,11 +5,7 @@ package service
 import java.net.URL
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.{GcsPathFormat => _}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 
@@ -238,74 +234,3 @@ object GetRuntimeResponse {
 
 final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
                                             kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig])
-
-final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
-                                  appType: AppType,
-                                  diskConfig: Option[PersistentDiskRequest],
-                                  labels: LabelMap = Map.empty,
-                                  customEnvironmentVariables: Map[String, String])
-
-final case class DeleteAppParams(userInfo: UserInfo,
-                                 googleProject: GoogleProject,
-                                 appName: AppName,
-                                 deleteDisk: Boolean)
-
-final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
-                                errors: List[AppError],
-                                status: AppStatus,
-                                proxyUrls: Map[ServiceName, URL],
-                                diskName: Option[DiskName])
-
-object GetAppResponse {
-  def fromDbResult(appResult: GetAppResult): GetAppResponse = {
-    val hasError = appResult.cluster.status == KubernetesClusterStatus.Error ||
-      appResult.nodepool.status == NodepoolStatus.Error ||
-      appResult.app.status == AppStatus.Error ||
-      appResult.app.errors.length > 0
-    GetAppResponse(
-      KubernetesRuntimeConfig(
-        appResult.nodepool.numNodes,
-        appResult.nodepool.machineType,
-        appResult.nodepool.autoscalingEnabled
-      ),
-      appResult.app.errors,
-      if (hasError) AppStatus.Error else appResult.app.status,
-      appResult.app.getProxyUrls(appResult.cluster.googleProject, Config.proxyConfig.proxyUrlBase),
-      appResult.app.appResources.disk.map(_.name)
-    )
-  }
-}
-
-final case class ListAppResponse(googleProject: GoogleProject,
-                                 kubernetesRuntimeConfig: KubernetesRuntimeConfig,
-                                 errors: List[AppError],
-                                 status: AppStatus,
-                                 proxyUrls: Map[ServiceName, URL],
-                                 appName: AppName,
-                                 diskName: Option[DiskName])
-
-object ListAppResponse {
-  def fromCluster(c: KubernetesCluster): List[ListAppResponse] =
-    c.nodepools.flatMap(n =>
-      n.apps.map { a =>
-        val hasError = c.status == KubernetesClusterStatus.Error ||
-          n.status == NodepoolStatus.Error ||
-          a.status == AppStatus.Error ||
-          a.errors.length > 0
-        ListAppResponse(
-          c.googleProject,
-          KubernetesRuntimeConfig(
-            n.numNodes,
-            n.machineType,
-            n.autoscalingEnabled
-          ),
-          a.errors,
-          if (hasError) AppStatus.Error else a.status,
-          a.getProxyUrls(c.googleProject, Config.proxyConfig.proxyUrlBase),
-          a.appName,
-          a.appResources.disk.map(_.name)
-        )
-      }
-    )
-
-}

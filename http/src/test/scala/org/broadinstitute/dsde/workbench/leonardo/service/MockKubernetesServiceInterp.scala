@@ -4,8 +4,8 @@ package service
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  BatchNodepoolCreateRequest,
+import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCreateRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateAppRequest,
   DeleteAppParams,
   GetAppResponse,

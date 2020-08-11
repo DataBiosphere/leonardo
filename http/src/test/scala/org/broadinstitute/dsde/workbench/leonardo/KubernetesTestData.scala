@@ -5,13 +5,8 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.GetAppResult
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  BatchNodepoolCreateRequest,
-  CreateAppRequest,
-  GetAppResponse,
-  ListAppResponse
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCreateRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 object KubernetesTestData {
@@ -62,11 +57,14 @@ object KubernetesTestData {
         testCluster,
         testNodepool,
         testApp
-      )
+      ),
+      "https://leo/proxy/"
     )
 
   val listAppResponse =
-    ListAppResponse.fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp))))).toVector
+    ListAppResponse
+      .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))), "https://leo/proxy/")
+      .toVector
 
   def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId, prefix: String = "", isDefault: Boolean = false) = {
     val name = NodepoolName(prefix + "nodepoolname" + index)

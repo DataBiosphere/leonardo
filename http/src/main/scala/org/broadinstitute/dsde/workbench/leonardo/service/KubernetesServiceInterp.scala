@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.{
+  Config,
   GalaxyAppConfig,
   KubernetesClusterConfig,
   NodepoolConfig,
@@ -169,7 +170,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
-    } yield GetAppResponse.fromDbResult(app)
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
     userInfo: UserInfo,
@@ -200,7 +201,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
           )
         }
         .filterNot(_.nodepools.isEmpty)
-        .flatMap(c => ListAppResponse.fromCluster(c))
+        .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase))
         .toVector
     }
 

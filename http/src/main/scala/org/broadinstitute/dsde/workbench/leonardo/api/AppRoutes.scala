@@ -14,13 +14,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.server.Directives._
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  BatchNodepoolCreateRequest,
-  CreateAppRequest,
-  DeleteAppParams,
-  GetAppResponse,
-  ListAppResponse
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{BatchNodepoolCreateRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName

@@ -1,0 +1,94 @@
+package org.broadinstitute.dsde.workbench.leonardo.http
+
+import java.net.URL
+
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
+  AppError,
+  AppName,
+  AppStatus,
+  AppType,
+  KubernetesCluster,
+  KubernetesClusterStatus,
+  KubernetesRuntimeConfig,
+  LabelMap,
+  Nodepool,
+  NodepoolStatus
+}
+import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
+final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
+                                  appType: AppType,
+                                  diskConfig: Option[PersistentDiskRequest],
+                                  labels: LabelMap = Map.empty,
+                                  customEnvironmentVariables: Map[String, String])
+
+final case class DeleteAppParams(userInfo: UserInfo,
+                                 googleProject: GoogleProject,
+                                 appName: AppName,
+                                 deleteDisk: Boolean)
+
+final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+                                errors: List[AppError],
+                                status: AppStatus, //TODO: do we need some sort of aggregate status?
+                                proxyUrls: Map[ServiceName, URL],
+                                diskName: Option[DiskName])
+
+final case class ListAppResponse(googleProject: GoogleProject,
+                                 kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+                                 errors: List[AppError],
+                                 status: AppStatus, //TODO: do we need some sort of aggregate status?
+                                 proxyUrls: Map[ServiceName, URL],
+                                 appName: AppName,
+                                 diskName: Option[DiskName])
+
+final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
+
+object ListAppResponse {
+  def fromCluster(c: KubernetesCluster, proxyUrlBase: String): List[ListAppResponse] =
+    c.nodepools.flatMap(n =>
+      n.apps.map { a =>
+        val hasError = c.status == KubernetesClusterStatus.Error ||
+          n.status == NodepoolStatus.Error ||
+          a.status == AppStatus.Error ||
+          a.errors.length > 0
+        ListAppResponse(
+          c.googleProject,
+          KubernetesRuntimeConfig(
+            n.numNodes,
+            n.machineType,
+            n.autoscalingEnabled
+          ),
+          a.errors,
+          if (hasError) AppStatus.Error else a.status,
+          a.getProxyUrls(c.googleProject, proxyUrlBase),
+          a.appName,
+          a.appResources.disk.map(_.name)
+        )
+      }
+    )
+
+}
+
+object GetAppResponse {
+  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse = {
+    val hasError = appResult.cluster.status == KubernetesClusterStatus.Error ||
+      appResult.nodepool.status == NodepoolStatus.Error ||
+      appResult.app.status == AppStatus.Error ||
+      appResult.app.errors.length > 0
+    GetAppResponse(
+      KubernetesRuntimeConfig(
+        appResult.nodepool.numNodes,
+        appResult.nodepool.machineType,
+        appResult.nodepool.autoscalingEnabled
+      ),
+      appResult.app.errors,
+      if (hasError) AppStatus.Error else appResult.app.status,
+      appResult.app.getProxyUrls(appResult.cluster.googleProject, proxyUrlBase),
+      appResult.app.appResources.disk.map(_.name)
+    )
+  }
+}
