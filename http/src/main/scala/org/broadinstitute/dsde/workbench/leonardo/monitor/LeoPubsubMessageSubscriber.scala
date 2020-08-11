@@ -813,52 +813,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       )
     } yield ()
 
-  private def deleteDiskForApp(diskId: DiskId)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    deleteDisk(diskId, true)
-
-  private def createDiskForApp(msg: CreateAppMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    msg.createDisk match {
-      case true =>
-        for {
-          _ <- logger.info(s"Beginning disk creation for app ${msg.appId}")
-          ctx <- ev.ask
-          getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
-          getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
-          disk <- F.fromOption(
-            getApp.app.appResources.disk,
-            AppCreationException(
-              s"create disk was true for create app message, but app ${getApp.app.id} does not have a disk id saved"
-            )
-          )
-          _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), true)
-        } yield ()
-      case false => F.unit
-    }
-
-  private def handleKubernetesError(e: Throwable): F[Unit] =
-    e match {
-      case e: PubsubKubernetesError =>
-        for {
-          _ <- appErrorQuery.save(e.appId, e.dbError).transaction
-          _ <- appQuery.updateStatus(e.appId, AppStatus.Error).transaction
-          _ <- e.clusterId.traverse(clusterId =>
-            kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
-          )
-          _ <- e.nodepoolId.traverse(nodepoolId =>
-            nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction
-          )
-          _ <- logger.error(e)(s"updating db state for an async error for app ${e.appId}")
-        } yield ()
-      case _ =>
-        F.raiseError(
-          new RuntimeException(s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}")
-        )
-    }
-
   private def createRuntimeErrorHandler(msg: CreateRuntimeMessage, now: Instant)(e: Throwable): F[Unit] =
     for {
       _ <- logger.error(e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
