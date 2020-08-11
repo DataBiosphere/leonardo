@@ -16,6 +16,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
   ComputePollOperation,
   DiskName,
   Event,
@@ -336,7 +337,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       // We assume all validation has already happened in RuntimeServiceInterp
 
       // Resize the cluster
-      _ <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
+      isResizCluster <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
         for {
           _ <- runtimeConfig.cloudService.interpreter
             .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
@@ -347,8 +348,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), ctx.now).transaction
           )
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, ctx.now).transaction.void
-        } yield ()
-      } else F.unit
+        } yield true
+      } else F.pure(false)
 
       // Update the disk size
       _ <- msg.diskUpdate
@@ -415,10 +416,23 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                  ctx.now)
           )
         } yield ()
-      } else
-        msg.newMachineType.traverse_(m =>
-          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
-        )
+      } else {
+        for {
+          _ <- msg.newMachineType.traverse_(m =>
+            runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+          )
+          _ <- if (isResizCluster) {
+            asyncTasks.enqueue1(
+              Task(
+                ctx.traceId,
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating).compile.drain,
+                Some(logError(runtime.projectNameString, "updating runtime")),
+                ctx.now
+              )
+            )
+          } else F.unit
+        } yield ()
+      }
     } yield ()
 
   private def startAndUpdateRuntime(
