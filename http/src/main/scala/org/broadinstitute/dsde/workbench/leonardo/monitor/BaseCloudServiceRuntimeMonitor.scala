@@ -392,3 +392,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         }.void
     }
 }
+
+final case class InvalidMonitorRequest(msg: String) extends RuntimeException {
+  override def getMessage: String = msg
+}

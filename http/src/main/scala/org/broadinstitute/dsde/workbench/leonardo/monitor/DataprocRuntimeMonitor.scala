@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleStorageService,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{getInstanceIP, parseGoogleTimestamp}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -141,7 +140,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 monitorContext,
                 runtimeAndRuntimeConfig,
                 error
-                  .map(e => RuntimeErrorDetails(e.message, Some(e.code), Some(e.message))),
+                  .map(e => RuntimeErrorDetails(e.message, Some(e.code), Some("dataproc_creation_error"))),
                 instances
               )
             } yield res
@@ -214,16 +213,15 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = cluster match {
     case None =>
-      for {
-        _ <- logger
-          .error(s"${monitorContext} | Can't stop an instance that hasn't been initialized yet or doesn't exist")
-        _ <- failedRuntime(
-          monitorContext,
-          runtimeAndRuntimeConfig,
-          Some(RuntimeErrorDetails("Can't stop an instance that hasn't been initialized yet or doesn't exist")),
-          Set.empty
-        )
-      } yield ((), None) //TODO: Ideally we should have sentry report this case
+      val e = InvalidMonitorRequest(
+        s"${monitorContext} | Can't stop an instance that hasn't been initialized yet or doesn't exist"
+      )
+      failedRuntime(
+        monitorContext,
+        runtimeAndRuntimeConfig,
+        Some(RuntimeErrorDetails(e.getMessage)),
+        Set.empty
+      ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
       for {
         instances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
@@ -247,16 +245,15 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = cluster match {
     case None =>
-      for {
-        _ <- logger
-          .error(s"${monitorContext} | Can't update an instance that hasn't been initialized yet or doesn't exist")
-        _ <- failedRuntime(
-          monitorContext,
-          runtimeAndRuntimeConfig,
-          Some(RuntimeErrorDetails("Can't update an instance that hasn't been initialized yet or doesn't exist")),
-          Set.empty
-        )
-      } yield ((), None) //TODO: Ideally we should have sentry report this case
+      val e = InvalidMonitorRequest(
+        s"${monitorContext} | Can't update an instance that hasn't been initialized yet or doesn't exist"
+      )
+      failedRuntime(
+        monitorContext,
+        runtimeAndRuntimeConfig,
+        Some(RuntimeErrorDetails(e.getMessage)),
+        Set.empty
+      ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
       for {
         instances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
@@ -489,5 +486,3 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     }
   }
 }
-
-object DataprocRuntimeMonitor {}

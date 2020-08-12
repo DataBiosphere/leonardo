@@ -10,10 +10,12 @@ import cats.effect.concurrent.Semaphore
 import cats.effect._
 import cats.implicits._
 import com.google.api.services.compute.ComputeScopes
+import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
 import org.broadinstitute.dsde.workbench.google2.{
   credentialResource,
@@ -69,10 +71,11 @@ object Boot extends IOApp {
     implicit val logger = Slf4jLogger.getLogger[IO]
 
     createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
-      implicit val openTelemetry = appDependencies.openTelemetryMetrics
-      implicit val dbRef = appDependencies.dbReference
-
       val googleDependencies = appDependencies.googleDependencies
+
+      implicit val dbRef = appDependencies.dbReference
+      implicit val openTelemetry = googleDependencies.openTelemetryMetrics
+
       val bucketHelperConfig = BucketHelperConfig(
         imageConfig,
         welderConfig,
@@ -228,7 +231,7 @@ object Boot extends IOApp {
           implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
             new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-          val monitorAtBoot = new MonitorAtBoot[IO]()
+          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue)
 
           val googleDiskService = googleDependencies.googleDiskService
 
@@ -248,7 +251,8 @@ object Boot extends IOApp {
                                                googleDiskService,
                                                googleDependencies.computePollOperation,
                                                appDependencies.authProvider,
-                                               gkeInterp)
+                                               gkeInterp,
+                                               googleDependencies.errorReporting)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -321,6 +325,8 @@ object Boot extends IOApp {
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
+      credential <- credentialResource(pathToCredentialJson)
+      scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
       credentialJson <- Resource.liftF(
         readFileToString(applicationConfig.leoServiceAccountJsonFile, blocker)
       )
@@ -363,10 +369,10 @@ object Boot extends IOApp {
         RetryPredicates.standardRetryPredicate,
         RetryPredicates.whenStatusCode(400)
       )
-      googleComputeService <- GoogleComputeService.resource(pathToCredentialJson,
-                                                            blocker,
-                                                            semaphore,
-                                                            googleComputeRetryPolicy)
+      googleComputeService <- GoogleComputeService.fromCredential(scopedCredential,
+                                                                  blocker,
+                                                                  semaphore,
+                                                                  googleComputeRetryPolicy)
       dataprocService <- GoogleDataprocService.resource(
         pathToCredentialJson,
         blocker,
@@ -376,9 +382,10 @@ object Boot extends IOApp {
       asyncTasksQueue <- Resource.liftF(InspectableQueue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, blocker, semaphore)
-      credential <- credentialResource(pathToCredentialJson)
-      scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, blocker, semaphore)
+      errorReporting <- ErrorReporting.fromCredential(scopedCredential,
+                                                      applicationConfig.applicationName,
+                                                      ProjectName.of(applicationConfig.leoGoogleProject.value))
       googleDependencies = GoogleDependencies(
         petGoogleStorageDAO,
         googleComputeService,
@@ -391,7 +398,9 @@ object Boot extends IOApp {
         dataprocService,
         kubernetesDnsCache,
         gkeService,
-        kubeService
+        kubeService,
+        openTelemetry,
+        errorReporting
       )
     } yield AppDependencies(
       storage,
@@ -405,7 +414,6 @@ object Boot extends IOApp {
       rstudioDAO,
       serviceAccountProvider,
       authProvider,
-      openTelemetry,
       blocker,
       semaphore,
       leoPublisher,
@@ -430,7 +438,9 @@ final case class GoogleDependencies[F[_]](
   googleDataproc: GoogleDataprocService[F],
   kubernetesDnsCache: KubernetesDnsCache[F],
   gkeService: GKEService[F],
-  kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F]
+  kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
+  openTelemetryMetrics: OpenTelemetryMetrics[F],
+  errorReporting: ErrorReporting[F]
 )
 
 final case class AppDependencies[F[_]](
@@ -445,7 +455,6 @@ final case class AppDependencies[F[_]](
   rStudioDAO: RStudioDAO[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: LeoAuthProvider[F],
-  openTelemetryMetrics: OpenTelemetryMetrics[F],
   blocker: Blocker,
   semaphore: Semaphore[F],
   leoPublisher: LeoPublisher[F],

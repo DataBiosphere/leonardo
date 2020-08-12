@@ -13,6 +13,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
+import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
@@ -23,6 +24,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   OperationName
 }
+import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
@@ -42,7 +44,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   googleDiskService: GoogleDiskService[F],
   computePollOperation: ComputePollOperation[F],
   authProvider: LeoAuthProvider[F],
-  gkeInterp: GKEInterpreter[F]
+  gkeInterp: GKEInterpreter[F],
+  errorReporting: ErrorReporting[F]
 )(implicit executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
   parallel: Parallel[F],
@@ -168,30 +171,16 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         } else F.unit
       } yield ()
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, taskToRun, Some(logError(msg.runtimeProjectAndName.toString, "creating runtime")), ctx.now)
+        Task(
+          ctx.traceId,
+          taskToRun,
+          Some(createRuntimeErrorHandler(msg, ctx.now)),
+          ctx.now
+        )
       )
     } yield ()
 
-    createCluster.handleErrorWith {
-      case e =>
-        for {
-          ctx <- ev.ask
-          _ <- logger.error(e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
-          errorMessage = e match {
-            case leoEx: LeoException =>
-              Some(ErrorReport.loggableString(leoEx.toErrorReport))
-            case ee: com.google.api.gax.rpc.AbortedException
-                if ee.getStatusCode().getCode == 409 && ee.getMessage().contains("already exists") =>
-              None //this could happen when pubsub redelivers an event unexpectedly
-            case _ =>
-              Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
-          }
-          _ <- errorMessage.traverse(m =>
-            (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, ctx.now)) >>
-              clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, ctx.now)).transaction[F]
-          )
-        } yield ()
-    }
+    createCluster.handleErrorWith(e => ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg, ctx.now)(e)))
   }
 
   private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(
@@ -254,7 +243,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         )
       }
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, fa, Some(logError(runtime.projectNameString, "deleting runtime")), ctx.now)
+        Task(
+          ctx.traceId,
+          fa,
+          Some(handleRuntimeMessageError(runtime.id, ctx.now, s"deleting runtime ${runtime.projectNameString} failed")),
+          ctx.now
+        )
       )
     } yield ()
 
@@ -286,7 +280,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
       }
       _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, poll, Some(logError(runtime.projectNameString, "stopping runtime")), ctx.now)
+        Task(
+          ctx.traceId,
+          poll,
+          Some(
+            handleRuntimeMessageError(msg.runtimeId, ctx.now, s"stopping runtime ${runtime.projectNameString} failed")
+          ),
+          ctx.now
+        )
       )
     } yield ()
 
@@ -313,7 +314,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         Task(
           ctx.traceId,
           runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
-          Some(logError(runtime.projectNameString, "starting runtime")),
+          Some(
+            handleRuntimeMessageError(msg.runtimeId, ctx.now, s"starting runtime ${runtime.projectNameString} failed")
+          ),
           ctx.now
         )
       )
@@ -402,7 +405,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             _ <- startAndUpdateRuntime(runtime, msg.newMachineType)(ctxStarting)
           } yield ()
           _ <- asyncTasks.enqueue1(
-            Task(ctx.traceId, task, Some(logError(runtime.projectNameString, "updating runtime")), ctx.now)
+            Task(ctx.traceId,
+                 task,
+                 Some(
+                   handleRuntimeMessageError(msg.runtimeId,
+                                             ctx.now,
+                                             s"updating runtime ${runtime.projectNameString} failed")
+                 ),
+                 ctx.now)
           )
         } yield ()
       } else
@@ -802,6 +812,38 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
       )
     } yield ()
+
+  private def createRuntimeErrorHandler(msg: CreateRuntimeMessage, now: Instant)(e: Throwable): F[Unit] =
+    for {
+      _ <- logger.error(e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
+      errorMessage = e match {
+        case leoEx: LeoException =>
+          Some(ErrorReport.loggableString(leoEx.toErrorReport))
+        case ee: com.google.api.gax.rpc.AbortedException
+            if ee.getStatusCode().getCode == 409 && ee.getMessage().contains("already exists") =>
+          None //this could happen when pubsub redelivers an event unexpectedly
+        case _ =>
+          Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
+      }
+      _ <- errorMessage.traverse(m =>
+        (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, now)) >>
+          clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
+      )
+      _ <- if (e.isReportWorthy)
+        errorReporting.reportError(e)
+      else F.unit
+    } yield ()
+
+  private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(e: Throwable): F[Unit] = {
+    val m = s"${msg} due to ${e.getMessage}"
+    for {
+      _ <- clusterErrorQuery.save(runtimeId, RuntimeError(m, -1, now)).transaction
+      _ <- logger.error(e)(m)
+      _ <- if (e.isReportWorthy)
+        errorReporting.reportError(e)
+      else F.unit
+    } yield ()
+  }
 
   private def logError(projectAndName: String, action: String): Throwable => F[Unit] =
     t => logger.error(t)(s"Fail to monitor ${projectAndName} for ${action}")

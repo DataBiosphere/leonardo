@@ -79,16 +79,6 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl, traceId = Some(ctx))
     } yield ()
 
-  def storeObject(bucketName: GcsBucketName, objectName: GcsBlobName, objectContents: Array[Byte], objectType: String)(
-    implicit ev: ApplicativeAsk[F, TraceId]
-  ): Stream[F, Unit] =
-    for {
-      traceId <- Stream.eval(ev.ask)
-      _ <- google2StorageDAO
-        .createBlob(bucketName, objectName, objectContents, objectType, traceId = Some(traceId))
-        .void
-    } yield ()
-
   def deleteInitBucket(googleProject: GoogleProject,
                        initBucketName: GcsBucketName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
@@ -104,7 +94,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     serviceAccountKey: Option[ServiceAccountKey],
     templateValues: RuntimeTemplateValues,
     customClusterEnvironmentVariables: Map[String, String]
-  )(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] = {
+  ): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = templateValues.toMap
 
@@ -137,8 +127,10 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
           config.clusterFilesConfig.proxyRootCaPem
         )
       ) ++ rstudioLicenseFile
-      bytes <- Stream.eval(TemplateHelper.fileStream[F](f, blocker).compile.to(Array))
-      _ <- storeObject(initBucketName, GcsBlobName(f.getFileName.toString), bytes, "text/plain")
+      _ <- TemplateHelper.fileStream[F](f, blocker) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(f.getFileName.toString)
+      )
     } yield ()
 
     val uploadRawResources = for {
@@ -156,8 +148,10 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
           config.clusterResourcesConfig.jupyterNotebookConfigUri
         )
       )
-      bytes <- Stream.eval(TemplateHelper.resourceStream[F](r, blocker).compile.to(Array))
-      _ <- storeObject(initBucketName, GcsBlobName(r.asString), bytes, "text/plain")
+      _ <- TemplateHelper.resourceStream[F](r, blocker) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(r.asString)
+      )
     } yield ()
 
     val uploadTemplatedResources = for {
@@ -168,23 +162,23 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
           config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
         )
       )
-      bytes <- Stream.eval(TemplateHelper.templateResource[F](replacements, r, blocker).compile.to(Array))
-      _ <- storeObject(initBucketName, GcsBlobName(r.asString), bytes, "text/plain")
+      _ <- TemplateHelper.templateResource[F](replacements, r, blocker) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(r.asString)
+      )
     } yield ()
 
     val uploadPrivateKey = for {
       k <- Stream(serviceAccountKey).unNone
       data <- Stream(k.privateKeyData.decode).unNone
-      _ <- storeObject(initBucketName,
-                       GcsBlobName(RuntimeTemplateValues.serviceAccountCredentialsFilename),
-                       data.getBytes(StandardCharsets.UTF_8),
-                       "text/plain")
+      _ <- Stream.emits(data.getBytes(StandardCharsets.UTF_8)) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(RuntimeTemplateValues.serviceAccountCredentialsFilename)
+      )
     } yield ()
 
-    val uploadCustomEnvVars = storeObject(initBucketName,
-                                          GcsBlobName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString),
-                                          customEnvVars.getBytes(StandardCharsets.UTF_8),
-                                          "text/plain")
+    val uploadCustomEnvVars = Stream.emits(customEnvVars.getBytes(StandardCharsets.UTF_8)) through google2StorageDAO
+      .streamUploadBlob(initBucketName, GcsBlobName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString))
 
     Stream(uploadRawFiles, uploadRawResources, uploadTemplatedResources, uploadPrivateKey, uploadCustomEnvVars).parJoin(
       5

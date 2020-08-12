@@ -620,7 +620,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         if (m.stopToUpdateMachineType) {
           val patchDetails = RuntimePatchDetails(runtime.id, RuntimeStatus.Stopped)
           patchQuery.save(patchDetails, m.newMachineType).transaction.void >> metrics.incrementCounter(
-            "patchStopToUpdateMachineType"
+            "patchStopToUpdate"
           )
         } else F.unit
       }

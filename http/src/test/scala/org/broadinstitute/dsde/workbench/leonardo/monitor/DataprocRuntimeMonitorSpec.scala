@@ -375,9 +375,13 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.stoppingRuntime(None, monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.stoppingRuntime(None, monitorContext, runtimeAndRuntimeConfig).attempt
     } yield {
-      r._2 shouldBe None
+      r shouldBe Left(
+        InvalidMonitorRequest(
+          s"-1/${ctx.traceId.asString} | Can't stop an instance that hasn't been initialized yet or doesn't exist"
+        )
+      )
     }
 
     res.unsafeRunSync()
@@ -396,11 +400,15 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.updatingRuntime(None, monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.updatingRuntime(None, monitorContext, runtimeAndRuntimeConfig).attempt
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
-      r._2 shouldBe None
-      error.head.errorMessage shouldBe ("Can't update an instance that hasn't been initialized yet or doesn't exist")
+      r shouldBe Left(
+        InvalidMonitorRequest(
+          s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist"
+        )
+      )
+      error.head.errorMessage shouldBe (s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist")
     }
 
     res.unsafeRunSync()

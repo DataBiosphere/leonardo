@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesName,
   Location,
   MachineTypeName,
+  MaxRetries,
   NetworkName,
   PublisherConfig,
   RegionName,
@@ -603,6 +604,7 @@ object Config {
   val subscriberConfig: SubscriberConfig = SubscriberConfig(applicationConfig.leoServiceAccountJsonFile.toString,
                                                             topic,
                                                             config.as[FiniteDuration]("pubsub.ackDeadLine"),
+                                                            MaxRetries(10),
                                                             None)
 
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig

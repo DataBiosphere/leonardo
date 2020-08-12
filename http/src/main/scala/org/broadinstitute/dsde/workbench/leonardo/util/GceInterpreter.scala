@@ -40,7 +40,7 @@ final case class InstanceResourceConstaintsException(project: GoogleProject, mac
 final case class MissingServiceAccountException(projectAndName: RuntimeProjectAndName)
     extends LeoException(s"Cannot create instance ${projectAndName}: service account required")
 
-class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
+class GceInterpreter[F[_]: Parallel: ContextShift](
   config: GceInterpreterConfig,
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
@@ -48,7 +48,11 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
   googleDiskService: GoogleDiskService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
-)(implicit val executionContext: ExecutionContext, metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F], F: Async[F])
+)(implicit val executionContext: ExecutionContext,
+  metrics: OpenTelemetryMetrics[F],
+  dbRef: DbReference[F],
+  F: Async[F],
+  logger: Logger[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F] {
   override def createRuntime(
@@ -314,8 +318,15 @@ class GceInterpreter[F[_]: Parallel: ContextShift: Logger](
     if (params.isAsyncRuntimeFields)
       googleComputeService
         .deleteInstance(params.googleProject, config.gceConfig.zoneName, InstanceName(params.runtimeName.asString))
-        .map(x => Some(x))
-    else Async[F].pure(None)
+        .map(x => Option(x))
+        .handleErrorWith {
+          case _: com.google.api.gax.rpc.NotFoundException =>
+            logger
+              .info(s"${params.googleProject.value}/${params.runtimeName.asString} has already been deleted")
+              .as(none[Operation])
+          case e => F.raiseError[Option[Operation]](e)
+        }
+    else F.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     Async[F].unit
