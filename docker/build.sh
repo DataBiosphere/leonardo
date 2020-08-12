@@ -174,6 +174,11 @@ function docker_cmd()
         fi
 
         docker build -t "${DEFAULT_IMAGE}:${DOCKER_TAG}" .
+
+        echo "scanning docker image..."
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$HOME"/Library/Caches:/root/.cache/ aquasec/trivy --exit-code 1 --severity CRITICAL "${DEFAULT_IMAGE}":"${DOCKER_TAG}"
+
+
         echo "building $TESTS_IMAGE docker image..."
         docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG_TESTS}" .
 
