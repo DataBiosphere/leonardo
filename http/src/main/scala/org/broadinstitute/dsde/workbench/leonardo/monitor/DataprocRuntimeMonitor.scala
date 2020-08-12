@@ -140,7 +140,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 monitorContext,
                 runtimeAndRuntimeConfig,
                 error
-                  .map(e => RuntimeErrorDetails(e.message, Some(e.code), Some(e.message))),
+                  .map(e => RuntimeErrorDetails(e.message, Some(e.code), Some("dataproc_creation_error"))),
                 instances
               )
             } yield res
