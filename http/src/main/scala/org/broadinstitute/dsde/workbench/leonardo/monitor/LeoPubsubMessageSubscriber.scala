@@ -16,7 +16,6 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.google2.{
-  streamFUntilDone,
   ComputePollOperation,
   DiskName,
   Event,
@@ -337,7 +336,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       // We assume all validation has already happened in RuntimeServiceInterp
 
       // Resize the cluster
-      isResizCluster <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
+      hasResizedCluster <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
         for {
           _ <- runtimeConfig.cloudService.interpreter
             .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
@@ -421,12 +420,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           _ <- msg.newMachineType.traverse_(m =>
             runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
           )
-          _ <- if (isResizCluster) {
+          _ <- if (hasResizedCluster) {
             asyncTasks.enqueue1(
               Task(
                 ctx.traceId,
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating).compile.drain,
-                Some(logError(runtime.projectNameString, "updating runtime")),
+                Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
                 ctx.now
               )
             )
