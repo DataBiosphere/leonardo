@@ -369,10 +369,10 @@ object Boot extends IOApp {
         RetryPredicates.standardRetryPredicate,
         RetryPredicates.whenStatusCode(400)
       )
-      googleComputeService <- GoogleComputeService.resource(pathToCredentialJson,
-                                                            blocker,
-                                                            semaphore,
-                                                            googleComputeRetryPolicy)
+      googleComputeService <- GoogleComputeService.fromCredential(scopedCredential,
+                                                                  blocker,
+                                                                  semaphore,
+                                                                  googleComputeRetryPolicy)
       dataprocService <- GoogleDataprocService.resource(
         pathToCredentialJson,
         blocker,
