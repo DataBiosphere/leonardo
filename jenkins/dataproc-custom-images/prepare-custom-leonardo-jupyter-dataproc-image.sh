@@ -105,6 +105,8 @@ log 'Installing prerequisites...'
 retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 retry 5 apt-key update
 
+retry 5 apt-get update
+
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
 # export DOCKER_CE_VERSION="19.03.2~ce~3-0~debian"
@@ -157,8 +159,8 @@ add-apt-repository \
 
 log 'Installing Docker...'
 
-retry 5 apt-get update
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+retry 5 apt-get update
 
 dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
