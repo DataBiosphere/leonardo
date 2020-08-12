@@ -25,7 +25,7 @@ terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.10
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.11"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.12"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.13"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.4"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.5"
 
 # leonardo_jupyter will be discontinued soon
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:59be71a"
@@ -110,6 +110,8 @@ log 'Installing prerequisites...'
 retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 retry 5 apt-key update
 
+retry 5 apt-get update
+
 retry 5 apt-get install -y -q \
     apt-transport-https \
     ca-certificates \
@@ -142,6 +144,8 @@ add-apt-repository \
   "deb [arch=${os_dist_arch:?}] ${docker_apt_repo_url:?} \
   ${os_dist_code_name:?} \
   ${os_dist_release_channel:?}"
+
+retry 5 apt-get update
 
 # Do some set-up in preparation for image hardening
 
@@ -178,8 +182,8 @@ service falco restart
 
 log 'Installing Docker...'
 
-retry 5 apt-get update
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+retry 5 apt-get update
 
 dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution

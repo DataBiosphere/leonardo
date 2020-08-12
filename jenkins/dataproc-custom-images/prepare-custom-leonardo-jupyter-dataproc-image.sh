@@ -24,7 +24,7 @@ terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-biocond
 terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.9"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.13"
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:0.0.1"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.4"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.5"
 
 # leonardo_jupyter will be discontinued soon
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:59be71a"
@@ -105,6 +105,8 @@ log 'Installing prerequisites...'
 retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 retry 5 apt-key update
 
+retry 5 apt-get update
+
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
 # export DOCKER_CE_VERSION="19.03.2~ce~3-0~debian"
@@ -157,8 +159,8 @@ add-apt-repository \
 
 log 'Installing Docker...'
 
-retry 5 apt-get update
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+retry 5 apt-get update
 
 dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
