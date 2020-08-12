@@ -56,7 +56,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   DiskInvalidState
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent._
 import org.scalatestplus.mockito.MockitoSugar
@@ -68,6 +68,7 @@ import scala.util.Left
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.mockito.Mockito._
+import fs2.Stream
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -79,7 +80,11 @@ class LeoPubsubMessageSubscriberSpec
     with LeonardoTestSuite {
 
   val mockWelderDAO = mock[WelderDAO[IO]]
-  val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO()
+  val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO() {
+    override def isGroupMember(groupEmail: WorkbenchEmail,
+                               memberEmail: WorkbenchEmail): scala.concurrent.Future[Boolean] =
+      scala.concurrent.Future.successful(true)
+  }
   val gdDAO = new MockGoogleDataprocDAO
   val storageDAO = new MockGoogleStorageDAO
   val iamDAO = new MockGoogleIamDAO
@@ -331,6 +336,47 @@ class LeoPubsubMessageSubscriberSpec
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
       attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle UpdateRuntimeMessage, resize dataproc cluster and setting DB status properly" in isolatedDbTest {
+    val monitor = new MockRuntimeMonitor {
+      override def pollCheck(a: CloudService)(
+        googleProject: GoogleProject,
+        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+        operation: com.google.cloud.compute.v1.Operation,
+        action: RuntimeStatus
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.never
+
+      override def process(
+        a: CloudService
+      )(runtimeId: Long, action: RuntimeStatus)(implicit ev: ApplicativeAsk[IO, TraceId]): Stream[IO, Unit] =
+        Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)
+    }
+    val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
+    val leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+
+    val res = for {
+      runtime <- IO(
+        makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(defaultDataprocRuntimeConfig)
+      )
+      tr <- traceId.ask
+      _ <- leoSubscriber.messageResponder(
+        UpdateRuntimeMessage(runtime.id, None, false, None, Some(100), None, Some(tr))
+      )
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      updatedRuntimeConfig <- updatedRuntime.traverse(r =>
+        RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+      )
+      _ <- withInfiniteStream(
+        asyncTaskProcessor.process,
+        clusterQuery.getClusterStatus(runtime.id).transaction.map(s => s shouldBe Some(RuntimeStatus.Running))
+      )
+    } yield {
+      updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe 100
     }
 
     res.unsafeRunSync()

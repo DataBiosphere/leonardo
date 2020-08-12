@@ -336,7 +336,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       // We assume all validation has already happened in RuntimeServiceInterp
 
       // Resize the cluster
-      _ <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
+      hasResizedCluster <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
         for {
           _ <- runtimeConfig.cloudService.interpreter
             .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
@@ -347,8 +347,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), ctx.now).transaction
           )
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, ctx.now).transaction.void
-        } yield ()
-      } else F.unit
+        } yield true
+      } else F.pure(false)
 
       // Update the disk size
       _ <- msg.diskUpdate
@@ -415,10 +415,23 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
                  ctx.now)
           )
         } yield ()
-      } else
-        msg.newMachineType.traverse_(m =>
-          runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
-        )
+      } else {
+        for {
+          _ <- msg.newMachineType.traverse_(m =>
+            runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+          )
+          _ <- if (hasResizedCluster) {
+            asyncTasks.enqueue1(
+              Task(
+                ctx.traceId,
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating).compile.drain,
+                Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
+                ctx.now
+              )
+            )
+          } else F.unit
+        } yield ()
+      }
     } yield ()
 
   private def startAndUpdateRuntime(
