@@ -456,7 +456,8 @@ object Config {
         config.getString("deletionConfirmationLabelKey"),
         toScalaDuration(config.getDuration("creationHangTolerance")),
         config.getInt("concurrency"),
-        gceConfig.zoneName
+        gceConfig.zoneName,
+        dataprocConfig.regionName
       )
   }
 
