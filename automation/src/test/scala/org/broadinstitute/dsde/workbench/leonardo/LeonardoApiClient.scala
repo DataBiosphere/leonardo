@@ -34,11 +34,13 @@ import org.http4s._
 
 import scala.concurrent.ExecutionContext.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 
 import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
+
   implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[IO, A]): EntityBody[IO] =
     encoder.toEntity(body).body
   implicit val cs = IO.contextShift(global)

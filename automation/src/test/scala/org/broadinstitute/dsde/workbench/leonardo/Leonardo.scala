@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder.getRuntimeResponseCopyDecoder
+import org.broadinstitute.dsde.workbench.leonardo.http.ListAppResponse
 
 /**
  * Leonardo API service client.

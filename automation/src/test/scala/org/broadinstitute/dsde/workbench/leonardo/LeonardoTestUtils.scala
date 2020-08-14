@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.http.CreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
@@ -689,5 +689,8 @@ trait LeonardoTestUtils
   }
 
   def noop[A](x: A): Unit = ()
+
+  def randomAppName: AppName = AppName(s"automation-test-app-a${makeRandomId().toLowerCase}z")
+  def randomDiskName: DiskName = DiskName(s"automation-test-disk-a${makeRandomId().toLowerCase}z")
 
 }
