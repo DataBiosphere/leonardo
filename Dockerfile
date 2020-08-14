@@ -22,7 +22,7 @@ RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
 COPY --from=helm-go-lib-builder /helm-go-lib-build/helm-scala-sdk/helm-go-lib /leonardo/helm-go-lib
 
-# Install the Helm3 CLI client from the source because installing it via the RHEL package managing didn't work
+# Install the Helm3 CLI client using a provided script because installing it via the RHEL package managing didn't work
 RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 && \
     chmod 700 get_helm.sh && \
     ./get_helm.sh --version v3.2.4 && \
