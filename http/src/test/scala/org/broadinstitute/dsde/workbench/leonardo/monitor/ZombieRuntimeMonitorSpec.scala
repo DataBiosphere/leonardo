@@ -7,24 +7,36 @@ import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
 import com.google.cloud.compute.v1.{Instance, Operation}
+import com.google.cloud.dataproc.v1.{Cluster, ClusterStatus}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleDataprocService
 import org.broadinstitute.dsde.workbench.google2.{
+  DataprocClusterName,
   GoogleComputeService,
+  GoogleDataprocService,
   GoogleDiskService,
   InstanceName,
   MachineTypeName,
   MockGoogleDiskService,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.util.{DataprocInterpreter, GceInterpreter, RuntimeInstances}
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  DataprocInterpreter,
+  GceInterpreter,
+  GetRuntimeStatusParams,
+  RuntimeAlgebra,
+  RuntimeInstances
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito.verify
@@ -63,7 +75,7 @@ class ZombieRuntimeMonitorSpec
     labels = Map(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey -> "false")
   )
 
-  "ZombieRuntimeMonitor" should "detect zombie clusters when the project is inactive" in isolatedDbTest {
+  it should "detect zombie clusters when the project is inactive" in isolatedDbTest {
     // create 2 running clusters in the same project
     val savedTestCluster1 = testCluster1.save()
     savedTestCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
@@ -147,6 +159,49 @@ class ZombieRuntimeMonitorSpec
           c.errors.head.errorCode shouldBe -1
           c.errors.head.errorMessage should include("An underlying resource was removed in Google")
         }
+      }
+    }
+  }
+
+  it should "delete a dataproc cluster if it's in ERROR state in GCP" in isolatedDbTest {
+    val savedTestCluster1 = testCluster1.saveWithRuntimeConfig(defaultDataprocRuntimeConfig)
+
+    // stub GoogleProjectDAO to make the project inactive
+    val googleProjectDAO = new MockGoogleProjectDAO {
+      override def isBillingActive(projectName: String): Future[Boolean] = Future.successful(true)
+    }
+
+    val dataprocInterp = new BaseFakeDataproInterp {
+      override def getRuntimeStatus(
+        params: GetRuntimeStatusParams
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[RuntimeStatus] =
+        IO(println("getting runtime status 2222")).flatMap(_ => IO.pure(RuntimeStatus.Error))
+    }
+
+    val dataprocService = new BaseFakeGoogleDataprocService {
+      override def getCluster(project: GoogleProject, region: RegionName, clusterName: DataprocClusterName)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[Cluster]] = {
+        val cluster =
+          Cluster.newBuilder().setStatus(ClusterStatus.newBuilder().setDetail("error happened").build()).build()
+        IO.pure(Some(cluster))
+      }
+    }
+    // zombie actor should flag both clusters as inactive
+    withZombieMonitor(googleProjectDAO = googleProjectDAO,
+                      dataprocInterp = Some(dataprocInterp),
+                      dataprocService = dataprocService) { () =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c = clusterQuery.getClusterById(savedTestCluster1.id).transaction.unsafeRunSync().get
+        c.status shouldBe RuntimeStatus.Error
+        c.errors.head.errorMessage shouldBe
+          """
+            |Unrecoverable ERROR state for Spark Cloud Environment: error happened
+            |
+            |Please Delete and Recreate your Cloud environment. If you have important data you’d like to retrieve 
+            |from your Cloud environment prior to deleting, try to access the machine via notebook or terminal. 
+            |If you can't connect to the cluster, please contact customer support and we can help you move your data.
+            |""".stripMargin
       }
     }
   }
@@ -438,15 +493,29 @@ class ZombieRuntimeMonitorSpec
     gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
     gce: GoogleComputeService[IO] = new MockGoogleComputeService,
     disk: GoogleDiskService[IO] = new MockGoogleDiskService,
-    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
+    googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
+    dataprocInterp: Option[RuntimeAlgebra[IO]] = None,
+    dataprocService: GoogleDataprocService[IO] = new BaseFakeGoogleDataprocService()
   )(validations: () => A): A = {
-    val dataprocInterp =
-      new DataprocInterpreter(dataprocInterpreterConfig, null, null, gdDAO, gce, disk, null, null, null, null, blocker)
+    val dataproc = dataprocInterp.getOrElse(
+      new DataprocInterpreter[IO](dataprocInterpreterConfig,
+                                  null,
+                                  null,
+                                  gdDAO,
+                                  gce,
+                                  disk,
+                                  null,
+                                  null,
+                                  null,
+                                  null,
+                                  blocker)
+    )
     val gceInterp =
       new GceInterpreter(gceInterpreterConfig, null, null, gce, disk, null, blocker)
 
-    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
-    val zombieClusterMonitor = ZombieRuntimeMonitor[IO](Config.zombieRuntimeMonitorConfig, googleProjectDAO)
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataproc, gceInterp)
+    val zombieClusterMonitor =
+      ZombieRuntimeMonitor[IO](Config.zombieRuntimeMonitorConfig, googleProjectDAO, dataprocService)
     val process = Stream.eval(Deferred[IO, A]).flatMap { signalToStop =>
       val signal = Stream.eval(IO(validations())).evalMap(r => signalToStop.complete(r))
       val p = Stream(zombieClusterMonitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)

@@ -622,7 +622,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     }
 }
 
-object FakeDataproInterp extends RuntimeAlgebra[IO] {
+class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(
     implicit ev: ApplicativeAsk[IO, AppContext]
   ): IO[CreateRuntimeResponse] = ???
@@ -652,3 +652,5 @@ object FakeDataproInterp extends RuntimeAlgebra[IO] {
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
 }
+
+object FakeDataproInterp extends BaseFakeDataproInterp
