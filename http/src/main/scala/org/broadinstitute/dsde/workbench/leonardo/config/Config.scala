@@ -558,8 +558,7 @@ object Config {
     GalaxyAppConfig(
       config.as[ReleaseName]("releaseName"),
       config.as[NamespaceName]("namespaceNameSuffix"),
-      config.as[List[ServiceConfig]]("services"),
-      config.as[RemoteUserName]("remoteUserName")
+      config.as[List[ServiceConfig]]("services")
     )
   }
 
@@ -584,8 +583,6 @@ object Config {
   )
   implicit val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
     stringValueReader.map(KubernetesServiceKindName)
-  implicit val remoteUserNameValueReader: ValueReader[RemoteUserName] =
-    stringValueReader.map(RemoteUserName)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")

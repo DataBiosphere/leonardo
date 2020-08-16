@@ -286,7 +286,6 @@ object AppType {
 }
 
 final case class ReleaseName(value: String) extends AnyVal
-final case class RemoteUserName(value: String) extends AnyVal
 
 final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal
@@ -311,7 +310,8 @@ final case class App(id: AppId,
                      customEnvironmentVariables: Map[String, String]) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
-      (service.config.name, new URL(s"$proxyUrlBase/$project/$appName/${service.config.name}"))
+      (service.config.name,
+       new URL(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"))
     }.toMap
 }
 

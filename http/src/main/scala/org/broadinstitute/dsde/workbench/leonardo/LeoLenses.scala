@@ -143,4 +143,6 @@ object LeoLenses {
     case x: DiskUpdate.PdSizeUpdate => Some(x)
     case _                          => None
   }(identity)
+
+  val appToServices: Lens[App, List[KubernetesService]] = GenLens[App](_.appResources.services)
 }
