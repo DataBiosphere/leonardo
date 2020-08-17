@@ -137,8 +137,15 @@ class KubernetesSpec
 
           _ = monitorStartingResult.status shouldBe AppStatus.Running
 
-          listofApps <- LeonardoApiClient.listApps(googleProject)
+          listOfApps <- LeonardoApiClient.listApps(googleProject)
 
+          appStatusValue = listOfApps.collect { case resp if resp.appName == appName => resp.status }
+
+          _ = appStatusValue shouldBe AppStatus.Running
+
+          app2StatusValue = listOfApps.collect { case resp if resp.appName == appName2 => resp.status }
+
+          _ = app2StatusValue shouldBe AppStatus.Running
         } yield ()
       }
       res.unsafeRunSync()
