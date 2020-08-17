@@ -15,8 +15,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  ServiceAccountName,
+  ServiceName
+}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release
 import slick.jdbc.MySQLProfile
@@ -154,8 +159,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[NamespaceId, Long](_.id, NamespaceId.apply)
     implicit val namespaceNameColumnType: BaseColumnType[NamespaceName] =
       MappedColumnType.base[NamespaceName, String](_.value, NamespaceName.apply)
-    implicit val kubernetesServiceAccountColumnType: BaseColumnType[KubernetesServiceAccount] =
-      MappedColumnType.base[KubernetesServiceAccount, String](_.value, KubernetesServiceAccount.apply)
+    implicit val kubernetesServiceAccountColumnType: BaseColumnType[ServiceAccountName] =
+      MappedColumnType.base[ServiceAccountName, String](_.value, ServiceAccountName.apply)
 
     implicit val nodepoolIdColumnType: BaseColumnType[NodepoolLeoId] =
       MappedColumnType.base[NodepoolLeoId, Long](_.id, NodepoolLeoId.apply)

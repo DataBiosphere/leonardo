@@ -9,6 +9,7 @@ import slick.lifted.Tag
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import akka.http.scaladsl.model.StatusCodes
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -25,7 +26,7 @@ final case class AppRecord(id: AppId,
                            release: Release,
                            samResourceId: AppSamResourceId,
                            googleServiceAccount: WorkbenchEmail,
-                           kubernetesServiceAccount: Option[KubernetesServiceAccount],
+                           kubernetesServiceAccount: Option[ServiceAccountName],
                            creator: WorkbenchEmail,
                            createdDate: Instant,
                            destroyedDate: Instant,
@@ -45,7 +46,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def release = column[Release]("release", O.Length(254))
   def samResourceId = column[AppSamResourceId]("samResourceId", O.Length(254))
   def googleServiceAccount = column[WorkbenchEmail]("googleServiceAccount", O.Length(254))
-  def kubernetesServiceAccount = column[Option[KubernetesServiceAccount]]("kubernetesServiceAccount", O.Length(254))
+  def kubernetesServiceAccount = column[Option[ServiceAccountName]]("kubernetesServiceAccount", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
@@ -148,7 +149,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
       diskOpt = saveApp.app.appResources.disk
 
-      ksaOpt = saveApp.app.appResources.kubernetesServiceAccount
+      ksaOpt = saveApp.app.appResources.kubernetesServiceAccountName
 
       record = AppRecord(
         AppId(-1),
@@ -185,11 +186,6 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(_.chart)
       .update(chart)
 
-  def updateKubernetesServiceAccount(id: AppId, ksa: KubernetesServiceAccount): DBIO[Int] =
-    getByIdQuery(id)
-      .map(_.kubernetesServiceAccount)
-      .update(Some(ksa))
-
   def markPendingDeletion(id: AppId): DBIO[Int] =
     updateStatus(id, AppStatus.Deleting)
 
@@ -205,6 +201,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id)
       .map(_.diskId)
       .update(None)
+
+  def updateKubernetesServiceAccount(id: AppId, ksa: ServiceAccountName): DBIO[Int] =
+    getByIdQuery(id)
+      .map(_.kubernetesServiceAccount)
+      .update(Option(ksa))
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)

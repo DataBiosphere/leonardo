@@ -17,6 +17,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   MockComputePollOperation,
@@ -108,6 +109,7 @@ class LeoPubsubMessageSubscriberSpec
                            MockHelm,
                            MockGalaxyDAO,
                            credentials,
+                           iamDAO,
                            blocker)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
@@ -627,8 +629,8 @@ class LeoPubsubMessageSubscriberSpec
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
       getApp.app.errors shouldBe List()
       getApp.app.status shouldBe AppStatus.Running
-      getApp.app.appResources.kubernetesServiceAccount shouldBe Some(
-        KubernetesServiceAccount("gxy-ksa")
+      getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
+        ServiceAccountName("gxy-ksa")
       )
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp.nodepool.status shouldBe NodepoolStatus.Running
@@ -687,8 +689,8 @@ class LeoPubsubMessageSubscriberSpec
       )
       getApp.app.appResources.disk shouldBe None
       getApp.app.status shouldBe AppStatus.Running
-      getApp.app.appResources.kubernetesServiceAccount shouldBe Some(
-        KubernetesServiceAccount("gxy-ksa")
+      getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
+        ServiceAccountName("gxy-ksa")
       )
     }
 
@@ -739,8 +741,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp2.nodepool.status shouldBe NodepoolStatus.Running
       getApp1.app.errors shouldBe List()
       getApp1.app.status shouldBe AppStatus.Running
-      getApp1.app.appResources.kubernetesServiceAccount shouldBe Some(
-        KubernetesServiceAccount("gxy-ksa")
+      getApp1.app.appResources.kubernetesServiceAccountName shouldBe Some(
+        ServiceAccountName("gxy-ksa")
       )
       getApp1.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
@@ -751,8 +753,8 @@ class LeoPubsubMessageSubscriberSpec
       )
       getApp2.app.errors shouldBe List()
       getApp2.app.status shouldBe AppStatus.Running
-      getApp2.app.appResources.kubernetesServiceAccount shouldBe Some(
-        KubernetesServiceAccount("gxy-ksa")
+      getApp2.app.appResources.kubernetesServiceAccountName shouldBe Some(
+        ServiceAccountName("gxy-ksa")
       )
     }
 
@@ -1140,6 +1142,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
+                             iamDAO,
                              blocker)
 
     val assertions = for {
@@ -1192,6 +1195,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
+                             iamDAO,
                              blocker)
 
     val assertions = for {
@@ -1332,8 +1336,8 @@ class LeoPubsubMessageSubscriberSpec
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Unspecified
       getApp.app.errors shouldBe List()
       getApp.app.status shouldBe AppStatus.Running
-      getApp.app.appResources.kubernetesServiceAccount shouldBe Some(
-        KubernetesServiceAccount("gxy-ksa")
+      getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
+        ServiceAccountName("gxy-ksa")
       )
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp.nodepool.status shouldBe NodepoolStatus.Running
