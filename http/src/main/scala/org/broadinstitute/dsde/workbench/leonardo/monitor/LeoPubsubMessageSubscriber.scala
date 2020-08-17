@@ -14,7 +14,7 @@ import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   DiskName,
@@ -24,15 +24,15 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   OperationName
 }
-import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -624,23 +624,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     for {
       ctx <- ev.ask
 
-      initialGoogleCall = msg.cluster
-        .traverse(createClusterMessage =>
-          gkeInterp.createCluster(createClusterMessage.clusterId, List(createClusterMessage.defaultNodepoolId), false)
-        )
-      clusterResult <- initialGoogleCall.adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-            Some(msg.appId),
-            false,
-            msg.cluster.map(_.defaultNodepoolId),
-            msg.cluster.map(_.clusterId)
+      // kick off cluster creation if necessary
+      createAndPollCluster = msg.cluster
+        .traverse_ { c =>
+          gkeInterp.createAndPollCluster(
+            CreateClusterParams(c.clusterId, msg.project, List(c.defaultNodepoolId), false)
           )
-      }
-
-      createClusterAndNodepool = for {
-        _ <- clusterResult.traverse(result => gkeInterp.pollCluster(result)).adaptError {
+        }
+        .adaptError {
           case e =>
             PubsubKubernetesError(
               AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
@@ -651,8 +642,25 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             )
         }
 
+      // kick off disk creation if necessary
+      createDisk = createDiskForApp(msg).adaptError {
+        case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
+            Some(msg.appId),
+            false,
+            None,
+            None
+          )
+      }
+
+      parPreAppCreationSetup = List(createAndPollCluster, createDisk).parSequence.flatMap(_ => F.unit)
+
+      task = for {
+        _ <- parPreAppCreationSetup
+        // create node pool if necessary
         _ <- msg.nodepoolId.traverse { nodepoolId =>
-          gkeInterp.createAndPollNodepool(nodepoolId, msg.appId).adaptError {
+          gkeInterp.createAndPollNodepool(CreateNodepoolParams(nodepoolId, msg.project)).adaptError {
             case e =>
               PubsubKubernetesError(
                 AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
@@ -663,23 +671,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               )
           }
         }
-      } yield ()
-
-      diskCreation = createDiskForApp(msg).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
-            Some(msg.appId),
-            false,
-            None,
-            None
-          )
-      }
-      parPreAppCreationSetup = List(createClusterAndNodepool, diskCreation).parSequence.flatMap(_ => F.unit)
-
-      task = for {
-        _ <- parPreAppCreationSetup
-        _ <- gkeInterp.createAndPollApp(msg).adaptError {
+        // create app
+        _ <- gkeInterp.createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName)).adaptError {
           case e =>
             PubsubKubernetesError(
               AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
@@ -701,28 +694,19 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      initialGoogleCall = gkeInterp.createCluster(msg.clusterId, msg.nodepools, true)
-      clusterResult <- initialGoogleCall.adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-            None,
-            false,
-            None,
-            Some(msg.clusterId)
-          )
-      }
 
-      task = gkeInterp.pollCluster(clusterResult).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-            None,
-            false,
-            None,
-            Some(msg.clusterId)
-          )
-      }
+      task = gkeInterp
+        .createAndPollCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
+        .adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+              None,
+              false,
+              None,
+              Some(msg.clusterId)
+            )
+        }
 
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
@@ -780,14 +764,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(s"beginning delete app for app ${msg.project}/${msg.appName}")
 
-      initialGoogleCall = for {
-        getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
-        getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
-        deleteResult <- gkeInterp.deleteNodepool(getApp)
-      } yield (getApp, deleteResult)
-      (getApp, deleteResult) <- initialGoogleCall.adaptError {
+      deleteNodepool = gkeInterp.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.project)).adaptError {
         case e =>
           PubsubKubernetesError(
             AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, None),
@@ -798,39 +776,35 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           )
       }
 
+      deleteApp = gkeInterp.deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName)).adaptError {
+        case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
+            Some(msg.appId),
+            false,
+            None,
+            None
+          )
+      }
+
+      deleteDisk = msg.diskId.traverse(diskId => deleteDiskForApp(diskId)).adaptError {
+        case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
+            Some(msg.appId),
+            false,
+            None,
+            None
+          )
+      }
+
+      // TODO: can some of this be done in parallel?
       task = for {
-        _ <- gkeInterp.pollNodepool(deleteResult).adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, None),
-              Some(msg.appId),
-              false,
-              Some(msg.nodepoolId),
-              None
-            )
-        }
-        _ <- gkeInterp.deleteAndPollApp(getApp).adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
-        _ <- msg.diskId.traverse(diskId => deleteDiskForApp(diskId)).adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
-        _ <- logger.info(s"completed delete app for app ${msg.project}/${msg.appName}")
+        _ <- deleteApp
+        _ <- deleteNodepool
+        _ <- deleteDisk
       } yield ()
+
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
       )

@@ -7,7 +7,7 @@ import KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCreateRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateAppRequest,
-  DeleteAppParams,
+  DeleteAppRequest,
   GetAppResponse,
   ListAppResponse
 }
@@ -30,7 +30,7 @@ class MockKubernetesServiceInterp extends KubernetesService[IO] {
   ): IO[Vector[ListAppResponse]] =
     IO.pure(listAppResponse)
 
-  override def deleteApp(params: DeleteAppParams)(
+  override def deleteApp(request: DeleteAppRequest)(
     implicit as: ApplicativeAsk[IO, AppContext]
   ): IO[Unit] =
     IO.unit

@@ -213,34 +213,34 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         .toVector
     }
 
-  override def deleteApp(params: DeleteAppParams)(
+  override def deleteApp(request: DeleteAppRequest)(
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(request.googleProject, request.appName).transaction
+      appResult <- F.fromOption(appOpt, AppNotFoundException(request.googleProject, request.appName, ctx.traceId))
 
-      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, params.userInfo)
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, request.userInfo)
 
       // throw 404 if no GetAppStatus permission
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
       _ <- if (hasReadPermission) F.unit
-      else F.raiseError[Unit](AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      else F.raiseError[Unit](AppNotFoundException(request.googleProject, request.appName, ctx.traceId))
 
       // throw 403 if no DeleteApp permission
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(params.userInfo.userEmail))
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(request.userInfo.userEmail))
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <- if (canDelete) F.unit
       else
         F.raiseError[Unit](
-          AppCannotBeDeletedException(params.googleProject, params.appName, appResult.app.status, ctx.traceId)
+          AppCannotBeDeletedException(request.googleProject, request.appName, appResult.app.status, ctx.traceId)
         )
 
       _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
-      diskOpt <- if (params.deleteDisk)
+      diskOpt <- if (request.deleteDisk)
         appResult.app.appResources.disk.fold(
           F.raiseError[Option[DiskId]](
             NoDiskForAppException(appResult.cluster.googleProject, appResult.app.appName, ctx.traceId)

@@ -5,7 +5,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCreateRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateAppRequest,
-  DeleteAppParams,
+  DeleteAppRequest,
   GetAppResponse,
   ListAppResponse
 }
@@ -36,7 +36,7 @@ trait KubernetesService[F[_]] {
     params: Map[String, String]
   )(implicit as: ApplicativeAsk[F, AppContext]): F[Vector[ListAppResponse]]
 
-  def deleteApp(params: DeleteAppParams)(
+  def deleteApp(request: DeleteAppRequest)(
     implicit as: ApplicativeAsk[F, AppContext]
   ): F[Unit]
 }

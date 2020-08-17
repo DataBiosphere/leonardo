@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   DiskAlreadyAttachedException,
   LeoKubernetesServiceInterp
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.DeleteAppParams
+import org.broadinstitute.dsde.workbench.leonardo.http.DeleteAppRequest
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -216,7 +216,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     appResultPreDelete.get.app.status shouldEqual AppStatus.Running
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    val params = DeleteAppParams(userInfo, project, appName, false)
+    val params = DeleteAppRequest(userInfo, project, appName, false)
     kubeServiceInterp.deleteApp(params).unsafeRunSync()
     val clusterPostDelete = dbFutureValue {
       KubernetesServiceDbQueries.listFullApps(Some(project), includeDeleted = true)
@@ -255,7 +255,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    val params = DeleteAppParams(userInfo, project, appName, false)
+    val params = DeleteAppRequest(userInfo, project, appName, false)
     the[AppCannotBeDeletedException] thrownBy {
       kubeServiceInterp.deleteApp(params).unsafeRunSync()
     }

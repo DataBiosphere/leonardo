@@ -27,7 +27,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   GetRuntimeResponse,
   RuntimeService
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppParams, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.service.{
   BaseMockRuntimeServiceInterp,
   KubernetesService,
@@ -193,12 +192,12 @@ class HttpRoutesSpec
 
   it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in {
     val kubernetesService = new MockKubernetesServiceInterp {
-      override def deleteApp(deleteAppRequest: DeleteAppParams)(
+      override def deleteApp(request: DeleteAppRequest)(
         implicit as: ApplicativeAsk[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteApp =
-          DeleteAppParams(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)
-        deleteAppRequest shouldBe expectedDeleteApp
+          DeleteAppRequest(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)
+        request shouldBe expectedDeleteApp
       }
     }
     val routes = fakeRoutes(kubernetesService)

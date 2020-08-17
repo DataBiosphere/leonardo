@@ -3,7 +3,7 @@ package util
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Timer}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.container.v1.MasterAuthorizedNetworksConfig.CidrBlock
@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateAppMessage
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
@@ -38,32 +37,264 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
-  timer: Timer[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
-  F: ConcurrentEffect[F]) {
+  F: ConcurrentEffect[F])
+    extends GKEAlgebra[F] {
 
-  def createAndPollApp(msg: CreateAppMessage)(
+  override def createAndPollCluster(params: CreateClusterParams)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(s"beginning app creation for app ${msg.appId} | trace id : ${ctx.traceId}")
-      getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
-      getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
-      gkeClusterId = getApp.cluster.getGkeClusterId
-      namespaceName = getApp.app.appResources.namespace.name
+      _ <- logger.info(
+        s"Beginning cluster creation for cluster ${params.clusterId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
+      )
+
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
+      dbCluster <- F.fromOption(
+        clusterOpt,
+        KubernetesClusterNotFoundException(
+          s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId} not found in database"
+        )
+      )
+      nodepools = dbCluster.nodepools
+        .filter(n => params.nodepoolsToCreate.contains(n.id))
+        .map(getGoogleNodepool)
+
+      _ <- if (nodepools.size != params.nodepoolsToCreate.size)
+        F.raiseError[Unit](
+          ClusterCreationException(
+            s"CreateCluster was called with nodepools that are not present in the database for cluster ${params.clusterId}. Nodepools to create: ${params.nodepoolsToCreate}"
+          )
+        )
+      else F.unit
+
+      defaultNodepool <- F.fromOption(dbCluster.nodepools.filter(_.isDefault).headOption,
+                                      DefaultNodepoolNotFoundException(dbCluster.id))
+
+      // Set up VPC and firewall
+      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+        SetUpProjectNetworkParams(params.googleProject)
+      )
+      _ <- vpcAlg.setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(params.googleProject, network)
+      )
+
+      kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network).idString
+      kubeSubNetwork = KubernetesSubNetwork(dbCluster.googleProject, dbCluster.region, subnetwork).idString
+
+      cidrBuilder = CidrBlock.newBuilder()
+      _ <- F.delay(config.clusterConfig.authorizedNetworks.foreach(cidrIP => cidrBuilder.setCidrBlock(cidrIP.value)))
+
+      createClusterReq = Cluster
+        .newBuilder()
+        .setName(dbCluster.clusterName.value)
+        .addAllNodePools(
+          nodepools.asJava
+        )
+        // all the below code corresponds to security recommendations
+        .setLegacyAbac(LegacyAbac.newBuilder().setEnabled(false))
+        .setNetwork(kubeNetwork)
+        .setSubnetwork(kubeSubNetwork)
+        .setNetworkPolicy(
+          NetworkPolicy
+            .newBuilder()
+            .setEnabled(true)
+        )
+        .setMasterAuthorizedNetworksConfig(
+          MasterAuthorizedNetworksConfig
+            .newBuilder()
+            .setEnabled(true)
+            .addAllCidrBlocks(
+              config.clusterConfig.authorizedNetworks
+                .map(ip => CidrBlock.newBuilder().setCidrBlock(ip.value).build())
+                .asJava
+            )
+        )
+        .setIpAllocationPolicy( //otherwise it uses the legacy one, which is insecure. See https://cloud.google.com/kubernetes-engine/docs/how-to/alias-ips
+          IPAllocationPolicy
+            .newBuilder()
+            .setUseIpAliases(true)
+        )
+        .build()
+
+      req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, createClusterReq)
+      op <- gkeService.createCluster(req)
+
+      lastOp <- gkeService
+        .pollOperation(
+          KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
+          config.monitorConfig.clusterCreate.interval,
+          config.monitorConfig.clusterCreate.maxAttempts
+        )
+        .compile
+        .lastOrError
+
+      _ <- if (lastOp.isDone)
+        logger.info(
+          s"Create cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"Create cluster operation has failed for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+        ) >>
+          // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
+          F.raiseError[Unit](
+            ClusterCreationException(
+              s"Failed to poll cluster creation operation to completion for cluster ${params.clusterId}"
+            )
+          )
+
+      //TODO helm install
+
+      _ <- kubernetesClusterQuery
+        .updateAsyncFields(
+          dbCluster.id,
+          KubernetesClusterAsyncFields(
+            IP("0.0.0.0"), //TODO: fill this out after ingress is installed
+            NetworkFields(
+              network,
+              subnetwork,
+              Config.vpcConfig.subnetworkIpRange
+            )
+          )
+        )
+        .transaction
+      _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
+      _ <- nodepoolQuery.updateStatus(defaultNodepool.id, NodepoolStatus.Running).transaction
+      _ <- if (params.isNodepoolPrecreate)
+        nodepoolQuery.markAsUnclaimed(dbCluster.nodepools.filterNot(_.isDefault).map(_.id)).transaction
+      else F.unit
+
+    } yield ()
+
+  override def createAndPollNodepool(params: CreateNodepoolParams)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Beginning nodepool creation for nodepool ${params.nodepoolId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
+      )
+      dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
+      dbNodepool <- F.fromOption(dbNodepoolOpt, NodepoolNotFoundException(params.nodepoolId))
+      dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
+      dbCluster <- F.fromOption(
+        dbClusterOpt,
+        KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId} not found in database")
+      )
+      req = KubernetesCreateNodepoolRequest(
+        dbCluster.getGkeClusterId,
+        getGoogleNodepool(dbNodepool)
+      )
+      op <- gkeService.createNodepool(req)
+      lastOp <- gkeService
+        .pollOperation(
+          KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
+          config.monitorConfig.nodepoolCreate.interval,
+          config.monitorConfig.nodepoolCreate.maxAttempts
+        )
+        .compile
+        .lastOrError
+      _ <- if (lastOp.isDone)
+        logger.info(
+          s"Nodepool creation operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"Create nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        ) >>
+          // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
+          F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
+      _ <- nodepoolQuery.updateStatus(params.nodepoolId, NodepoolStatus.Running).transaction
+    } yield ()
+
+  override def createAndPollApp(params: CreateAppParams)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Beginning app creation for app ${params.appId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
+      )
+      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
+      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      gkeClusterId = dbApp.cluster.getGkeClusterId
+      namespaceName = dbApp.app.appResources.namespace.name
 
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
       secrets <- getSecrets(namespaceName)
       _ <- secrets.parTraverse(secret =>
         kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
       )
-      _ <- logger.info(s"finished app creation for ${msg.appId}")
+      _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
       //TODO create svc accts
       //TODO helm create ingress
       //TODO helm create galaxy
-      _ <- appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
+      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+    } yield ()
+
+  override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+    // TODO not yet implemented
+    F.unit
+
+  override def deleteAndPollNodepool(
+    params: DeleteNodepoolParams
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Beginning nodepool deletion for nodepool ${params.nodepoolId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
+      )
+      dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
+      dbNodepool <- F.fromOption(dbNodepoolOpt, NodepoolNotFoundException(params.nodepoolId))
+      dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
+      dbCluster <- F.fromOption(
+        dbClusterOpt,
+        KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId} not found in database")
+      )
+      op <- gkeService.deleteNodepool(
+        NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
+      )
+      lastOp <- gkeService
+        .pollOperation(
+          KubernetesOperationId(params.googleProject, dbCluster.location, op),
+          config.monitorConfig.nodepoolDelete.interval,
+          config.monitorConfig.nodepoolDelete.maxAttempts
+        )
+        .compile
+        .lastOrError
+      _ <- if (lastOp.isDone)
+        logger.info(
+          s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        ) >>
+          F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
+      _ <- nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction
+    } yield ()
+
+  override def deleteAndPollApp(params: DeleteAppParams)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Beginning app deletion for app ${params.appId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
+      )
+      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
+      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      // TODO is deleting the namespace enough or should we helm uninstall as well?
+      _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
+                                       KubernetesNamespace(dbApp.app.appResources.namespace.name))
+      // TODO actually monitor for deletion
+      _ <- logger.info(
+        s"Delete app operation has finished for nodepool ${params.appId} | trace id: ${ctx.traceId}"
+      )
+      _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
     } yield ()
 
   private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
@@ -117,208 +348,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
 
     builderWithAutoscaling.build()
   }
-
-  def createCluster(clusterId: KubernetesClusterLeoId,
-                    nodepoolsToCreate: List[NodepoolLeoId],
-                    isNodepoolPrecreate: Boolean)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CreateClusterResult] =
-    for {
-      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(clusterId).transaction
-      dbCluster <- F.fromOption(
-        clusterOpt,
-        KubernetesClusterNotFoundException(
-          s"Failed kubernetes cluster creation. Cluster with id ${clusterId} not found in database"
-        )
-      )
-      _ <- logger.info(s"beginning cluster creation for cluster ${clusterId} in project ${dbCluster.googleProject}")
-
-      nodepools = dbCluster.nodepools
-        .filter(n => nodepoolsToCreate.contains(n.id))
-        .map(getGoogleNodepool(_))
-
-      _ <- if (nodepools.size != nodepoolsToCreate.size)
-        F.raiseError[Unit](
-          ClusterCreationException(
-            s"createCluster was called with nodepools that are not present in the database for cluster ${dbCluster.id}. Nodepools to create: ${nodepoolsToCreate}"
-          )
-        )
-      else F.unit
-
-      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(dbCluster.googleProject)
-      )
-
-      kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network).idString
-      kubeSubNetwork = KubernetesSubNetwork(dbCluster.googleProject, dbCluster.region, subnetwork).idString
-
-      cidrBuilder = CidrBlock.newBuilder()
-      _ <- F.delay(config.clusterConfig.authorizedNetworks.foreach(cidrIP => cidrBuilder.setCidrBlock(cidrIP.value)))
-
-      createClusterReq = Cluster
-        .newBuilder()
-        .setName(dbCluster.clusterName.value)
-        .addAllNodePools(
-          nodepools.asJava
-        )
-        // all the below code corresponds to security recommendations
-        .setLegacyAbac(LegacyAbac.newBuilder().setEnabled(false))
-        .setNetwork(kubeNetwork)
-        .setSubnetwork(kubeSubNetwork)
-        .setNetworkPolicy(
-          NetworkPolicy
-            .newBuilder()
-            .setEnabled(true)
-        )
-        .setMasterAuthorizedNetworksConfig(
-          MasterAuthorizedNetworksConfig
-            .newBuilder()
-            .setEnabled(true)
-            .addAllCidrBlocks(
-              config.clusterConfig.authorizedNetworks
-                .map(ip => CidrBlock.newBuilder().setCidrBlock(ip.value).build())
-                .asJava
-            )
-        )
-        .setIpAllocationPolicy( //otherwise it uses the legacy one, which is insecure. See https://cloud.google.com/kubernetes-engine/docs/how-to/alias-ips
-          IPAllocationPolicy
-            .newBuilder()
-            .setUseIpAliases(true)
-        )
-        .build()
-
-      req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, createClusterReq)
-      op <- gkeService.createCluster(req)
-    } yield CreateClusterResult(NetworkFields(
-                                  network,
-                                  subnetwork,
-                                  Config.vpcConfig.subnetworkIpRange
-                                ),
-                                clusterId,
-                                isNodepoolPrecreate,
-                                op)
-
-  def pollCluster(clusterResult: CreateClusterResult)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    for {
-      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(clusterResult.clusterId).transaction
-      dbCluster <- F.fromOption(
-        clusterOpt,
-        KubernetesClusterNotFoundException(s"cluster with id ${clusterResult.clusterId} not found in database")
-      )
-      defaultNodepool <- F.fromOption(dbCluster.nodepools.filter(_.isDefault).headOption,
-                                      DefaultNodepoolNotFoundException(dbCluster.id))
-      lastOp <- gkeService
-      //TODO: refactor this to handle interupts
-        .pollOperation(
-          KubernetesOperationId(dbCluster.googleProject, dbCluster.location, clusterResult.operation),
-          config.monitorConfig.clusterCreate.interval,
-          config.monitorConfig.clusterCreate.maxAttempts
-        )
-        .compile
-        .lastOrError
-      _ <- if (lastOp.isDone) logger.info(s"Create cluster operation has finished for cluster ${dbCluster.id}")
-      else
-        logger.error(s"Create cluster operation has failed for cluster ${dbCluster.id}") >> F.raiseError[Unit](
-          ClusterCreationException(
-            s"Failed to poll cluster creation operation to completion for cluster ${dbCluster.id} and default nodepool ${defaultNodepool.id}"
-          )
-        )
-
-      _ <- kubernetesClusterQuery
-        .updateAsyncFields(
-          dbCluster.id,
-          KubernetesClusterAsyncFields(
-            IP("0.0.0.0"), //TODO: fill this out after ingress is installed
-            clusterResult.networkFields
-          )
-        )
-        .transaction
-      _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
-      _ <- nodepoolQuery.updateStatus(defaultNodepool.id, NodepoolStatus.Running).transaction
-      _ <- if (clusterResult.isNodepoolPrecreate)
-        nodepoolQuery.markAsUnclaimed(dbCluster.nodepools.filterNot(_.isDefault).map(_.id)).transaction
-      else F.unit
-    } yield ()
-
-  def createAndPollNodepool(nodepoolId: NodepoolLeoId, appId: AppId)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    for {
-      _ <- logger.info(s"beginning nodepool creation for app ${appId}")
-      dbNodepoolOpt <- nodepoolQuery.getMinimalById(nodepoolId).transaction
-      dbNodepool <- F.fromOption(dbNodepoolOpt, NodepoolNotFoundException(nodepoolId))
-      dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
-      dbCluster <- F.fromOption(
-        dbClusterOpt,
-        KubernetesClusterNotFoundException(s"cluster with id ${dbNodepool.clusterId} not found in database")
-      )
-      req = KubernetesCreateNodepoolRequest(
-        dbCluster.getGkeClusterId,
-        getGoogleNodepool(dbNodepool)
-      )
-      op <- gkeService.createNodepool(req)
-      lastOp <- gkeService
-      //TODO: refactor this to handle interupts
-        .pollOperation(
-          KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
-          config.monitorConfig.nodepoolCreate.interval,
-          config.monitorConfig.nodepoolCreate.maxAttempts
-        )
-        .compile
-        .lastOrError
-      _ <- if (lastOp.isDone) logger.info(s"Nodepool creation operation has finished for nodepool ${nodepoolId}")
-      else
-        logger.error(s"Create nodepool operation has failed or timed out for nodepool $nodepoolId") >> F
-          .raiseError[Unit](NodepoolCreationException(nodepoolId))
-      _ <- nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Running).transaction
-    } yield ()
-
-  def deleteNodepool(getAppResult: GetAppResult)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[DeleteNodepoolResult] = {
-    val nodepoolId = getAppResult.nodepool.id
-    for {
-      op <- gkeService.deleteNodepool(
-        NodepoolId(getAppResult.cluster.getGkeClusterId, getAppResult.nodepool.nodepoolName)
-      )
-      //TODO: refactor this to handle interupts
-    } yield DeleteNodepoolResult(nodepoolId, op, getAppResult)
-  }
-
-  def pollNodepool(result: DeleteNodepoolResult)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      lastOp <- gkeService
-        .pollOperation(
-          KubernetesOperationId(result.getAppResult.cluster.googleProject,
-                                result.getAppResult.cluster.location,
-                                result.operation),
-          config.monitorConfig.nodepoolDelete.interval,
-          config.monitorConfig.nodepoolDelete.maxAttempts
-        )
-        .compile
-        .lastOrError
-      _ <- if (lastOp.isDone) F.unit
-      else
-        logger.error(s"Delete nodepool operation has failed or timed out for nodepool ${result.nodepoolId}") >> F
-          .raiseError[Unit](NodepoolDeletionException(result.nodepoolId))
-      _ <- nodepoolQuery.markAsDeleted(result.nodepoolId, ctx.now).transaction
-    } yield ()
-
-  def deleteAndPollApp(getAppResult: GetAppResult)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    //TODO: this should actually monitor the deletion went through successfully before updating the status
-    for {
-      now <- nowInstant
-      _ <- kubeService.deleteNamespace(getAppResult.cluster.getGkeClusterId,
-                                       KubernetesNamespace(getAppResult.app.appResources.namespace.name))
-      _ <- appQuery.markAsDeleted(getAppResult.app.id, now).transaction
-    } yield ()
 }
 
 sealed trait AppProcessingException extends Exception {
@@ -344,11 +373,6 @@ final case class AppCreationException(message: String) extends AppProcessingExce
 final case class AppDeletionException(message: String) extends AppProcessingException {
   override def getMessage: String = message
 }
-
-final case class CreateClusterResult(networkFields: NetworkFields,
-                                     clusterId: KubernetesClusterLeoId,
-                                     isNodepoolPrecreate: Boolean,
-                                     operation: com.google.container.v1.Operation)
 
 final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       operation: com.google.container.v1.Operation,
