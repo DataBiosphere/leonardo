@@ -618,7 +618,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       )
     } yield ()
 
-  def handleCreateAppMessage(msg: CreateAppMessage)(
+  private[monitor] def handleCreateAppMessage(msg: CreateAppMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -689,7 +689,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       )
     } yield ()
 
-  def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage)(
+  private[monitor] def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -713,53 +713,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       )
     } yield ()
 
-  private def handleKubernetesError(e: Throwable): F[Unit] =
-    e match {
-      case e: PubsubKubernetesError =>
-        for {
-          _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
-          _ <- e.appId.traverse(id => appQuery.updateStatus(id, AppStatus.Error).transaction)
-          _ <- e.clusterId.traverse(clusterId =>
-            kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
-          )
-          _ <- e.nodepoolId.traverse(nodepoolId =>
-            nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction
-          )
-          _ <- logger.error(e)(s"updating db state for an async error for app ${e.appId}")
-        } yield ()
-      case _ =>
-        F.raiseError(
-          new RuntimeException(s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}")
-        )
-    }
-
-  private def deleteDiskForApp(diskId: DiskId)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    deleteDisk(diskId, true)
-
-  private def createDiskForApp(msg: CreateAppMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
-    msg.createDisk match {
-      case true =>
-        for {
-          _ <- logger.info(s"Beginning disk creation for app ${msg.appId}")
-          ctx <- ev.ask
-          getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
-          getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
-          disk <- F.fromOption(
-            getApp.app.appResources.disk,
-            AppCreationException(
-              s"create disk was true for create app message, but app ${getApp.app.id} does not have a disk id saved"
-            )
-          )
-          _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), true)
-        } yield ()
-      case false => F.unit
-    }
-
-  def handleDeleteAppMessage(msg: DeleteAppMessage)(
+  private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -809,6 +763,53 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
       )
     } yield ()
+
+  private def handleKubernetesError(e: Throwable)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+    e match {
+      case e: PubsubKubernetesError =>
+        for {
+          ctx <- ev.ask
+          _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
+          _ <- e.appId.traverse(id => appQuery.updateStatus(id, AppStatus.Error).transaction)
+          _ <- e.clusterId.traverse(clusterId =>
+            kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
+          )
+          _ <- e.nodepoolId.traverse(nodepoolId =>
+            nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction
+          )
+          _ <- logger.error(e)(s"updating db state for an async error for app ${e.appId} | trace id: ${ctx.traceId}")
+        } yield ()
+      case _ =>
+        F.raiseError(
+          new RuntimeException(s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}")
+        )
+    }
+
+  private def deleteDiskForApp(diskId: DiskId)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    deleteDisk(diskId, true)
+
+  private def createDiskForApp(msg: CreateAppMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    msg.createDisk match {
+      case true =>
+        for {
+          ctx <- ev.ask
+          _ <- logger.info(s"Beginning disk creation for app ${msg.appId} | trace id: ${ctx.traceId}")
+          getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
+          getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
+          disk <- F.fromOption(
+            getApp.app.appResources.disk,
+            AppCreationException(
+              s"create disk was true for create app message, but app ${getApp.app.id} does not have a disk id saved"
+            )
+          )
+          _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), true)
+        } yield ()
+      case false => F.unit
+    }
 
   private def createRuntimeErrorHandler(msg: CreateRuntimeMessage, now: Instant)(e: Throwable): F[Unit] =
     for {

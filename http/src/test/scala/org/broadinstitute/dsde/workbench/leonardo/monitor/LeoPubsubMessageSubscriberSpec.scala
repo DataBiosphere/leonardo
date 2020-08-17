@@ -813,7 +813,9 @@ class LeoPubsubMessageSubscriberSpec
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
     } yield ()
     res.unsafeRunSync()
     assertions.unsafeRunSync()
@@ -1131,7 +1133,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.status shouldBe AppStatus.Error
       getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.App)
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
     }
 
     val res = for {
